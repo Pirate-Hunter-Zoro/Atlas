@@ -339,7 +339,9 @@ SPEECH_SENSE = (
     "Mandarin, and gets a play button. A `[speech]` line is a take they "
     "recorded: what was heard, the target and the verdict; its `file:` is the "
     "heard record, which `board hear <file>` prints with each syllable's tone. "
-    "A tone marked unknown was not judged, so never call it wrong. Run the "
+    "The local tone check is a prototype: a tone marked unknown was not "
+    "judged, so never call it wrong, and a tone it calls off is worth a "
+    "second listen, not a verdict. Run the "
     "drill as TEACHING.md says under `A speaking drill`. "
 )
 

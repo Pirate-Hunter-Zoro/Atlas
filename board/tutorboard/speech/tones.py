@@ -6,9 +6,12 @@ meant to be? Standard library only. A PROTOTYPE, and every result says so.
                  repaired against the local median
     semitones    each voiced frame against the speaker's own median
     syllables    from whisper's word timings when they count out right, else
-                 the voiced runs merged (or split) to the target count
-    classify     each syllable's contour against T1-T4 and the neutral tone;
-                 a low-confidence call is `unknown`, never a guess
+                 the voiced runs (a loud stretch where pitch was lost is no
+                 gap) merged or split to the target count
+    classify     each syllable's contour against T1-T4 and the neutral tone,
+                 by shape and register, a dipping second tone and the half
+                 third accepted where they are spoken; a low-confidence call
+                 is `unknown`, never a guess
     dtw          the whole contour against the TTS reference's, when there is one
     word_diff    what was said against what was meant, word by word
 
@@ -38,8 +41,19 @@ QUIET = 0.08
 # Frames bridged inside a run, and the shortest run kept.
 GAP_FRAMES = 2
 MIN_RUN = 4
-# A call below this is `unknown`.
-SURE = 0.3
+# An unvoiced frame at least this share of the loudest is inside a syllable.
+LOUD_GAP = 0.5
+# A call below this is `unknown`. Calibrated on the board's own reference
+# voice (test/speech.py renders ten phrases with `say -v Tingting`): no
+# syllable there is called wrong above 0.26, and SURE keeps clear of it.
+SURE = 0.35
+# The weight of a contour's level outside its tone's REGISTER, and of its
+# gap from the template's own level, against the shape's.
+LEVEL, LEVEL_SOFT = 1.0, 0.1
+# A best fit further than FIT loses its confidence over FIT_SPAN more.
+FIT, FIT_SPAN = 1.5, 3.0
+# The share of a syllable's frames that must carry pitch for a full call.
+VOICED = 0.6
 
 LABEL = "local tone check, a prototype"
 
@@ -47,10 +61,17 @@ LABEL = "local tone check, a prototype"
 TEMPLATES = {
     "T1": [2.5, 2.5, 2.5, 2.5, 2.5],
     "T2": [-1.0, -0.5, 0.5, 2.0, 3.5],
-    "T3": [-2.0, -3.5, -4.5, -4.0, -2.5],
+    "T3": [-1.0, -3.5, -5.5, -5.0, -3.0],
     "T4": [4.0, 3.0, 1.0, -1.5, -4.0],
     "neutral": [0.0, -0.5, -1.0, -1.5, -2.0],
 }
+# Other shapes a tone is spoken in: a second tone that dips before it rises.
+VARIANTS = {"T2": [[-1.5, -2.5, -3.0, -2.5, -1.0]]}
+# The half third: a third tone before another tone, low and level or falling.
+HALF_THIRD = [-3.0, -3.3, -3.6, -3.9, -4.2]
+# Where each tone's mean may sit, in semitones from the speaker's median.
+REGISTER = {"T1": (-1.0, 99.0), "T2": (-7.0, 99.0), "T3": (-99.0, 1.5),
+            "T4": (-7.0, 99.0)}
 
 TONE_MARKS = {
     "ā": ("a", 1), "á": ("a", 2), "ǎ": ("a", 3), "à": ("a", 4),
@@ -154,9 +175,10 @@ def segment(run):
 
 
 def targets(pinyin):
-    """`[{syllable, target, expect}]` for `ni3 hao3`, `nǐ hǎo` or `nǐhǎo`:
-    the written tone, and the one spoken once third-tone and 不 sandhi are
-    applied, each phrase (between commas and stops) on its own."""
+    """`[{syllable, target, expect, last}]` for `ni3 hao3`, `nǐ hǎo` or
+    `nǐhǎo`: the written tone, and the one spoken once third-tone and 不
+    sandhi are applied, each phrase (between commas and stops) on its own;
+    `last` ends its phrase."""
     said = unicodedata.normalize("NFC", str(pinyin or "")).lower()
     said = said.replace("u:", "ü").replace("v", "ü")
     toned = bool(re.search(r"[1-5]", said) or any(c in TONE_MARKS for c in said))
@@ -177,6 +199,7 @@ def targets(pinyin):
                     phrase.append({"syllable": syl, "target": _tone_name(tone)})
         for s in phrase:
             s["expect"] = s["target"]
+            s["last"] = s is phrase[-1]
         # Third tone before third tone is spoken as a second.
         for i in range(len(phrase) - 1):
             if phrase[i]["target"] == "T3" and phrase[i + 1]["target"] == "T3":
@@ -313,9 +336,11 @@ def semitones(track):
 # ---------------------------------------------------------------------------
 # syllables
 # ---------------------------------------------------------------------------
-def voiced_runs(track):
+def voiced_runs(track, rms=None):
     """`[[start, end)]` frame spans of voicing, gaps of GAP_FRAMES bridged and
-    runs shorter than MIN_RUN dropped."""
+    runs shorter than MIN_RUN dropped. With `rms`, a gap that stays loud
+    (pitch lost inside a syllable, not a pause between two) is bridged too."""
+    loud = max(rms) if rms else 0.0
     runs, start, gap = [], None, 0
     for i, v in enumerate(list(track) + [0] * (GAP_FRAMES + 1)):
         if v > 0:
@@ -324,6 +349,8 @@ def voiced_runs(track):
             gap = 0
             end = i + 1
         elif start is not None:
+            if loud and i < len(rms) and rms[i] >= LOUD_GAP * loud:
+                continue
             gap += 1
             if gap > GAP_FRAMES:
                 if end - start >= MIN_RUN:
@@ -388,29 +415,54 @@ def _five(points):
     return out
 
 
-def _distance(c, t):
+def _distance(c, t, tone, soft=None):
+    """How far contour `c` is from template `t` of `tone`: the shape, then
+    the register, which a tone cannot leave (a low flat syllable is no first
+    tone, a high one no third), then a little of the template's own level."""
     mc, mt = sum(c) / 5.0, sum(t) / 5.0
     shape = math.sqrt(sum(((a - mc) - (b - mt)) ** 2 for a, b in zip(c, t)) / 5.0)
-    # The level counts for less than the shape: in a short phrase the
-    # speaker's median sits between its tones.
-    return shape + 0.3 * abs(mc - mt)
+    lo, hi = REGISTER.get(tone, (-99.0, 99.0))
+    outside = max(0.0, lo - mc, mc - hi)
+    soft = LEVEL_SOFT if soft is None else soft
+    return shape + LEVEL * outside + soft * abs(mc - mt)
 
 
-def classify(st, span, short=False):
+def classify(st, span, short=False, half=False, expect=None):
     """`(tone, confidence, contour)` for frames `span` of the semitone track.
-    `short`: the syllable is brief enough to be a neutral tone."""
+
+    `short`: brief enough to be a neutral tone. `half`: a third tone before
+    another tone in its phrase, spoken low and level or low-falling (the half
+    third), which is heard as T3 there. `expect`: the tone meant; a neutral
+    tone, whose pitch follows the tone before it, is never called wrong, only
+    neutral or `unknown`."""
     a, b = span
     cut = max(0, (b - a) // 10)
-    points = [v for v in st[a + cut:b - cut] if v is not None]
+    inner = st[a + cut:b - cut]
+    points = [v for v in inner if v is not None]
     if len(points) < MIN_RUN:
         return "unknown", 0.0, []
     c = _five(points)
-    names = [k for k in TEMPLATES if k != "neutral" or short]
-    ranked = sorted((_distance(c, TEMPLATES[k]), k) for k in names)
+    shapes = [(k, t) for k, t in TEMPLATES.items()
+              if k != "neutral" or short or expect == "neutral"]
+    shapes += [(k, t) for k, ts in VARIANTS.items() for t in ts]
+    best_of = {}
+    for k, t in shapes:
+        d = _distance(c, t, k)
+        best_of[k] = min(d, best_of.get(k, d))
+    if half:
+        # Low by its register alone: no pull toward the template's own level.
+        d = _distance(c, HALF_THIRD, "T3", soft=0.0)
+        best_of["T3"] = min(d, best_of.get("T3", d))
+    ranked = sorted((d, k) for k, d in best_of.items())
     (d1, best), (d2, _second) = ranked[0], ranked[1]
     sure = (d2 - d1) / d2 if d2 > 0 else 0.0
-    if d1 > 1.5:
-        sure *= max(0.0, 1.0 - (d1 - 1.5) / 3.0)
+    if expect == "neutral" and best != "neutral":
+        sure = 0.0
+    # A poor fit to the best template is no call, however far the second.
+    if d1 > FIT:
+        sure *= max(0.0, 1.0 - (d1 - FIT) / FIT_SPAN)
+    # Pitch lost over much of the syllable (creak, a whisper) is no call.
+    sure *= min(1.0, len(points) / (VOICED * max(1, len(inner))))
     sure = max(0.0, min(1.0, sure))
     return (best if sure >= SURE else "unknown"), round(sure, 2), \
         [round(v, 2) for v in c]
@@ -531,7 +583,7 @@ def assess(wav, ref, lang, pinyin=None, words=None, heard=None, reference=None):
     track, rms = f0(samples, rate)
     track = smooth(track)
     st = semitones(track)
-    runs = voiced_runs(track)
+    runs = voiced_runs(track, rms)
     spans = from_words(words, n) if n else None
     how = "whisper timings"
     if spans is None:
@@ -550,8 +602,11 @@ def assess(wav, ref, lang, pinyin=None, words=None, heard=None, reference=None):
         if span is None:
             tone, sure, shape = "unknown", 0.0, []
         else:
-            tone, sure, shape = classify(st, span,
-                                         short=(span[1] - span[0]) < 0.6 * typical)
+            half = (aim["expect"] == "T3" and not aim.get("last", True)
+                    and i + 1 < len(aims) and aims[i + 1]["expect"] != "T3")
+            tone, sure, shape = classify(
+                st, span, short=(span[1] - span[0]) < 0.6 * typical, half=half,
+                expect=aim["expect"])
         out.append({"syllable": texts[i] if i < len(texts) else "",
                     "pinyin": aim["syllable"], "target": aim["target"],
                     "expect": aim["expect"], "heard": tone, "confidence": sure,

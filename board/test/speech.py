@@ -649,6 +649,55 @@ try:
           got["syllables"] == [] and "monsieur" in got["verdict"]
           and got["tones"].startswith("only Mandarin"))
 
+    # A non-final third tone before another tone is the half third: low and
+    # level, which is T3 there, and a meant neutral tone is never wrong.
+    low = [-3.0] * 12
+    check("a low level syllable is the half third, T3, before another tone",
+          tones.classify(low, (0, 12), half=True, expect="T3")[0] == "T3")
+    check("and not called wrong for a meant neutral tone",
+          tones.classify([2.5] * 12, (0, 12), expect="neutral")[0] == "unknown")
+    dip = [v for v in (-4.2, -5.8, -6.4, -6.2, -5.2) for _ in range(2)]
+    check("a second tone that dips before it rises, low at a phrase's end, is "
+          "never called a third",
+          tones.classify(dip, (0, 10), expect="T2")[0] in ("T2", "unknown"))
+
+    # The board's own reference voice, judged against its own pinyin: a
+    # prototype that calls the reference wrong is worse than one that says
+    # unknown. Every syllable called must be the one meant.
+    TINGTING = [("你好", "nǐ hǎo"), ("谢谢", "xiè xie"), ("我是学生", "wǒ shì xuésheng"),
+                ("中国", "zhōngguó"), ("我很好", "wǒ hěn hǎo"),
+                ("老师好", "lǎoshī hǎo"), ("今天天气很好", "jīntiān tiānqì hěn hǎo"),
+                ("我们去吃饭吧", "wǒmen qù chīfàn ba"),
+                ("你叫什么名字", "nǐ jiào shénme míngzi"), ("不是", "bú shì")]
+    has_voice = bool(shutil.which("say")) and "Tingting" in subprocess.run(
+        ["say", "-v", "?"], capture_output=True, text=True).stdout \
+        if shutil.which("say") else False
+    if has_voice and CONVERTS:
+        called, off = 0, []
+        for k, (zh, py) in enumerate(TINGTING):
+            aiff = os.path.join(box, "tingting-%d.aiff" % k)
+            subprocess.run(["say", "-v", "Tingting", "-o", aiff, zh], check=True)
+            said = audio.to_wav16k(aiff, os.path.join(box, "tingting-%d.wav" % k))
+            for syl in tones.assess(said, zh, "zh-CN", pinyin=py)["syllables"]:
+                if syl["heard"] == "unknown":
+                    continue
+                called += 1
+                if syl["heard"] != syl["expect"]:
+                    off.append("%s %s: heard %s at %.2f, meant %s" % (
+                        zh, syl["pinyin"], syl["heard"], syl["confidence"],
+                        syl["expect"]))
+        check("Tingting's ten phrases: no syllable called wrong above SURE (%d "
+              "called)" % called, not off, "\n".join(off))
+        check("and a third of the syllables or more are called at all",
+              called >= 12, called)
+    else:
+        print()
+        print("SKIPPED THE TINGTING SELF-CHECK: this Mac lacks %s, so the tone "
+              "check was NOT run against the board's own reference voice."
+              % ("the Tingting voice for `say`" if not has_voice
+                 else "afconvert or ffmpeg"))
+        print()
+
     # =======================================================================
     # 4. THE SUBJECT'S SPEECH, AND WHAT A TURN IS TOLD
     # =======================================================================
@@ -688,6 +737,8 @@ try:
           sense.SPEECH_SENSE in sense.session_sense(math_repo))
     check("SPEECH_SENSE names `board hear`, and that is a command",
           "board hear" in sense.SPEECH_SENSE)
+    check("and says the local tone check is a prototype",
+          "prototype" in sense.SPEECH_SENSE)
 
     # =======================================================================
     # 5. CARDS: a `say` fence
