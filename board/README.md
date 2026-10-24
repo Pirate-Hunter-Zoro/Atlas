@@ -182,7 +182,9 @@ tree gets a `doc.json` written in place, so its ids hold.
   PDF is rebuilt. A course's assigned set is the same artifact, written in place
   (`board writeup use hw04`). `board writeup pose <label>` comes first: it writes a missing
   statement and pins session.json `problem`, the problem on their screen; the panel switches
-  it with `POST /problem`.
+  it with `POST /problem`. The payload's `problem` is that problem's statement as a card and
+  its givens, the named matrices and tuples with math.js text (`tutorboard/course/givens.py`),
+  read from the pinned set alone and cached on its mtime.
 - **Deck or paper.** The Make menu creates the `doc.json`; a `[writeup]` turn writes and
   builds it.
 - **Meeting deck.** `board meeting --since 7d` or home's meeting panel: one brief of the

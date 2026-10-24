@@ -11,7 +11,7 @@ import time
 
 from .. import machine
 from ..runner import daemon
-from ..course import homework, library, paper
+from ..course import givens, homework, library, paper
 
 
 def load_agent(repo):
@@ -157,6 +157,72 @@ def load_hw(repo, st=None):
             out["build"] = json.load(fh)
     except (OSError, ValueError):
         out["build"] = None
+    return out
+
+
+# The pinned set, parsed once per change: `{path: ((mtime_ns, size), text,
+# problems, {label: problem})}`. A payload is built every tick, and the
+# write-up changes only when a turn writes it.
+_SETS = {}
+_SETS_MAX = 16
+
+
+def _pinned_set(repo, st):
+    """`(tex, rel)` of the write-up session.json pins, inside the subject,
+    or None. Reads no listing."""
+    rel = str((st or {}).get("hw") or "")
+    if not rel.endswith(".tex"):
+        return None
+    tex = os.path.abspath(os.path.join(repo.root, rel))
+    inside = os.path.relpath(tex, os.path.abspath(repo.root))
+    if inside.startswith("..") or not os.path.isfile(tex):
+        return None
+    return tex, inside.replace(os.sep, "/")
+
+
+def load_problem(repo, st=None):
+    """The problem on their screen, from the pinned set alone:
+    `{set, rel, label, pinned, labels, stated, card, givens}`. `label` is
+    session.json `problem`, else the next problem once it is stated
+    (`homework.current`), else None with the picker's labels still there.
+    None when nothing is pinned. Cached on the file's mtime and size.
+    """
+    st = repo.state() if st is None else st
+    found = _pinned_set(repo, st)
+    if not found:
+        return None
+    tex, rel = found
+    try:
+        info = os.stat(tex)
+    except OSError:
+        return None
+    stamp = (info.st_mtime_ns, info.st_size)
+    hit = _SETS.get(tex)
+    if not hit or hit[0] != stamp:
+        try:
+            with open(tex, "r", encoding="utf-8", errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            return None
+        if len(_SETS) >= _SETS_MAX:
+            _SETS.clear()
+        hit = (stamp, text, homework.problems_in(text), {})
+        _SETS[tex] = hit
+    _stamp, text, probs, parsed = hit
+    pinned = st.get("problem")
+    label = homework.current(probs, pinned)
+    out = {"set": homework._name_for(repo.root, tex), "rel": rel,
+           "label": label, "pinned": bool(label) and label == pinned,
+           "labels": [p["label"] for p in probs],
+           "stated": False, "card": "", "givens": []}
+    if label is None:
+        return out
+    if label not in parsed:
+        parsed[label] = givens.problem(text, label)
+    got = parsed[label]
+    if got:
+        out.update(stated=got["stated"], card=got["card"],
+                   givens=[dict(g) for g in got["givens"]])
     return out
 
 

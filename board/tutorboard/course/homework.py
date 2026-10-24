@@ -387,10 +387,14 @@ def problems(tex):
     its `\\todo`) and `written` (anything but comments in its region)."""
     try:
         with open(tex, "r", encoding="utf-8", errors="replace") as fh:
-            lines = fh.read().splitlines()
+            return problems_in(fh.read())
     except OSError:
         return []
 
+
+def problems_in(text):
+    """`problems` over the text of a set already read."""
+    lines = text.splitlines()
     order, seen = [], {}
 
     # Statements first, so a problem with no solution region at all still counts.

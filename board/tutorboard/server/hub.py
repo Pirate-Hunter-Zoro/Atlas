@@ -3,7 +3,8 @@ board open: in full to a browser that connects, then as deltas.
 
 The payload is the session's and nothing else's: session.json, the newest
 WINDOW cards and their ink, the turns, the unread count, the slate, the
-drafts, the agent, the write-up's status and the subject's macros; and one
+drafts, the agent, the write-up's status, the problem on their screen and
+the subject's macros; and one
 shared key, `relay`, the cluster's health. What the subject holds -- its
 problem sets, results, jobs and Colibri -- is `GET /subject.json`
 (`subject_info`), fetched when the board opens and when the drawer does. Older cards are `GET /cards?before=<n>` (`older_cards`).
@@ -150,6 +151,9 @@ class Hub:
             # The write-up: the set session.json pins, and documents asked
             # for from this session (`writeups.waiting`).
             "hw": _safe(state.load_hw, repo, board_state),
+            # The problem on their screen: its statement as a card and its
+            # givens, from the pinned set (`state.load_problem`).
+            "problem": _safe(state.load_problem, repo, board_state),
             "writeups": _safe(writeups.waiting, repo),
             # The subject's macros, so KaTeX matches LaTeX.
             "macros": coursemacros.for_workspace(repo.root),
