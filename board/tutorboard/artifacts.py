@@ -26,7 +26,7 @@ import re
 import shutil
 import time
 
-from . import fenced, gitops, paths, subjects
+from . import gitops, paths, subjects
 
 DOCS = "docs"
 DOC_JSON = "doc.json"
@@ -45,7 +45,7 @@ QUIET = 120
 # What built output sits beside a source, by the source's extension.
 OUTPUTS = {".tex": (".pdf",), ".md": (".docx", ".pdf")}
 
-# Never entered by the in-place walk (besides dot dirs, the fence and
+# Never entered by the in-place walk (besides dot dirs and
 # `library.IGNORE`): uploads, the sessions store, and new artifacts.
 SKIP = ("materials", "sessions", DOCS)
 MAX_DEPTH = 4
@@ -88,11 +88,7 @@ def _when(said):
 def slugify(title):
     """A directory name and an id out of a title: lower case, dashes, 40 at most."""
     slug = re.sub(r"[^a-z0-9]+", "-", str(title or "").lower()).strip("-")
-    slug = slug[:SLUG_MAX].strip("-") or "document"
-    # A slug that is a fenced name would be a directory the fence refuses.
-    if slug in fenced.NEVER:
-        slug += "-doc"
-    return slug
+    return slug[:SLUG_MAX].strip("-") or "document"
 
 
 def _session_id(session):
@@ -105,7 +101,7 @@ def _session_id(session):
 
 def subject_root(subject, base=None):
     """The directory of `subject`: a subject id, slug or path. ValueError when
-    it is none of those, is the Atlas root, or sits under the fence."""
+    it is none of those, or is the Atlas root."""
     if subject and os.path.isdir(str(subject)):
         root = os.path.realpath(str(subject))
     else:
@@ -115,8 +111,6 @@ def subject_root(subject, base=None):
         root = os.path.realpath(found["root"])
     if os.path.isfile(os.path.join(root, "board", "bin", "board")):
         raise ValueError("the Atlas root is not a subject; bind one first")
-    if fenced.refused(root):
-        raise ValueError("%s is under a fence" % root)
     return root
 
 
@@ -255,7 +249,7 @@ def list(root):                                              # noqa: A001
         names = []
     for name in names:
         d = os.path.join(top, name)
-        if not SLUG_RE.match(name) or fenced.refused(name):
+        if not SLUG_RE.match(name):
             continue
         rec = read(d)
         if rec:
@@ -269,11 +263,11 @@ def list(root):                                              # noqa: A001
         rel = os.path.relpath(here, root)
         depth = 0 if rel == "." else rel.count(os.sep) + 1
         dirs[:] = sorted(x for x in dirs if not x.startswith(".")
-                         and x not in library.IGNORE and not fenced.refused(x)
+                         and x not in library.IGNORE
                          and not (depth == 0 and x in SKIP))
         if depth >= MAX_DEPTH:
             dirs[:] = []
-        if rel == "." or DOC_JSON not in files or fenced.refused(rel):
+        if rel == "." or DOC_JSON not in files:
             continue
         rec = read(here)
         if rec and rec.get("source"):
@@ -287,7 +281,7 @@ def get(root, ident):
     if not SLUG_RE.match(ident):
         return None
     d = os.path.join(os.path.realpath(root), DOCS, ident)
-    rec = read(d) if not fenced.refused(ident) else None
+    rec = read(d)
     if rec:
         return _entry(os.path.realpath(root), d, rec)
     for one in list(root):
@@ -333,8 +327,8 @@ PULL_DEPTH = 4
 
 def pulled(path):
     """The files the source at `path` pulls in -- an image, a sub-file, a
-    bibliography -- that exist inside its own directory and outside the
-    fence, following sub-files of sub-files. An overhaul that adds one beside
+    bibliography -- that exist inside its own directory, following sub-files
+    of sub-files. An overhaul that adds one beside
     the deck has End commit it with the source that names it. Commented-out
     LaTeX pulls nothing."""
     here = os.path.dirname(os.path.abspath(path))
@@ -371,9 +365,7 @@ def pulled(path):
             stem = os.path.normpath(os.path.join(here, name))
             for cand in [stem] + [stem + e for e in TRIED.get(cmd, ())]:
                 rel = os.path.relpath(cand, here)
-                if rel.startswith("..") \
-                        or fenced.in_fence(rel.replace(os.sep, "/")) \
-                        or not os.path.isfile(cand):
+                if rel.startswith("..") or not os.path.isfile(cand):
                     continue
                 if cand not in out and cand != os.path.abspath(path):
                     out.append(cand)
@@ -507,17 +499,13 @@ def delete(root, d, idents=None, ink_dirs=None, now=None):
     `<root>/.ink`) goes with it, into the same trash directory. The tracked
     files that left are removed in one gitops commit.
 
-    `{ok, said, trash, ink, committed}`. A fenced path is refused before
-    anything moves, with `fenced` set.
+    `{ok, said, trash, ink, committed}`.
     """
     root = os.path.realpath(root)
     d = os.path.realpath(d)
     rel = os.path.relpath(d, root)
     if rel.startswith("..") or rel == ".":
         return {"ok": False, "said": "%s is not an artifact of %s" % (d, root)}
-    if fenced.refused(rel) or fenced.refused(root):
-        return {"ok": False, "fenced": True,
-                "said": "%s is under a fence; nothing was deleted" % rel}
     rec = read(d)
     if not rec:
         return {"ok": False, "said": "%s holds no doc.json" % rel}

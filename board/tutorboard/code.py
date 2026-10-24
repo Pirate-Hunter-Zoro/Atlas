@@ -45,8 +45,7 @@ the pre-commit hook's `END_ENV`), pushes, deletes the local ref and clears
 session.json `code`. A linked worktree of that checkout, or a branch other
 than main, is refused.
 
-The constraint: standard library only. A check's output leaves only where
-`output_open` holds.
+The constraint: standard library only.
 """
 
 import fcntl
@@ -58,7 +57,7 @@ import subprocess
 import tempfile
 import time
 
-from . import fenced, gitops, paths, subjects
+from . import gitops, paths, subjects
 
 POLL = 2.0
 QUIET = 10.0
@@ -107,7 +106,7 @@ board code <session> --abandon        drop code/<session> and the registration;
 board code --list                     the sessions held on this machine
 
 Paths are relative to here or to the Atlas root, inside one course or
-project, and never fenced."""
+project."""
 
 
 # ---------------------------------------------------------------------------
@@ -383,7 +382,7 @@ def subject_of(rel):
 
 def resolve(top, words, cwd=None, others=None):
     """`(paths, subject, problems)` for `board code`'s path words, relative to
-    `cwd` else `top`, inside one subject. Refused: no words, fenced, the
+    `cwd` else `top`, inside one subject. Refused: no words, the
     subject itself, ignored or audit-refused, two
     subjects, or held by another session here (`others`). All problems at
     once."""
@@ -394,12 +393,6 @@ def resolve(top, words, cwd=None, others=None):
         return [], "", ["no paths: name what you will write, "
                         "`board code <session> <path>...`"]
     for w in words:
-        # Fenced by name: nothing under a fence is even looked up.
-        if fenced.in_fence(w):
-            problems.append("%s is fenced (%s): nothing there is held, "
-                            "snapshotted or pushed"
-                            % (w, ", ".join(fenced.NEVER)))
-            continue
         cand = None
         for base in ([cwd] if cwd else []) + [top]:
             full = os.path.realpath(os.path.join(base, w))
@@ -413,11 +406,6 @@ def resolve(top, words, cwd=None, others=None):
         rel = os.path.relpath(cand, real).replace(os.sep, "/")
         if rel == "." or rel.startswith("../") or rel == "..":
             problems.append("%s is outside the Atlas checkout" % w)
-            continue
-        if fenced.in_fence(rel):
-            problems.append("%s is fenced (%s): nothing there is held, "
-                            "snapshotted or pushed"
-                            % (rel, ", ".join(fenced.NEVER)))
             continue
         subject = subject_of(rel)
         if not subject:
@@ -558,8 +546,7 @@ def _changed(top, a, b, held_paths=None):
 
 def gate(top, held_paths):
     """Every refusal the commit-time gate gives what the held paths change
-    against HEAD: the audit, `leaving.refused` and the participant scan, as
-    `.githooks/pre-commit` asks them (`audit.gate`). `[]` is a pass. A gate
+    against HEAD: the audit, as `.githooks/pre-commit` asks it (`audit.gate`). `[]` is a pass. A gate
     that cannot run refuses."""
     from . import audit
     with _Index() as ix:
@@ -725,51 +712,6 @@ def step_of(top, sha):
 
 
 # ---------------------------------------------------------------------------
-# is output open here: may a check's output leave this subject whole
-# ---------------------------------------------------------------------------
-def output_open(root, names_phi=None, cfg=None):
-    """True only when a check's full output may go back to the tutor. Fails
-    closed: `"phi": false` literally on disk and at HEAD (`_head_phi`), no
-    fence (`fenced.holds`), and the PHI policy loaded. `names_phi` and `cfg`
-    are read here when None.
-    """
-    from .course import config
-    try:
-        cfg = cfg if cfg is not None else config.read_config(root)
-        if cfg.get("phi") is not False or _head_phi(root) is not False:
-            return False
-        if fenced.holds(root):
-            return False
-        if names_phi is None:
-            names_phi = _policy(root)
-        return callable(names_phi)
-    except Exception:                                        # noqa: BLE001
-        return False
-
-
-def _head_phi(root):
-    """What the committed `tutorboard.json` says for `"phi"`: True or False
-    literally, else None (no file at HEAD, bad JSON, no key, not a bool)."""
-    code, out = _git(root, "show", "HEAD:./tutorboard.json", timeout=20)
-    if code != 0:
-        return None
-    try:
-        said = json.loads(out)
-    except ValueError:
-        return None
-    phi = said.get("phi") if isinstance(said, dict) else None
-    return phi if isinstance(phi, bool) else None
-
-
-def _policy(root=None):
-    try:
-        from . import leaving
-        return leaving.policy()
-    except Exception:                                        # noqa: BLE001
-        return None
-
-
-# ---------------------------------------------------------------------------
 # the check
 # ---------------------------------------------------------------------------
 def check_spec(spec, files):
@@ -858,47 +800,34 @@ _PATH_RE = re.compile(r"(?<![\w.~:/-])(?:~/|/)(?:[^\s/:'\"]+/)*[^\s/:'\",;)]+")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
 
-def public(text, names_phi=None, limit=MAX_LINE):
-    """`text` fit for a public commit, or None where the PHI policy matches
-    it: control characters go, paths become `<path>`, cut to `limit`."""
+def public(text, limit=MAX_LINE):
+    """`text` fit for a public commit: control characters go, paths become
+    `<path>`, cut to `limit`."""
     s = _CTRL_RE.sub("", str(text or "")).strip()
     s = _PATH_RE.sub("<path>", s)
-    if names_phi is not None:
-        try:
-            if names_phi(s):
-                return None
-        except Exception:                                    # noqa: BLE001
-            return None
     if len(s) > limit:
         s = s[:limit - 1].rstrip() + "\u2026"
     return s
 
 
-def relay_lines(text, names_phi=None):
-    """`(lines, withheld)`: the `RELAY:` lines of a program's output, prefix
-    dropped, each through `public`, at most `MAX_LINES`; lines the PHI
-    policy flags are withheld and counted."""
-    out, withheld = [], 0
+def relay_lines(text):
+    """The `RELAY:` lines of a program's output, prefix dropped, each through
+    `public`, at most `MAX_LINES`."""
+    out = []
     for line in (text or "").splitlines():
         m = RELAY_LINE.match(line.rstrip("\r"))
         if not m:
             continue
-        said = public(m.group(1), names_phi, MAX_LINE)
-        if said is None:
-            withheld += 1
-            continue
-        if not said:
-            continue
-        if len(out) < MAX_LINES:
+        said = public(m.group(1), MAX_LINE)
+        if said and len(out) < MAX_LINES:
             out.append(said)
-    return out, withheld
+    return out
 
 
-def check_output(text, root, names_phi, top=None):
-    """`{output, output_total, output_cut, withheld}`: a check's output fit
-    for a public commit, for an open subject only. Pure. Control codes go;
-    subject and repository paths become relative, other paths `<path>`
-    (`public`); flagged lines are withheld; head and tail lines are
+def check_output(text, root, top=None):
+    """`{output, output_total, output_cut}`: a check's output fit for a
+    public commit. Pure. Control codes go; subject and repository paths
+    become relative, other paths `<path>` (`public`); head and tail lines are
     kept within `OUT_BYTES`, the cut marked.
     """
     prefixes = []
@@ -908,17 +837,14 @@ def check_output(text, root, names_phi, top=None):
             prefixes.append(base.rstrip("/"))
     prefixes.sort(key=len, reverse=True)
     pats = [re.compile(re.escape(b) + r"(?:/|(?![\w.-]))") for b in prefixes]
-    kept, withheld = [], 0
+    kept = []
     for raw in (text or "").splitlines():
         line = ANSI_RE.sub("", raw.rstrip("\r")).expandtabs(4)
         for pat in pats:
             line = pat.sub(lambda m: "" if m.group(0).endswith("/") else ".",
                            line)
         indent = len(line) - len(line.lstrip(" "))
-        said = public(line, names_phi, MAX_LINE - min(indent, 40))
-        if said is None:
-            withheld += 1
-            continue
+        said = public(line, MAX_LINE - min(indent, 40))
         if not said:
             continue
         kept.append(" " * min(indent, 40) + said)
@@ -934,8 +860,7 @@ def check_output(text, root, names_phi, top=None):
     cut = total - len(head) - len(tail)
     out = head + (["… %d line%s cut …" % (cut, "" if cut == 1 else "s")]
                   if cut else []) + tail
-    return {"output": out, "output_total": total, "output_cut": cut,
-            "withheld": withheld}
+    return {"output": out, "output_total": total, "output_cut": cut}
 
 
 def crash_type(text):
@@ -972,11 +897,9 @@ def _argv_env(root, chk, cfg_path=None):
 
 
 def run_check(root, chk, run=subprocess.run, timeout=CHECK_SECONDS,
-              names_phi=None, open_=False, path=None):
-    """Run a check here, from the subject's root: `{exit, relay, withheld,
-    crash, seconds}`, plus `output`, `output_total`, `output_cut` in an open
-    subject (`check_output`). In a closed one the rest of the output stays in
-    the terminal. `chk` is `{"spec", "argv"}`, `{"script"}` or a script path.
+              path=None):
+    """Run a check here, from the subject's root: `{exit, relay, crash,
+    seconds, output, output_total, output_cut}` (`check_output`). `chk` is `{"spec", "argv"}`, `{"script"}` or a script path.
     """
     if isinstance(chk, str):
         chk = {"script": chk}
@@ -984,65 +907,52 @@ def run_check(root, chk, run=subprocess.run, timeout=CHECK_SECONDS,
     t0 = time.time()
     try:
         p = run(argv, cwd=root, env=env, stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT if open_ else subprocess.PIPE,
+                stderr=subprocess.STDOUT,
                 universal_newlines=True, timeout=timeout)
         code, out, err = p.returncode, p.stdout or "", p.stderr or ""
     except subprocess.TimeoutExpired:
         code, out, err = 124, "", "TimeoutExpired"
     except OSError as exc:
         code, out, err = 127, "", type(exc).__name__
-    lines, withheld = relay_lines(out, names_phi)
-    got = {"exit": code, "relay": lines, "seconds": round(time.time() - t0, 1)}
-    if open_:
-        whole = check_output(out + err, root, names_phi, top_of(root) or None)
-        withheld += whole.pop("withheld")
-        got.update(whole)
-    if withheld:
-        got["withheld"] = withheld
+    got = {"exit": code, "relay": relay_lines(out),
+           "seconds": round(time.time() - t0, 1)}
+    got.update(check_output(out + err, root, top_of(root) or None))
     if code != 0:
-        crash = crash_type(out + err if open_ else err)
+        crash = crash_type(out + err)
         if crash:
             got["crash"] = crash
     return got
 
 
 def step_check(top, rec, run=subprocess.run):
-    """`(result, open_)` for the subject's check over the held paths.
-
-    `result` has `state` pass, fail or none; `label`; `why` where none; and
-    what `run_check` returns. Without the PHI policy no `RELAY:` line is kept.
+    """The subject's check over the held paths: `state` pass, fail or none;
+    `label`; `why` where none; and what `run_check` returns.
     """
-    from . import leaving
     from .course import config
     sroot = os.path.join(top, rec["subject"])
-    names_phi = leaving.policy(top)
     cfg = config.read_config(sroot)
-    open_ = output_open(sroot, names_phi=names_phi, cfg=cfg)
     spec = cfg.get("check")
     if not spec:
         return {"state": "none", "label": "none",
-                "why": "the subject's tutorboard.json declares no check"}, open_
+                "why": "the subject's tutorboard.json declares no check"}
     rels = []
     for p in rec["paths"]:
         sub = p[len(rec["subject"]) + 1:]
         rels.append((sub, os.path.isdir(os.path.join(top, p))))
     chk, bad = check_spec(spec, rels)
     if not chk:
-        return {"state": "none", "label": "none", "why": "; ".join(bad)}, open_
+        return {"state": "none", "label": "none", "why": "; ".join(bad)}
     if not _program_ok(chk["argv"][0], tracked(sroot)):
         return {"state": "none", "label": check_label(chk),
                 "why": "it runs %s, which is not tracked and unchanged at HEAD"
-                       % chk["argv"][0]}, open_
-    got = run_check(sroot, chk, run=run, names_phi=names_phi, open_=open_,
-                    path=spec.get("path"))
-    if names_phi is None:
-        got["relay"] = []
+                       % chk["argv"][0]}
+    got = run_check(sroot, chk, run=run, path=spec.get("path"))
     got["state"] = "pass" if got["exit"] == 0 else "fail"
     got["label"] = check_label(chk)
-    return got, open_
+    return got
 
 
-def message(rec, n, changed, got, open_, ran_at, tutor=False):
+def message(rec, n, changed, got, ran_at, tutor=False):
     """A step's commit message. Public: every line in it is a file name, a
     number, or what `run_check` already made public. `tutor` when a turn's
     own edit made the step (`BY_TUTOR`)."""
@@ -1066,18 +976,12 @@ def message(rec, n, changed, got, open_, ran_at, tutor=False):
         lines.append("why none: %s" % got["why"])
     for line in got.get("relay") or []:
         lines.append("RELAY: %s" % line)
-    if got.get("withheld"):
-        lines.append("withheld: %d line(s) the PHI policy flagged"
-                     % got["withheld"])
-    if open_ and got.get("output") is not None:
+    if got.get("output") is not None:
         lines.append("output: %d line(s)%s" % (
             got.get("output_total") or 0,
             ", %d cut from the middle" % got["output_cut"]
             if got.get("output_cut") else ""))
         lines.extend("    " + x for x in got["output"])
-    elif state != "none":
-        lines.append("output: closed here (phi is not literally false), so "
-                     "RELAY: lines only")
     return "\n".join(lines) + "\n"
 
 
@@ -1107,7 +1011,7 @@ def signature(top, held_paths):
                 except OSError:
                     continue
                 todo.extend(os.path.join(here, n) for n in names
-                            if n not in SKIP_DIRS and not fenced.in_fence(n))
+                            if n not in SKIP_DIRS)
     return tuple(sorted(sig, key=str)), newest
 
 
@@ -1235,9 +1139,9 @@ class Loop(object):
             return False
         n = int(rec.get("step") or 0) + 1
         self.say("step %d: %s -- running the check" % (n, ", ".join(changed[:6])))
-        got, open_ = step_check(top, rec, run=self.run)
+        got = step_check(top, rec, run=self.run)
         code, ran_at = _git(top, "rev-parse", "--short", "HEAD")
-        msg = message(rec, n, changed, got, open_, ran_at if code == 0 else "",
+        msg = message(rec, n, changed, got, ran_at if code == 0 else "",
                       tutor=tutor)
         code, sha = _git(top, "commit-tree", new, "-p", parent, "-F", "-",
                          input=msg)

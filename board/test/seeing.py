@@ -7,17 +7,6 @@ Every tutor on this board is told on its first turn to open whatever the student
 sent: handwriting is a PNG and a problem sheet a PDF. A model without vision
 cannot, and this is what it calls instead.
 
-THE FIRST ASSERTION IS THE FENCE AND IT IS THE ONLY ONE THAT MATTERS MORE THAN
-THE FEATURE. This command sends a file to a hosted provider, and a board
-subcommand does not go through any assistant's pre-tool hook -- so the refusal
-lives in the command, before a byte is read. Get it wrong and the tool has grown
-a documented route for sending session content to a third party.
-
-The second is the one that made it useful rather than theoretical: the slate
-pages this exists to read live in the board's own `live/inbox/`, and the
-any-depth fence rule refused every one of them. A fence is a top-level directory
-of the workspace that holds it; `phi` alone is refused wherever it appears.
-
 What a provider says back is the provider's business. Everything on this side of
 the wire is checked, against a socket on this machine: the key on the header
 rather than in the body, the model the recipe names, and the image arriving as
@@ -40,7 +29,7 @@ os.environ.setdefault("BOARD_STATE_DIR", tempfile.mkdtemp(prefix="see-state-"))
 os.environ.setdefault("BOARD_NODE_NAME", "test-node")
 os.environ.setdefault("BOARD_NO_TAILNET", "1")
 
-from tutorboard import fenced, keys, paths, seeing            # noqa: E402
+from tutorboard import keys, paths, seeing                    # noqa: E402
 
 # THE WITNESS CODE IS PINNED HERE, and this is the only place it is. `ask`
 # draws six digits into the image and requires them back, which is exactly the
@@ -69,9 +58,8 @@ def refusal(**kw):
         return str(exc)
 
 
-# ---- the fence, first -------------------------------------------------------
 box = tempfile.mkdtemp(prefix="see-ws-")
-for d in ("live/inbox/uploads", "live/slate", "phi", "inbox", "chapters/ch07/build"):
+for d in ("live/inbox/uploads", "live/slate"):
     os.makedirs(os.path.join(box, d), exist_ok=True)
 
 
@@ -82,39 +70,12 @@ def put(rel):
     return p
 
 
-sent = put("phi/page.png")
-said = refusal(path=sent, root=box)
-check("A FENCED PATH IS REFUSED BEFORE A BYTE IS READ", bool(said))
-check("and the refusal names the directory, so it is something to act on",
-      "phi" in said)
-check("and says why, because this is the one refusal a person must not route "
-      "around", "hosted provider" in said)
-
-check("a fenced directory of the workspace is refused too",
-      bool(refusal(path=put("inbox/thing.png"), root=box)))
-check("`phi` anywhere at all is refused, whichever workspace is asking",
-      fenced.refused_in(box, "/somewhere/else/phi/x.png") == "phi")
-check("and a path in another workspace falls back to the any-depth rule, "
-      "which is the conservative answer for one nothing here can place",
-      fenced.refused_in(box, "/another/box/stage1/x.png") == "stage1")
-
-# ---- and the thing it exists to read ---------------------------------------
-check("A SLATE PAGE IS NOT FENCED. Every upload lands in the board's own "
-      "`live/inbox/`, and the any-depth rule refused the one kind of file this "
-      "command is for",
-      fenced.refused_in(box, os.path.join(box, "live/inbox/uploads/p.png")) is None)
-check("nor is the slate directory",
-      fenced.refused_in(box, os.path.join(box, "live/slate/p.png")) is None)
-check("nor a build directory six levels down that happens to be called data",
-      fenced.refused_in(box, os.path.join(box, "chapters/ch07/build/data/f.png"))
-      is None)
-
 # ---- what it will and will not open ----------------------------------------
 check("a path that is not there says so",
-      "no file at" in refusal(path=os.path.join(box, "nope.png"), root=box))
+      "no file at" in refusal(path=os.path.join(box, "nope.png")))
 check("and a file that is neither an image nor a PDF is refused by kind",
       "neither an image nor a PDF"
-      in refusal(path=put("live/slate/notes.txt"), root=box))
+      in refusal(path=put("live/slate/notes.txt")))
 
 # ---- where the image goes is a recipe field --------------------------------
 TABLE = {
@@ -299,7 +260,7 @@ del os.environ["BOARD_SEE_KEEPS_THIS"]
 # ---- an unkeyed machine says which line to add -----------------------------
 paths.KEYS = os.path.join(box, "no-such-keys.env")
 keys.forget()
-said = refusal(path=put("live/slate/page.png"), root=box, table=TABLE)
+said = refusal(path=put("live/slate/page.png"), table=TABLE)
 check("with no key there is nothing to authenticate with, and the message "
       "names the key and the file rather than failing at the endpoint",
       "A_KEY" in said and "no-such-keys.env" in said)
@@ -362,7 +323,7 @@ LOCAL = dict(TABLE, agents=[{"name": "deepseek", "vision": {
     "model": "a-model", "needs_key": "A_KEY"}}])
 page = put("live/slate/handwriting.png")
 try:
-    said, settings = seeing.describe(page, table=LOCAL, root=box,
+    said, settings = seeing.describe(page, table=LOCAL,
                                      agent="deepseek")
     check("the answer comes back as text a card can be written from",
           said == "a page of handwriting")
@@ -388,7 +349,7 @@ try:
         "endpoint": "http://127.0.0.1:1/v1/chat", "model": "m",
         "needs_key": "A_KEY"}}])
     check("an endpoint that cannot be reached is a sentence, not a traceback",
-          "could not be reached" in refusal(path=page, table=bad, root=box,
+          "could not be reached" in refusal(path=page, table=bad,
                                             agent="deepseek"))
 
     # ---- AND THE ROUTE IS RE-ASKED ONCE, ON THE RECORD THE FAILURE WROTE ----
@@ -407,7 +368,7 @@ try:
         {"name": "claude", "vision": {"cmd": ["sh", "-c",
             "echo \"CODE: %s\"; echo \"read it\"" % CODE], "model": "its own"}},
     ]}
-    said, settings = seeing.describe(page, table=TWO, root=box,
+    said, settings = seeing.describe(page, table=TWO,
                                      agent="deepseek")
     check("a dead endpoint stands its provider down and the SAME call falls "
           "through to the next route, rather than handing the tutor a refusal "
@@ -421,7 +382,7 @@ try:
         {"name": "deepseek", "vision": {
             "endpoint": "http://127.0.0.1:1/v1/chat", "model": "m",
             "needs_key": "A_KEY"}}]}
-    said = refusal(path=page, table=ONE, root=box, agent="deepseek")
+    said = refusal(path=page, table=ONE, agent="deepseek")
     check("and where there is no second route it refuses once rather than "
           "looping over the only one there is",
           "could not be reached" in said and said.count("could not be reached") == 1)
@@ -446,7 +407,7 @@ try:
         BLIND = {"default": "claude", "vision_agent": "deepseek", "agents": [
             {"name": "deepseek", "vision": first}, SIGHTED]}
         try:
-            said, settings = seeing.describe(page, table=BLIND, root=box,
+            said, settings = seeing.describe(page, table=BLIND,
                                              agent="deepseek")
         except seeing.Refused as exc:
             said, settings = str(exc), {}
@@ -459,7 +420,7 @@ try:
         {"name": "claude", "vision": {"cmd": ["sh", "-c", "echo 'no code here'"]}},
         {"name": "codex", "vision": {"endpoint": base + "/blind", "model": "m",
                                      "needs_key": "A_KEY"}}]}
-    said = refusal(path=page, table=ALL_BLIND, root=box, agent="deepseek")
+    said = refusal(path=page, table=ALL_BLIND, agent="deepseek")
     check("with every route blind, each is asked once and every refusal is said",
           said.count("deepseek:") == 1 and said.count("claude:") == 1
           and said.count("codex:") == 1 and "400" in said
@@ -507,5 +468,5 @@ check("the failure names the page rather than the exit code, because the card "
       and "invented" in tutor_src)
 
 print("%d FAILURES" % len(fails) if fails
-      else "a model with no eyes can read the page, and not the fenced one")
+      else "a model with no eyes can read the page")
 sys.exit(1 if fails else 0)

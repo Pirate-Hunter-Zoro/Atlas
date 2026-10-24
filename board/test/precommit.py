@@ -20,7 +20,6 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 BOARD = os.path.dirname(HERE)
 ROOT = os.path.dirname(BOARD)
-POLICY = os.path.join("ai-config", "policy", "phi.py")
 
 fails = []
 
@@ -80,9 +79,7 @@ try:
     shutil.copytree(os.path.join(BOARD, "tutorboard"),
                     os.path.join(box, "board", "tutorboard"),
                     ignore=shutil.ignore_patterns("__pycache__"))
-    put("projects/S/tutorboard.json", json.dumps({"name": "S", "phi": True}))
-    put("projects/O/tutorboard.json",
-        json.dumps({"name": "O", "phi": False}))
+    put("projects/O/tutorboard.json", json.dumps({"name": "O"}))
     put("projects/O/RULES.md", "the owner's rules\n")
     git("init", "-q")
     git("config", "core.hooksPath", os.path.join(box, ".githooks"))
@@ -106,38 +103,19 @@ try:
           not done and "sessions/20261008-120000/session.json" in err, err)
     shutil.rmtree(os.path.join(box, "sessions"))
 
-    # ---- the participant-code scan ----------------------------------------
-    code = "BL" + "123"
-    put("projects/S/notes.md", "first\nmet %s today\n" % code)
-    done, err = commit(["projects/S/notes.md"])
-    check("BL and three digits in a \"phi\": true subject is refused, by file "
-          "and line, without printing the code",
-          not done and "projects/S/notes.md:2" in err and code not in err, err)
-    put("projects/S/notes.md", "write it as BL###\n")
-    done, err = commit(["projects/S/notes.md"])
-    check("and BL### is how the rule is written about", done, err)
-    put("projects/O/notes.md", "%s in a subject with no phi\n" % code)
-    done, err = commit(["projects/O/notes.md"])
-    check("a subject that is not \"phi\": true is not scanned", done, err)
-    put("projects/S/%s_notes.md" % code, "x\n")
-    done, err = commit(["projects/S"])
-    check("a participant code in a filename is refused, masked",
-          not done and "BL###_notes.md" in err and code not in err, err)
-    os.remove(os.path.join(box, "projects/S/%s_notes.md" % code))
-
     # ---- what a tutor turn may not commit ---------------------------------
     put("projects/O/RULES.md", "the owner's rules, edited\n")
     done, err = commit(["projects/O/RULES.md"], turn=True)
     check("a turn's RULES.md change is refused", not done and "RULES.md" in err, err)
-    put("projects/O/tutorboard.json",
-        json.dumps({"name": "O", "phi": True}))
+    os.remove(os.path.join(box, "projects/O/tutorboard.json"))
     done, err = commit(["projects/O/tutorboard.json"], turn=True)
-    check("a turn's `phi` change is refused", not done and "`phi`" in err, err)
-    put("projects/O/tutorboard.json",
-        json.dumps({"name": "O renamed", "phi": False}))
+    check("a turn's deletion of tutorboard.json is refused",
+          not done and "tutorboard.json" in err, err)
+    git("checkout", "--", "projects/O/tutorboard.json")
+    put("projects/O/tutorboard.json", json.dumps({"name": "O renamed"}))
     done, err = commit(["projects/O/tutorboard.json"], turn=True)
-    check("a turn may change the rest of tutorboard.json", done, err)
-    put("projects/N/tutorboard.json", json.dumps({"name": "N", "phi": False}))
+    check("a turn may change tutorboard.json", done, err)
+    put("projects/N/tutorboard.json", json.dumps({"name": "N"}))
     done, err = commit(["projects/N/tutorboard.json"], turn=True)
     check("and may create a new subject's", done, err)
     done, err = commit(["projects/O/RULES.md"])
@@ -195,21 +173,6 @@ try:
     said = git("log", "-1", "--format=%B").stdout
     check("commit-msg still strips attribution",
           done and "a change" in said and "Co-Authored-By" not in said, said)
-
-    # ---- a fence with no policy refuses everything ------------------------
-    os.makedirs(os.path.join(box, "projects", "F", "phi"))
-    put("projects/F/tutorboard.json", json.dumps({"name": "F", "phi": True}))
-    done, err = commit(["projects/F/tutorboard.json"])
-    check("a fence with no PHI policy refuses the commit, naming the policy",
-          not done and POLICY in err, err)
-    src = os.path.join(ROOT, POLICY)
-    if os.path.isfile(src):
-        os.makedirs(os.path.join(box, os.path.dirname(POLICY)))
-        shutil.copyfile(src, os.path.join(box, POLICY))
-        done, err = commit(["projects/F/tutorboard.json"])
-        check("and with the policy in place the same commit passes", done, err)
-    else:
-        print("skip ai-config is not here; the policy-present case did not run")
 
     # ---- another repository pointed at this hook --------------------------
     git("init", "-q", cwd=other)

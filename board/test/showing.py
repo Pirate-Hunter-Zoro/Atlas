@@ -11,17 +11,13 @@ Opening a route into a workspace's own directories is the largest of these
 changes and the one with the most ways to go wrong, so this suite is about what
 must NOT happen rather than about the figure arriving.
 
-Four things, and each of them is a way the feature turns into a defect:
+Three things, and each of them is a way the feature turns into a defect:
 
   * A PATH FROM A BROWSER NEVER REACHES A FILESYSTEM. What arrives is an id,
     compared against the ids of the figures discovery actually found. Same rule
     as `library.drawer_find` and `walk.resolve`, and the same reason: the alternative
     is a query parameter carrying a repo-relative path, which is a traversal
     waiting to be written.
-
-  * THE FENCE HOLDS HERE TOO. `projects/PSYCH-ASR/phi/` is session content, and
-    a route that serves images out of a workspace is the second place that has
-    to be refused by name. `tutorboard/fenced.py` is the one list.
 
   * IT IS BOUNDED. TRD-EHR's results tree holds 676 PNGs. A drawer is not a file
     manager and a payload polled four times a second is not a directory walk.
@@ -50,7 +46,7 @@ from http.server import ThreadingHTTPServer
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from tutorboard import fenced, sense                              # noqa: E402
+from tutorboard import sense                                      # noqa: E402
 from tutorboard.course import library, repo as course_repo        # noqa: E402
 from tutorboard.server.handler import Handler                     # noqa: E402
 from tutorboard.server.hub import Hub                             # noqa: E402
@@ -128,8 +124,6 @@ write(os.path.join(WS, "figures", "roc_curve.png"), BIG)
 write(os.path.join(WS, "tables", "table_one.png"), BIG)
 
 # And everything that must not be offered.
-write(os.path.join(WS, "results", "phi", "turn_table.png"), BIG)
-write(os.path.join(WS, "results", "cohort", "raw", "waveform.png"), BIG)
 write(os.path.join(WS, "notebooks", "scratch.png"), BIG)          # not a result dir
 write(os.path.join(WS, "results", "spacer.png"), b"\x89PNG\r\n\x1a\ntiny")
 write(os.path.join(WS, "results", "summary.csv"), b"a,b\n1,2\n")
@@ -148,7 +142,7 @@ rels = [f["rel"] for f in found]
 # ---------------------------------------------------------------------------
 # 1. what is offered, and what is not
 # ---------------------------------------------------------------------------
-print("\n-- an allowlist of trees, and a fence behind it --")
+print("\n-- an allowlist of trees --")
 
 check("the figure this exists for is offered",
       [r for r in rels if r.endswith("counterfactual_pipeline/"
@@ -157,21 +151,6 @@ check("and so is one in each of the other result directories",
       "figures/roc_curve.png" in rels and "tables/table_one.png" in rels)
 check("a picture outside the result directories is not a result",
       not [r for r in rels if "notebooks" in r])
-
-check("A FENCED DIRECTORY IS REFUSED INSIDE AN ALLOWED TREE",
-      not [r for r in rels if "/phi/" in r])
-check("and at any depth under one, not only at the top",
-      not [r for r in rels if "/raw/" in r])
-check("which is the one list every walker refuses",
-      fenced.refused("results/phi/turn_table.png")
-      and fenced.refused("results/cohort/raw/waveform.png")
-      and not fenced.refused("results/counterfactual_pipeline/x.png"))
-for bad in ("p" + "hi", "data", "inbox", "stage1", "stage2", "raw", "audio",
-            "/a/b/p%s/stage1" % "hi", "x/data/raw"):
-    check("refused by name: %r" % bad, fenced.refused(bad))
-for good in library.LOOK_IN + ("results/roc",):
-    check("a result directory is not refused: %r" % good,
-          not fenced.refused(good))
 
 check("a file too small to be a plot is not offered",
       not [r for r in rels if "spacer" in r])
@@ -275,12 +254,6 @@ for evil in ("/result/../../../../etc/passwd",
     status, _h, _b = get(PORT, evil)
     check("refused: %s" % evil, status == 404)
 
-# A figure that IS on disk, inside a fenced directory, asked for by the id it
-# would have had. The refusal is the fence and not the lookup failing by luck.
-status, _h, _b = get(PORT, "/result/" + library.result_ident("results/phi/turn_table.png"))
-check("and an id naming a figure inside the fence is refused too", status == 404)
-
-
 # ---------------------------------------------------------------------------
 # 5. the payload, the briefing, and the cache rule
 # ---------------------------------------------------------------------------
@@ -303,8 +276,6 @@ check("a tutor is told the figures exist and how to put one in a card",
       "/result/" in line and real and real[0]["id"] in line)
 check("and told a figure is something to ask about rather than an explanation",
       "under it" in line.lower())
-check("and never handed the address of one inside the fence",
-      library.result_ident("results/phi/turn_table.png") not in line)
 
 # A FIGURE NAMED BY ITS PATH. The briefing names six ids out of hundreds, so a
 # direction asking for any other figure needs an address a tutor can write.
@@ -315,7 +286,7 @@ said = library.embed_result_ids(WS, "![p](/result/%s) and ![q](/result/./%s)" % 
 check("a path in a card becomes that figure's id, with or without ./",
       said == "![p](/result/%s) and ![q](/result/%s)"
       % (library.result_ident(want), library.result_ident(want)))
-for miss in ("results/phi/turn_table.png", "results/nope.png",
+for miss in ("results/nope.png",
              "../../../etc/passwd", "results/summary.csv"):
     text = "![x](/result/%s)" % miss
     check("and a path that is not an offered figure is left alone: %s" % miss,
@@ -363,10 +334,10 @@ check("and /sw.js goes out with a VERSION hashed from that shell",
 # A mission's card had just ended by naming what it wrote -- a figure and four
 # tables, under a directory -- and the only way to look at any of it was a
 # terminal. So the library page grew a second list, and this is what it must
-# and must not do. Same walk, same allowlist, same fence, same ids: what is new
+# and must not do. Same walk, same allowlist, same ids: what is new
 # is the tables, the grouping, and reading a table back for a page that cannot
 # open a file.
-print("\n-- everything this workspace produced, browsable, and still fenced --")
+print("\n-- everything this workspace produced, browsable --")
 
 
 def text(path, said):
@@ -386,8 +357,6 @@ text(os.path.join(SWEEP, "sweep_intervals.csv"), "k,lo,hi\n40,0.61,0.66\n")
 text(os.path.join(SWEEP, "sweep_summary.json"),
      '{"n_anchors": 8516, "best_k": 40}')
 text(os.path.join(SWEEP, "what_it_found.md"), "# what the sweep found\n\nk=40.\n")
-# And a table inside the fence, which must be as refused as the picture was.
-text(os.path.join(WS, "results", "phi", "turn_table.csv"), "patient,turn\n1,hi\n")
 
 library.forget()
 made = library.browse_results(repo)
@@ -417,22 +386,6 @@ check("and a row never carries the path, because the board addresses one by id",
 check("a table says what it is on disk rather than what anybody assumed",
       sorted(set(t["format"] for g in made["groups"] for t in g["tables"]))
       == ["csv", "json", "md"])
-
-# ---- THE FENCE, BY NAME, ON BOTH KINDS ----
-check("A FENCED DIRECTORY IS IN NO GROUP ON THE BROWSE LIST",
-      not [w for w in wheres if "phi" in w.split("/")])
-check("and neither its picture nor its table is a row anywhere on it",
-      not [r for r in rows if r["file"] in ("turn_table.png",
-                                            "turn_table.csv")])
-check("the fenced table cannot be read back by the id it would have had",
-      library.result_table(WS, library.result_ident("results/phi/turn_table.csv"))
-      .get("ok") is not True)
-check("nor by the route, which answers 404 rather than an empty table",
-      get(PORT, "/library/table/"
-          + library.result_ident("results/phi/turn_table.csv"))[0] == 404)
-check("and the refusal is the one list, matched on the NAME at any depth",
-      fenced.refused("results/phi/turn_table.csv")
-      and "phi" in fenced.NEVER)
 
 # ---- a picture, over the route the drawer already uses ----
 shot = sweep[0]["figures"][0] if sweep and sweep[0]["figures"] else {}
@@ -597,27 +550,6 @@ check("a workspace with no results says why rather than drawing an empty box",
       .startswith("This workspace has no results directory"))
 check("and names where a job would have to write for one to appear",
       "results/" in library.browse_results(type("R", (), {"root": empty})())["why"])
-
-# A workspace whose output is session content -- PSYCH-ASR's own shape, a
-# top-level `phi/` and no results directory. The empty page must NAME the fence
-# rather than reading as a workspace that has never run anything.
-sealed = os.path.join(TMP, "PSYCH-ASR")
-write(os.path.join(sealed, "phi", "stage1", "turn_table.png"), BIG)
-text(os.path.join(sealed, "phi", "stage1", "turns.csv"), "patient,turn\n1,hi\n")
-fenced.forget()
-library.forget()
-shut = library.browse_results(type("R", (), {"root": sealed})())
-check("a workspace that holds a fence has it NAMED on the page, so an empty "
-      "list cannot pass for a workspace with nothing in it",
-      not shut["groups"] and shut["fenced"] == ["phi"]
-      and "`phi/`" in shut["why"])
-check("and nothing inside it is listed, whichever kind of file it is",
-      not [r for g in shut["groups"] for r in g["figures"] + g["tables"]]
-      and not library.result_index(sealed))
-check("nor readable by the id it would have had, either kind",
-      library.find_result(sealed, library.result_ident("phi/stage1/turn_table.png"))[0] is None
-      and library.result_table(sealed, library.result_ident("phi/stage1/turns.csv"))
-      .get("ok") is not True)
 
 check("the service worker sends the table route to the network too, because a "
       "job rewrites a result under the name it already had",

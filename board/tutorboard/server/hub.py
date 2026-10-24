@@ -24,7 +24,7 @@ import stat
 import threading
 import time
 
-from .. import assistants, coursemacros, fenced, paths
+from .. import assistants, coursemacros, paths
 from .. import sync, writeups
 from ..course import config, homework, library
 from ..lesson import cards, git, notes, slate, state, turns, uploads
@@ -250,8 +250,8 @@ def older_cards(repo, worker, before, limit=WINDOW):
 def subject_info(repo):
     """`GET /subject.json`: what the subject holds that a board shows, read
     when asked rather than on every tick. Problem sets and results; and the
-    subject's uncommitted count, the providers
-    and the fences, which the save badge and the tutor chooser paint."""
+    subject's uncommitted count and the providers, which the save badge and
+    the tutor chooser paint."""
     root = repo.root
     try:
         sets = [{"name": x["name"], "rel": x["rel"]} for x in homework.sets(root)][:60]
@@ -263,7 +263,6 @@ def subject_info(repo):
         "results": _safe(library.figures_status, repo),
         "unsaved": _safe(git.repo_dirty, repo),
         "assistants": _safe(assistants.listing),
-        "fenced": list(_safe(fenced.holds, root) or []),
     }
 
 

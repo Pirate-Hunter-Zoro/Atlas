@@ -109,7 +109,6 @@ var els = {
   roundClose: document.getElementById("round-close"),
   res: document.getElementById("res"),
   resCount: document.getElementById("res-count"),
-  resFenced: document.getElementById("res-fenced"),
   resFind: document.getElementById("res-find"),
   resNone: document.getElementById("res-none"),
   resList: document.getElementById("res-list"),
@@ -1686,28 +1685,14 @@ function paintResults(got) {
   els.libFigures.title = figs
     ? "everything this workspace has produced" : "";
   /* THE SWITCH IS THERE WHATEVER THE WALK FOUND, because the gallery of a
-     workspace with no figures is where the reason has to be readable too -- a
-     fenced one that offered no way in would be a refusal nobody can see. */
+     workspace with no figures is where the reason has to be readable too. */
   els.resView.hidden = false;
-  /* THE FENCE IS SAID OUT LOUD EVEN WHERE THERE IS A LIST. A page that quietly
-     leaves a directory out is a page somebody scrolls looking for what they
-     know is on disk. `tutorboard/fenced.py` is the one list, and this is it
-     said where the missing rows would have been. */
-  var sealed = got.fenced || [];
-  els.resFenced.hidden = !sealed.length;
-  els.resFenced.textContent = sealed.length
-    ? (sealed.length === 1 ? "The directory " : "The directories ")
-        + sealed.map(function (n) { return n + "/"; }).join(", ") + " "
-        + (sealed.length === 1 ? "is" : "are")
-        + " session content. Nothing on this board looks inside, so nothing in "
-        + (sealed.length === 1 ? "it" : "them") + " is listed here."
-    : "";
   els.resNone.hidden = !!groups.length;
   /* WHY IT IS EMPTY, in the server's own words, and kept rather than only
      painted: the gallery needs the same sentence where its pictures would
-     have been. The two reasons are different enough to matter -- a course has
-     no results directory, and a workspace whose output is session content has
-     one nothing may look inside. An empty box explains neither. */
+     have been. A course with no results directory and a directory with
+     nothing showable in it are different reasons, and an empty box explains
+     neither. */
   resWhy = got.why
     || "Nothing in this workspace has produced a figure or a table yet.";
   if (!groups.length) els.resNone.textContent = resWhy;
@@ -1991,7 +1976,7 @@ document.addEventListener("keydown", function (ev) {
    that say nothing about which one is the plot being looked for.
 
    It is a second VIEW rather than a second page, and it draws the payload
-   `/library/results.json` already sent -- one walk, one fence, one set of ids.
+   `/library/results.json` already sent -- one walk, one set of ids.
    A gallery with its own fetch would be a second answer about which figures
    exist, which is the drift `library._result_files` exists to prevent.
 
@@ -2009,10 +1994,9 @@ document.addEventListener("keydown", function (ev) {
         `GRID_HEAVY` the tile says its size and waits to be tapped, because a
         megabyte spent on something a thumb went past is a megabyte spent on
         nothing.
-     3. THE FENCE IS SAID WHERE THE PICTURES WOULD HAVE BEEN. A gallery is the
-        surface where a silently omitted directory does the most damage, so an
-        empty grid carries the server's own sentence -- which names the
-        directory and names `fenced.py`.
+     3. AN EMPTY GRID SAYS WHY. A gallery is the surface where a silent
+        blank does the most damage, so an empty grid carries the server's own
+        sentence about where it looked.
      4. AND CHOOSING IS THE POINT. The search box is the list's, unchanged; the
         directory and the order are two selects beside it, because the question
         *which of these do I want* is asked three ways and a gallery that can
@@ -2147,7 +2131,7 @@ function drawGrid() {
     /* A SENTENCE WHERE THE PICTURES WOULD HAVE BEEN. An empty grid is a page
        that looks broken, and the reasons are different enough to be worth
        telling apart: a filter that matched nothing, a directory of tables, and
-       a workspace whose output is session content. */
+       a workspace with no results at all. */
     els.resGrid.appendChild(saidLine(whyNoFigures()));
     return;
   }

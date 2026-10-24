@@ -63,7 +63,7 @@ from . import NOT_MINE
 from . import writing
 from .. import registry
 from ...runner import service as runner
-from ... import (artifacts, fenced, gitops, paths, sense, subjects,
+from ... import (artifacts, gitops, paths, sense, subjects,
                  writeups)
 from ...course import burn
 from ...course import ledger
@@ -455,11 +455,9 @@ SUBJECT_ID = re.compile(r"\A(?:courses|projects|research|practice)/[A-Za-z0-9._-
 def delete_doc(repo, subject, ident):
     """`POST /doc/delete`: `(payload, status)`. An id and a subject id, never
     a path: the subject is this board's or matches `subjects.find`, the
-    document matches the library. A fenced name is 403 before any lookup.
+    document matches the library.
     """
     served = (subjects.find(repo.root) or {}).get("id") or ""
-    if fenced.refused(subject) or fenced.refused("%s/%s" % (artifacts.DOCS, ident)):
-        return {"ok": False, "error": "that is under a fence"}, 403
     if not subject or subject == served:
         root = repo.root
     elif SUBJECT_ID.match(subject):
@@ -478,8 +476,6 @@ def delete_doc(repo, subject, ident):
             "no such document" if not doc else
             "%s has no doc.json, so it is not the board's to delete"
             % doc["title"])}, 404
-    if fenced.refused(doc["artifact"]):
-        return {"ok": False, "error": "that is under a fence"}, 403
     from ... import sessions                        # local: a cycle through artifacts
     ink = [os.path.join(root, sessions.INK)]
     if paths.same_dir(root, repo.root):
@@ -487,20 +483,16 @@ def delete_doc(repo, subject, ident):
     got = artifacts.delete(root, os.path.join(root, *doc["artifact"].split("/")),
                            idents=library.mark_idents(root, doc), ink_dirs=ink)
     library.forget()
-    if got.get("fenced"):
-        return {"ok": False, "error": got["said"]}, 403
     got.pop("trash", None)
     return dict(got, id=doc["id"], title=doc["title"]), (200 if got["ok"] else 500)
 
 
 def delete_material(repo, subject, name):
     """`POST /material/delete`: `(payload, status)`. A subject id and a name
-    `subjects.materials` listed; fenced names 403 first. File and ink go to
-    the trash; an ignored file makes no commit.
+    `subjects.materials` listed. File and ink go to the trash; an ignored
+    file makes no commit.
     """
     served = subjects.find(repo.root, registry.base_of(repo))
-    if fenced.refused(subject) or fenced.refused(name):
-        return {"ok": False, "error": "that is under a fence"}, 403
     if not subject or (served and subject == served["id"]):
         found = served
     elif SUBJECT_ID.match(subject):

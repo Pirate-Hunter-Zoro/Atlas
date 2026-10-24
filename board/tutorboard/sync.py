@@ -44,7 +44,7 @@ import sys
 import threading
 import time
 
-from . import fenced, subjects
+from . import subjects
 
 # The thread's cadence, and how long one ls-remote may take.
 EVERY = 20
@@ -514,7 +514,7 @@ class Sync(object):
             subject = ""
         paths = [p for p in (said["paths"] or old.get("paths") or [])
                  if subject and coding.subject_of(p) == subject and p != subject
-                 and ".." not in p.split("/") and not fenced.in_fence(p)]
+                 and ".." not in p.split("/")]
         prev = old.get("sha") or ""
         if not prev or not self._ancestor(prev, sha):
             code, parent = gitops._git(self.atlas, "rev-parse", "--verify",

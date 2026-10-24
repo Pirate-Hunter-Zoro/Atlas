@@ -11,7 +11,7 @@ import os
 import subprocess
 import time
 
-from .. import gitops, leaving, memo, paths, subjects, worktree
+from .. import gitops, memo, paths, subjects, worktree
 from ..course import homework
 from ..course import repo as course_repo
 
@@ -229,19 +229,6 @@ def run_push(repo, message=None):
                        "commit now would land in the middle of it. Nothing has "
                        "been lost -- finish or abort that in the terminal and "
                        "press save again." % busy),
-        }
-        with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
-            json.dump(record, fh, indent=2)
-        return record
-    # The same PHI content scan as `board push` (`leaving.py`), with no
-    # override: a tablet tap must not wave a PHI fence through.
-    phi = leaving.reason(repo.root)
-    if phi:
-        record = {
-            "ok": False,
-            "at": time.time(),
-            "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "detail": phi,
         }
         with open(os.path.join(repo.live, "push.json"), "w", encoding="utf-8") as fh:
             json.dump(record, fh, indent=2)

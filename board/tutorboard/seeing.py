@@ -8,9 +8,6 @@ then `vision_agent`, then every other sighted recipe, each tried when the one
 before it refused. Every request carries a code drawn only in the image,
 and an answer that cannot say it back is refused, because a confident
 paragraph about an unseen page is the failure that must not happen.
-
-The constraint: a fenced path is refused before a byte is read, because this
-sends files to a hosted provider and no pre-tool hook sees a board command.
 """
 
 import base64
@@ -27,7 +24,7 @@ import urllib.error
 import urllib.request
 import zlib
 
-from . import fenced, keys
+from . import keys
 
 
 # The default question: read back a page of handwriting a tutor must mark.
@@ -84,9 +81,8 @@ def route(agent=None, table=None, exclude=()):
     one provider's eyes are load-bearing. A recipe in `exclude` (one whose
     route already refused) is passed over. A stood-down host is skipped: an
     endpoint route when the stand-down names its host or none, never a
-    command route by name alone, since commands scrub `ROUTING`. An in-fence
-    recipe is never a route (only it reads phi), nor one marked `sighted:
-    false`.
+    command route by name alone, since commands scrub `ROUTING`. A recipe
+    marked `sighted: false` is never a route.
     """
     from .net import egress
     table = registry() if table is None else table
@@ -400,7 +396,7 @@ def _ask_command(settings, images, prompt):
     Run in one temporary directory holding exactly the strip and the pages,
     with the files asked for by name, because a headless turn cannot approve
     reads elsewhere and a refused read answers from the filename. Run without
-    `ROUTING`. The fence already ran in `describe`. The answer is stdout.
+    `ROUTING`. The answer is stdout.
     """
     box = tempfile.mkdtemp(prefix="board-see-ask-")
     try:
@@ -451,20 +447,9 @@ def _run_command(settings, images, prompt):
     return out
 
 
-def describe(path, page=None, prompt=None, agent=None, table=None, root=None):
-    """What is in this file, as text. Raises `Refused` with the reason.
-
-    The fence comes first, before anything is opened (`fenced.refused_in`,
-    the workspace-relative rule, since slate pages live in `live/inbox/`).
-    """
+def describe(path, page=None, prompt=None, agent=None, table=None):
+    """What is in this file, as text. Raises `Refused` with the reason."""
     path = os.path.abspath(os.path.expanduser(str(path or "")))
-    hit = (fenced.refused_in(root, path) if root else fenced.refused(path))
-    if hit:
-        raise Refused(
-            "%s is inside `%s/`, which is fenced -- and `board see` sends a "
-            "file to a hosted provider. Nothing in there may leave this "
-            "machine. The local model reads it where it sits; see the "
-            "`private` recipe in agents/recipes.py." % (path, hit))
     if not os.path.isfile(path):
         raise Refused("there is no file at %s" % path)
     # Resolved once: `route` may build the provider table in a subprocess.

@@ -206,7 +206,7 @@ from tutorboard import brief as brief_mod                     # noqa: E402
 
 RULES = ("# Rules\n\n- **You never make the user transcribe what they already "
          "wrote.** Open the PNG.\n- **The user never runs a board command.**\n"
-         + "".join("- rule %d: %s\n" % (i, "keep the data fenced " * 3)
+         + "".join("- rule %d: %s\n" % (i, "keep the notes short " * 3)
                    for i in range(18)))
 TUTOR = ("# Test Course\n\n## Where things are\n\n"
          + "chapters/ch01 holds the notes and homework. " * 20

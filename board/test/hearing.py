@@ -596,10 +596,6 @@ finally:
 import socket  # noqa: E402
 from tutorboard import code as coding  # noqa: E402
 
-CPOLICY = ("import re\n\ndef names_phi(text):\n"
-           "    return bool(re.search(r'SESSION-\\d+', str(text)))\n")
-
-
 class Clock(object):
     """The laptop loop's clock, an hour ahead of every mtime."""
 
@@ -649,7 +645,6 @@ try:
     git(cbox, "clone", "-q", corigin, ccl)
     git(ccl, "config", "user.email", "c@example.com")
     git(ccl, "config", "user.name", "c")
-    write(os.path.join(ccl, "ai-config", "policy", "phi.py"), CPOLICY)
     held = ["projects/Code/src"]
     A = os.path.join("projects", "Code", "src", "a.py")
     S = sessions.new("coding", base=cmac)["id"]

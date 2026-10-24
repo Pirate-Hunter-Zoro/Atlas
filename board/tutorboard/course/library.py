@@ -8,8 +8,7 @@ under the allowlist `LOOK_IN`, walked separately because `IGNORE` prunes
 has; title, kind and staleness are read from the files, never declared.
 
 The constraint: an id, never a path. What arrives from a browser is matched
-against what discovery found, and the fence (`fenced.refused`) is asked of
-every pruned directory and every whole path offered.
+against what discovery found.
 """
 
 import csv
@@ -22,7 +21,7 @@ import time
 from urllib.parse import unquote
 
 from . import paper
-from .. import artifacts, fenced, paths, subjects
+from .. import artifacts, paths, subjects
 
 # A stem with neither a source nor a PDF is not a document.
 SOURCE = (".tex", ".md")
@@ -32,7 +31,7 @@ FORMATS = SOURCE + BUILT
 # Where a document this board makes goes, one directory per document.
 WRITEUPS = "writeups"
 
-# Never entered. Not the fence: `fenced.NEVER` is asked on whole paths too.
+# Never entered.
 IGNORE = {"live", "node_modules", "__pycache__", "build", "dist", "target",
           "venv", ".venv", "env", "site-packages", "vendor", "results",
           "data", "test_data", "archive"}
@@ -167,7 +166,7 @@ def _depth(rel):
 def _files(root, skip=()):
     """`(rel, name, path)` for every file the subject may offer, in walk order.
 
-    Hidden names, `IGNORE`, `NOT_OURS`, fenced names and anything below
+    Hidden names, `IGNORE`, `NOT_OURS` and anything below
     `MAX_DEPTH` are never entered; nor are `skip` directories (artifacts at
     `docs/<slug>/`, listed from their doc.json).
     """
@@ -178,17 +177,12 @@ def _files(root, skip=()):
         dirs[:] = sorted(d for d in dirs if not d.startswith(".")
                          and d not in IGNORE
                          and d.lower() not in NOT_OURS
-                         and not fenced.refused(d)
                          and (d if rel == "." else os.path.join(rel, d))
                          .replace(os.sep, "/") not in skip)
         for name in sorted(files):
             if name.startswith("."):
                 continue
-            path = os.path.join(here, name)
-            # The fence is asked of the whole path too, at any depth.
-            if fenced.refused(path):
-                continue
-            yield rel, name, path
+            yield rel, name, os.path.join(here, name)
 
 
 # A marked copy (`<stem>-marked[-N].pdf`, burn.py) belongs to its PDF and is
@@ -455,9 +449,7 @@ def path_of(root, doc, ext=".pdf"):
         return ""
     here = os.path.join(root, *([] if not doc["dir"] else doc["dir"].split("/")))
     target = os.path.join(here, doc["stem"] + ext)
-    if fenced.refused(target) or not os.path.isfile(target):
-        return ""
-    return target
+    return target if os.path.isfile(target) else ""
 
 
 def pages(repo, ident_wanted, width=paper.PAGE_WIDTH):
@@ -1225,12 +1217,10 @@ def _big(path):
 
 
 def _ours(path):
-    """Neither a reference library nor fenced, asked of the whole path,
-    because the README reaches files the walk never pruned to."""
+    """Not a reference library, asked of the whole path, because the README
+    reaches files the walk never pruned to."""
     norm = os.path.normpath(path)
-    if any(p.lower() in NOT_OURS for p in norm.split(os.sep)):
-        return False
-    return not fenced.in_fence(norm.replace(os.sep, "/"))
+    return not any(p.lower() in NOT_OURS for p in norm.split(os.sep))
 
 
 def _drawer_walked(root):
@@ -1338,7 +1328,7 @@ def drawer_ident(root, path):
 
 def drawer_find(root, ident_wanted):
     """The drawer PDF with this id, as `(path, name)`, or `(None, None)`.
-    Matched against `drawer`, and the fence asked once more, because this
+    Matched against `drawer`, and `_ours` asked once more, because this
     turns a browser's name into a file the rasteriser opens."""
     wanted = str(ident_wanted or "").strip().lower()
     if not wanted:
@@ -1531,8 +1521,6 @@ def _result_tops(root):
     """`(name, directory)` for each result directory here, in `LOOK_IN` order."""
     out = []
     for name in LOOK_IN:
-        if fenced.refused(name):
-            continue
         top = os.path.join(root, name)
         if os.path.isdir(top):
             out.append((name, top))
@@ -1541,8 +1529,8 @@ def _result_tops(root):
 
 def _result_files(root):
     """`(rel, mtime, size)` for every figure and table under the result
-    directories. The allowlist picks the trees, `fenced.refused` the
-    directories inside them, and `MAX_SEEN` stops the walk regardless."""
+    directories. The allowlist picks the trees, and `MAX_SEEN` stops the walk
+    regardless."""
     found, seen, had = [], 0, set()
     root = os.path.realpath(root)
     for name, top in _result_tops(root):
@@ -1550,8 +1538,7 @@ def _result_files(root):
             rel_dir = os.path.relpath(here, top)
             if _depth(rel_dir) >= RESULT_DEPTH:
                 dirs[:] = []
-            dirs[:] = sorted(d for d in dirs if not d.startswith(".")
-                             and not fenced.refused(d))
+            dirs[:] = sorted(d for d in dirs if not d.startswith("."))
             for f in sorted(files):
                 seen += 1
                 if seen > MAX_SEEN:
@@ -1560,7 +1547,7 @@ def _result_files(root):
                     continue
                 path = os.path.join(here, f)
                 rel = os.path.join(name, os.path.relpath(path, top))
-                if fenced.refused(rel) or rel in had:
+                if rel in had:
                     continue
                 had.add(rel)
                 try:
@@ -1705,8 +1692,6 @@ def _result_path(root, ident_wanted, kind):
     rec = result_index(root).get(wanted)
     if not rec or rec["kind"] != kind:
         return None, None
-    if fenced.refused(rec["rel"]):
-        return None, None
     target = os.path.realpath(os.path.join(root, rec["rel"]))
     if not target.startswith(root + os.sep) or not os.path.isfile(target):
         return None, None
@@ -1756,7 +1741,7 @@ def embed_result_ids(root, text):
 
 def browse_results(repo):
     """The results page's whole payload, or a sentence saying why it is empty:
-    where it looked, and which fenced directories it would not enter."""
+    where it looked."""
     root = repo.root
     try:
         got = produced(root)
@@ -1767,14 +1752,13 @@ def browse_results(repo):
     out["workspace"] = subjects.identify(root)
     real = os.path.realpath(root)
     out["looked"] = [os.path.relpath(t, real) for _n, t in _result_tops(real)]
-    out["fenced"] = list(fenced.holds(root))
     if not out["groups"]:
         out["why"] = _no_results(out)
     return out
 
 
 def _no_results(out):
-    """Why the results page is empty: where it looked, then what it refused."""
+    """Why the results page is empty: where it looked."""
     if not out["looked"]:
         said = ("This workspace has no results directory. A job that writes "
                 "one into %s appears here, with no registration of any kind."
@@ -1786,13 +1770,6 @@ def _no_results(out):
                 % (", ".join("`%s/`" % n for n in out["looked"]),
                    " or ".join(FIGURE_SUFFIXES), FIGURE_MIN_BYTES,
                    " or ".join(TABLES)))
-    if out["fenced"]:
-        said += (" %s also holds %s. Nothing on this board looks inside it -- "
-                 "it is session content, and the refusal is by name in "
-                 "`tutorboard/fenced.py` -- so nothing in there is listed here "
-                 "or anywhere else."
-                 % (out["workspace"],
-                    ", ".join("`%s/`" % n for n in out["fenced"])))
     return said
 
 

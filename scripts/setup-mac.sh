@@ -22,9 +22,7 @@
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
 #   3  the Brewfile and every subject's environment (scripts/setup.sh)
 #   4  the assistant CLIs: ai-config linked, and every CLI its descriptors know
-#      how to install, installed when missing (none is required); and
-#      ai-config/policy/phi.py is there, since without it `board code`
-#      withholds every check's output from the tutor
+#      how to install, installed when missing (none is required)
 #   5  tailscale serves the board on the tailnet over HTTPS
 #   6  the provider config exists, the board answers on 8778, and
 #      board/test/tracked.py passes
@@ -108,7 +106,7 @@ bash scripts/setup.sh 2>&1 | tee "$LOGS/setup.log" | sed 's/^/  /'
 
 echo "== 4. assistant CLIs"
 # None is load-bearing: a CLI that will not install is reported, never a stop.
-# ai-config links each one's contract, PHI hook and settings and the shell
+# ai-config links each one's contract, hooks and settings and the shell
 # block; install-clis puts in any its descriptors know how to install.
 if [ -f ai-config/scripts/install.sh ]; then
   # ai-config is its own repository and Atlas's pull never moves it.
@@ -116,11 +114,8 @@ if [ -f ai-config/scripts/install.sh ]; then
     && good "ai-config at $(git -C ai-config log -1 --format=%h)" \
     || warn "ai-config would not fast-forward (local commits or edits); see $LOGS/ai-config-pull.log"
   bash ai-config/scripts/install.sh >"$LOGS/ai-config-install.log" 2>&1 \
-    && good "ai-config linked (contract, PHI hook, settings, shell)" \
+    && good "ai-config linked (contract, hooks, settings, shell)" \
     || warn "ai-config's install.sh failed; see $LOGS/ai-config-install.log"
-  [ -f ai-config/policy/phi.py ] \
-    && good "ai-config/policy/phi.py is there" \
-    || warn "no ai-config/policy/phi.py: without it, board code withholds every check's output from the tutor"
   bash ai-config/scripts/install-clis.sh 2>&1 | sed 's/^/  /'
   [ "${PIPESTATUS[0]}" -eq 0 ] || warn "an assistant CLI did not install; the line above says how by hand"
 else

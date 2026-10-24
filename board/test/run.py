@@ -3,14 +3,14 @@
 
     python3 board/test/run.py              every suite, four at a time
     python3 board/test/run.py -j 1         one at a time
-    python3 board/test/run.py --guards     the PHI guards only
+    python3 board/test/run.py --guards     the public-repository guards only
     python3 board/test/run.py sync code    only the suites named
 
 A suite is any `*.py` or `*.js` file in this directory except those in
 HELPERS. Discovery, not a list: a suite added here runs without anyone
 registering it. The full set also discovers subjects' tests/board/*.py entry points and runs
-`tools/sync-macros.py --check` and ai-config's `scripts/test.sh`. The policy
-tests also run with --guards. Where ai-config is absent the run says SKIPPED, loudly.
+`tools/sync-macros.py --check` and ai-config's `scripts/test.sh`, which
+also runs with --guards. Where ai-config is absent the run says SKIPPED, loudly.
 
 Each suite runs with board/ as its working directory and this process's
 environment less git's repository-local variables (GIT_DIR and the rest), plus
@@ -45,7 +45,7 @@ HELPERS = ["run.py", "inkzoom.js", "sessionpage.js"]
 # dir, and a -j 4 run fails nothing a -j 1 run passes.
 SERIAL = []
 
-# The guards: what keeps PHI, keys and other people's work out of git.
+# The guards: what keeps keys, recordings and other people's work out of git.
 GUARDS = ["tracked.py", "precommit.py", "code.py"]
 
 # Started first, because they are the longest; the rest follow by name.
@@ -101,7 +101,7 @@ def ai_config():
 
 
 def skipped_ai_config():
-    print("ai-config SKIPPED: %s is not here, so the PHI policy's own tests "
+    print("ai-config SKIPPED: %s is not here, so ai-config's own tests "
           "DID NOT RUN" % os.path.relpath(AI_CONFIG_TESTS, ROOT))
 
 

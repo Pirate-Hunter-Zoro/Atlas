@@ -14,7 +14,7 @@ import os
 import re
 import time
 
-from .. import fenced, subjects
+from .. import subjects
 
 # Not parts of a project: build output, dependencies, leftovers, hidden names.
 PART_IGNORE = {
@@ -144,15 +144,13 @@ def units(root):
 def _scan(root):
     out = []
     for here, dirs, files in os.walk(root):
-        # The fence prunes before anything is listed (`fenced.NEVER`).
         dirs[:] = sorted(d for d in dirs
-                         if not d.startswith(".") and d not in IGNORE
-                         and not fenced.in_fence(d))
+                         if not d.startswith(".") and d not in IGNORE)
         rel_dir = os.path.relpath(here, root)
         rel_dir = "" if rel_dir == "." else rel_dir
         for name in sorted(files):
             rel = os.path.join(rel_dir, name) if rel_dir else name
-            if fenced.in_fence(rel) or not _walkable(root, rel):
+            if not _walkable(root, rel):
                 continue
             out.append({"name": rel, "label": rel, "short": name,
                         "dir": rel_dir or ".", "kind": "file",
@@ -245,7 +243,7 @@ def _atlas_rel(base, root, rel):
 
 def _in_atlas(base, path):
     """The Atlas-relative file a typed path names, or "", checked the way the
-    listing checks: no absolute path, `..`, hidden, ignored, fenced or private
+    listing checks: no absolute path, `..`, hidden, ignored or private
     component, the real file inside the root, and `_walkable`. `vendor` is
     allowed only at the top of Atlas.
     """
@@ -256,7 +254,7 @@ def _in_atlas(base, path):
     if any(not x or x in (".", "..") or x.startswith(".") for x in parts):
         return ""
     low = [x.lower() for x in parts]
-    if fenced.in_fence(raw) or low[0] in PRIVATE:
+    if low[0] in PRIVATE:
         return ""
     rest = low[1:] if low[0] == "vendor" else low
     if any(x in IGNORE for x in rest[:-1]):
@@ -287,7 +285,7 @@ def resolve(root, wanted, base=None):
     (subject-local only), or a dotted module path with an optional symbol,
     kept only when the file defines it. Names not in `root` are tried under
     `base` (default `subjects.root()`). Every unit carries `root` and
-    `readonly`. A fenced component is refused everywhere.
+    `readonly`.
     """
     root = os.path.realpath(root)
     base = os.path.realpath(base or subjects.root())
@@ -302,11 +300,6 @@ def resolve(root, wanted, base=None):
     for name in wanted or []:
         found = None
         maybe = _candidates(name)
-        if any(fenced.in_fence(path) for path, _ in maybe):
-            # A typed path through the fence is refused outright, whatever
-            # other reading of it exists.
-            unknown.append(name)
-            continue
         for path, symbol in maybe:
             key = path.lower()
             u = by_path.get(key)

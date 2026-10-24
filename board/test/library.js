@@ -87,14 +87,12 @@ const LIBRARY = {
    results and figures in this interface." A mission's card ends by naming a
    figure and four tables; this is what the page is handed so it can draw them.
 
-   The shape is `library.browse_results`', and the two things to notice are what is
-   NOT in it: no `rel`, because the board addresses a result by id, and a
-   `fenced` list, because a directory left out silently is one somebody scrolls
-   looking for. */
+   The shape is `library.browse_results`', and the thing to notice is what is
+   NOT in it: no `rel`, because the board addresses a result by id. */
 const RESULTS = {
   ok: true, workspace: 'research/TRD-EHR',
   figures: 3, tables: 2, more: 1,
-  looked: ['results', 'figures'], fenced: ['phi'],
+  looked: ['results', 'figures'],
   groups: [
     {
       where: 'Qwen-Qwen3-Embedding-8B/google_medgemma/neighbor_count_sweep',
@@ -1051,12 +1049,6 @@ const named = (title) => rows().filter(
     ? ok('and it says how many there are and how many it is not showing, '
          + 'because a silent cap reads as this is all there is')
     : fail('the count says: ' + doc.getElementById('res-count').textContent);
-  const sealedLine = doc.getElementById('res-fenced');
-  !sealedLine.hidden && /phi\/ is session content/.test(sealedLine.textContent)
-    ? ok('a fenced directory is NAMED where its rows would have been, so a '
-         + 'page cannot quietly leave one out')
-    : fail('nothing visible on the page says the fence is there');
-
   // THE CARD NAMES THE FILE. Somebody reading "neighbor_count_sweep.png" has
   // to find the row by that string, so the row is that string -- not the
   // prettied name the drawer uses when a figure is being chosen.
@@ -1195,7 +1187,7 @@ const named = (title) => rows().filter(
      `library.browse_results`', sent down the same route, so this is the payload the
      page really gets and not a second idea of one. */
   const GAL = { ok: true, workspace: 'research/TRD-EHR', tables: 0, more: 0,
-                looked: ['results'], fenced: [], figures: 0, groups: [] };
+                looked: ['results'], figures: 0, groups: [] };
   [['sweep/alpha', 14, 1789000000], ['sweep/beta', 20, 1788000000],
    ['cohort', 6, 1787000000]].forEach(([where, n, at]) => {
     const figs = [];
@@ -1473,36 +1465,29 @@ const named = (title) => rows().filter(
   find.dispatchEvent(new window.Event('input', { bubbles: true }));
   await sleep(5);
 
-  // --- A FENCED WORKSPACE IS REFUSED BY NAME, IN THE GALLERY TOO ---------
-  // The worst possible outcome of this whole change is a grid of thumbnails
-  // out of `research/PSYCH-ASR/phi/`. This is that workspace's real payload
-  // shape -- no result directory, a top-level fence, and the server's own
-  // sentence -- and the gallery has to carry the refusal where the pictures
-  // would have been rather than drawing an empty grid.
-  const SEALED = {
-    ok: true, workspace: 'research/PSYCH-ASR', figures: 0, tables: 0, more: 0,
-    looked: [], fenced: ['phi'], groups: [],
+  // --- AN EMPTY WORKSPACE SAYS WHY, IN THE GALLERY TOO -------------------
+  // No result directory, and the server's own sentence: the gallery carries
+  // it where the pictures would have been rather than drawing an empty grid.
+  const EMPTY = {
+    ok: true, workspace: 'courses/Topology', figures: 0, tables: 0, more: 0,
+    looked: [], groups: [],
     why: 'This workspace has no results directory. A job that writes one into '
       + '`results/`, `figures/`, `tables/`, `artifacts/`, `analysis/` appears '
-      + 'here, with no registration of any kind. research/PSYCH-ASR also holds '
-      + '`phi/`. Nothing on this board looks inside it -- it is session '
-      + 'content, and the refusal is by name in `tutorboard/fenced.py` -- so '
-      + 'nothing in there is listed here or anywhere else.',
+      + 'here, with no registration of any kind.',
   };
-  window.paintResults(SEALED);
+  window.paintResults(EMPTY);
   await sleep(10);
   !doc.getElementById('res-grid').hidden && !tiles().length
-    ? ok('a fenced workspace draws NO TILE AT ALL in the gallery')
-    : fail(tiles().length + ' tiles for a workspace nothing may look inside');
+    ? ok('an empty workspace draws no tile in the gallery')
+    : fail(tiles().length + ' tiles for a workspace with no results');
   /* Read off a grid that is actually on the glass: a sentence inside a hidden
-     element is a refusal nobody sees, which is the defect, not the fix. */
-  const sealedSaid = doc.getElementById('res-grid').hidden
+     element is a reason nobody sees. */
+  const emptySaid = doc.getElementById('res-grid').hidden
     ? '' : doc.getElementById('res-grid').textContent;
-  /`phi\/`/.test(sealedSaid) && /fenced\.py/.test(sealedSaid)
-    ? ok('AND THE GALLERY NAMES THE FENCE where the pictures would have been -- '
-         + 'the directory by name and the file the rule lives in, so a grid '
-         + 'cannot pass for a workspace that has produced nothing')
-    : fail('the empty gallery says: ' + sealedSaid.slice(0, 200));
+  /no results directory/.test(emptySaid) && /`results\/`/.test(emptySaid)
+    ? ok('AND THE GALLERY SAYS WHY where the pictures would have been, naming '
+         + 'where a job would have to write')
+    : fail('the empty gallery says: ' + emptySaid.slice(0, 200));
   doc.getElementById('res-pick').hidden
       && doc.getElementById('res-grid-count').hidden
       && !doc.getElementById('res-view').hidden
@@ -1510,22 +1495,11 @@ const named = (title) => rows().filter(
          + 'sort nothing, while the way into the gallery stays -- that is how '
          + 'the reason gets read at all')
     : fail('an empty gallery still offers a chooser, or hides the way in');
-  !doc.getElementById('res-fenced').hidden
-    && /phi\/ is session content/.test(
-         doc.getElementById('res-fenced').textContent)
-    ? ok('and the line above it says the same thing, which is the list\'s rule '
-         + 'kept on the second surface')
-    : fail('the fence line is not on the page in gallery view');
-  !everSent.filter((u) => /phi/.test(u)).length
-    ? ok('and nothing the page has asked for, from its first fetch onwards, '
-         + 'has ever named it')
-    : fail('the page reached into the fence: '
-           + everSent.filter((u) => /phi/.test(u)).join(','));
 
   // --- AND A WORKSPACE WITH TABLES AND NO FIGURES SAYS SO ----------------
   window.paintResults({
     ok: true, workspace: 'x', figures: 0, tables: 2, more: 0,
-    looked: ['results'], fenced: [], groups: [{
+    looked: ['results'], groups: [{
       where: 'sweep', at: 1789000000, iso: '2026-09-20', more: 0, figures: [],
       tables: [{ id: 'sweep-curve-1', kind: 'table', name: 'sweep curve',
                  file: 'sweep_curve.csv', format: 'csv', size: 900,

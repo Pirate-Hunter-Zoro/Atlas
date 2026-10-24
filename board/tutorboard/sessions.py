@@ -45,7 +45,7 @@ import shutil
 import threading
 import time
 
-from . import fenced, gitops, paths, subjects
+from . import gitops, paths, subjects
 from .course import repo as course_repo
 
 STORE = "sessions"
@@ -617,8 +617,6 @@ def _dest(home, name, dest):
         raise Refused("%s leaves the subject" % said)
     if any(p.startswith(".") for p in parts):
         raise Refused("%s: not into a hidden directory (.git, .ink, ...)" % said)
-    if fenced.in_fence(rel) or parts[0] == "results":
-        raise Refused("%s: nothing is filed under a fenced directory" % said)
     full = os.path.join(home, rel)
     inside = os.path.relpath(os.path.realpath(os.path.dirname(full)),
                              os.path.realpath(home))
@@ -634,7 +632,7 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     `materials/` by default, or `dest` inside the subject (a directory or a
     new name). Its ink moves to `<subject>/.ink/`, re-keyed to the file's
     new library id. Refused: unbound, not an upload, a destination outside
-    the subject, hidden, fenced or taken, or ink already under the new keys.
+    the subject, hidden or taken, or ink already under the new keys.
     Nothing is committed (D1).
 
     Returns {from, to, subject, keys, doc}: `to` relative to the subject,

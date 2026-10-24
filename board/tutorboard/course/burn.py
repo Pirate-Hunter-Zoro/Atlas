@@ -10,8 +10,8 @@ with the page as an image and the ink as vector paths over it; the text
 layer is lost.
 
 The constraint: the original PDF is never written over, and a copy is made
-only where git would ignore it, because a copy of fenced content a commit
-could carry cannot be taken back.
+only where git would ignore it, because a copy a commit could carry into
+this public repository cannot be taken back.
 """
 
 import datetime
@@ -26,7 +26,6 @@ import zlib
 
 from . import paper
 from . import library
-from .. import fenced
 
 # Print resolution; the glass's ~150dpi looks soft on paper.
 BURN_DPI = 200
@@ -653,20 +652,6 @@ def marked_beside(target, name):
     return path if name in names and os.path.isfile(path) else ""
 
 
-def _fence_of(repo, doc, target):
-    """The fenced directory this document sits in, or None."""
-    for p in (doc.get("rel"), doc.get("source"), target):
-        if not p:
-            continue
-        full = p if os.path.isabs(p) else os.path.join(repo.root, *p.split("/"))
-        rel = os.path.relpath(full, repo.root).replace(os.sep, "/")
-        hit = next((x for x in rel.lower().split("/") if x in fenced.NEVER), None)
-        hit = hit or fenced.refused_in(repo.root, full)
-        if hit:
-            return hit
-    return None
-
-
 def marked_file(repo, ident, name):
     """The marked copy `name` of library document `ident`, as a path, or ""."""
     ident = str(ident or "").strip().lower()
@@ -699,12 +684,6 @@ def burn_library(repo, ident, mode="new", dpi=BURN_DPI):
         return {"ok": False, "why": "none",
                 "detail": "This workspace has no document by that name."}
     target = library.path_of(repo.root, doc, ".pdf")
-    fence = _fence_of(repo, doc, target)
-    if fence:
-        return {"ok": False, "why": "fenced",
-                "detail": "%s is inside %s/, and nothing on this board makes a "
-                          "copy of what is in there."
-                          % (doc.get("title") or ident, fence)}
     if not target:
         return {"ok": False, "why": "unbuilt",
                 "detail": "There is no PDF of this document to write on yet."}

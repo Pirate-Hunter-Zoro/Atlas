@@ -22,7 +22,6 @@ anything but the shim.
   - THE PULL, scripts/setup.sh and ai-config's fast-forward and install run;
     setup.sh bundles the union, builds a mise subject and installs a
     descriptor, and a second run, --coding or as the host, changes nothing.
-  - A MISSING ai-config/policy/phi.py IS A PROBLEM, named.
   - `board pull` FAST-FORWARDS ai-config, relinks it, and names the subjects
     whose lockfiles moved, with --quiet too, a mise.lock, a Cargo.lock or a
     build.zig.zon one directory down included; ai-config that will not fast-forward is exit 1.
@@ -32,7 +31,7 @@ anything but the shim.
     logs the command, maps `host:<path>` to a fixture Mac and runs the real
     rsync there, so the include and exclude lists are proved by rsync itself:
     materials, textbooks, readings, lectures and assignments arrive; `.ink/`,
-    `sessions/`, any `.env*`, phi/ and anything else never do; nothing here is
+    `sessions/`, any `.env*`, results/ and anything else never do; nothing here is
     deleted; named subjects limit it; no `host` is a plain refusal.
 """
 
@@ -187,16 +186,15 @@ try:
                   % (tool, where))
             sys.exit(1)
 
-    # ai-config: its own origin, with the PHI policy and two install scripts
-    # that only say they ran.
+    # ai-config: its own origin, with two install scripts that only say they
+    # ran.
     aorigin = os.path.join(work, "ai-config.git")
     run(["git", "init", "-q", "--bare", "-b", "main", aorigin])
     aseed = os.path.join(work, "ai-config-seed")
     run(["git", "init", "-q", "-b", "main", aseed])
     git(aseed, "remote", "add", "origin", aorigin)
     commit(aseed, {"scripts/install.sh": 'echo ai-install >>"$LAPTOP_CALLS"\n',
-                   "scripts/install-clis.sh": 'echo install-clis >>"$LAPTOP_CALLS"\n',
-                   "policy/phi.py": "def names_phi(path):\n    return False\n"},
+                   "scripts/install-clis.sh": 'echo install-clis >>"$LAPTOP_CALLS"\n'},
            "a1")
 
     # Atlas: the real setup scripts and the toolplan they read (board/tutorboard,
@@ -278,7 +276,6 @@ try:
           and "skipped: a coding checkout serves no board" in out, read(CALLS))
     check("and bootstrap offers no tailnet name or tailscale serve",
           "will call itself" not in out and "tailscale serve --bg" not in out, out)
-    check("the PHI policy is found", "ai-config/policy/phi.py is there" in out, out)
 
     # A rerun with no flag, after ai-config moved on.
     open(CALLS, "w").close()
@@ -300,12 +297,6 @@ try:
           git(os.path.join(laptop, "ai-config"), "rev-parse", "HEAD")
           == git(aorigin, "rev-parse", "main") and calls("ai-install"), out)
 
-    os.remove(os.path.join(laptop, "ai-config", "policy", "phi.py"))
-    code, out = run(["bash", setup])
-    check("a missing ai-config/policy/phi.py is a problem, named",
-          code == 1 and "no ai-config/policy/phi.py" in out
-          and "1 thing(s) above still need a person" in out, out)
-    git(os.path.join(laptop, "ai-config"), "checkout", "--", "policy/phi.py")
 
     # Without the role, the same install.sh does load the agent: the gate is
     # the role, not the shim. Needs plutil, which only a Mac has.
@@ -423,7 +414,7 @@ try:
         "courses/C/materials/.env", "courses/C/textbook/.env",
         "courses/C/materials/.envrc",
         "courses/C/chapters/ch1/lectures/.env.local",
-        "projects/A/phi/materials/p.csv", "projects/A/results/materials/r.csv",
+        "projects/A/results/materials/r.csv",
         "courses/C/chapters/ch1/notes.md", "courses/C/notes.md",
         "courses/C/chapters/ch1/reading.md", "projects/A/notes.md",
         "README.md", "vendor/v/materials/v.pdf",

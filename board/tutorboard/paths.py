@@ -75,7 +75,7 @@ def port():
 TRASH = (os.environ.get("TUTORBOARD_TRASH")
          or os.path.join(HOME, ".local", "share", "tutor-board", "trash"))
 
-# The shared PDF page cache (`course/paper.py`), outside the tree so a PHI
+# The shared PDF page cache (`course/paper.py`), outside the tree so a cached
 # page can never be committed. `TUTORBOARD_PAGES` moves it.
 PAGES = (os.environ.get("TUTORBOARD_PAGES")
          or os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"),
@@ -108,18 +108,15 @@ STATE_DIR = os.environ.get("BOARD_STATE_DIR") or \
 # ---------------------------------------------------------------------------
 # What lives OUTSIDE the repository, on purpose
 # ---------------------------------------------------------------------------
-# Directories outside the tree on purpose, because they cannot go in a public
-# repository: PHI (identifiable session audio) and ARTIFACTS (large job
-# output). Never symlinked in, since a tracked symlink maps the way to PHI.
-# Named here so "which directories may a path from a file reach" has one
-# answer.
-PHI = os.environ.get("TUTORBOARD_PHI") or os.path.join(HOME, "phi")
+# A directory outside the tree on purpose, because it cannot go in a public
+# repository: ARTIFACTS (large job output). Never symlinked in. Named here so
+# "which directories may a path from a file reach" has one answer.
 ARTIFACTS = os.environ.get("TUTORBOARD_ARTIFACTS") or os.path.join(HOME, "artifacts")
 
 
 def outside_tree():
     """The directories a path out of a file may reach that are not the repository."""
-    return (os.path.realpath(PHI), os.path.realpath(ARTIFACTS))
+    return (os.path.realpath(ARTIFACTS),)
 
 
 def within(target, *roots):

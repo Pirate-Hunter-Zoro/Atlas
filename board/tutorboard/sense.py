@@ -9,7 +9,7 @@ the code (`mode_sense`).
 
 import os
 
-from . import fenced, paths, plain
+from . import paths, plain
 from .course import config, homework, library, walk
 
 
@@ -185,9 +185,8 @@ TRACE_SENSE = (
     "another subject -- and quote it with its path. %s ARE READ-ONLY, in do "
     "mode too: never edit, create or commit a file under them in this "
     "checkout. The board changes only in a git worktree; a vendor tree is "
-    "pulled at a commit. Never look inside a directory named %s. "
-    % (" and ".join(d + "/" for d in walk.READ_ONLY),
-       ", ".join(fenced.NEVER))
+    "pulled at a commit. "
+    % " and ".join(d + "/" for d in walk.READ_ONLY)
 )
 
 

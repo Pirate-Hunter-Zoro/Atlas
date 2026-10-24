@@ -13,8 +13,7 @@ repository and a temp trash.
   * The library lists artifacts first, legacy documents second with the ids
     they had before any doc.json existed, and `materials/*.pdf` last.
   * `delete` moves the directory to the trash, takes that document's ink keys
-    and no other, and makes one commit; `POST /doc/delete` refuses a fenced
-    path with 403.
+    and no other, and makes one commit.
   * `sessions.end` commits an in-place artifact that lists the session.
   * The payload and `/library.json` build with `library.stamp` patched to raise,
     and `writeups.waiting` judges an ask by its doc.json.
@@ -130,7 +129,6 @@ try:
 except ValueError:
     refused = True
 check("an artifact's source is .tex or .md", refused)
-check("a fenced name is never a slug", artifacts.slugify("Data") == "data-doc")
 
 src = os.path.join(art["dir"], rec["source"])
 # asked_at is to the second; the source is written after it.
@@ -340,14 +338,6 @@ def post(path, body):
 
 
 try:
-    fenced_dir = os.path.join(root, "docs", "data")
-    write(os.path.join(fenced_dir, "doc.json"),
-          json.dumps({"title": "x", "source": "data.md", "sessions": [], "asked_at": None}))
-    code, body = post("/doc/delete", {"subject": "courses/Topo", "id": "data"})
-    check("a delete under a fenced path returns 403, and nothing moves",
-          code == 403 and os.path.isdir(fenced_dir), (code, body))
-    code, body = post("/doc/delete", {"subject": "projects/phi", "id": "x"})
-    check("so does a fenced subject", code == 403, (code, body))
     code, body = post("/doc/delete", {"subject": "courses/Topo", "id": "no-such"})
     check("an id the library does not have is a miss", code == 404)
     code, body = post("/doc/delete", {"subject": "../../etc", "id": "x"})

@@ -13,8 +13,8 @@ A rule written down is obeyed until somebody runs `git add -A` in a directory
 they have not looked in. So the rule is code: `tutorboard/audit.py` holds it,
 `.githooks/pre-commit` asks it of every staged path, and this file asks it of
 the whole index on every run of the suite, then asks git itself whether it can
-see any directory that must stay invisible. The second half of this file tests
-the guards themselves, in temporary repositories.
+see what the ignore rules keep out. The second half of this file tests the
+guards themselves, in temporary repositories.
 """
 
 import os
@@ -26,7 +26,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from tutorboard import audit, fenced, leaving          # noqa: E402
+from tutorboard import audit                           # noqa: E402
 
 
 # The whole REPOSITORY, not the tool: asked of git rather than derived by
@@ -86,33 +86,13 @@ for msg in audit.check(files, HERE):
     fail(msg)
 
 
-# ---- the directories that live inside the tree and must stay invisible -----
-#
-# A subject's phi/ and results/ belong with the subject, so they may be on disk
-# here -- and git must not be able to see one byte of any of them. Found by discovery, so a
-# new subject's phi/ is guarded the day it is made; none on disk is a fresh
-# clone and is fine. Git is asked, rather than the ignore file believed.
-_HELD = audit.held(HERE)
-for held, what in _HELD:
-    checked += 1
-    said = audit.exposed(HERE, held, what)
-    if said:
-        fail(said)
-_FOUND = [h for h, _ in _HELD if os.path.basename(h) in audit.HELD_NAMES]
-if _FOUND:
-    ok("%d phi/ or results/ directories found on disk by discovery, each one "
-       "asked of git" % len(_FOUND))
-else:
-    ok("no phi/ or results/ directory on disk, so there is none to hide")
-
-# ---- A MISSION'S PROGRESS TRAIL IS WORDS ABOUT FENCED WORK ----------------
+# ---- A MISSION'S PROGRESS TRAIL STAYS ON DISK -----------------------------
 #
 # Cross-board missions are gone, but a workspace's `live/missions/` can still
-# hold the trail files they wrote, one per mission, and what is in them is the
-# assistant's own sentences about what it just finished -- written, in the one
-# workspace that has a fence, by the one assistant allowed to read that fence. So it is exactly the kind of thing that must never become
-# a tracked file, and it is not kept out by being small or by nobody thinking
-# about it: `live/*` in every workspace excludes it.
+# hold the trail files they wrote, one per mission: the assistant's own
+# sentences about what it just finished. That is session detail, and it is not
+# kept out by being small or by nobody thinking about it: `live/*` in every
+# workspace excludes it.
 #
 # THAT IS NOT OBVIOUS AND IS WHY IT IS ASSERTED. A workspace may let some of
 # `live/` back in -- `!live/cards/`, `!live/state.json`, `!live/turns.jsonl` --
@@ -138,9 +118,8 @@ for _ws in sorted(os.listdir(HERE)) if HERE else []:
                           stdout=subprocess.DEVNULL,
                           stderr=subprocess.DEVNULL).returncode != 0:
             fail("GIT CAN SEE %s. That file is a mission's progress trail -- "
-                 "the assistant's own sentences about work it did, written in "
-                 "a workspace that may hold session content -- and one commit "
-                 "from anywhere puts it in a repository. `live/*` is what "
+                 "the assistant's own sentences about work it did -- and one "
+                 "commit from anywhere puts it in a public repository. `live/*` is what "
                  "keeps it out; something has let a path under `live/` back "
                  "in without narrowing it." % _rel)
 
@@ -230,24 +209,6 @@ ok("%d feedback-round paths across every subject asked of git, and ignored"
    % _seen_rounds)
 
 
-# ---------------------------------------------------------------------------
-# AND THE SAME FAILURE ONE STEP EARLIER: SESSION CONTENT IN A DIFF
-# ---------------------------------------------------------------------------
-# Everything above is about a FILE. An ignore rule keeps the fenced directory
-# out of the index and the checks above audit every tracked path, so a file
-# cannot get out. CONTENT can: a test fixture cut out of a transcript, an
-# example hard-coded from one, a docstring quoting a span -- written by the one
-# assistant allowed to read that directory and pushed by a turn that is not.
-#
-# That matters now because a push here is unattended. `board finish` raises the
-# offer, the tutor may push on its own, and a mission can be told to ship
-# itself. `ai-config/policy/phi.py` is the lab's own rule, owned by the lab
-# rather than by this tool, and `tutorboard/leaving.py` is the first thing that
-# ever called it.
-#
-# A TEMPORARY TREE, unlike every check above, and for one reason: what is being
-# checked is the guard's own behaviour, and the last thing this file may do is
-# leave a fixture naming session content inside the real repository.
 # ---- the audit's shape, on paths nobody has committed --------------------
 #
 # The scan above is over what Atlas tracks TODAY, which says nothing about a
@@ -265,7 +226,7 @@ _SHAPES = (
     ("x_session1.wav", True),
     ("projects/X/model.pkl", True),
     ("projects/X/keys.env", True),
-    ("ai-config/policy/phi.py", True),
+    ("ai-config/policy/x.py", True),
     ("projects/TRD-EHR/notes/lectures.md", False),
     ("projects/X/src/assignment.py", False),
     ("board/tutorboard/sessions.py", False),
@@ -277,7 +238,7 @@ if audit.other_peoples_work(_keep):
 if _wrong:
     fail("the audit is the wrong shape for: %s" % ", ".join(_wrong))
 else:
-    ok("the audit refuses other people's work, sessions, ink, materials, PHI "
+    ok("the audit refuses other people's work, sessions, ink, materials, audio "
        "and artifact shapes, credentials and ai-config, and passes the owner's "
        "own files beside them")
 if (audit.check(["big.bin"], size=lambda rel: 30 * 1024 * 1024)
@@ -285,38 +246,6 @@ if (audit.check(["big.bin"], size=lambda rel: 30 * 1024 * 1024)
     ok("a 30 MB file is refused and a small one is not")
 else:
     fail("the 25 MB cap does not hold")
-
-
-# ---- discovery finds a held directory, and git seeing it is a failure -------
-_box = tempfile.mkdtemp(prefix="tutor-held-")
-try:
-    git(_box, "init", "-q")
-    for _d in ("projects/PSYCH-ASR/phi", "projects/TRD-EHR/results",
-               "projects/X/a/b/results", "projects/Y/data/phi",
-               "projects/X/a/b/c/phi", "projects/Y/exports/results",
-               "research/PSYCH-ASR/phi"):
-        os.makedirs(os.path.join(_box, _d))
-        put(os.path.join(_box, _d, "f.txt"), "x\n")
-    _found = [h for h, _ in audit.held(_box)]
-    if _found == ["projects/PSYCH-ASR/phi", "projects/TRD-EHR/results",
-                  "projects/X/a/b/results", "research/PSYCH-ASR/phi"]:
-        ok("discovery finds projects/PSYCH-ASR/phi, projects/TRD-EHR/results "
-           "and phi/ or results/ up to three levels under a subject, plus "
-           "residue left under the legacy research/, and never walks into a "
-           "fenced directory or exports/")
-    else:
-        fail("discovery found %r" % _found)
-    if audit.exposed(_box, "projects/PSYCH-ASR/phi", "test"):
-        ok("a projects/PSYCH-ASR/phi that git can see is a failure")
-    else:
-        fail("a projects/PSYCH-ASR/phi that git can see was not caught")
-    put(os.path.join(_box, ".gitignore"), "phi/\nresults/\n")
-    if not any(audit.exposed(_box, h, w) for h, w in audit.held(_box)):
-        ok("and once ignored, git is blind to it and the check passes")
-    else:
-        fail("an ignored phi/ was still reported as visible")
-finally:
-    shutil.rmtree(_box, ignore_errors=True)
 
 
 # ---- a course's third-party shapes, forced past the ignore rules ------------
@@ -356,141 +285,6 @@ try:
         fail("the index scan missed a forced course shape: %r" % _said)
 finally:
     shutil.rmtree(_box, ignore_errors=True)
-
-
-FENCE = "phi"
-SHAPE = ".rttm"
-OLD_TREE = "data/stage1"
-
-tmp = tempfile.mkdtemp(prefix="tutor-leaving-")
-was = os.environ.get("TUTORBOARD_COURSES")
-try:
-    psych = os.path.join(tmp, "projects", "PSYCH-ASR")
-    galois = os.path.join(tmp, "courses", "Galois-Theory")
-    for r in (psych, galois):
-        put(os.path.join(r, "tutorboard.json"), "{}\n")
-    # The fence is a DIRECTORY THAT EXISTS: `fenced.holds` is a listing, because
-    # whether a workspace has one is a fact about what is on disk.
-    os.makedirs(os.path.join(psych, FENCE), exist_ok=True)
-    # The policy itself, copied rather than stubbed. Part of what is checked
-    # here is that it is loaded out of the repository by path; a stub would be
-    # testing the test.
-    if HERE and os.path.isfile(os.path.join(HERE, leaving.POLICY)):
-        os.makedirs(os.path.join(tmp, os.path.dirname(leaving.POLICY)),
-                    exist_ok=True)
-        shutil.copyfile(os.path.join(HERE, leaving.POLICY),
-                        os.path.join(tmp, leaving.POLICY))
-    for args in (["init", "-q"], ["add", "-A"],
-                 ["-c", "user.email=t@t", "-c", "user.name=t",
-                  "commit", "-q", "-m", "start"]):
-        subprocess.run(["git"] + args, cwd=tmp, stdout=subprocess.DEVNULL,
-                       stderr=subprocess.DEVNULL)
-    os.environ["TUTORBOARD_COURSES"] = tmp
-    fenced.forget()
-    leaving._POLICY["root"] = None
-
-    if leaving.policy(tmp):
-        ok("the rule comes out of the repository's own policy file, not a copy")
-    else:
-        fail("the repository's own policy could not be loaded, so nothing is "
-             "checking a diff. ai-config/policy/phi.py is the rule.")
-
-    if leaving.reason(psych, tmp) is None:
-        ok("a clean tree is not refused")
-    else:
-        fail("a clean tree was refused a push")
-
-    # THE CASE THIS EXISTS FOR. A fixture written by the assistant that could
-    # read the directory it came out of, never tracked -- so no `git diff` sees
-    # it at all and only `--untracked-files=all` finds it.
-    fixture = os.path.join(psych, "tests", "fixtures", "turns.py")
-    put(fixture,
-        "# cut out of %s/session_03%s while checking the aligner\n"
-        'SPAN = "SPEAKER session_03 1 12.40 3.10 spk_1"\n' % (FENCE, SHAPE))
-    said = leaving.reason(psych, tmp) or ""
-    if not said:
-        fail("A FIXTURE REACHING FOR SESSION CONTENT WAS NOT REFUSED. That "
-             "diff would have gone to a public remote with nobody watching.")
-    elif "projects/PSYCH-ASR/tests/fixtures/turns.py" not in said:
-        fail("the refusal does not name the file: %s" % said[:200])
-    else:
-        ok("a fixture reaching for session content is refused, by name")
-
-    # And the same words in a workspace that holds no fence are PROSE ABOUT a
-    # fence rather than a hole in one. Checking everything was the alternative
-    # and it is wrong in this direction: this repository's own documentation
-    # names the fenced directory on nearly every page, including this file.
-    os.remove(fixture)
-    put(os.path.join(galois, "notes.md"),
-        "The fence matches %s/ by name, at any depth.\n" % FENCE)
-    if leaving.reason(galois, tmp) is None:
-        ok("and a workspace with no fence is not, because prose about a fence "
-           "is not a hole in one")
-    else:
-        fail("a workspace with no fence was refused for naming one in prose")
-
-    # A TRACKED file, whose ADDED lines reach for it. What was already committed
-    # is not read again; this is about the line that is new.
-    put(os.path.join(psych, "notes.md"), "nothing here yet\n")
-    subprocess.run(["git", "add", "-A"], cwd=tmp, stdout=subprocess.DEVNULL)
-    subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
-                    "commit", "-q", "-m", "notes"], cwd=tmp,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    if leaving.reason(psych, tmp) is not None:
-        fail("a committed tree was refused a push")
-    put(os.path.join(psych, "notes.md"),
-        "nothing here yet\nthe joined turns are under %s\n" % OLD_TREE)
-    said = leaving.reason(psych, tmp) or ""
-    if "projects/PSYCH-ASR/notes.md" in said:
-        ok("and a line added to a tracked file in there is refused the same way")
-    else:
-        fail("an added line naming the old data tree was not refused: %s"
-             % said[:200])
-
-    # A fence with no policy is refused loudly: a guard that switches itself
-    # off when its rule goes missing is a guard nobody can trust.
-    os.remove(os.path.join(tmp, leaving.POLICY))
-    leaving._POLICY["root"] = None
-    said = leaving.reason(psych, tmp)
-    hit = leaving.refused(psych, ["projects/PSYCH-ASR/notes.md"], tmp)
-    if isinstance(said, str) and leaving.POLICY in said and isinstance(hit, str):
-        ok("a fence with no policy file is refused, by name, by both reason "
-           "and refused")
-    else:
-        fail("a fence with no policy was not refused: %r, %r" % (said, hit))
-
-    # And a repository with no fence anywhere has nothing to guard.
-    os.rmdir(os.path.join(psych, FENCE))
-    fenced.forget()
-    if leaving.reason(psych, tmp) is None and leaving.refused(psych, [], tmp) == []:
-        ok("with no fence anywhere, a missing policy refuses nothing")
-    else:
-        fail("a tree with no fence was refused for having no policy")
-finally:
-    if was is None:
-        os.environ.pop("TUTORBOARD_COURSES", None)
-    else:
-        os.environ["TUTORBOARD_COURSES"] = was
-    fenced.forget()
-    leaving._POLICY["root"] = None
-    shutil.rmtree(tmp, ignore_errors=True)
-
-# AND BOTH PUSHES MAKE THE CHECK. There are two of them -- the command line,
-# which a tutor turn and a ship run, and the save button, which is a person
-# tapping -- and a guard on one of them is a guard on neither.
-TOOL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-for what, rel in (("board push", os.path.join("bin", "board")),
-                  ("the save button",
-                   os.path.join("tutorboard", "lesson", "git.py"))):
-    try:
-        with open(os.path.join(TOOL, rel), encoding="utf-8") as fh:
-            src = fh.read()
-    except OSError:
-        src = ""
-    if "leaving.reason(" in src:
-        ok("%s runs what it is about to commit past the rule first" % what)
-    else:
-        fail("%s pushes without checking the diff for session content" % what)
 
 
 print()

@@ -3,11 +3,11 @@
 
 A two-clone fixture: a bare origin standing in for GitHub, a `laptop` clone
 where the owner writes and the loop runs, and a `mac` clone that pushes a vibe
-commit to the same ref. Two subjects, one `"phi": false` and one `"phi":
-true`, each with a check that prints a plain line and a `RELAY:` line.
+commit to the same ref. Two subjects, each with a check that prints a plain
+line and a `RELAY:` line.
 
 Proved here: an edit is one snapshot on code/S and nothing on main; check
-output is in the message only where phi is literally false; a commit pushed to
+output is in the message; a commit pushed to
 code/S elsewhere lands in the laptop's working tree; --end is one commit on
 main and no ref, and refuses a held file main changed too; --abandon drops
 the ref; `board code --help` imports no server or runner module. A new hold on a checkout that is not the board's pulls main
@@ -95,8 +95,6 @@ def commit_by_hand(root, rel, end=None):
 
 CHECK = ("#!/bin/bash\necho 'plain output: 3 tests ran'\n"
          "echo 'RELAY: tests 3'\nexit 0\n")
-POLICY = ("import re\n\ndef names_phi(text):\n"
-          "    return bool(re.search(r'SESSION-\\d+', str(text)))\n")
 SID = "20261008-120000"
 
 
@@ -126,10 +124,10 @@ try:
     git(seed, "init", "-q", "-b", "main")
     write(os.path.join(seed, ".gitignore"),
           "ai-config/\n")
-    for name, phi in (("Open", False), ("Shut", True)):
+    for name in ("Open", "Other"):
         subj = os.path.join(seed, "projects", name)
         write(os.path.join(subj, "tutorboard.json"), json.dumps(
-            {"name": name, "phi": phi, "check": {"all": ["bash", "check.sh"]}}))
+            {"name": name, "check": {"all": ["bash", "check.sh"]}}))
         write(os.path.join(subj, "check.sh"), CHECK)
         write(os.path.join(subj, "src", "a.py"), "x = 1\n")
         write(os.path.join(subj, "notes.md"), "notes\n")
@@ -149,7 +147,6 @@ try:
     laptop, mac = clone("laptop"), clone("mac")
     # The real hook, so --end's commit goes through it.
     git(laptop, "config", "core.hooksPath", HOOKS)
-    write(os.path.join(laptop, "ai-config", "policy", "phi.py"), POLICY)
     said = []
     say = said.append
 
@@ -161,15 +158,8 @@ try:
     # --- what may be held ---------------------------------------------------
     _, _, probs = code.resolve(laptop, [])
     check("no paths is refused", probs and "no paths" in probs[0])
-    os.makedirs(os.path.join(laptop, "projects", "Open", "phi"))
-    _, _, probs = code.resolve(laptop, ["projects/Open/phi"])
-    check("a fenced path is refused", probs and "fenced" in probs[0])
-    _, _, probs = code.resolve(laptop, ["projects/Open/data/x.csv"])
-    check("a fenced path is refused even where it is not there",
-          probs and "fenced" in probs[0])
-    os.rmdir(os.path.join(laptop, "projects", "Open", "phi"))
     _, _, probs = code.resolve(laptop, ["projects/Open/src",
-                                         "projects/Shut/src"])
+                                         "projects/Other/src"])
     check("paths in two subjects are refused",
           any("2 subjects" in p for p in probs))
     _, _, probs = code.resolve(laptop, ["projects/Open"])
@@ -217,7 +207,7 @@ try:
           "Step 1" in msg and "check: pass" in msg)
     check("and carries ran_at, the laptop's HEAD",
           "ran_at: %s" % git(laptop, "rev-parse", "--short", "HEAD") in msg)
-    check("an open subject's check output is in the message",
+    check("the check's output is in the message",
           "plain output: 3 tests ran" in msg and "RELAY: tests 3" in msg)
     check("the snapshot carries only the held change",
           git(origin, "diff-tree", "-r", "--name-only", "--no-commit-id",
@@ -302,35 +292,35 @@ try:
     check("and no code/S ref", tip() == "")
     check("and no registration", code.read(SID) is None)
 
-    # --- the closed subject: RELAY lines only ----------------------------------
+    # --- a second subject: its check output too --------------------------------
     S2 = "20261008-140000"
-    rec2, probs = code.start(laptop, S2, ["projects/Shut/src"], cwd=laptop)
-    check("a session in the phi: true subject registers", not probs)
+    rec2, probs = code.start(laptop, S2, ["projects/Other/src"], cwd=laptop)
+    check("a session in the second subject registers", not probs)
     loop2 = code.Loop(laptop, rec2, say=say, clock=clock)
     loop2.tick()
-    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 1\n")
+    write(os.path.join(laptop, "projects", "Other", "src", "a.py"), "z = 1\n")
     for _ in range(int(code.QUIET / code.POLL) + 1):
         clock.t += code.POLL
         loop2.tick()
     msg = git(origin, "log", "-1", "--format=%B", tip(S2))
-    check("a phi: true subject's step is pushed", "Step 1" in msg)
-    check("its check output is absent from the message",
-          "plain output" not in msg and "RELAY: tests 3" in msg)
+    check("its step is pushed", "Step 1" in msg)
+    check("with its check output in the message",
+          "plain output" in msg and "RELAY: tests 3" in msg)
 
     # --- --abandon ---------------------------------------------------------------
     rc = code.abandon(laptop, S2, say=say)
     check("--abandon drops the ref and the registration",
           rc == 0 and tip(S2) == "" and code.read(S2) is None
-          and read(os.path.join(laptop, "projects", "Shut", "src", "a.py"))
+          and read(os.path.join(laptop, "projects", "Other", "src", "a.py"))
           == "z = 1\n")
 
     # --- a branch made from origin's code/S is not a local session -------------
     from tutorboard import sync as ear_mod  # noqa: E402
     S6 = "20261008-145000"
-    rec6, probs = code.start(laptop, S6, ["projects/Shut/src"], cwd=laptop)
+    rec6, probs = code.start(laptop, S6, ["projects/Other/src"], cwd=laptop)
     loop6 = code.Loop(laptop, rec6, say=say, clock=clock)
     loop6.tick()
-    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 3\n")
+    write(os.path.join(laptop, "projects", "Other", "src", "a.py"), "z = 3\n")
     for _ in range(int(code.QUIET / code.POLL) + 1):
         clock.t += code.POLL
         loop6.tick()
@@ -340,16 +330,16 @@ try:
         "origin/code/%s" % S6)
     check("a local branch of origin's code/S does not make the session local",
           pushed6 != "" and code.keeps_local(laptop, S6) is False)
-    sha, what = code.vibe(laptop, S6, ["projects/Shut/src"], pushed6, "a vibe")
+    sha, what = code.vibe(laptop, S6, ["projects/Other/src"], pushed6, "a vibe")
     check("so `board push` still asks origin",
           sha == "" and "codes in this checkout" not in what
           and "as code/%s has them" % S6 in what, what)
-    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 4\n")
-    sha, what = code.vibe(laptop, S6, ["projects/Shut/src"], pushed6, None)
+    write(os.path.join(laptop, "projects", "Other", "src", "a.py"), "z = 4\n")
+    sha, what = code.vibe(laptop, S6, ["projects/Other/src"], pushed6, None)
     check("a `board push` with no message says `save: <changed files>`, "
           "not the held directory",
           sha != "" and git(laptop, "log", "-1", "--format=%s", sha)
-          == "save: projects/Shut/src/a.py", (what, sha and git(
+          == "save: projects/Other/src/a.py", (what, sha and git(
               laptop, "log", "-1", "--format=%s", sha)))
     git(mac, "fetch", "-q", "origin",
         "refs/heads/code/%s:refs/heads/code/%s" % (S6, S6))
@@ -362,7 +352,7 @@ try:
     check("--abandon drops origin's ref, not only the local branch",
           rc == 0 and tip(S6) == "" and code.read(S6) is None)
     git(laptop, "branch", "-q", "-D", "code/%s" % S6)
-    git(laptop, "checkout", "-q", "--", "projects/Shut/src/a.py")
+    git(laptop, "checkout", "-q", "--", "projects/Other/src/a.py")
 
     # --- the gate refuses a step --------------------------------------------------
     S3 = "20261008-150000"
@@ -380,31 +370,31 @@ try:
 
     # --- the pre-commit hook: a registration's held files ----------------------
     S4 = "20261008-155000"
-    rec4, probs = code.start(laptop, S4, ["projects/Shut/src"], cwd=laptop)
-    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 2\n")
-    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py")
+    rec4, probs = code.start(laptop, S4, ["projects/Other/src"], cwd=laptop)
+    write(os.path.join(laptop, "projects", "Other", "src", "a.py"), "z = 2\n")
+    ok_, out = commit_by_hand(laptop, "projects/Other/src/a.py")
     check("the pre-commit hook refuses a file a registration holds, on main",
           not ok_ and "held by coding session %s" % S4 in out
           and "board code %s --end" % S4 in out, out)
-    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py", end="other")
+    ok_, out = commit_by_hand(laptop, "projects/Other/src/a.py", end="other")
     check("BOARD_CODE_END for another session lifts nothing",
           not ok_ and "held by coding session %s" % S4 in out, out)
-    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py", end=S4)
+    ok_, out = commit_by_hand(laptop, "projects/Other/src/a.py", end=S4)
     check("BOARD_CODE_END=<its session> lets it through", ok_, out)
-    ok_, out = commit_by_hand(laptop, "projects/Shut/notes.md")
+    ok_, out = commit_by_hand(laptop, "projects/Other/notes.md")
     check("and a file nobody holds commits on main",
           ok_ or "nothing to commit" in out or "no changes" in out, out)
-    write(os.path.join(laptop, "projects", "Shut", "notes.md"), "shut notes\n")
-    ok_, out = commit_by_hand(laptop, "projects/Shut/notes.md")
+    write(os.path.join(laptop, "projects", "Other", "notes.md"), "other notes\n")
+    ok_, out = commit_by_hand(laptop, "projects/Other/notes.md")
     check("(a changed one too)", ok_, out)
-    git(laptop, "checkout", "-q", "--", "projects/Shut/notes.md")
+    git(laptop, "checkout", "-q", "--", "projects/Other/notes.md")
     git(laptop, "checkout", "-q", "-b", "side")
-    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py")
+    ok_, out = commit_by_hand(laptop, "projects/Other/src/a.py")
     check("off main the hold is not the hook's business", ok_, out)
     git(laptop, "checkout", "-q", "main")
     git(laptop, "branch", "-q", "-D", "side")
     code.abandon(laptop, S4, say=say)
-    git(laptop, "checkout", "-q", "--", "projects/Shut/src/a.py")
+    git(laptop, "checkout", "-q", "--", "projects/Other/src/a.py")
 
     # --- Mac-local mode: the board's own checkout --------------------------------
     from tutorboard import gitops, sessions, sync as ear_mod  # noqa: E402
@@ -413,7 +403,6 @@ try:
     git(mac, "config", "core.hooksPath", HOOKS)
     with open(os.path.join(mac, ".git", "info", "exclude"), "a") as fh:
         fh.write("sessions/\n")
-    write(os.path.join(mac, "ai-config", "policy", "phi.py"), POLICY)
     SL = sessions.new("coding here", base=mac, now=clock.t - 7200)["id"]
     sessions.bind(SL, "projects/Open", base=mac)
     agent = os.path.join(mac, "sessions", SL, "agent.json")

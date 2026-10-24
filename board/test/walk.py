@@ -303,7 +303,7 @@ finally:
 # ---------------------------------------------------------------------------
 # A name this subject does not have is looked for under the Atlas root. The
 # subject's own source comes first, the bare-filename shortcut stays the
-# subject's, and nothing private, hidden, ignored or fenced is reachable.
+# subject's, and nothing private, hidden or ignored is reachable.
 
 home = tempfile.mkdtemp(prefix="tutor-walk-atlas-")
 outside = tempfile.mkdtemp(prefix="tutor-walk-outside-")
@@ -379,11 +379,6 @@ try:
           and [u["path"] for u in walk.resolve(ws, ["space.py"])[0]]
           == ["topo/space.py"])
 
-    fenced_names = ["projects/PSYCH-ASR/phi/a.py", "vendor/colibri/raw/x.py",
-                    "board/data/x.py::x", "projects.PSYCH-ASR.phi.a"]
-    chosen, unknown = walk.resolve(ws, fenced_names)
-    check("a fenced name is refused anywhere in Atlas",
-          chosen == [] and unknown == fenced_names)
     refused = ["ai-config/policy/phi.py", "sessions/20261008-000000/x.py",
                ".hidden/x.py", "projects/PSYCH-ASR/results/r.py",
                "board/node_modules/katex/index.js", "vendor/colibri/README.md",
@@ -421,34 +416,6 @@ try:
 finally:
     walk._cache.clear()
     shutil.rmtree(somewhere, ignore_errors=True)
-
-# --- the fence: no code walker looks inside a directory in fenced.NEVER -------
-from tutorboard import fenced                                # noqa: E402
-
-fence = tempfile.mkdtemp(prefix="tutor-walk-fence-")
-try:
-    for rel in ("pkg/ok.py", "stage1/run.py", "raw/x.py", "phi/y.py",
-                "PHI/z.py", "pkg/Audio/w.py"):
-        write(fence, rel, "def f():\n" + BODY + "\n    return 1\n")
-    walk._cache.clear()
-    check("in_fence matches any lower-cased component, and nothing else",
-          fenced.in_fence("a/Stage1/x.py") and fenced.in_fence("phi")
-          and fenced.in_fence("a\\raw\\b.py")
-          and not fenced.in_fence("pkg/ok.py") and not fenced.in_fence("raw.py")
-          and not fenced.in_fence(""))
-    check("walk.units lists only the file outside every fence",
-          [u["path"] for u in walk.units(fence)] == ["pkg/ok.py"])
-    typed = ["stage1/run.py::f", "stage1/run.py", "stage1.run.f", "phi/y.py",
-             "raw/x.py::f", "PHI/z.py"]
-    chosen, unknown = walk.resolve(fence, typed)
-    check("walk.resolve refuses a typed path through the fence",
-          chosen == [] and unknown == typed)
-    chosen, unknown = walk.resolve(fence, ["pkg/ok.py::f"])
-    check("and still resolves the path beside it",
-          [u["name"] for u in chosen] == ["pkg/ok.py::f"] and unknown == [])
-finally:
-    walk._cache.clear()
-    shutil.rmtree(fence, ignore_errors=True)
 
 print()
 if fails:

@@ -154,7 +154,7 @@ try:
           "news" not in data and "missions" not in data)
     check("sets, results, jobs, Colibri and the save count are not on it",
           not [k for k in ("sets", "results", "jobs", "colibri", "unsaved",
-                           "assistants", "fenced", "contents", "review", "walk")
+                           "assistants", "contents", "review", "walk")
                if k in data])
     check("the ink of a card in the window rides with it",
           (data.get("notes") or {}).get("0490") == stroke)

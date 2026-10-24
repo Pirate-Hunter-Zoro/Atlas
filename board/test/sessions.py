@@ -419,8 +419,7 @@ try:
     other_key = "doc/%s/p1" % sessions.ink_ident("uploads/other.pdf")
     write(os.path.join(notes_dir, writing.ann_file(other_key) + ".json"),
           json.dumps({"card": other_key, "strokes": [stroke]}))
-    for bad in ("../outside", "/tmp/x", ".ink/x.pdf", "phi/x.pdf",
-                "results/x.pdf"):
+    for bad in ("../outside", "/tmp/x", ".ink/x.pdf"):
         code, out = board(["file", "slides.pdf", bad], session=e_dir)
         check("file refuses %s" % bad,
               code == 1 and out.startswith("board file: ")

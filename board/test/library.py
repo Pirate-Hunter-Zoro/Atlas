@@ -13,7 +13,7 @@ exist in this repository have to satisfy it without moving: a flat pair of
 supplement, cover letter, checklist -- sharing one `paperN-*` directory in three
 formats each.
 
-What is guarded here is that, the fence around it, and the write: a note lands
+What is guarded here is that, and the write: a note lands
 where the document is, dated and versioned, and the reply says which machinery
 was asked to act on it.
 
@@ -100,12 +100,9 @@ for stem, title in (("manuscript", "TRD prediction from EHR text"),
 put("paper1-trd/parts/manuscript/04-methods.md", "# Methods\n")
 put("paper1-trd/parts/manuscript/04-methods.docx", size=30000)
 
-# AND THE TWO DIRECTORIES NOTHING MAY OFFER. `phi/` is session content -- 308 MB
-# of identifiable therapy audio and the transcripts joined to it -- and
-# `references/` is papers by other people. A document that reaches a person's
-# library is a document they may then hand to a turn.
-put("phi/stage1/Audio Transcription.pdf", size=60000)
-put("phi/stage1/Audio Transcription.tex", "\\title{Session 1042}\n")
+# AND THE DIRECTORY NOTHING MAY OFFER. `references/` is papers by other
+# people. A document that reaches a person's library is a document they may
+# then hand to a turn.
 put("references/e_value_ann_intern_med.pdf", size=60000)
 
 library.forget()
@@ -156,12 +153,8 @@ check("and it comes after every whole document",
       found.index(pieces[0]) == len(found) - 1)
 check("and it is not counted among the documents of its directory's parent",
       len([d for d in found if d["dir"] == "paper1-trd"]) == 4)
-check("THE FENCE HOLDS: nothing in phi/ is in the library",
-      not [d for d in found if "phi" in (d["dir"] or "")])
-check("and somebody else's reference library is not either",
+check("somebody else's reference library is not in the library",
       not [d for d in found if "references" in (d["dir"] or "")])
-check("the fence is the one list, read from fenced.py",
-      "phi" in library.fenced.NEVER)
 
 # AN ID, NEVER A PATH.
 ident = one("How Audio Becomes a Transcript")["id"]
@@ -169,7 +162,7 @@ check("a document is found by the id it was given",
       (library.find(tmp, ident) or {}).get("title")
       == "How Audio Becomes a Transcript")
 for bad in ("docs/stage1_pipeline_walkthrough.pdf", "../../etc/passwd",
-            "phi-stage1-audio-transcription", ""):
+            "references-e-value-ann-intern-med", ""):
     check("a name that is not one of ours resolves to nothing: %r" % bad,
           library.find(tmp, bad) is None)
 check("every id is distinct, so two documents never answer to one name",

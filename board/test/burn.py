@@ -363,27 +363,11 @@ def library_section(tmp):
         check("ink drawn again on the new build is not flagged",
               view4.get("rebuilt") is None)
 
-        # ---- THE FENCE -----------------------------------------------------
-        real_find = library.find
-        try:
-            library.find = lambda root, wanted: {
-                "id": "phi-secret", "dir": "phi", "stem": "secret",
-                "title": "Session", "rel": "phi/secret.pdf", "source": ""}
-            got5 = burn.burn(lrepo, "library/phi-secret", "new")
-        finally:
-            library.find = real_find
-        check("a document inside a fence is refused",
-              got5.get("ok") is False and got5.get("why") == "fenced")
-        check("and nothing is written for it",
-              not os.path.exists(os.path.join(ws, "phi")))
-
-        # A FENCED WORKSPACE keeps its copies inside itself and out of git.
-        os.makedirs(os.path.join(ws, "phi"), exist_ok=True)
+        # A copy stays inside its workspace and out of git.
         status, got6 = js("/annotate/burn", {"kind": "library/" + ident,
                                              "mode": "new"})
         copy6 = os.path.join(ws, *(got6.get("path") or "x").split("/"))
-        check("in a fenced workspace a copy lands inside that workspace, "
-              "and git does not carry it",
+        check("a copy lands inside its workspace, and git does not carry it",
               got6.get("ok") and os.path.realpath(copy6).startswith(
                   os.path.realpath(ws) + os.sep) and ignored(copy6))
     finally:

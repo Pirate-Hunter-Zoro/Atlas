@@ -4,15 +4,10 @@
 #
 # Refuses, before anything is written:
 #   - every rule board/tutorboard/audit.py holds over the staged paths: the
-#     25 MB cap, PHI and artifact shapes, credentials, other people's work, and
-#     anything under sessions/, .ink/ or materials/;
-#   - a path leaving.refused flags as reaching for session content, or any
-#     path at all when a fence exists and the PHI policy will not load;
-#   - a participant code (BL and three digits) in a staged filename or added
-#     line of a subject whose tutorboard.json says "phi": true;
-#   - when TUTORBOARD_TURN is set (every tutor turn): any RULES.md, a change
-#     to an existing tutorboard.json's "phi", and any path
-#     under board/ when the commit is in the main worktree (git-dir equals
+#     25 MB cap, audio and artifact shapes, credentials, other people's work,
+#     and anything under sessions/, .ink/ or materials/;
+#   - when TUTORBOARD_TURN is set (every tutor turn): any RULES.md, a deleted
+#     tutorboard.json, and any path under board/ when the commit is in the main worktree (git-dir equals
 #     git-common-dir) rather than a worktree under Atlas-wt/;
 #   - on main, a file a coding session holds (session.json `code`, or a
 #     `board code` registration for this checkout). `board code <id> --end`

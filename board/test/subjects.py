@@ -242,9 +242,8 @@ check("on this tree, all() is exactly the directories under the subject parents"
       set(s["id"] for s in subjects.all()) == listed)
 
 # The catch-all is a course on this tree, named for what it is, and its name
-# collides with neither a fence nor the board's uploads drawer (Scratch). A
-# tree with no subjects at all (test/independence.py) has no catch-all to check.
-from tutorboard import fenced                                   # noqa: E402
+# does not collide with the board's uploads drawer (Scratch). A tree with no
+# subjects at all (test/independence.py) has no catch-all to check.
 if listed:
     _scratch = subjects.find(subjects.SCRATCH)
     check("this tree's catch-all is courses/Random, \"Random lessons\", a course with "
@@ -252,9 +251,8 @@ if listed:
           subjects.scratch() == subjects.SCRATCH and _scratch
           and _scratch["name"] == "Random lessons" and _scratch["kind"] == "course"
           and subjects.phi(_scratch["root"]) is False)
-check("and its name is no fenced directory and not Scratch",
-      not fenced.in_fence(subjects.SCRATCH)
-      and subjects.SCRATCH.split("/")[1].lower() != "scratch")
+check("and its name is not Scratch",
+      subjects.SCRATCH.split("/")[1].lower() != "scratch")
 
 # --- markers: a pinned toolchain has its lockfile and its check ---------------
 from tutorboard import toolplan                               # noqa: E402

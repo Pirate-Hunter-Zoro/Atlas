@@ -25,7 +25,7 @@ import urllib.parse
 
 from . import NOT_MINE
 from .. import multipart
-from ... import fenced, gitops, paths
+from ... import gitops, paths
 from ...course import library, walk
 
 
@@ -147,7 +147,7 @@ def get(h, repo, path):
 # GET /source/<path>?from=&to= -- the read-only source viewer
 # ---------------------------------------------------------------------------
 # The read-only source viewer for `path#Lx-y` excerpts. The path is resolved
-# by `walk.resolve`, never joined, and must be outside the fence and private
+# by `walk.resolve`, never joined, and must be outside the private
 # directories and tracked by git; anything else is a bare 404.
 
 # Big enough for any source file worth reading on a tablet.
@@ -174,8 +174,7 @@ def source_file(repo, raw):
     raw = str(raw or "")
     parts = raw.replace("\\", "/").split("/")
     if (not raw or raw.startswith("/") or ":" in raw or "\0" in raw
-            or any(not x or x == ".." or x.startswith(".") for x in parts)
-            or fenced.in_fence(raw)):
+            or any(not x or x == ".." or x.startswith(".") for x in parts)):
         return None
     try:
         from ..registry import base_of
@@ -188,7 +187,7 @@ def source_file(repo, raw):
     unit = chosen[0]
     root, rel = unit["root"], unit["path"]
     atlas_rel = walk._atlas_rel(base, root, rel)
-    if (fenced.in_fence(rel) or not atlas_rel or fenced.in_fence(atlas_rel)
+    if (not atlas_rel
             or atlas_rel.split("/", 1)[0].lower() in walk.PRIVATE):
         return None
     full = os.path.realpath(os.path.join(root, rel))

@@ -10,7 +10,7 @@ checkout, relative to the remote home unless absolute; default
 `Developer/Atlas`). `setup-mac.sh --coding` asks for `host` and writes it.
 
 `NEVER` is excluded before anything is included: `.ink/`, `sessions/` and
-any `.env*` never cross, nor `phi/` and `results/`, nor a build or a checkout.
+any `.env*` never cross, nor `results/`, nor a build or a checkout.
 Nothing here is ever deleted. SSH runs in batch mode, so a missing key is a
 refusal, not a password prompt.
 
@@ -27,7 +27,7 @@ DEFAULT_ATLAS = "Developer/Atlas"
 SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15"
 
 # Excluded wherever they are, first, so no include below can reach them.
-NEVER = (".ink/", "sessions/", ".env*", "phi/", "results/", ".git/",
+NEVER = (".ink/", "sessions/", ".env*", "results/", ".git/",
          ".venv/", ".lake/", "node_modules/", "__pycache__/",
          "/vendor/", "/ai-config/")
 # The ignored inputs, as rsync include patterns (`dir/***` is the directory

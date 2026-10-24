@@ -389,8 +389,8 @@ body { font-family: var(--ui); color: var(--ink); }
   width: min(78rem, calc(100vw - 2rem));
   margin-left: calc(50% - min(39rem, 50vw - 1rem));
 }
-/* A sentence where the pictures would have been -- a fenced workspace, a
-   directory of tables, a search that matched nothing. It spans the grid so it
+/* A sentence where the pictures would have been -- a workspace with no
+   results, a directory of tables, a search that matched nothing. It spans the grid so it
    reads as a sentence rather than as the first tile. */
 #res-grid .res-said { grid-column: 1 / -1; margin: 0; }
 

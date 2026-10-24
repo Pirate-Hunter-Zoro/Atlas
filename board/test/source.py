@@ -2,9 +2,9 @@
 """GET /source/<path>?from=&to=: the read-only source viewer.
 
 It serves a file only when `walk.resolve` finds it, nothing on its way is
-fenced or private, and git tracks it; as a page with every line numbered and
-the asked range marked. Everything else is 404: untracked, fenced, `..`,
-hidden, private, absolute, missing.
+hidden or private, and git tracks it; as a page with every line numbered and
+the asked range marked. Everything else is 404: untracked, `..`, hidden,
+private, absolute, missing.
 """
 
 import http.client
@@ -58,16 +58,14 @@ for name in ("sync.py", "code.py"):
 BODY = "def solve(x):\n    return x < 2 and '<b>'\n" + "# padding line\n" * 20
 write("projects/Beta/tutorboard.json", json.dumps({"name": "Beta", "phi": False}))
 write("projects/Beta/src/model.py", "# beta-own-model\n" + BODY)
-write("projects/Beta/phi/leak.py", "# phi-secret\n" + BODY)
-write("projects/Beta/stage1/run.py", "# stage-secret\n" + BODY)
 write("projects/Beta/src/.hidden.py", "# hidden-secret\n" + BODY)
 write("ai-config/policy/x.py", "# private-secret\n" + BODY)
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
 subprocess.run(["git", "init", "-q", atlas], check=True)
 write(".gitignore", "/sessions/\n")
 subprocess.run(GIT + ["-C", atlas, "add", "-A"], check=True)
-# Tracked or not, a fenced, hidden or private path is refused by name.
-subprocess.run(GIT + ["-C", atlas, "add", "-f", "--", "projects/Beta/phi/leak.py",
+# Tracked or not, a hidden or private path is refused by name.
+subprocess.run(GIT + ["-C", atlas, "add", "-f", "--",
                       "projects/Beta/src/.hidden.py"], check=True)
 subprocess.run(GIT + ["-C", atlas, "commit", "-q", "-m", "fixture"], check=True)
 write("projects/Beta/src/untracked.py", "# untracked-secret\n" + BODY)
@@ -130,10 +128,6 @@ try:
         "/source/projects/Beta/src/untracked.py",
         "/s/%s/source/src/untracked.py" % SID,
         "/source/outside.py",
-        "/source/projects/Beta/phi/leak.py",
-        "/s/%s/source/phi/leak.py" % SID,
-        "/source/projects/Beta/PHI/leak.py",
-        "/source/projects/Beta/stage1/run.py",
         "/source/projects/Beta/src/.hidden.py",
         "/source/ai-config/policy/x.py",
         "/source/../elsewhere/far.py",

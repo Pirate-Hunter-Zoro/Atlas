@@ -133,7 +133,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
 from tutorboard import (assistants, brief, gitops,
-                        leaving, limits, machine, memo,
+                        limits, machine, memo,
                         paths, plain, reasoning, seeing, sense, sessions, tex, worktree)
 from tutorboard import subjects
 from tutorboard import mode as session_mode
@@ -624,7 +624,7 @@ def cmd_file(live, args):
     materials/ by default, or a path inside the subject -- a directory, or the
     file's new name. Its ink moves from the session to <subject>/.ink/,
     re-keyed by the new path. Refused for an unbound session, a path that
-    leaves the subject, a hidden or fenced directory, or a name already taken.
+    leaves the subject, a hidden directory, or a name already taken.
     Nothing is committed.
     """
     try:
@@ -1115,19 +1115,6 @@ def cmd_push(live, args):
                        "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
                        "detail": detail}, fh, indent=2)
         return 1
-
-    # PHI content scan (`leaving.py`, calling ai-config/policy/phi.py), because
-    # .gitignore keeps phi files out but not phi content. `--anyway` is a
-    # keyboard act only: a tap must not wave a PHI fence through.
-    if "--anyway" not in args:
-        phi = leaving.reason(live.root)
-        if phi:
-            print(phi, file=sys.stderr)
-            with open(live.path("push.json"), "w", encoding="utf-8") as fh:
-                json.dump({"ok": False, "at": time.time(),
-                           "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-                           "detail": phi}, fh, indent=2)
-            return 1
 
     # A coding session pushes to its ref, never to main (D17).
     coding_now = (live.state() or {}).get("code") if live.stored else None
@@ -1851,9 +1838,6 @@ def cmd_see(live, args):
     stdout. The image goes to a recipe's `vision` block, resolved through the
     running agent first and `vision_agent` second (`seeing.py`); `--route`
     says which.
-
-    A path inside a fence is refused before anything is opened, because this
-    sends the file to a hosted provider and no pre-tool hook sees it.
     """
     rest = [a for a in args if not a.startswith("--")]
     page = None
@@ -1886,7 +1870,7 @@ def cmd_see(live, args):
         return 1
     try:
         said, _settings = seeing.describe(rest[0], page=page, prompt=prompt,
-                                          agent=who, root=live.root)
+                                          agent=who)
     except seeing.Refused as exc:
         print(str(exc), file=sys.stderr)
         return 1

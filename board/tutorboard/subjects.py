@@ -29,8 +29,7 @@ CREATE = DIRS
 
 # The catch-all, "Random lessons": where a free lesson, a canvas or a PDF goes
 # when it belongs to no other subject. Every picker offers it first. Never
-# named for a fenced directory (`fenced.NEVER`) or for the board's uploads
-# drawer, which `board.js` calls Scratch.
+# named for the board's uploads drawer, which `board.js` calls Scratch.
 SCRATCH = "courses/Random"
 
 # TUTOR.md's sections, in order. `board memo <section>` writes one of them.
