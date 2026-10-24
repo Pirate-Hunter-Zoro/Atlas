@@ -572,9 +572,11 @@ def _end(h, repo):
     TUTOR.md and the session's artifacts -- a canvas's filed pages among them
     (`sessions.file_canvas`); then the wrap-up turn is queued, the only thing
     that ever runs it. A canvas (`view: slate`) queues it only when
-    `transcribe` is true (absent counts as true) or a tutor has taught on it
-    (it has cards): "End, keep the pages" and "keep it unfiled" end with no
-    turn. `transcribe` is kept in session.json for the wrap-up. A second End
+    `transcribe` is true or a tutor has taught on it (it has cards): "End,
+    keep the pages" and "keep it unfiled" end with no turn. Absent counts as
+    false, because the board's own End never sends it and must not have a
+    taught canvas transcribed. `transcribe` is kept in session.json for the
+    wrap-up. A second End
     changes nothing but retries the commit; one naming another subject than
     an ended session's is 409."""
     if not repo.stored:
@@ -585,7 +587,7 @@ def _end(h, repo):
     sid = os.path.basename(repo.live)
     base = os.path.dirname(os.path.dirname(repo.live))
     subject = str(payload.get("subject") or "")
-    transcribe = payload.get("transcribe") is not False
+    transcribe = payload.get("transcribe") is True
     sent = {}
     with sessions.held(sid, base):
         if subject:

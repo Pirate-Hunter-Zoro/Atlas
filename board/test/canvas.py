@@ -21,7 +21,9 @@ TUTOR.md with `board memo`.
      runs the wrap-up, which writes TUTOR.md (`_wrap`); on an untaught one it
      queues nothing and commits `docs/<slug>/notes.md` with
      `handwritten/page-*.png`; with no subject and no transcription it commits
-     nothing. `/give` on an ended canvas reopens it and wakes one turn.
+     nothing. `/give` on an ended canvas reopens it and wakes one turn; that
+     canvas ended from its board (no `transcribe`) gets its wrap-up and no
+     transcription.
   6. The brief of a canvas names its pages and `board slate --all`.
 """
 
@@ -400,6 +402,17 @@ try:
           and len(waking(s3)) == 1, got)
     until(lambda: calls(s3, "turn"), 60)
     check("one turn ran", len(calls(s3, "turn")) == 1, calls(s3))
+
+    # Ended from its board, as board.js does: no `transcribe` key, so the
+    # wrap-up runs and no transcription turn runs before it.
+    until(lambda: os.listdir(os.path.join(atlas, "sessions", s3, "cards")), 30)
+    until(lambda: not server.js("/health")[1].get("turns", {}).get("running"), 60)
+    status, got = server.js("/s/%s/end" % s3, {"subject": "courses/Random"})
+    check("a given canvas ended from its board queues its wrap-up",
+          status == 200 and got.get("wrapup") is True, got)
+    until(lambda: calls(s3, "wrapup"), 60)
+    check("and no transcription: an End without `transcribe` asks for none",
+          calls(s3, "wrapup") and not calls(s3, "notes"), calls(s3))
 
     # -----------------------------------------------------------------------
     # 6. the brief knows the canvas exists

@@ -9,9 +9,10 @@ canvas's End, does what the prompt asks -- binds the session, starts notes.md
 with `board writeup new --md`, writes it, and runs `board build`.
 
   1. A notes canvas is a session with `view: slate`, opened at its slate. Two
-     pages saved there are both read back (a reload). End queues the wrap-up,
-     whose prompt names notes.md, `board writeup new --md` and `board build`;
-     the transcript lands in docs/<slug>/ and the End commits it.
+     pages saved there are both read back (a reload). End `{transcribe:
+     true}` queues the wrap-up, whose prompt names notes.md, `board writeup
+     new --md` and `board build`; the transcript lands in docs/<slug>/ and the
+     End commits it.
   2. An uploaded slides.pdf renders in the reader, its ink persists, the
      marked copy holds the ink and sits beside the PDF as slides-marked.pdf,
      the upload wakes nothing, and after `board file` the PDF is in materials/
@@ -296,7 +297,9 @@ try:
           [os.path.basename(p) for p in sessions.slate_pages(sid, atlas)]
           == ["page-01.png", "page-02.png"])
 
-    status, got = server.js("/s/%s/end" % sid, {})
+    # "End and transcribe", as slate.js posts it: a canvas's End asks for
+    # the transcript only with `transcribe` true.
+    status, got = server.js("/s/%s/end" % sid, {"transcribe": True})
     check("End ends the canvas and queues its wrap-up",
           status == 200 and got.get("session", {}).get("ended") and got.get("wrapup"), got)
     until(lambda: calls(sid), 60)
@@ -333,7 +336,7 @@ try:
         check("the transcript builds (`board build`)", (one.get("build") or [1])[0] == 0,
               one.get("build"))
     s2 = server.js("/sessions/new", {"view": "slate"})[1]["id"]
-    server.js("/s/%s/end" % s2, {})
+    server.js("/s/%s/end" % s2, {"transcribe": True})
     time.sleep(1.5)
     check("a canvas ended with no ink runs no turn", not calls(s2))
 
