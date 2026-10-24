@@ -19,8 +19,8 @@ from .. import paths, sessions, subjects, sync
 from ..course import paper
 from .. import stamp as code_stamp
 from . import routes
-from .routes import (library, lesson, machines, pages, saving, taking,   # noqa: F401
-                     textbook, writing)
+from .routes import (library, lesson, machines, pages, saving, speaking,   # noqa: F401
+                     taking, textbook, writing)
 
 WEB = paths.WEB
 
@@ -95,7 +95,8 @@ UNPREFIXED = (
 # answer. A coding step reopens it (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
                  "/mode", "/bind", "/problem", "/upload", "/fetch", "/file",
-                 "/annotate/save", "/annotate/burn", "/artifact", "/textbook")
+                 "/annotate/save", "/annotate/burn", "/artifact", "/textbook",
+                 "/speech/say")
 
 # The route classes UNPREFIXED names. A cross-subject one is 404 under
 # `/s/<id>/`.
@@ -373,7 +374,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(repo.slate, os.path.basename(path)))
 
         for mod in (routes.pages, routes.taking, routes.library, routes.lesson,
-                    routes.writing, routes.textbook, routes.machines):
+                    routes.writing, routes.textbook, routes.machines,
+                    routes.speaking):
             answered = mod.get(self, repo, path)
             if answered is not routes.NOT_MINE:
                 return answered
@@ -419,7 +421,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def post_routes(self, repo, path):
         for mod in (routes.saving, routes.library, routes.lesson, routes.writing,
-                    routes.textbook, routes.machines):
+                    routes.textbook, routes.machines, routes.speaking):
             answered = mod.post(self, repo, path)
             if answered is not routes.NOT_MINE:
                 return answered

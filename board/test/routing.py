@@ -408,6 +408,9 @@ DRIVE = {
     ("POST", "/file", "writing"): ("session", [
         ("/file", {"upload": "nope.pdf"}, REFUSED),
         ("/file", {"upload": "../session.json"}, REFUSED)]),
+    # speaking: a take with no language, on a subject that sets none, is refused
+    ("POST", "/speech/say", "speaking"): ("session", [("/speech/say", upload, REFUSED)]),
+    ("GET", "/speech/last.json", "speaking"): ("session", [("/speech/last.json", None, OK)]),
     # textbook
     ("GET", "/textbook.json", "textbook"): ("subject", [("/textbook.json", None, OK)]),
     ("POST", "/textbook", "textbook"): ("session", [

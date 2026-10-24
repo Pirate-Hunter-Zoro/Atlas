@@ -38,12 +38,27 @@ def safe_filename(name):
 
 def _filename(raw):
     """The `filename` of one part's header block, or None for a plain field."""
+    return _disposition(raw)[1]
+
+
+def _disposition(raw):
+    """`(name, filename, content type)` of one part's header block; filename
+    None for a plain field."""
+    name = filename = ctype = None
     for line in raw.decode("utf-8", "replace").split("\r\n"):
         k, _, v = line.partition(":")
         if k.strip().lower() == "content-disposition":
             m = re.search(r'filename="([^"]*)"', v)
-            return m.group(1) if m else None
-    return None
+            filename = m.group(1) if m else None
+            m = re.search(r'(?:^|;)\s*name="([^"]*)"', v)
+            name = m.group(1) if m else None
+        elif k.strip().lower() == "content-type":
+            ctype = v.strip()
+    return name, filename, ctype
+
+
+# The most a plain field may carry, when the caller keeps fields.
+MAX_FIELD = 64 * 1024
 
 
 class _Body(object):
@@ -70,14 +85,17 @@ class _Body(object):
         return True
 
 
-def save_parts(rfile, length, boundary, folder, name_for, chunk=CHUNK):
+def save_parts(rfile, length, boundary, folder, name_for, chunk=CHUNK,
+               fields=None, types=None):
     """Write every file part of the body into `folder`.
 
     `name_for(index, filename)` gives the path a whole part is renamed to;
     it is asked only after the closing boundary. Returns `[(filename as sent,
     path written, size)]`. Raises `Broken` for a body that is not a whole
     form and `OSError` when the disk refuses; either way nothing is left in
-    `folder`.
+    `folder`. A dict `fields` is filled with every plain field, as text, each
+    at most `MAX_FIELD` bytes; a list `types` gets each file part's
+    Content-Type, in order.
     """
     if not boundary:
         raise Broken("no boundary")
@@ -118,11 +136,16 @@ def save_parts(rfile, length, boundary, folder, name_for, chunk=CHUNK):
                     break
                 if len(body.buf) > MAX_HEAD or not body.more():
                     raise Broken("a part's headers do not end")
-            filename = _filename(head)
+            field, filename, ctype = _disposition(head)
+            value = None
             if filename:
                 fd, tmp = tempfile.mkstemp(prefix=".part-", dir=folder)
                 out = os.fdopen(fd, "wb")
                 parts.append([tmp, filename, 0])
+                if types is not None:
+                    types.append(ctype)
+            elif fields is not None and field:
+                value = bytearray()
             while True:
                 at = body.buf.find(delim)
                 if at >= 0:
@@ -134,6 +157,11 @@ def save_parts(rfile, length, boundary, folder, name_for, chunk=CHUNK):
                 if out is not None and data:
                     out.write(data)
                     parts[-1][2] += len(data)
+                elif value is not None and data:
+                    value += data
+                    if len(value) > MAX_FIELD:
+                        raise Broken("the field %s is over %d bytes"
+                                     % (field, MAX_FIELD))
                 if at >= 0:
                     break
                 if not body.more():
@@ -141,6 +169,8 @@ def save_parts(rfile, length, boundary, folder, name_for, chunk=CHUNK):
             if out is not None:
                 out.close()
                 out = None
+            if value is not None:
+                fields[field] = bytes(value).decode("utf-8", "replace")
         saved = []
         for index, (tmp, filename, size) in enumerate(parts):
             final = name_for(index, filename)

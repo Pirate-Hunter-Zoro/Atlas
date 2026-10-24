@@ -111,6 +111,10 @@ The assistant runs these. The student never does.
     board eyes [--answer]              can the assistant driving this actually see?
     board see <path> [--page N]        what is in this image or PDF page, in words,
                                        for an assistant whose model has no eyes
+    board hear <file>                  a take's .heard.json as words: what was
+                                       heard, the target, each syllable's tone.
+                                       An audio file is heard first, with
+                                       --lang, --ref and --pinyin; --json
 
 Card kinds: lesson, question, correct, wrong, review, note, recap. (A `review`
 card is you reviewing an answer.)
@@ -123,6 +127,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
@@ -1863,6 +1868,68 @@ def cmd_see(live, args):
     return 0
 
 
+def cmd_hear(live, args):
+    """What a take said, in words.
+
+        board hear sessions/<id>/speech/t0007-r1.heard.json
+        board hear take.m4a --lang zh-CN --ref 你好 --pinyin "ni3 hao3"
+        board hear ... --json
+
+    A `.heard.json` is printed: what was heard, the target, the verdict and
+    each syllable's target and heard tone with its confidence. Any other file
+    is heard first, through the speech chains (`agents/speech.py`), in a
+    scratch copy: nothing is written beside it. The tutor reads takes this
+    way and never opens the audio.
+    """
+    from tutorboard.agents import speech
+    from tutorboard.speech import audio, hear
+    opts = {}
+    rest = []
+    it = iter(args)
+    for a in it:
+        if a in ("--lang", "--ref", "--pinyin"):
+            opts[a[2:]] = next(it, "")
+        elif not a.startswith("--"):
+            rest.append(a)
+    if not rest:
+        print("board hear <file> -- a .heard.json, or audio with --lang",
+              file=sys.stderr)
+        return 1
+    path = os.path.abspath(os.path.expanduser(rest[0]))
+    if not os.path.isfile(path):
+        print("there is no file at %s" % path, file=sys.stderr)
+        return 1
+    if path.endswith(".heard.json"):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                rec = json.load(fh)
+        except (OSError, ValueError) as exc:
+            print("%s could not be read: %s" % (path, exc), file=sys.stderr)
+            return 1
+    else:
+        if not opts.get("lang"):
+            print("say which language the take is in: --lang zh-CN",
+                  file=sys.stderr)
+            return 1
+        box = tempfile.mkdtemp(prefix="board-hear-")
+        try:
+            copy = os.path.join(box, "take" + hear.ext_for(path))
+            shutil.copyfile(path, copy)
+            rec = hear.take(None, copy, opts["lang"], ref=opts.get("ref") or None,
+                            pinyin=opts.get("pinyin") or None)
+        except (speech.Refused, audio.Unconvertible) as exc:
+            print("not heard: %s" % exc, file=sys.stderr)
+            return 1
+        finally:
+            shutil.rmtree(box, ignore_errors=True)
+        rec.pop("file", None)
+    if "--json" in args:
+        print(json.dumps(rec, ensure_ascii=False, indent=1))
+    else:
+        print(hear.summary(rec))
+    return 0
+
+
 def cmd_limit(live, args):
     """Whether this machine's tutor has any allowance left, and until when.
 
@@ -2145,7 +2212,7 @@ COMMANDS = {
     "inbox": cmd_inbox,
     "doctor": cmd_doctor, "slate": cmd_slate, "check": cmd_check,
     "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
-    "see": cmd_see,
+    "see": cmd_see, "hear": cmd_hear,
     "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
     "writeup": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
@@ -2168,7 +2235,7 @@ GONE = {
 
 # Commands about a path they are given: no `live/` is made for them.
 NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
-           "pull", "cost", "doctor", "vpn", "egress", "limit")
+           "pull", "cost", "doctor", "vpn", "egress", "limit", "hear")
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo. Every other command refuses without a session.
 SUBJECT_ONLY = ("check", "init", "see", "memo")

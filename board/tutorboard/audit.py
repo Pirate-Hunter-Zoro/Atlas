@@ -21,6 +21,7 @@ MAX_BYTES = 25 * 1024 * 1024
 
 # Audio and video, and the transcripts cut from them: recordings stay on disk.
 AUDIO_SUFFIXES = (".m4a", ".wav", ".mp3", ".flac", ".mp4", ".mov",
+                  ".webm", ".ogg", ".oga", ".opus", ".aac", ".caf",
                   ".rttm", ".srt", ".vtt")
 
 # Job output a command regenerates and nobody reads.

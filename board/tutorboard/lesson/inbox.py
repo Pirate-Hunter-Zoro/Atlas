@@ -59,8 +59,8 @@ def waiting(repo):
 
 
 def render(msgs, repo):
-    """Lines as a turn reads them: `[<iso>] <text>`, then a line for each file
-    and the handwritten page, by absolute path."""
+    """Lines as a turn reads them: `[<iso>] <text>`, then a line for each file,
+    the handwritten page and a take's heard record, by absolute path."""
     out = []
     for m in msgs:
         out.append("[%s] %s" % (m.get("iso", "?"), m.get("text", "")))
@@ -68,6 +68,9 @@ def render(msgs, repo):
             out.append("    file: %s" % os.path.join(repo.uploads, f))
         if m.get("slate"):
             out.append("    slate: %s" % m["slate"])
+        # A take's `.heard.json`: what was heard, never the audio.
+        if m.get("kind") == "speech" and m.get("heard"):
+            out.append("    file: %s" % m["heard"])
     return "\n".join(out)
 
 
