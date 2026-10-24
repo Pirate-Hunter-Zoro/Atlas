@@ -10,10 +10,13 @@ for the web.
   1. `POST /s/<id>/fetch {url}` lands a PDF from the local server in the
      session's uploads/, answered as /upload answers, with a line that wakes
      nothing. It refuses file://, ftp://, a redirect off http, and a body that
-     is not a PDF, leaving nothing behind; an ended session refuses it.
+     is not a PDF, leaving nothing behind; a name past 120 characters still
+     ends .pdf, a server dripping bytes is refused at the deadline, and an
+     ended session refuses it.
   2. `board open <file.pdf>` copies, never moves, the PDF into a new
      "Annotate <name>" session and prints the URL its board opens it at; with
-     `--subject` the session is bound and the copy filed into materials/.
+     `--subject` the session is bound and the copy filed into materials/; a
+     PDF with no extension is copied under a .pdf name.
   3. A send to Random lessons files a session's uploads into
      `courses/Random/materials/`.
 """
@@ -28,6 +31,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 import zlib
@@ -47,6 +51,7 @@ for k in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT"):
 
 from tutorboard import sessions  # noqa: E402
 from tutorboard.course import burn  # noqa: E402
+from tutorboard.server.routes import writing  # noqa: E402
 
 fails = []
 
@@ -124,6 +129,31 @@ class Web(http.server.SimpleHTTPRequestHandler):
         hops = {"/to-file.pdf": "file:///etc/hosts",
                 "/to-ftp.pdf": "ftp://127.0.0.1/slides.pdf",
                 "/to-paper": "/papers/slides.pdf"}
+        if self.path == "/long":
+            # A Content-Disposition name longer than an upload's 120.
+            self.send_response(200)
+            self.send_header("Content-Type", "application/pdf")
+            self.send_header("Content-Disposition",
+                             'attachment; filename="%s.pdf"' % ("a" * 130))
+            self.send_header("Content-Length", str(len(PAPER)))
+            self.end_headers()
+            self.wfile.write(PAPER)
+            return
+        if self.path == "/drip.pdf":
+            # A byte at a time, each well inside one read's timeout.
+            self.send_response(200)
+            self.send_header("Content-Length", "64")
+            self.end_headers()
+            self.wfile.write(b"%PDF-")
+            self.wfile.flush()
+            try:
+                for _ in range(59):
+                    time.sleep(0.1)
+                    self.wfile.write(b" ")
+                    self.wfile.flush()
+            except OSError:
+                pass
+            return
         if self.path in hops:
             self.send_response(302)
             self.send_header("Location", hops[self.path])
@@ -248,6 +278,30 @@ try:
     check("a 404 there is said as the server's answer", status == 502
           and "404" in (got.get("error") or ""), got)
 
+    status, got = server.js("/s/%s/fetch" % sid, {"url": SITE + "/long"})
+    named = (got.get("saved") or [""])[0]
+    check("a name past 120 characters still ends .pdf, and opens as a document",
+          status == 200 and named.endswith(".pdf") and len(named) <= 120
+          and (got.get("files") or [{}])[0].get("doc"), got)
+    check("pdf_name: an extension added, a long name cut before it",
+          writing.pdf_name("paper") == "paper.pdf"
+          and writing.pdf_name("Slides.PDF") == "Slides.PDF"
+          and writing.pdf_name("") == "fetched.pdf"
+          and len(writing.pdf_name("b" * 200 + ".pdf")) == 120)
+
+    began = time.monotonic()
+    try:
+        writing.fetch_pdf(SITE + "/drip.pdf", os.path.join(box, "dripped"),
+                          timeout=5, deadline=1)
+        refused = None
+    except writing._Refused as exc:
+        refused = exc
+    check("a server dripping bytes is refused (504) once the download passes "
+          "its deadline, though no one read times out",
+          refused is not None and refused.status == 504
+          and time.monotonic() - began < 4
+          and not os.listdir(os.path.join(box, "dripped")), refused)
+
     server.js("/s/%s/end" % sid, {})
     status, got = server.js("/s/%s/fetch" % sid, {"url": SITE + "/papers/slides.pdf"})
     check("an ended session refuses /fetch (409)", status == 409, (status, got))
@@ -292,6 +346,15 @@ try:
     check("and a subject that does not exist, making no session",
           board("open", mine, "--subject", "courses/Nowhere").returncode == 1
           and len(sessions.all(atlas)) == 3)
+    bare = os.path.join(box, "desk", "paper")
+    shutil.copyfile(mine, bare)
+    p = board("open", bare)
+    made = [r for r in sessions.all(atlas) if r.get("title") == "Annotate paper"]
+    three = made[0]["id"] if made else ""
+    check("a PDF with no extension is copied in under a .pdf name its board opens",
+          p.returncode == 0 and uploads(three) == ["paper.pdf"] and os.path.isfile(bare)
+          and ("/s/%s/board#/s/%s/doc/uploads-paper" % (three, three)) in p.stdout,
+          p.stdout)
 
     # -----------------------------------------------------------------------
     # 3. a send to Random lessons

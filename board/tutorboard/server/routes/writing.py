@@ -545,6 +545,9 @@ def _landed(h, repo, got):
 # or ftp:// answer would read the Mac's own disk or a server nobody chose.
 FETCH_SCHEMES = ("http", "https")
 FETCH_TIMEOUT = 60
+# The whole download's limit: FETCH_TIMEOUT bounds one read, so a server
+# sending a byte a minute would otherwise hold the request for ever.
+FETCH_DEADLINE = 600
 PDF_MAGIC = b"%PDF-"
 
 
@@ -601,6 +604,19 @@ def _opener():
     return out
 
 
+def pdf_name(said):
+    """`said` as an upload's name that ends `.pdf` within the 120 characters
+    `multipart.safe_filename` keeps (`library.uploads` lists only `.pdf`),
+    `fetched.pdf` when nothing of it is left."""
+    name = multipart.safe_filename(said or "")
+    if name == "drop":
+        name = "fetched"
+    ext = name[-4:] if name.lower().endswith(".pdf") else ".pdf"
+    stem = name[:-4] if name.lower().endswith(".pdf") else name
+    stem = stem[:120 - 4].strip("-.") or "fetched"
+    return stem + ext
+
+
 def _fetched_name(url, headers):
     """The name a fetched PDF is kept under: Content-Disposition's filename,
     else the URL's last path part, else `fetched`, ending `.pdf`."""
@@ -611,19 +627,16 @@ def _fetched_name(url, headers):
         said = urllib.parse.unquote(m.group(1))
     if not said:
         said = urllib.parse.unquote(posixpath.basename(urllib.parse.urlsplit(url).path))
-    name = multipart.safe_filename(said or "fetched")
-    if name == "drop":
-        name = "fetched"
-    if not name.lower().endswith(".pdf"):
-        name += ".pdf"
-    return name
+    return pdf_name(said)
 
 
-def fetch_pdf(url, folder, limit=None, timeout=FETCH_TIMEOUT):
+def fetch_pdf(url, folder, limit=None, timeout=FETCH_TIMEOUT, deadline=FETCH_DEADLINE):
     """Fetch the PDF at `url` into `folder` under a free name: `(path, size)`,
     or `_Refused`. http and https only, checked before and after redirects;
     at most `limit` bytes (`multipart.MAX_UPLOAD`); the body must start with
-    `%PDF-`. Nothing is left behind on a refusal."""
+    `%PDF-`. `timeout` seconds for any one read, and refused (504) once the
+    download has run past `deadline` seconds. Nothing is left behind on a
+    refusal."""
     limit = multipart.MAX_UPLOAD if limit is None else limit
     url = str(url or "").strip()
     scheme = urllib.parse.urlsplit(url).scheme.lower()
@@ -632,6 +645,7 @@ def fetch_pdf(url, folder, limit=None, timeout=FETCH_TIMEOUT):
     if scheme not in FETCH_SCHEMES or not urllib.parse.urlsplit(url).netloc:
         raise _Refused("only an http or https address is fetched, not %s"
                        % (scheme + "://" if scheme else url))
+    began = time.monotonic()
     req = urllib.request.Request(url, headers={"User-Agent": "tutor-board",
                                                "Accept": "application/pdf, */*"})
     try:
@@ -662,7 +676,9 @@ def fetch_pdf(url, folder, limit=None, timeout=FETCH_TIMEOUT):
         with os.fdopen(fd, "wb") as fh:
             head = b""
             while True:
-                chunk = resp.read(multipart.CHUNK)
+                # read1: what one read of the socket brings, so the deadline
+                # is checked as bytes trickle in, not after a whole chunk.
+                chunk = resp.read1(multipart.CHUNK)
                 if not chunk:
                     break
                 if len(head) < len(PDF_MAGIC):
@@ -673,6 +689,8 @@ def fetch_pdf(url, folder, limit=None, timeout=FETCH_TIMEOUT):
                 size += len(chunk)
                 if size > limit:
                     raise _Refused("it is over the 1 GB an upload may be", 413)
+                if time.monotonic() - began > deadline:
+                    raise _Refused("it took over %d s to arrive" % deadline, 504)
                 fh.write(chunk)
         if head != PDF_MAGIC:
             raise _Refused("that is not a PDF: it does not start with %PDF-")

@@ -738,7 +738,9 @@ def cmd_open(live, args):
     sid = rec["id"]
     repo = sessions.repo(sid, base, create=True)
     os.makedirs(repo.uploads, exist_ok=True)
-    dest = writing._free_name(repo.uploads, os.path.basename(src))
+    # Named to end .pdf, which is what library.uploads lists: a PDF is known
+    # by its %PDF- start, so `paper` with no extension is one too.
+    dest = writing._free_name(repo.uploads, writing.pdf_name(os.path.basename(src)))
     shutil.copyfile(src, dest)
     name = os.path.basename(dest)
     sessions.quiet_line(repo.messages_path, "[uploaded] %s (%s)"
