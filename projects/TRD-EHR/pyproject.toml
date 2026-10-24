@@ -1,0 +1,54 @@
+# One environment for this workspace, on both machines. `uv sync --extra test`
+# builds it into .venv/ on the Mac; the cluster adds `--extra cluster`. The pins
+# are setup_envs.sh's main pipeline environment, so the Mac's tests run against
+# the versions the pipeline runs on.
+#
+# What is not a pin here: httpx and statsmodels, imported by the code and never
+# named in setup_envs.sh (they rode in with vllm and econml there), and econml,
+# which setup_envs.sh keeps in a second conda environment at 0.16.0 because
+# 0.16.0 caps scikit-learn below 1.7. econml 0.17.0 accepts the pipeline's
+# scikit-learn 1.7.1, so one environment holds both.
+[project]
+name = "trd-ehr"
+version = "0.0.0"
+requires-python = "==3.11.*"
+dependencies = [
+    "numpy==2.2.6",
+    "pandas==2.3.1",
+    "scipy==1.16.1",
+    "scikit-learn==1.7.1",
+    "xgboost==3.1.1",
+    "joblib==1.5.1",
+    "matplotlib==3.10.5",
+    "seaborn==0.13.2",
+    "pyarrow==21.0.0",
+    "requests==2.32.4",
+    "python-dotenv==1.1.1",
+    "tqdm==4.67.3",
+    "httpx",
+    "statsmodels",
+    "econml==0.17.0",
+    "ipykernel",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+# GPU work, installed only where Slurm exists: the embedder and the vLLM judge.
+cluster = [
+    "torch==2.7.1",
+    "transformers==4.55.4",
+    "sentence-transformers==5.1.0",
+    "vllm==0.10.0; sys_platform == 'linux'",
+    "fastapi==0.116.1",
+    "starlette==0.47.2",
+    "uvicorn==0.35.0",
+    "prometheus-fastapi-instrumentator==7.1.0",
+]
+
+[tool.uv]
+# Not a package: every entry point runs from the workspace root.
+package = false
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]

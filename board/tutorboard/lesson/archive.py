@@ -1,0 +1,132 @@
+"""A past lesson, kept.
+
+Every section is archived when the next one opens, so there is never a reason
+to hurry one to a conclusion. The student's own working is in there too.
+"""
+
+import json
+import os
+
+from . import cards, notes, turns
+
+
+def list_archive(repo):
+    """Every finished lesson, newest first, as something to pick from."""
+    out = []
+    try:
+        names = sorted(os.listdir(repo.archive), reverse=True)
+    except OSError:
+        return out
+    for name in names:
+        folder = os.path.join(repo.archive, name)
+        if not os.path.isdir(folder):
+            continue
+        st = {}
+        try:
+            with open(os.path.join(folder, "state.json"), "r", encoding="utf-8") as fh:
+                st = json.load(fh) or {}
+        except (OSError, ValueError):
+            pass
+        in_it = [n for n in os.listdir(folder) if cards.CARD_RE.match(n)]
+        answers = turns.load_turns(repo, os.path.join(folder, "turns.jsonl"))
+        out.append({
+            "id": name,
+            "course": st.get("course") or "",
+            "chapter": st.get("chapter") or "",
+            "session": st.get("session") or "lecture",
+            # Which thread it was on and what kind, so a thread's sheet can
+            # list its past sittings and offer its last kind first.
+            "thread": st.get("thread") or "",
+            "node": st.get("node") or "",
+            "aim": st.get("aim") or "",
+            "kind": st.get("kind") or "",
+            "opened": st.get("opened") or "",
+            "finished": st.get("finished") or "",
+            "cards": len(in_it),
+            "turns": len(answers),
+        })
+    return out
+
+
+REPORT_WORDS = 150
+
+
+def last_on_thread(repo, tid):
+    """The newest archived sitting on one thread, or None.
+
+    `{"id", "kind", "opened", "report"}`, where the report is the last card of
+    that sitting: what the turn before this one said it did. Capped at
+    `REPORT_WORDS`, because a briefing carries it on every turn.
+    """
+    tid = str(tid or "").strip()
+    if not tid:
+        return None
+    try:
+        names = sorted(os.listdir(repo.archive), reverse=True)
+    except OSError:
+        return None
+    for name in names:
+        folder = os.path.join(repo.archive, name)
+        try:
+            with open(os.path.join(folder, "state.json"), "r",
+                      encoding="utf-8") as fh:
+                st = json.load(fh) or {}
+        except (OSError, ValueError):
+            continue
+        if not isinstance(st, dict) or st.get("thread") != tid:
+            continue
+        try:
+            in_it = sorted(n for n in os.listdir(folder) if cards.CARD_RE.match(n))
+        except OSError:
+            in_it = []
+        report = ""
+        if in_it:
+            try:
+                with open(os.path.join(folder, in_it[-1]), "r",
+                          encoding="utf-8", errors="replace") as fh:
+                    _meta, body = cards.parse_front_matter(fh.read())
+            except OSError:
+                body = ""
+            words = body.split()
+            report = " ".join(words[:REPORT_WORDS])
+            if len(words) > REPORT_WORDS:
+                report += " …"
+        return {"id": name, "kind": st.get("kind") or "",
+                "opened": st.get("opened") or "", "report": report}
+    return None
+
+
+def archived_session(repo, name):
+    """One past lesson, rendered the same way a live one is."""
+    folder = os.path.join(repo.archive, name)
+    st = {}
+    try:
+        with open(os.path.join(folder, "state.json"), "r", encoding="utf-8") as fh:
+            st = json.load(fh) or {}
+    except (OSError, ValueError):
+        pass
+    jobs = []
+    saved_cards, repo.cards = repo.cards, folder
+    try:
+        in_it = cards.load_cards(repo, jobs)
+    finally:
+        repo.cards = saved_cards
+    answers = turns.load_turns(repo, os.path.join(folder, "turns.jsonl"))
+    # Their frozen ink lives inside the archived folder now, so the transcript
+    # keeps working after the live answers directory has moved on.
+    for t in answers:
+        for key in ("png", "ink"):
+            if t.get(key, "").startswith("/answers/"):
+                t[key] = "/archive/%s/answers/%s" % (name, t[key][len("/answers/"):])
+    # And the marks made on this sitting's own cards, which travelled in here
+    # with it. Read from the archived folder for the same reason the frozen ink
+    # above is: the live directory has moved on to another lesson whose cards
+    # are numbered from 0001 again, so anything keyed by a card number and left
+    # behind there belongs to a different card of a different evening.
+    saved_notes, repo.notes = repo.notes, os.path.join(folder, "annotations")
+    try:
+        marks = notes.load_notes(repo)
+    finally:
+        repo.notes = saved_notes
+    return {"id": name, "state": st, "cards": in_it, "turns": answers,
+            "notes": marks, "archived": True}

@@ -1,0 +1,434 @@
+/* ==========================================================================
+   home.css -- the start screen.
+
+   This is what start_url points at, so it is the first thing the installed app
+   shows: what is open, a new session, the courses and projects, and what has
+   ended. Every colour is a token defined in both palette blocks.
+   ========================================================================== */
+
+:root {
+  --paper:   #fbfaf7;
+  --paper-2: #f3f1ec;
+  --ink:     #1c1b19;
+  --ink-2:   #55524c;
+  --ink-3:   #8d887f;
+  --rule:    #ddd9d0;
+  --accent:  #7a1f1f;
+  --ask:     #8a5a00;
+  --slate:   #22302b;
+  --live:    #35a35f;
+}
+
+body[data-mode="dark"], body[data-mode="auto"].sys-dark {
+  --paper:   #16171a;
+  --paper-2: #1e2025;
+  --ink:     #e6e3dd;
+  --ink-2:   #a9a49b;
+  --ink-3:   #77726a;
+  --rule:    #2e3138;
+  --accent:  #e0827c;
+  --ask:     #e0b45c;
+  --slate:   #cfd8d2;
+  --live:    #57c07f;
+}
+
+* { box-sizing: border-box; }
+
+/* The `hidden` attribute has to actually hide things -- see board.css. */
+[hidden] { display: none !important; }
+
+/* See the note in board.css: the dark palette lives on `body[data-mode="dark"]`,
+   so an <html> that paints `var(--paper)` always resolves the light value from
+   `:root` and shows a cream band below any page shorter than the screen. */
+html { background: none; }
+
+html, body {
+  margin: 0; padding: 0;
+  color: var(--ink);
+  font-family: var(--prose);
+  line-height: var(--prose-leading);
+  letter-spacing: var(--prose-tracking);
+  -webkit-text-size-adjust: 100%;
+}
+
+body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
+
+/* ---------- bar ---------- */
+#bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: calc(.5rem + env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right))
+           .5rem max(.75rem, env(safe-area-inset-left));
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--ui);
+  font-size: .82rem;
+}
+.bar-left { display: flex; align-items: center; gap: .55rem; }
+.wordmark { font-weight: 650; letter-spacing: .02em; }
+.bar-right { display: flex; gap: .25rem; }
+#bar button {
+  font: inherit; line-height: 1; padding: .4rem .55rem;
+  border: 1px solid transparent; border-radius: .4rem;
+  background: transparent; color: var(--ink-2); cursor: pointer;
+}
+#bar button:hover { background: var(--paper-2); color: var(--ink); }
+
+.dot { width: .55rem; height: .55rem; border-radius: 50%; background: var(--ink-3); transition: background .3s; }
+.dot.live { background: #35a35f; box-shadow: 0 0 0 3px color-mix(in srgb, #35a35f 22%, transparent); }
+.dot.dead { background: #b64b4b; }
+
+/* ---------- page ---------- */
+main {
+  max-width: 34rem; margin: 0 auto;
+  padding: 1.2rem max(1.1rem, env(safe-area-inset-left))
+           calc(3rem + env(safe-area-inset-bottom)) max(1.1rem, env(safe-area-inset-right));
+}
+
+.eyebrow {
+  font-family: var(--ui);
+  font-size: .66rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-3); margin: 0 0 .35rem;
+}
+
+h2 {
+  font-family: var(--ui);
+  font-size: .78rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 2rem 0 .5rem;
+}
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.hint { margin: 0 0 .8rem; font-size: .82rem; color: var(--ink-3); }
+
+.said {
+  margin: 0 0 1rem; padding: .7rem .9rem;
+  border-left: 3px solid var(--ask);
+  background: color-mix(in srgb, var(--ask) 8%, transparent);
+  border-radius: 0 .4rem .4rem 0;
+  font-size: .92rem;
+}
+
+/* The cluster's health: one line each, the worst first. */
+.health {
+  margin: 0 0 1rem; padding: .6rem .9rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 0 .4rem .4rem 0;
+  font-size: .88rem; display: grid; gap: .25rem; overflow-wrap: anywhere;
+}
+
+/* Colibri's panel. */
+.coli-state { margin: 0 0 .6rem; font-size: .92rem; }
+#colibri-brief {
+  width: 100%; margin-top: .8rem;
+  font: inherit; font-size: 1rem;
+  padding: .6rem .8rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+#colibri-file { width: 100%; margin-top: .5rem; text-align: left; }
+.row.coli { cursor: default; }
+.coli-relay { font-family: var(--mono, monospace); font-size: .76rem; color: var(--ink-2); }
+
+/* ---------- rows: a session, a subject, a notice ---------- */
+.rows { display: grid; gap: .45rem; }
+.row {
+  display: flex; flex-direction: column; gap: .15rem;
+  min-height: 2.9rem;
+  padding: .65rem .85rem;
+  border: 1px solid var(--rule); border-radius: .6rem;
+  background: var(--paper-2);
+  color: var(--ink); text-decoration: none;
+}
+.row:hover { border-color: var(--ink-3); }
+.row-top { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; }
+.row-name { font-family: var(--ui); font-weight: 620; font-size: .98rem; }
+.row-sub, .row-last {
+  font-family: var(--ui); font-size: .78rem; color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.row-last { color: var(--ink-2); }
+.row.past { background: transparent; }
+/* A subject's row and its Make button, side by side. */
+.subj { display: flex; gap: .45rem; align-items: stretch; }
+.subj .row { flex: 1; min-width: 0; }
+.row-make {
+  flex: none; font: inherit; font-family: var(--ui); font-size: .8rem;
+  min-width: 2.75rem; padding: .3rem .7rem; cursor: pointer;
+  border: 1px solid var(--rule); border-radius: .6rem;
+  background: var(--paper); color: var(--ink-2);
+}
+.row-make:hover { border-color: var(--ink-3); }
+#artmaker-open { margin-top: .6rem; display: block; text-decoration: none; }
+/* A session row and its delete, side by side; the delete arms on the first
+   tap and goes on the second. */
+.row-wrap { display: flex; align-items: stretch; gap: .4rem; }
+.row-wrap > .row { flex: 1; min-width: 0; }
+.row-delete {
+  flex: none; align-self: center;
+  font: inherit; font-family: var(--ui); font-size: .74rem;
+  min-height: 2.75rem; min-width: 2.75rem; padding: .3rem .6rem;
+  border: 1px solid var(--rule); border-radius: .45rem;
+  background: transparent; color: var(--ink-3); cursor: pointer;
+}
+.row-delete.armed, .row-make.armed { border-color: var(--accent); color: var(--accent); }
+.badge {
+  flex: none;
+  font-family: var(--ui); font-size: .7rem; font-weight: 700;
+  padding: .1rem .5rem; border-radius: 1rem;
+  background: var(--live); color: var(--paper);
+}
+.row.notice { flex-direction: row; align-items: center; gap: .6rem;
+  border-left: 3px solid var(--ask); }
+.row.notice .row-main { display: flex; flex-direction: column; gap: .15rem; flex: 1; }
+.dismiss, .add {
+  font: inherit; font-family: var(--ui); font-size: .8rem;
+  min-height: 2.75rem; min-width: 2.75rem; padding: .3rem .7rem;
+  border: 1px solid var(--rule); border-radius: .45rem;
+  background: transparent; color: var(--ink-2); cursor: pointer;
+}
+.dismiss:hover, .add:hover { border-color: var(--ink-3); color: var(--ink); }
+
+/* New session and New canvas, side by side once there is room. */
+.starts { display: grid; gap: .6rem; margin-top: 1rem; }
+@media (min-width: 30rem) { .starts { grid-template-columns: 1.4fr 1fr; } }
+.starts .action { width: 100%; text-align: left; }
+
+/* ---------- the actions ---------- */
+.actions { display: grid; gap: .6rem; margin-top: 2rem; }
+@media (min-width: 30rem) { .actions { grid-template-columns: 1fr 1fr; } }
+.actions .action { min-height: 4.2rem; text-align: left; }
+.action:disabled { opacity: .5; cursor: default; }
+
+.action {
+  display: flex; flex-direction: column; justify-content: center;
+  min-height: 5.2rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--rule); border-radius: .7rem;
+  text-decoration: none; color: var(--ink);
+  background: var(--paper-2);
+  transition: transform .12s ease, border-color .12s ease;
+}
+.action:active { transform: scale(.985); }
+.action:hover { border-color: var(--ink-3); }
+.action.primary { background: var(--slate); color: var(--paper); border-color: var(--slate); }
+body[data-mode="dark"] .action.primary,
+body[data-mode="auto"].sys-dark .action.primary { color: #16171a; }
+.action-name {
+  font-family: var(--ui);
+  font-weight: 620; font-size: 1rem;
+}
+.action-sub { font-size: .8rem; opacity: .72; margin-top: .2rem; }
+
+button.action { font: inherit; cursor: pointer; }
+
+/* ---------- settings ---------- */
+.settings { display: flex; gap: .45rem; flex-wrap: wrap; }
+.settings button {
+  font: inherit; font-family: var(--ui); font-size: .82rem;
+  min-height: 2.75rem; padding: .4rem .85rem; border-radius: .45rem;
+  border: 1px solid var(--rule); background: transparent; color: var(--ink);
+  cursor: pointer;
+}
+.set-lead { color: var(--ink-3); margin-right: .3rem; }
+
+/* WHO TUTORS: the machine's one provider setting, under New session, drawn by
+   web/who.js. The lead is a section heading, and the note under the buttons
+   always says who takes the next turn. */
+.who {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+}
+.who-lead { flex-basis: 100%; margin: 1.4rem 0 .2rem; }
+.who-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+/* 2.75rem, like every other thing on this page a finger has to hit. A chooser
+   nobody can tap on the device it exists for is furniture. */
+.who-ways button {
+  font-family: var(--ui); font-size: .78rem;
+  min-height: 2.75rem; padding: .4rem .8rem; border-radius: .4rem;
+  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
+}
+.who-ways button.on {
+  background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600;
+}
+.who-ways button.away { opacity: .55; }
+.who-note {
+  flex-basis: 100%; margin: .2rem 0 0;
+  font-family: var(--ui); font-size: .8rem; line-height: 1.35; color: var(--ink-2);
+}
+
+/* ---------- the search, and what the boot check says ---------- */
+.find {
+  display: block; width: 100%; margin-top: 1.6rem;
+  font: inherit; font-family: var(--ui); font-size: 1rem;
+  padding: .6rem .8rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.add.more { margin-top: .45rem; }
+.boot {
+  display: flex; align-items: center; justify-content: space-between; gap: .6rem;
+  margin: 0 0 1rem; padding: .6rem .9rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 0 .4rem .4rem 0;
+  font-family: var(--ui); font-size: .92rem;
+}
+.boot button {
+  flex: none; font: inherit; font-weight: 620;
+  min-height: 2.75rem; padding: .3rem .9rem; cursor: pointer;
+  border: 1px solid var(--accent); border-radius: .45rem;
+  background: var(--paper); color: var(--accent);
+}
+
+/* ---------- the sheet ---------- */
+.sheet {
+  position: fixed; inset: 0; z-index: 92;
+  display: grid; place-items: end center;
+  background: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+.sheet-box {
+  width: 100%; max-width: 30rem;
+  margin: 0 auto;
+  padding: 1.2rem max(1.1rem, env(safe-area-inset-left))
+           calc(1.2rem + env(safe-area-inset-bottom)) max(1.1rem, env(safe-area-inset-right));
+  background: var(--paper);
+  border: 1px solid var(--rule); border-bottom: 0;
+  border-radius: .9rem .9rem 0 0;
+}
+.sheet-box h3 {
+  margin: 0; font-size: 1.35rem; font-weight: 620; line-height: 1.2;
+}
+.sheet-line {
+  margin: .4rem 0 0; font-family: var(--ui);
+  font-size: .8rem; color: var(--ink-3); overflow-wrap: anywhere;
+}
+.sheet-next {
+  margin: .9rem 0 0; padding: .7rem .9rem;
+  border-left: 3px solid var(--ask);
+  background: color-mix(in srgb, var(--ask) 8%, transparent);
+  border-radius: 0 .4rem .4rem 0;
+  font-size: .92rem; line-height: 1.4;
+}
+/* THE PERIOD. Buttons rather than a date field: a date picker on a tablet,
+   ten minutes before a meeting, is the wrong shape of question. The chosen
+   one is pressed. */
+.notes-since { display: grid; gap: .5rem; margin-top: 1.1rem; }
+@media (min-width: 30rem) { .notes-since { grid-template-columns: 1fr 1fr; } }
+.notes-since button {
+  font: inherit; font-family: var(--ui); font-size: .92rem;
+  padding: .75rem .9rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .5rem;
+}
+.notes-since button:hover:not(:disabled) {
+  border-color: var(--accent); background: var(--paper-2);
+}
+.notes-since button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+/* `--accent`, not a `--bad` of its own. This stylesheet has no such token, and
+   inventing one means defining it in BOTH blocks at the top or it is invisible
+   in one theme — which is the rule `test/hub.js` enforces. `.pushline.bad`
+   already made this exact decision. */
+.sheet-line.bad { color: var(--accent); }
+
+.sheet-actions { display: grid; gap: .6rem; margin-top: 1.1rem; }
+@media (min-width: 30rem) { .sheet-actions { grid-template-columns: 1.6fr 1fr; } }
+.sheet-actions .action { min-height: 3.4rem; text-align: left; }
+#annot-file, #annot-url, #annot-subject, #annot-bar { width: 100%; margin-top: .9rem; }
+#annot-subject {
+  font: inherit; font-size: 1rem; padding: .6rem .7rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+#maker-name, #artmaker-about, #dropper-name, #sender-find, #annot-url {
+  width: 100%; margin-top: .9rem;
+  font: inherit; font-size: 1.05rem;
+  padding: .7rem .8rem; border-radius: .5rem;
+  border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
+}
+.maker-phi { margin-top: .8rem; }
+.picks { display: flex; gap: .5rem; margin-top: .4rem; }
+.picks button {
+  font: inherit; font-family: var(--ui); font-size: .92rem;
+  min-height: 2.75rem; padding: .5rem 1.2rem; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .5rem;
+}
+.picks button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+/* ---------- the way back ----------
+   Placed from JavaScript (`recentre.js`, shared with the board), because
+   `position: fixed` pins to the layout viewport and a pinch moves the visual
+   one. */
+#panic {
+  position: fixed; left: 0; top: 0; z-index: 62;
+  transform-origin: 0 0;
+  display: flex; align-items: center; gap: .35rem;
+  padding: .42rem .7rem .42rem .55rem;
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in srgb, var(--paper) 55%, var(--accent));
+  background: var(--accent);
+  color: var(--paper);
+  font: 700 .74rem var(--ui);
+  letter-spacing: .02em;
+  box-shadow: 0 4px 14px rgba(0,0,0,.3);
+  cursor: grab;
+  /* The drag is ours; the browser must not take the gesture as a scroll. */
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: box-shadow .18s, filter .18s;
+}
+#panic svg { width: .95rem; height: .95rem; display: block; flex: none; }
+#panic:hover { filter: brightness(1.1); }
+/* Held down: it has become a thing being moved, and must look like one before
+   the finger travels, or the first drag reads as a tap that did nothing. */
+#panic.holding {
+  cursor: grabbing;
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 32%, transparent),
+              0 4px 14px rgba(0,0,0,.3);
+}
+/* Tapped: acknowledge it, because what the tap does is a change of scale and
+   not a change of content, which is easy to miss on a page you were lost in. */
+#panic.hit { filter: brightness(1.25); }
+/* Over the sheets, which cover the whole glass: a sheet has its own close and
+   the stack must not sit under one. */
+#panic { z-index: 63; }
+
+/* ---------- which subjects the deck is about ----------
+   A row per subject, chosen or not. None chosen is every subject that moved,
+   so the list narrows a decision rather than asking for one from nothing. */
+.notes-which { display: grid; gap: .3rem; margin-top: .7rem;
+  max-height: 46vh; overflow: auto; }
+.notes-which button {
+  font: inherit; font-family: var(--ui); font-size: .9rem;
+  display: flex; align-items: baseline; gap: .5rem;
+  padding: .55rem .7rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .45rem;
+}
+.notes-which button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
+
+/* ---------- where a past session is sent ----------
+   Every course and project in the one picker order (Random lessons, Recent,
+   Courses, Projects), scrolling inside the sheet so + new stays in reach
+   however many there are. */
+.sender-list { display: grid; gap: .3rem; margin-top: .7rem;
+  max-height: 40vh; overflow: auto; }
+.sender-list button {
+  font: inherit; font-family: var(--ui); font-size: .92rem;
+  display: flex; align-items: baseline; gap: .6rem;
+  min-height: 2.75rem; padding: .55rem .7rem; text-align: left; cursor: pointer;
+  color: var(--ink); background: var(--paper);
+  border: 1px solid var(--rule); border-radius: .45rem;
+}
+.sender-list button:hover:not(:disabled) { border-color: var(--accent); }
+.sender-group { margin: .5rem 0 0; font-family: var(--ui); font-size: .74rem;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.sender-kind { width: 3.6rem; flex: none; font-size: .74rem; color: var(--ink-3); }
+#dropper-why a { color: var(--accent); }
+

@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Board">
+<title>Library</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon-192.png">
+<link rel="stylesheet" href="/static/typeface.css">
+<!-- The board's own sheet, for the palette, the dark mode and the reading face.
+     A second set of colours for a second page is two sets to keep in step, and
+     this page is read in the same room, on the same glass, as the lesson. -->
+<link rel="stylesheet" href="/static/board.css">
+<link rel="stylesheet" href="/static/reader.css">
+<link rel="stylesheet" href="/static/library.css">
+<link rel="stylesheet" href="/static/ledger.css">
+<script src="/static/typeface.js" defer></script>
+</head>
+<body>
+
+<!-- A PAGE, NOT A PANEL OVER THE LESSON. Everything here is about documents
+     this workspace has written, and none of it touches the sitting on the
+     board: feedback lands beside the document it is about and wakes a turn of
+     its own. So the two ways out are the two other surfaces, on one row. -->
+<header id="libbar">
+  <a id="lib-back" href="/board" title="back to the lesson">‹ board</a>
+  <!-- THE WAY TO THE FIGURES, from the top of a page whose first section is
+       forty-five documents. A gallery below a long list is a surface nobody
+       finds; this says how many there are and jumps to them. Drawn only where
+       there are some. -->
+  <a id="lib-figures" href="#res" hidden></a>
+  <strong id="lib-where"></strong>
+  <span id="lib-count" class="muted"></span>
+</header>
+
+<main id="library">
+  <!-- A course's textbook: what its index holds, or a way to add one. -->
+  <div id="lib-book" class="lib-book" hidden>
+    <span id="lib-book-line"></span>
+    <button id="lib-book-add" type="button" hidden>Add the textbook</button>
+    <input id="lib-book-file" type="file" accept="application/pdf,.pdf" hidden>
+  </div>
+  <p id="lib-none" class="lib-none" hidden></p>
+  <div id="lib-list"></div>
+
+  <!-- WHAT THIS WORKSPACE HAS PRODUCED, under what it has written. A job
+       ends by naming what it wrote -- "figure `neighbor_count_sweep.png` and
+       four tables are in ..." -- and until this was here the only way to look
+       at one was a terminal, which is the thing this board exists so that
+       nobody has to open. The directory is the group, for the reason
+       `results._where` gives: a pipeline writes one filename once per
+       contrast, so the directory is what tells three of them apart. -->
+  <section id="res" hidden>
+    <h2 id="res-head">What it has produced</h2>
+    <p id="res-count" class="muted"></p>
+    <!-- THE FENCE, SAID WHERE THE MISSING ROWS WOULD HAVE BEEN. A page that
+         quietly leaves a directory out is a page somebody scrolls looking for
+         what they know is on disk. -->
+    <p id="res-fenced" class="lib-none" hidden></p>
+    <!-- TWO VIEWS OF ONE WALK. The list answers *is the file the card named
+         really there*; the gallery answers *show me the figures*, which is a
+         question no list of six hundred filenames can answer. Which one is
+         showing is remembered, so the second visit opens where the last one
+         was left. -->
+    <div id="res-view">
+      <button id="res-as-grid" type="button" title="every figure, as pictures">▦ gallery</button>
+      <button id="res-as-list" type="button" class="on" title="every figure and table, by name">☰ list</button>
+    </div>
+    <!-- THE CARD NAMES THE FILE, so the file's own name is what this matches
+         on. Somebody reading "neighbor_count_sweep.png" types that, and the
+         one directory it is in is what is left. ONE BOX FOR BOTH VIEWS: a
+         second search beside the first is two boxes to keep in step. -->
+    <input id="res-find" type="search" autocomplete="off"
+           placeholder="the name of a figure, a table, or the directory">
+    <!-- NARROWING A GALLERY OF SIX HUNDRED. Native selects, because ninety-
+         eight directories drawn as a row of chips is a row nobody reaches the
+         end of, and an iPad draws a select as a picker. -->
+    <div id="res-pick" hidden>
+      <select id="gal-dir" aria-label="which directory"></select>
+      <select id="gal-order" aria-label="what order">
+        <option value="newest">newest first</option>
+        <option value="name">by name</option>
+        <option value="dir">by directory</option>
+      </select>
+    </div>
+    <p id="res-none" class="lib-none" hidden></p>
+    <p id="res-grid-count" class="muted" hidden></p>
+    <!-- EVERY FIGURE, AS A PICTURE, AND NOT ALL AT ONCE. A tile carries the
+         address of its figure and no `src`: the picture is asked for when the
+         tile comes near the glass, six at a time, so a grid of six hundred
+         costs a screenful. -->
+    <div id="res-grid" hidden></div>
+    <div id="res-list"></div>
+  </section>
+
+  <!-- DELETE THIS SUBJECT: its name typed, then one tap. Shown only on a
+       subject's own page outside a session; the server refuses a subject
+       that may hold patient data or has anything open on it, and says why. -->
+  <section id="lib-drop" hidden>
+    <h2>Delete this subject</h2>
+    <p class="muted">Type <strong id="lib-drop-slug"></strong> to delete it. It
+      goes to the trash for 30 days, and its tracked files leave git in one
+      commit. A subject that may hold patient data is removed only on the
+      cluster.</p>
+    <input id="lib-drop-name" type="text" autocomplete="off" autocapitalize="off"
+           spellcheck="false" aria-label="the subject's name, typed">
+    <button id="lib-drop-go" type="button" disabled>delete</button>
+    <p id="lib-drop-said" class="lib-none" hidden></p>
+  </section>
+</main>
+
+<!-- ONE RESULT, ON THE GLASS. Not `#reader`: that draws the PAGES of a PDF,
+     carries the pen and anchors every stroke to `doc/<id>/p<n>`, and a PNG out
+     of somebody's pipeline has no page to anchor to. A figure is an image and a
+     table is numbers, and both are read rather than marked up. -->
+<div id="shown" hidden>
+  <div id="shown-bar">
+    <strong id="shown-name"></strong>
+    <span id="shown-sub" class="muted"></span>
+    <div id="shown-acts">
+      <!-- STEPPING WITHOUT GOING BACK, because comparing two figures is the
+           whole reason to be in here rather than on the grid, and the zoom is
+           kept across a step so the same corner of the next plot is under the
+           same finger. -->
+      <span id="shown-nav" hidden>
+        <button id="shown-prev" type="button" title="the figure before this one">‹</button>
+        <span id="shown-at" class="muted"></span>
+        <button id="shown-next" type="button" title="the figure after this one">›</button>
+      </span>
+      <!-- The way out of a zoom, for a hand that has lost the figure. -->
+      <button id="shown-fit" type="button" title="the whole figure again" hidden>fit</button>
+      <button id="shown-close" type="button" title="back to the list">✕</button>
+    </div>
+  </div>
+  <div id="shown-body"></div>
+</div>
+
+<!-- One document, read on the glass. The pages are PNGs drawn by the machine
+     that holds the PDF, for every reason `course/paper.py` gives: iOS renders a
+     PDF in a frame as one unscrollable page, and navigating to one in a
+     standalone app is a page with no way back. -->
+<div id="reader" hidden>
+  <div id="reader-bar">
+    <strong id="reader-name"></strong>
+    <span id="reader-sub" class="muted"></span>
+    <!-- THE PEN, ON THE PAGE ITSELF. A ring round a figure at 200% zoom is a
+         complaint already located, and the alternative was to draw it on the
+         board's own viewer and then write the note on a different surface. -->
+    <button id="reader-pen" type="button" title="draw on the page">✎ mark it up</button>
+    <!-- WHERE THE INK IS: saved and on how many pages, being saved, or not
+         saved and being retried. -->
+    <span id="reader-kept" class="reader-kept" role="status" aria-live="polite" hidden></span>
+    <!-- THE INK AS A NEW PDF, never over the original. -->
+    <button id="reader-keep" type="button" disabled
+            title="burn your marks into a new copy of this document; the original is not touched">⤓ keep a marked copy</button>
+    <!-- THE ROUND AS PAIRS: what was written beside what was done, a pip on
+         the page for each (`ledger.js`). Shown only on a document with rounds. -->
+    <button id="reader-changes" type="button" hidden
+            title="the last round's notes, each beside what was done">◉ notes</button>
+    <!-- ONE SEND. Your marks and what you type go to a revision turn, which
+         decides whether they ask for an edit or say where the work goes next. -->
+    <button id="reader-say" type="button" title="your marks, and what you type, as a revision">say what is wrong</button>
+    <!-- THE ZOOM, SAID ONLY WHEN IT IS NOT THE FIT, and a tap puts it back. -->
+    <button id="reader-zoom" type="button" title="back to the page width" hidden>100%</button>
+    <button id="reader-close" type="button" title="back to the library">✕</button>
+  </div>
+  <!-- NOTHING THE READER CAN BE WAITING ON IS SILENT. A revision was dispatched
+       in the same request that filed the note, and the only thing that used to
+       change on the glass was a line saying the note was filed. This says the
+       turn is running, and it says afterwards when the ink on the page was
+       drawn on a version with a different number of pages in it. -->
+  <p id="reader-said" class="reader-said" hidden></p>
+  <!-- INK KNOWS ITS BUILD. Marks drawn on a build this document has since
+       been rebuilt from sit over text that has moved, and this says so. -->
+  <p id="reader-rebuilt" class="reader-said reader-rebuilt" hidden>
+    <span id="reader-rebuilt-said"></span>
+    <button id="reader-rebuilt-keep" type="button" hidden>⤓ keep a marked copy of that build</button>
+  </p>
+  <!-- WHAT NO SOURCE SUPPORTS, on the meeting deck: every number and figure
+       on it is checked against the brief it was written over, and what is not
+       found is listed here, to be checked before the meeting. -->
+  <details id="reader-check" class="reader-said" hidden>
+    <summary id="reader-check-head"></summary>
+    <ul id="reader-check-list"></ul>
+  </details>
+  <!-- THE COPY THAT WAS KEPT, and the way to take it away. -->
+  <p id="reader-copy" class="reader-copy" hidden>
+    <span id="reader-copy-said"></span>
+    <button id="reader-copy-save" type="button" hidden>save a copy</button>
+  </p>
+  <div id="reader-pages"></div>
+</div>
+
+<!-- FEEDBACK, AND IT IS NEVER JUST FILED. It lands beside the document, dated
+     and versioned, and the same request asks for the revision -- a note nothing
+     acts on is a note somebody believes is in force. A page number rides with
+     it because the reader is looking at a page when they write it. -->
+<div id="note" hidden data-no-ink>
+  <div id="note-box">
+    <strong id="note-title"></strong>
+    <p id="note-where" class="muted"></p>
+    <!-- THE PART THAT SCROLLS. Twenty-three requests and a seven-row box are
+         taller than an iPad in landscape, and taller still with the keyboard
+         up, so everything between the title and the answer scrolls here and
+         the answer and the two buttons below it never leave the glass. -->
+    <div id="note-body">
+      <!-- TWO ASKS, FROM ONE PANEL. A correction keeps the document's structure,
+           its names for things and its claims -- which is right for "figure 3 is
+           mislabelled" and wrong for "that presentation needs an overhaul now
+           that we plan to use colibrì". The prompt a correction is woken with
+           says outright *do not start it again and do not widen it*, so without
+           this the only route to an overhaul was a terminal. -->
+      <div id="note-ask">
+        <button id="ask-revise" type="button" class="on">fix what is wrong</button>
+        <button id="ask-rework" type="button">it needs an overhaul</button>
+      </div>
+      <textarea id="note-text" rows="7"
+        placeholder="What is wrong with it, and what should it say instead."></textarea>
+      <!-- AN OVERHAUL COSTS A PURPOSE. Restructuring, cutting and rewriting with
+           no new purpose named is a rewrite for its own sake, so this sentence is
+           required and is what the turn works to. -->
+      <div id="note-purpose-box" hidden>
+        <p class="muted">It may restructure, cut, reorder and rewrite. Say what the
+          document is <strong>for</strong> now — that sentence outranks the shape
+          it presently has.</p>
+        <textarea id="note-purpose" rows="3"
+          placeholder="What this document is for now, and who reads it."></textarea>
+      </div>
+      <p id="note-page" class="muted" hidden></p>
+      <!-- THE SPLIT, BEFORE IT GOES. Each inked region and each paragraph is one
+           request with an id the revision answers; a page's marks can be made one
+           request here, so "that was one request, not three" costs a tap now
+           rather than a round later. -->
+      <div id="note-items" class="lg-preview" hidden></div>
+      <!-- INK COUNTS AS SAYING SOMETHING. A ring round a figure is a complaint,
+           and a send button that stays dead until somebody types is the board
+           asking them to write out what they have already drawn. -->
+      <p id="note-marks" class="muted" hidden></p>
+    </div>
+    <p id="note-said" class="note-said" hidden></p>
+    <div id="note-acts">
+      <button id="note-cancel" type="button" class="quiet">cancel</button>
+      <button id="note-send" type="button" class="primary" disabled>send it</button>
+    </div>
+  </div>
+</div>
+
+<!-- WHAT A ROUND ACTUALLY DID. The turn writes `## What was changed` at the
+     bottom of the feedback file, and that is the answer to *did it do what I
+     asked* -- in a file the iPad cannot open. The rounds under a document are
+     tappable and this is what opens. -->
+<div id="round" hidden data-no-ink>
+  <div id="round-box">
+    <strong id="round-title"></strong>
+    <div id="round-list"></div>
+    <pre id="round-text"></pre>
+    <div id="round-acts">
+      <button id="round-close" type="button" class="quiet">close</button>
+    </div>
+  </div>
+</div>
+
+<!-- THE PLANE, for the one thing on this page that is one: a single figure,
+     up close. A pannable pinchable plane under a LIST is what produced the
+     front door's wacky zooming -- the gesture layer solving a problem the
+     content did not have -- and one large image is the case it was written
+     for. -->
+<script src="/static/plane-core.js"></script>
+
+<!-- The ink, and the clipboard it shares with the lesson's own pen. Both are
+     the board's, unchanged: a page of a document carries `data-ann` and
+     `annotate.js` has taken that as an anchor since the viewer first drew one.
+     Not deferred -- `library.js` asks for `window.Annotate` as it draws. -->
+<script src="/static/ink-clip.js"></script>
+<script src="/static/ink-core.js"></script>
+<script src="/static/annotate.js"></script>
+<script src="/static/annbar.js"></script>
+<script src="/static/viewpin.js"></script>
+<script src="/static/inkkeep.js"></script>
+<script src="/static/recentre.js"></script>
+<script src="/static/readerzoom.js"></script>
+<script src="/static/reader.js"></script>
+<!-- The rounds' requests as pins, and the filing panel's split. -->
+<script src="/static/ledger.js"></script>
+<script src="/static/library.js"></script>
+</body>
+</html>

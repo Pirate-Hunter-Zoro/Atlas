@@ -1,0 +1,184 @@
+# ===========================================================================
+#  What this repository does not carry.
+#
+#  The rule, and it is the whole of the rule:
+#
+#      If it cannot go into a public repository, it does not LIVE in the
+#      repository. It lives outside the tree and something inside the tree
+#      says where.
+#
+#  So this file is left holding three honest categories: files a command
+#  regenerates, other people's work, and `ai-config/`, which is its own
+#  private repository. Patient data lives only on the cluster, under a
+#  subject's phi/ and results/, ignored by the anchored rules below. An ignore
+#  rule is a guard somebody can delete by accident, so board/test/tracked.py
+#  and the commit-time gate (board/tutorboard/audit.py) refuse those paths too.
+#
+#  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
+#  ones. Nothing here may shadow one of those: git will not descend into a
+#  directory ignored higher up, so a rule here for a directory a workspace
+#  re-includes would make every deeper `!` line there unreachable. That is
+#  why this file names no directory a workspace re-includes.
+# ===========================================================================
+
+# ---- build products, every language in here ----
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+# A workspace's environment, which `uv sync` builds from its uv.lock.
+.venv/
+# What cargo, flutter and zig build and fetch beside a Cargo.toml, pubspec.yaml
+# or build.zig.zon.
+target/
+.dart_tool/
+zig-out/
+.zig-cache/
+zig-pkg/
+*.log
+
+# A Lean build's output and fetched packages, which `lake build` recreates.
+# It never leaves the machine.
+.lake/
+build/
+# Not output: the board's builder keeps its pandoc filter here.
+!/board/tutorboard/build/
+
+# ---- LaTeX, which writes eight files beside every one it is asked for ----
+*.aux
+*.nav
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.vrb
+*.out
+# Built PDFs, where documents are built. A PDF already tracked stays tracked.
+/courses/**/*.pdf
+/projects/*/docs/**/*.pdf
+/projects/*/homework/**/*.pdf
+# A marked copy: ink burned into a copy of a PDF, beside it (`burn.py`).
+*-marked.pdf
+*-marked-[0-9]*.pdf
+
+# ---- the relay's own state, on the cluster ----
+# The pass's lock and `state.json` at the root; in each subject the wrapped
+# job scripts, their exit codes, the job registry, the claims and the Colibri
+# queue (`jobs.py`). A log can print anything, so none of it is tracked; a
+# report under `relay/reports/` is what crosses.
+**/relay/state/
+/relay/state.json
+/relay/.lock*
+
+# ---- the meeting deck: projects/Meetings/docs/meeting/ ----
+# `meeting.tex` and doc.json are tracked. The brief quotes commits and
+# sessions, the figures are copies of results, and the sidecar and the marks'
+# pictures are rewritten on every build: none of them is tracked.
+/projects/Meetings/docs/meeting/_brief.*
+/projects/Meetings/docs/meeting/_provenance.json
+/projects/Meetings/docs/meeting/figures/
+/projects/Meetings/docs/meeting/marks/
+# An older machine's root pointer to the deck. Nothing writes it.
+/meetings/
+
+# ---- other people's published papers ----
+# The citation libraries hold PDFs whose copyright belongs to their authors.
+# The INDEXES are tracked -- README.md, CITATION_MAP.md, the role-grouped
+# manifests -- so a clone arrives with the bibliography described but not
+# carried. Anything that grows a reference shelf gets the same treatment.
+**/references/*.pdf
+
+# ---- editor and OS cruft ----
+.DS_Store
+Thumbs.db
+*~
+.*.swp
+.vscode/
+# The NFS client's placeholder for a file deleted while still open. It is
+# nobody's work and it vanishes on its own; a commit carrying one carries a
+# name that is gone a minute later.
+.nfs*
+
+# ---- one vendor's config directory, none of which is this repository's ----
+# NOTHING under an assistant's own directory is tracked here, and the test is
+# that deleting every one of them costs `bash ai-config/scripts/install.sh` and
+# nothing else.
+#
+# A workspace's permission allowlist -- which commands may run unattended -- is
+# a fact about the workspace, and it lives in `ai-config` as
+# `workspaces/*.allow`, naming no vendor. `install.sh` renders it into the
+# assistant's USER-LEVEL settings, outside this tree, so nothing installs
+# anything here. The rule below is therefore absolute rather than a filter: a
+# directory named for an assistant is this machine's own state, never anything
+# the repository needs.
+#
+# The same rule covers a workflow, a subagent, a slash command and a skill,
+# which are logic written against one provider's API and go stale at its next
+# release. A job worth keeping is kept as a specification any assistant can
+# execute, and the harness is regenerated from it.
+#
+# `**/` on purpose: a pattern with a slash in it is anchored to the directory
+# its .gitignore sits in, so `.claude/` written HERE would match only the one
+# at the repository root and silently miss the nine inside the workspaces --
+# which are the only ones that actually exist.
+**/.claude/
+
+# ---- the one directory that is its own private repository ----
+# `ai-config/` holds the operating contract every assistant reads, the PHI
+# guard, and each vendor's settings files, which name real paths on the lab's
+# storage. It lives INSIDE this tree, so one directory is the whole of the
+# work, and is ignored here, so a public repository never carries a byte of it.
+/ai-config/
+
+# ---- a credential dropped in the tree, which is a thing that happens ----
+# A key belongs in `~/.config/tutor-board/keys.env`, machine-local and outside
+# this repository -- README.md's Mac setup says so. It still gets
+# dropped here first, because that is where the terminal already is, and this
+# repository is public. So the shapes a key file is given are refused by name,
+# unanchored, so a drop at any depth is caught rather than only one at the root.
+#
+# THIS IS THE FIRST OF TWO GUARDS AND IT IS THE WEAKER ONE. A pattern is right
+# until somebody adds a file with `git add -f` or edits this list. The other is
+# the rule that makes the PHI arrangement safe: `board/test/tracked.py` asks GIT
+# ITSELF what it can see, on every run of the suite, and refuses these same
+# shapes there.
+*-api-key
+*_api_key
+*.key
+keys.env
+.env
+
+# ---- what stays on the Mac, and what belongs to somebody else ----
+# Sessions, document ink and materials (third-party or uploaded files) are
+# never tracked. phi/ and results/ never leave the machine they are on. A
+# course's textbook, chapter readings, lecture decks and assignment sheets are
+# other people's work. board/tutorboard/audit.py refuses the same shapes at
+# commit time, which is the guard a `git add -f` cannot walk past.
+/sessions/
+**/.ink/
+**/materials/
+/projects/*/phi/
+/projects/*/results/
+/courses/*/phi/
+/courses/*/textbook/
+/courses/*/chapters/*/reading/
+/courses/*/chapters/*/lectures/
+/courses/*/**/assignment*
+# A document's feedback rounds (ink SVGs, crops, page renders, before/after
+# copies, items, states, ledgers, round notes) stay on disk; ledger.py reads them there.
+/courses/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*
+/projects/**/feedback/*[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-v[0-9]*
+
+# A subject's live/ is an old per-subject board's session state (turns, answers,
+# mission trails). Sessions live in /sessions/ now; a machine that still holds
+# one keeps it invisible here.
+/courses/*/live/
+/projects/*/live/
+
+# ---- the legacy subject roots ----
+# research/ and practice/ merged into projects/. A machine that has not yet run
+# move-residue.sh still holds ignored residue (.venv, phi/, results/, .env) at
+# the old paths after a pull; these keep all of it invisible to git.
+/research/
+/practice/

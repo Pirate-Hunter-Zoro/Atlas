@@ -1,0 +1,21 @@
+[submodule "vendor/colibri"]
+	path = vendor/colibri
+	url = https://github.com/JustVugg/colibri.git
+[submodule "vendor/colibri-build"]
+	path = vendor/colibri-build
+	url = https://github.com/JustVugg/colibri.git
+
+# vendor/colibri is PULLED FORWARD by the cluster's relay pass: it runs
+# `git submodule update --remote --merge vendor/colibri` and commits the
+# pointer bump itself, with a fixed message naming the old and new commit
+# (board/tutorboard/relay.py). It commits only when vendor/colibri is the ONLY
+# dirty path, never mid-merge or mid-rebase, never on a detached HEAD, because
+# a bump folded into somebody's unfinished work is a commit nobody made.
+#
+# vendor/colibri-build is the SAME upstream at a different commit, and it is
+# PINNED at fd93c41 and never pulled. It is a build tree, and a build tree that
+# moves underneath a build is the failure it exists to avoid. Moving it forward
+# is the person's to do, by hand.
+#
+# Git shares nothing between two checkouts of one upstream, so this costs 24 MB
+# of pack twice. That is the honest price of them being two versions.

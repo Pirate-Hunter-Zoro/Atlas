@@ -1,0 +1,2981 @@
+#!/usr/bin/env python3
+"""
+board -- command line for the live tutoring board.
+
+The assistant runs these. The student never does.
+
+    board status                       is the one board server up, and this
+                                       session's subject, mode and cards
+    board pull [--quiet]               fast-forward Atlas, vendor checkouts along,
+                                       and ai-config; name stale lockfiles
+    board pull --materials [<subject>...]
+                                       a laptop copies the Mac mini's ignored
+                                       inputs over SSH (config.json `host`)
+    board cost [<session|subject>] [--turns]
+                                       what the turns cost, from every session's
+                                       cost.jsonl
+    board mode [teach|do]              who writes the code in this session; no
+                                       word prints it. Only this, POST /mode,
+                                       and the tutor obeying "do it" change it
+    board finish                       offer the push, on the iPad, at session end
+    board push ["message"]             commit and push this repository now
+    board next [kind] [slug]           print the path of the next card to write
+    board write <kind> <slug>          read a card body on stdin, write the card
+    board write --over <card> ...      write over a card already on the board
+    board write pending <slug>         the placeholder a doing turn writes first;
+                                       the report goes --over it
+    board brief                        what a turn is BOUND by: the method, the
+                                       subject's RULES.md at HEAD, and its
+                                       TUTOR.md. Every turn is handed it; this
+                                       prints it by hand
+    board recap [--cards N|--all]      the lesson so far: every card as a line,
+                                       the newest in full, their turns. Every
+                                       turn is handed it; this prints it by hand
+    board memo <section> < text        replace one section of the bound subject's
+                                       TUTOR.md: "Where things are", "Now",
+                                       "Open decisions" or "Done recently".
+                                       --append adds to it. Refuses a file over
+                                       800 words. Never writes RULES.md
+    board memo --show                  print TUTOR.md
+    board job [--label <slug>] [--session <id>] [--produces <p>]
+              [--export <p>] [--fixes <id>] [--fresh] -- <recipe> [VAR=v ...]
+                                       long work, reporting itself: with
+                                       Slurm it submits, without it files a
+                                       relay request for the cluster. Its
+                                       ending wakes a turn; a failure wakes a
+                                       [repair] turn. --show lists them
+    board job --batch <file.json> [--session <id>] [--fresh]
+                                       without Slurm: many requests, one
+                                       commit, one push. The file is a list of
+                                       {recipe, env, label, produces, export,
+                                       fixes}; one problem files none
+    board diagnose [--label <slug>] --fixes <id> -- <recipe> [VAR=v ...]
+                                       `board job` for a diagnostic: a recipe
+                                       that prints RELAY: lines, no output
+    board code <session> <path>...     on the cluster: hold these paths for a
+                                       coding session; each pause is a step on
+                                       code/<session>, checked and pushed.
+                                       --end commits them to main, --abandon
+                                       drops the ref. `board code --help`
+    board colibri [--label <slug>] "<task>"
+                                       queue a Colibri task: on the cluster it
+                                       starts a generation if none is up; on
+                                       the Mac it files a `colibri` request.
+                                       --show lists the queue
+    board libr-ai [--label <slug>] [--model <m>] "<task>"
+                                       ask IT's model server (gpt-oss), from a
+                                       subject whose phi is false; the answer
+                                       comes back as the request's report
+    board round <document> [--print]   the ink on a paper, deck or write-up,
+                                       filed as a round of its ledger; prints
+                                       the ledger and the ids to answer
+    board deckfig <deck dir> <subject> <id>
+                                       copy one more figure into a deck whose
+                                       brief lists it; prints the path to use
+    board meeting --since 7d [--subject <id>]...
+                                       THE meeting deck, projects/Meetings/
+                                       docs/meeting/: a presentation to the
+                                       mentors, written by a turn over a brief
+                                       of the period, replaced each time.
+                                       --print shows the brief
+    board inbox [--all]                what the student sent; marks it read
+    board check [<path>]               run the bound subject's tutorboard.json
+                                       `check` from its root (with a path, its
+                                       `one` form for that path)
+    board slate [--all]                paths of the pages written on the iPad
+    board session new|show|list|end|reopen|delete [id]
+                                       the session store, sessions/<id>/: a new
+                                       session, its session.json, End (the only
+                                       thing that ends one), or delete to the trash
+    board bind <subject> [--create] [--phi yes|no] [--session <id>]
+                                       bind this session to courses/<name> or
+                                       projects/<name>; --create makes it first
+                                       (a project needs --phi). Files nothing
+    board file <upload> [materials|<relpath>] [--session <id>]
+                                       move an upload into the bound subject,
+                                       materials/ by default; its ink follows
+    board open <file.pdf> [--subject <id>]
+                                       copy a PDF on this Mac into a new
+                                       "Annotate <name>" session to write on;
+                                       --subject binds it and files the copy.
+                                       Prints the URL
+    board writeup add <label> < text   an agreed answer into the session's
+                                       write-up: statement, a line ---, then
+                                       their argument; files the sent page and
+                                       rebuilds the PDF
+    board writeup pose <label> < text  put a problem on their screen before
+                                       teaching it: the statement on stdin is
+                                       written only where it is missing
+    board writeup new|build|status     start it, rebuild it, what is still empty
+    board writeup new --md [title]     a notes canvas's notes.md, in
+                                       docs/<slug>/ beside its doc.json
+    board writeup use <name> | list    write into a course's set (hw04, ch07)
+    board build <file> [--format docx|pdf] [--strict] [--reference-doc F] [--keep-aux]
+                                       build a document beside its source: a .tex
+                                       with pdflatex (deck or article), a .md with
+                                       pandoc to .docx, and .pdf when the engine
+                                       exists. The only way anything here compiles
+    board textbook ingest <course> [--upload <pdf>] [--write] [--check]
+                                       index the course's textbook/ PDF from its
+                                       outline: chapters, sections, printed
+                                       pages, exercises; chapters.tsv where
+                                       absent, then split and scaffold
+    board textbook find [<course>] <ref> [--sheet <pdf>]
+                                       "Exercise 3.4", "Ch 4 #34", "§2.1",
+                                       "p. 295" to its pages, excerpt and text
+    board textbook status <course>     what the index holds, and its doubts
+    board textbook split <course> [NN ...]
+                                       cut the course's textbook/ PDF into
+                                       chapters/chNN-*/reading/chNN.pdf by the
+                                       page ranges in its chapters.tsv
+    board textbook scaffold <course> [--chapter-homework] [NN ...]
+    board textbook scaffold <course> --hw NN [NN ...]
+                                       chapter notes (and homework) .tex files,
+                                       or numbered homework sets, from
+                                       board/tex/writeup.tex.in; never overwrites
+    board vpn [status]                 what tailscale says, and where HTTPS points
+    board init [name]                  write tutorboard.json for this repository
+    board doctor [--dry] [name ...]    what the machine has, then one real turn
+                                       each on the provider and its fallback,
+                                       and one look through the vision route;
+                                       --dry spends none
+    board egress [--repair]            can a turn get out, and through which exit node
+    board limit [--clear|--set S]      has the tutor's allowance here run out
+    board eyes [--answer]              can the assistant driving this actually see?
+    board see <path> [--page N]        what is in this image or PDF page, in words,
+                                       for an assistant whose model has no eyes
+
+Card kinds: lesson, question, correct, wrong, review, note, recap. (A `review`
+card is you reviewing an answer.)
+"""
+
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, TOOL)
+# `board code` runs on the cluster's python3: it is answered before any other
+# import, so it loads code.py and its needs and no server or model module.
+if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
+    from tutorboard import code as _code
+    sys.exit(_code.main(sys.argv[2:]))
+from tutorboard import (assistants, brief, gitops,
+                        jobs, leaving, limits, machine, memo,
+                        paths, plain, reasoning, seeing, sense, sessions, tex, worktree)
+from tutorboard import briefs, subjects
+from tutorboard import mode as session_mode
+from tutorboard.net import egress, tailscale
+from tutorboard.course import config, homework, paper
+from tutorboard.lesson import inbox
+from tutorboard.course import repo as course_repo
+from tutorboard.runner import daemon
+from tutorboard.exports import rel as _workspace_path
+# `pending` is the placeholder a doing turn writes first and reports over;
+# `report_owed` in runner/loop.py flags a turn that left it.
+KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
+         "pending")
+
+
+
+# ---------------------------------------------------------------------------
+def this_node():
+    """What this machine calls itself; one place decides (`machine.node`),
+    because two hostname calls can disagree on one machine."""
+    return machine.node_name()
+
+
+def slugify(s):
+    s = re.sub(r"[^A-Za-z0-9]+", "-", (s or "").strip().lower()).strip("-")
+    return (s or "card")[:48]
+
+
+# A turn's tool grants live in `ai-config/workspaces/tutors.allow`, not here:
+# a turn has nobody to approve a tool call.
+
+
+def server_answers(port=None, timeout=3.0):
+    """Does the one board server (`serve.py`, LaunchAgent tutor-board) answer
+    /health on this machine's port?"""
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:%d/health"
+                                    % int(port or paths.port()),
+                                    timeout=timeout) as r:
+            return r.status == 200
+    except (OSError, ValueError):
+        return False
+
+
+def cmd_status(live, args):
+    """Is the one board server up, and where this session stands."""
+    st = live.state()
+    port = paths.port()
+    print("server:  %s on 127.0.0.1:%d" % ("up" if server_answers(port) else "down",
+                                          port))
+    print("repo:    %s" % live.root)
+    cfg = read_config(live.root)
+    print("course:  %s" % (st.get("course") or cfg["name"]))
+    print("mode:    %s" % config.mode_of(st))
+    print("cards:   %d" % len(live.card_names()))
+    print("unread:  %d" % len(inbox.waiting(live)))
+    return 0
+
+
+def cmd_history(live, args):
+    """Every past session in this repository, newest first."""
+    try:
+        names = sorted(os.listdir(live.archive), reverse=True)
+    except OSError:
+        names = []
+    shown = 0
+    for name in names:
+        folder = os.path.join(live.archive, name)
+        if not os.path.isdir(folder):
+            continue
+        st = {}
+        try:
+            with open(os.path.join(folder, "state.json"), "r", encoding="utf-8") as fh:
+                st = json.load(fh) or {}
+        except (OSError, ValueError):
+            pass
+        cards = len([n for n in os.listdir(folder) if re.match(r"^\d{4}[-_.]", n)])
+        turns = 0
+        try:
+            with open(os.path.join(folder, "turns.jsonl"), "r", encoding="utf-8") as fh:
+                turns = len({json.loads(l).get("id") for l in fh if l.strip()})
+        except (OSError, ValueError):
+            pass
+        print("  %-24s %-10s %-28s %2d cards  %2d answered"
+              % (name, st.get("session") or "-",
+                 (st.get("chapter") or st.get("course") or "-")[:28], cards, turns))
+        shown += 1
+    if not shown:
+        print("nothing archived yet")
+    return 0
+
+
+def cmd_next(live, args):
+    kind = args[0] if args and args[0] in KINDS else "lesson"
+    rest = args[1:] if (args and args[0] in KINDS) else args
+    slug = slugify(" ".join(rest)) if rest else kind
+    print(os.path.join(live.cards, "%04d-%s.md" % (live.next_index(), slug)))
+    return 0
+
+
+def cmd_write(live, args):
+    """Write a card. With `--over`, write over one that is already on the board.
+
+    A doing turn writes one sentence saying what it is about to do, does the
+    work, then writes the report `--over` that sentence, so the board is never
+    blank and the transcript holds one card.
+    """
+    if not args:
+        print("usage: board write [--over <card>] <kind> [slug] < body.md",
+              file=sys.stderr)
+        return 1
+    over = None
+    if "--over" in args:
+        at = args.index("--over")
+        if at + 1 >= len(args):
+            print("board write: --over needs the card to write over "
+                  "(the path `board next` or an earlier `board write` printed)",
+                  file=sys.stderr)
+            return 1
+        over = args[at + 1]
+        args = args[:at] + args[at + 2:]
+        if not args:
+            args = ["lesson"]
+    kind = args[0] if args[0] in KINDS else "lesson"
+    rest = args[1:] if args[0] in KINDS else args
+    # `--title`/`--name`/`--slug` take the next word as title; any other flag
+    # is dropped, because a flag in a title is visible and permanent.
+    words = []
+    skip = False
+    for i, a in enumerate(rest):
+        if skip:
+            skip = False
+            continue
+        if a in ("--title", "--name", "--slug"):
+            skip = True
+            if i + 1 < len(rest):
+                words.append(rest[i + 1])
+            continue
+        if a.startswith("--"):
+            continue
+        words.append(a)
+    title = " ".join(words).strip()
+    body = sys.stdin.read()
+    # Strip a reasoning block the card opens with, because a written card is
+    # pushed and committed with no undo. Only the opening block: the body of a
+    # lesson is not ours to edit.
+    clean = reasoning.strip_reasoning(body, leading_only=True)
+    if clean.strip():
+        if clean != body:
+            print("board write: dropped a block of model reasoning from the top "
+                  "of this card", file=sys.stderr)
+        body = clean
+    # A card that is wholly untagged thinking is refused, since there is
+    # nothing to strip. `--force` overrides, because the test is a heuristic.
+    if "--force" not in args and reasoning.reads_as_reasoning(body):
+        print("board write: this reads as deliberation rather than a card -- it "
+              "talks about the student instead of to them, or narrates its own "
+              "thinking. Nothing was written.\n"
+              "Write the card itself: the mathematics, addressed to the student. "
+              "If you meant it, pass --force.", file=sys.stderr)
+        return 1
+    # A wall of text is refused: TEACHING.md asks for easy reading, and this
+    # enforces it. `plain.py` defines a wall.
+    if "--force" not in args:
+        bad = plain.wall(body)
+        if bad:
+            print(plain.says_why(*bad), file=sys.stderr)
+            return 1
+    if over:
+        # Only a card already on this board: the path is resolved and checked
+        # against the cards directory, because it is opened for writing.
+        want = over if os.path.isabs(over) else os.path.join(live.cards, over)
+        want = os.path.realpath(want)
+        room = os.path.realpath(live.cards)
+        if not (want.startswith(room + os.sep) and os.path.isfile(want)):
+            print("board write: no card on this board at %r. Write a new one, or "
+                  "pass the path an earlier `board write` printed." % over,
+                  file=sys.stderr)
+            return 1
+        path = want
+        # The name carries the title; renaming keeps the index, which fixes
+        # the card's place in the transcript.
+        if title:
+            renamed = os.path.join(live.cards, "%s-%s.md"
+                                   % (os.path.basename(path)[:4],
+                                      slugify(title or kind)))
+            if renamed != path:
+                try:
+                    os.replace(path, renamed)
+                    path = renamed
+                except OSError:
+                    pass
+    else:
+        name = "%04d-%s.md" % (live.next_index(), slugify(title or kind))
+        path = os.path.join(live.cards, name)
+    head = "---\nkind: %s\n" % kind
+    if title:
+        head += "title: %s\n" % title
+    # A turn the fallback took says so on the card (`loop.take_turn` sets it).
+    by = config.clean_agent(os.environ.get("TUTORBOARD_FALLBACK"))
+    if by:
+        head += "by: %s\n" % by
+    head += "---\n"
+    # A card is never half on the board: write a temp file in the same
+    # directory and `os.replace` it, because `open("w")` truncates first and
+    # the hub can rebuild on the empty file in between. Same directory,
+    # because a rename across filesystems is not atomic.
+    tmp = os.path.join(os.path.dirname(path),
+                       ".%s.%d.part" % (os.path.basename(path), os.getpid()))
+    try:
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(head + body.rstrip() + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+    poke(live)
+    print(path)
+    return 0
+
+
+def poke(live, timeout=1.0):
+    """Tell the board server a card landed: `POST /s/<id>/poke` on
+    `TUTORBOARD_PORT`. Never an error; the server sees the card within a
+    second anyway."""
+    port = os.environ.get("TUTORBOARD_PORT")
+    if not (port and live.stored):
+        return False
+    import urllib.request
+    url = "http://127.0.0.1:%s/s/%s/poke" % (port, os.path.basename(live.live))
+    try:
+        req = urllib.request.Request(url, data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            r.read()
+        return True
+    except Exception:                                        # noqa: BLE001
+        return False
+
+
+def cmd_check(live, args):
+    """Run the bound subject's check: its tutorboard.json `check` (through
+    `config.clean_check`) from the subject's root. With a path relative to
+    that root, the `one` form for it. Prints what it prints and exits with
+    its code. A turn may run `board check`; it should not cd and call the
+    toolchain itself."""
+    root = live.root
+    if live.stored and os.path.realpath(root) == os.path.realpath(live.atlas):
+        print("board check: this session is bound to no subject; `board bind` "
+              "one first", file=sys.stderr)
+        return 2
+    cfg = read_config(root)
+    spec = config.read_config(root)
+    if spec.get("check_problems") and not spec.get("check"):
+        print("board check: %s's tutorboard.json check is refused: %s"
+              % (cfg["name"], "; ".join(spec["check_problems"])), file=sys.stderr)
+        return 2
+    if not spec.get("check"):
+        print("board check: %s's tutorboard.json names no `check`" % cfg["name"],
+              file=sys.stderr)
+        return 2
+    words = [a for a in args if not a.startswith("-")]
+    files = []
+    if words:
+        rel = os.path.relpath(os.path.abspath(os.path.join(root, words[0])), root)
+        if rel.startswith(".."):
+            print("board check: %s is outside %s" % (words[0], root), file=sys.stderr)
+            return 2
+        files = [(rel.replace(os.sep, "/"), os.path.isdir(os.path.join(root, rel)))]
+    from tutorboard import code as coding
+    chk, problems = coding.check_spec(spec["check"], files)
+    if not chk:
+        print("board check: %s" % "; ".join(problems), file=sys.stderr)
+        return 2
+    argv, env = coding._argv_env(root, chk, spec["check"].get("path"))
+    print("board check: %s  (in %s)" % (" ".join(argv), root), flush=True)
+    try:
+        return subprocess.call(argv, cwd=root, env=env, stdin=subprocess.DEVNULL)
+    except OSError as exc:
+        print("board check: could not run %s: %s" % (argv[0], exc), file=sys.stderr)
+        return 127
+
+
+def read_turns(live):
+    """Every turn, newest revision last. The file is append-only by design."""
+    out = []
+    try:
+        with open(live.path("turns.jsonl"), "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(json.loads(line))
+                    except ValueError:
+                        pass
+    except OSError:
+        pass
+    return out
+
+
+# ---------------------------------------------------------------------------
+# homework: a problem set is a file in the course, and the board tracks it
+# ---------------------------------------------------------------------------
+def hw_build(live, st):
+    """Compile the session's write-up and record the result in `hw.json`,
+    which the banner paints."""
+    return homework.build(live.root, live.live, st)
+
+
+def hw_stale(live):
+    """The sitting's problem set if its PDF is missing or older than its
+    `.tex`, as the status dict to build from; else None."""
+    try:
+        st = homework.status(live.root, live.state())
+    except Exception:                                   # noqa: BLE001
+        return None
+    if not st or not st.get("rel") or not st.get("name"):
+        return None
+    tex = os.path.join(live.root, st["rel"])
+    if not os.path.exists(tex):
+        return None
+    pdf = homework.compiled_pdf(live.root, tex)
+    if pdf and os.path.getmtime(pdf) >= os.path.getmtime(tex):
+        return None
+    return st
+
+
+def cmd_session(live, args):
+    """The session store, `sessions/<id>/` under the Atlas root.
+
+    board session new ["title"]     a new session, unbound, in teach; prints its id
+    board session show [id]         its session.json; no id: TUTORBOARD_SESSION's
+    board session list              every session, newest first
+    board session end <id>          set `ended`; commit the subject's TUTOR.md and
+                                    the artifacts listing the session
+    board session reopen <id>       clear `ended`
+    board session delete <id>       move it to ~/.local/share/tutor-board/trash/
+    """
+    sub = args[0] if args else "show"
+    rest = args[1:]
+    try:
+        if sub == "new":
+            rec = sessions.new(title=" ".join(rest).strip() or None)
+            print(rec["id"])
+            print(sessions.path(rec["id"]))
+            return 0
+        if sub == "list":
+            for rec in sessions.all():
+                print("%s  %-6s %-5s %-28s %s" % (
+                    rec.get("id"), "ended" if rec.get("ended") else "open",
+                    rec.get("mode") or "", rec.get("subject") or "(unbound)",
+                    rec.get("title") or ""))
+            return 0
+        if sub == "show":
+            sid = rest[0] if rest else sessions.current()
+            if not sid:
+                print("board session show: name a session id, or run inside one "
+                      "(TUTORBOARD_SESSION)", file=sys.stderr)
+                return 2
+            rec = sessions.get(sid)
+            if not rec:
+                raise sessions.NoSession("no session %r" % sid)
+            print(sessions.show(rec))
+            return 0
+        if sub in ("end", "reopen", "delete"):
+            if len(rest) != 1:
+                print("board session %s <id>: name exactly one session" % sub,
+                      file=sys.stderr)
+                return 2
+            sid = rest[0]
+            if sub == "reopen":
+                sessions.reopen(sid)
+                print("reopened %s" % sid)
+                return 0
+            if sub == "delete":
+                print("moved %s to %s" % (sid, sessions.delete(sid)))
+                return 0
+            rec, ok, said = sessions.end(sid)
+            print("ended %s at %s" % (sid, rec.get("ended")))
+            if said:
+                print(said)
+            return 0 if ok else 1
+    except sessions.NoSession as exc:
+        print("board session %s: %s" % (sub, exc), file=sys.stderr)
+        return 1
+    print("board session: new | show [id] | list | end <id> | reopen <id> | "
+          "delete <id>", file=sys.stderr)
+    return 2
+
+
+def _session_flag(args, who):
+    """`(session id, Atlas root, the other words)`: `--session <id>`, else the
+    session TUTORBOARD_SESSION names, whose Atlas root holds its store."""
+    rest, sid, base = list(args), "", None
+    if "--session" in rest:
+        n = rest.index("--session")
+        if n + 1 >= len(rest):
+            raise sessions.Refused("%s: --session needs an id" % who)
+        sid = rest[n + 1]
+        del rest[n:n + 2]
+    elif sessions.current():
+        sid = sessions.current()
+        here = os.path.abspath(os.environ["TUTORBOARD_SESSION"])
+        base = os.path.dirname(os.path.dirname(here))
+    return sid, base, rest
+
+
+def cmd_bind(live, args):
+    """Bind the session to a subject, making the subject first if asked.
+
+    board bind <subject> [--force] [--session <id>]
+        set the session's subject (courses/<name> or projects/<name>) and drop
+        a [bind] line that wakes nothing. Nothing is filed and nothing moves.
+        Moving a session off a subject it has already left a write-up, an
+        artifact, a filed upload or a lesson's cards in is refused unless
+        --force: only the owner confirms that move.
+    board bind <subject> --create [--phi yes|no]
+        make the subject, then bind: the slug of the name as its directory,
+        tutorboard.json, a TUTOR.md skeleton, and for --phi yes a .gitignore
+        keeping phi/, results/ and .env out. One commit. A course holds no
+        patient data; a project must say --phi yes or --phi no. With no
+        session, it only makes the subject.
+
+    The session is TUTORBOARD_SESSION's, or --session <id>.
+    """
+    try:
+        sid, base, rest = _session_flag(args, "board bind")
+        create = "--create" in rest
+        force = "--force" in rest
+        rest = [a for a in rest if a not in ("--create", "--force")]
+        phi = None
+        if "--phi" in rest:
+            n = rest.index("--phi")
+            said = rest[n + 1].lower() if n + 1 < len(rest) else ""
+            if said not in ("yes", "no"):
+                print("board bind: --phi yes or --phi no", file=sys.stderr)
+                return 2
+            if not create:
+                print("board bind: --phi goes with --create; an existing "
+                      "subject keeps its own answer", file=sys.stderr)
+                return 2
+            phi = said == "yes"
+            del rest[n:n + 2]
+        if len(rest) != 1:
+            print("usage: board bind <courses/name|projects/name> [--create] "
+                  "[--phi yes|no] [--force] [--session <id>]", file=sys.stderr)
+            return 2
+        subject = rest[0]
+        if create:
+            from tutorboard import subjects
+            made, ok, said = subjects.create(subject, phi=phi, base=base)
+            if not ok:
+                print("board bind: %s was not made: %s" % (subject, said),
+                      file=sys.stderr)
+                return 1
+            print("made %s (phi: %s)" % (made["id"], "yes" if phi else "no"))
+            subject = made["id"]
+        if not sid:
+            if create:
+                print("no session to bind; the subject stands on its own")
+                return 0
+            print("board bind: name a session (--session <id>) or run inside "
+                  "one (TUTORBOARD_SESSION)", file=sys.stderr)
+            return 2
+        rec, changed = sessions.bind(sid, subject, base=base, force=force)
+        print("%s %s to %s" % ("bound" if changed else "already bound",
+                               rec["id"], rec["subject"]))
+        return 0
+    except sessions.Unconfirmed as exc:
+        print("board bind: %s Only when the owner asked for this move: "
+              "`board bind %s --force`." % (exc, subject), file=sys.stderr)
+        return 1
+    except (sessions.NoSession, sessions.Refused, ValueError) as exc:
+        print("board bind: %s" % exc, file=sys.stderr)
+        return 1
+
+
+def cmd_file(live, args):
+    """File an upload into the session's subject.
+
+    board file <upload> [materials|<relpath>] [--session <id>]
+
+    Moves <upload> (a name in the session's uploads/) into the bound subject:
+    materials/ by default, or a path inside the subject -- a directory, or the
+    file's new name. Its ink moves from the session to <subject>/.ink/,
+    re-keyed by the new path. Refused for an unbound session, a path that
+    leaves the subject, a hidden or fenced directory, or a name already taken.
+    Nothing is committed.
+    """
+    try:
+        sid, base, rest = _session_flag(args, "board file")
+        if len(rest) not in (1, 2):
+            print("usage: board file <upload> [materials|<relpath>] "
+                  "[--session <id>]", file=sys.stderr)
+            return 2
+        if not sid:
+            print("board file: name a session (--session <id>) or run inside "
+                  "one (TUTORBOARD_SESSION)", file=sys.stderr)
+            return 2
+        got = sessions.file(sid, rest[0], rest[1] if len(rest) == 2 else None,
+                            base=base)
+    except (sessions.NoSession, sessions.Refused) as exc:
+        print("board file: %s" % exc, file=sys.stderr)
+        return 1
+    print("filed %s -> %s/%s" % (got["from"], got["subject"], got["to"]))
+    for old, new in sorted(got["keys"].items()):
+        print("    ink %s -> %s" % (old, new))
+    return 0
+
+
+def cmd_open(live, args):
+    """Open a PDF on this Mac on the iPad, to write on.
+
+    board open <file.pdf> [--subject <id>]
+        copies the PDF -- never moves it -- into the uploads/ of a new session
+        titled "Annotate <name>", with an [uploaded] line that wakes nothing.
+        With --subject (courses/<name> or projects/<name>) the session is
+        bound to that subject and the copy filed into its materials/. Prints
+        the session's id and the URL its board opens the PDF at.
+    """
+    from tutorboard.course import library
+    from tutorboard.server import multipart
+    from tutorboard.server.routes import writing
+    rest = list(args)
+    subject = None
+    if "--subject" in rest:
+        n = rest.index("--subject")
+        if n + 1 >= len(rest):
+            print("board open: --subject needs a subject id", file=sys.stderr)
+            return 2
+        subject = rest[n + 1]
+        del rest[n:n + 2]
+    if len(rest) != 1 or rest[0].startswith("--"):
+        print("usage: board open <file.pdf> [--subject <id>]", file=sys.stderr)
+        return 2
+    src = os.path.abspath(os.path.expanduser(rest[0]))
+    if not os.path.isfile(src):
+        print("board open: no file %s" % src, file=sys.stderr)
+        return 1
+    try:
+        with open(src, "rb") as fh:
+            head = fh.read(len(writing.PDF_MAGIC))
+        size = os.path.getsize(src)
+    except OSError as exc:
+        print("board open: %s cannot be read: %s" % (src, exc), file=sys.stderr)
+        return 1
+    if head != writing.PDF_MAGIC:
+        print("board open: %s is not a PDF: it does not start with %%PDF-" % src,
+              file=sys.stderr)
+        return 1
+    if size > multipart.MAX_UPLOAD:
+        print("board open: %s is over the 1 GB an upload may be" % src, file=sys.stderr)
+        return 1
+    base = subjects.root()
+    found = None
+    if subject:
+        found = subjects.find(subject, base)
+        if not found:
+            print("board open: no subject %r: name one of courses/<name> or "
+                  "projects/<name>" % subject, file=sys.stderr)
+            return 1
+    rec = sessions.new(title="Annotate %s" % os.path.basename(src), base=base)
+    sid = rec["id"]
+    repo = sessions.repo(sid, base, create=True)
+    os.makedirs(repo.uploads, exist_ok=True)
+    # Named to end .pdf, which is what library.uploads lists: a PDF is known
+    # by its %PDF- start, so `paper` with no extension is one too.
+    dest = writing._free_name(repo.uploads, writing.pdf_name(os.path.basename(src)))
+    shutil.copyfile(src, dest)
+    name = os.path.basename(dest)
+    sessions.quiet_line(repo.messages_path, "[uploaded] %s (%s)"
+                        % (name, writing._size(size)), "uploaded", files=[name])
+    doc = dict((u["name"], u["id"]) for u in library.uploads(repo)).get(name)
+    print("opened %s in session %s" % (src, sid))
+    if found:
+        try:
+            sessions.bind(sid, found["id"], base=base)
+            got = sessions.file(sid, name, base=base)
+        except (sessions.NoSession, sessions.Refused) as exc:
+            print("board open: the session is made, but the PDF was not filed: %s"
+                  % exc, file=sys.stderr)
+            return 1
+        doc = got["doc"]
+        print("filed into %s/%s" % (got["subject"], got["to"]))
+    where = "/s/%s/board" % sid
+    if doc:
+        where += "#/s/%s/doc/%s" % (sid, doc)
+    print("http://127.0.0.1:%d%s" % (paths.port(), where))
+    return 0
+
+
+def _sid(live):
+    """The stored session's id, or None for a workspace's live/."""
+    return os.path.basename(live.live.rstrip(os.sep)) if live.stored else None
+
+
+def _sent_page(live, want=None):
+    """`(path, turn id)` of the newest sent page, or of turn `want`; `(None,
+    why)` when there is none on disk."""
+    turns = [t for t in read_turns(live) if t.get("png")]
+    if want:
+        turns = [t for t in turns if t.get("id") == want]
+    if not turns:
+        return None, ("no turn %s with a sent page" % want) if want else "no sent page"
+    turn = turns[-1]
+    src = os.path.join(live.session, turn["png"].lstrip("/"))
+    if not os.path.exists(src):
+        src = os.path.join(live.answers, os.path.basename(turn["png"]))
+    if not os.path.exists(src):
+        return None, "the page for %s is not on disk: %s" % (turn["id"], turn["png"])
+    return src, turn.get("id")
+
+
+def _writeup_status(live, st):
+    print("%s  %s" % (st["name"], st["rel"]))
+    if not st["problems"]:
+        print("  no problems written yet")
+    for p in st["problems"]:
+        if not p["stated"]:
+            mark = "statement not transcribed"
+        elif p["written"]:
+            mark = "written up"
+        elif p["region"]:
+            mark = "EMPTY"
+        else:
+            mark = "no solution region"
+        print("  %-6s %s" % (p["label"], mark))
+    print("  %d of %d written up" % (st["written"], st["total"]))
+    # Sheets are worked in any order and written in the sheet's order.
+    left = st.get("outstanding") or []
+    if left:
+        print("  still to write up, in order: %s" % ", ".join(left))
+        print("  next: %s" % st["next"])
+    elif st["total"]:
+        print("  the whole set is written up")
+    rec = read_hw_build(live)
+    if rec:
+        print("  last build: %s at %s" % ("ok" if rec["ok"] else "FAILED", rec["iso"]))
+
+
+def _notes_new(live, state, words):
+    """`board writeup new --md [title]`: `docs/<slug>/notes.md` and its
+    doc.json in the bound subject, for a notes canvas's End. A taken slug
+    takes `-2`. A canvas's own are the ones its pages are filed in
+    (`sessions.file_canvas`): notes.md already holds each page's picture,
+    and the transcript goes under it."""
+    from tutorboard import artifacts
+    if live.stored and (state or {}).get("view") == "slate":
+        try:
+            rel = sessions.file_canvas(_sid(live), base=live.atlas)
+        except (sessions.Refused, OSError, ValueError) as exc:
+            print("board writeup: the canvas could not be filed: %s" % exc,
+                  file=sys.stderr)
+            return 1
+        if rel:
+            src = os.path.join(live.root, *rel.split("/")) + os.sep \
+                + sessions.CANVAS_NOTES
+            print("the canvas is filed at %s" % os.path.relpath(
+                os.path.realpath(src), os.path.realpath(subjects.root())))
+            return 0
+    title = " ".join(words).strip() or (state or {}).get("title") \
+        or "Notes %s" % time.strftime("%Y-%m-%d")
+    try:
+        art = artifacts.create(live.root, title, _sid(live), source="notes.md")
+    except ValueError as exc:
+        print("board writeup: %s" % exc, file=sys.stderr)
+        return 1
+    src = art["path"]
+    with open(src, "w", encoding="utf-8") as fh:
+        fh.write("# %s\n\n" % title)
+    print("started %s" % os.path.relpath(
+        os.path.realpath(src), os.path.realpath(subjects.root())))
+    return 0
+
+
+def _writeup_pose(live, found, rest):
+    """`board writeup pose <label>`: the problem into the write-up if it is not
+    there, then pinned as the one on their screen."""
+    if not rest or rest[0].startswith("--"):
+        print("usage: board writeup pose <label> < the statement, as posed",
+              file=sys.stderr)
+        return 2
+    statement = "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read()
+    said, why = homework.pose(found["tex"], rest[0], statement.strip("\n"))
+    if not said:
+        print("board writeup pose: %s" % why, file=sys.stderr)
+        return 1
+    live.set_state(problem=said["label"])
+    print("%s on their screen, in %s (statement %s, region %s)" % (
+        said["label"], found["rel"], said["statement"], said["region"]))
+    return 0
+
+
+def cmd_writeup(live, args):
+    """The session's write-up: every agreed answer, typeset and built.
+
+    board writeup add <label> [--turn tNN] [--no-page] [--no-build] < text
+        stdin is the STATEMENT, a line `---`, then THEIR agreed argument. Writes
+        both into the write-up (the label's region, replaced if it was filled;
+        a new problem appended where the file has no such label), copies the
+        newest sent page (or turn tNN's) into handwritten/<set>-<label>.png, and
+        rebuilds the PDF. Fenced ``` code blocks are set verbatim.
+    board writeup pose <label> < statement
+        before teaching a problem: writes the statement only where the label
+        is absent, a \\todo or empty, lays an empty solution region under a
+        problem without one, touches no region and no transcribed statement,
+        then pins the label as session.json `problem`, the one on their screen.
+    board writeup new [title]    start it now rather than at the first add
+    board writeup new --md [title]
+        a notes canvas's transcript: docs/<slug>/notes.md and its doc.json,
+        <slug> from the title or the session's; prints the source's path from
+        the Atlas root, for `board build`. On a canvas it is the notes.md its
+        pages are filed beside, one picture per page already in it. The
+        session's write-up is untouched.
+    board writeup build          rebuild the PDF; a failure reaches the banner
+    board writeup status         which file, what is written, what is next
+    board writeup use <name>     write into this course set (hw04, ch07)
+    board writeup list           every problem set in the subject
+    board writeup file <label> [--turn tNN]   file a sent page only
+
+    The first add or new makes the write-up: the bound homework set, in place,
+    when the session is on one (`use`, or a title naming it), else
+    docs/<session-slug>/writeup.tex from board/tex/writeup.tex.in. A session
+    bound to no subject refuses: `board bind` first.
+    """
+    sub = args[0] if args else "status"
+    rest = args[1:]
+    state = live.state()
+    if live.stored and not state.get("subject"):
+        print("this session is bound to no subject, so it has nowhere to write "
+              "up: `board bind courses/<name>` or `board bind projects/<name>` "
+              "first", file=sys.stderr)
+        return 1
+
+    if sub == "use":
+        if not rest:
+            print("usage: board writeup use <name or path>   (board writeup list "
+                  "shows them)", file=sys.stderr)
+            return 1
+        want = rest[0]
+        for s in homework.sets(live.root):
+            if want in (s["name"], s["rel"]) or os.path.abspath(want) == s["tex"]:
+                live.set_state(hw=s["rel"], problem=None)
+                print("this session writes into %s  (%s)" % (s["name"], s["rel"]))
+                return 0
+        print("no problem set called %r here" % want, file=sys.stderr)
+        return 1
+
+    if sub in ("--list", "list"):
+        every = homework.sets(live.root)
+        if not every:
+            print("this subject has no problem sets; `board writeup add` starts "
+                  "the session's own write-up")
+            return 1
+        for s in every:
+            print("  %-8s %s" % (s["name"], s["rel"]))
+        return 0
+
+    if sub == "new" and "--md" in rest:
+        return _notes_new(live, state, [a for a in rest if not a.startswith("--")])
+
+    if sub in ("new", "add", "pose"):
+        title = None
+        if sub == "new":
+            title = " ".join(a for a in rest if not a.startswith("--")) or None
+        try:
+            found, made = homework.start(live.root, state, session=_sid(live),
+                                         title=title,
+                                         author=(state or {}).get("student") or "")
+        except ValueError as exc:
+            print("board writeup: %s" % exc, file=sys.stderr)
+            return 1
+        if found["rel"] != state.get("hw"):
+            live.set_state(hw=found["rel"], problem=None)
+        if made:
+            print("started %s" % found["rel"])
+        if sub == "new":
+            if not made:
+                print("this session writes into %s  (%s)" % (found["name"], found["rel"]))
+            return 0
+        if sub == "pose":
+            return _writeup_pose(live, found, rest)
+        if not rest or rest[0].startswith("--"):
+            print("usage: board writeup add <label> [--turn tNN] [--no-page] "
+                  "[--no-build] < statement, a line ---, then the argument",
+                  file=sys.stderr)
+            return 2
+        label = rest[0]
+        statement, argument = homework.split_input(sys.stdin.read())
+        said, why = homework.add(found["tex"], label, statement, argument)
+        if not said:
+            print("board writeup add: %s" % why, file=sys.stderr)
+            return 1
+        print("%s %s in %s (statement %s)" % (
+            {"filled": "wrote", "replaced": "rewrote", "added": "added"}[said["region"]],
+            said["label"], found["rel"], said["statement"]))
+        if "--no-page" not in rest:
+            src, which = _sent_page(live, _flag_value(rest, "--turn"))
+            if src:
+                dest = homework.file_page(src, found, said["label"])
+                print("filed %s's page as %s" % (which, os.path.relpath(dest, live.root)))
+            else:
+                print("no page filed: %s" % which)
+        if "--no-build" in rest:
+            return 0
+        code, pdf, out = hw_build(live, found)
+        if code == 0:
+            print("built %s" % os.path.relpath(pdf, live.root) if pdf else out)
+        else:
+            print("BUILD FAILED -- the error is on the board's banner; fix it "
+                  "and run board writeup build:\n" + out)
+        return code
+
+    st = homework.status(live.root, state)
+    if st is None or (not st["name"] and not st["ambiguous"]):
+        print("no write-up yet; the first `board writeup add <label>` starts one")
+        return 1 if sub == "build" else 0
+    if not st["name"]:
+        print("cannot tell which set this session is. Pin one, or let the first "
+              "add start the session's own:")
+        print("  board writeup use %s" % (st["ambiguous"][0] if st["ambiguous"] else "<name>"))
+        print("%d to choose from; board writeup list shows them all" % len(st["ambiguous"]))
+        return 1
+
+    if sub == "status":
+        _writeup_status(live, st)
+        return 0
+
+    if sub == "build":
+        code, pdf, out = hw_build(live, st)
+        print(out)
+        if pdf:
+            print(pdf)
+        return code
+
+    if sub == "file":
+        if not rest:
+            print("usage: board writeup file <problem label> [--turn tNNNN]",
+                  file=sys.stderr)
+            return 1
+        src, why = _sent_page(live, _flag_value(rest, "--turn"))
+        if not src:
+            print(why, file=sys.stderr)
+            return 1
+        dest = homework.file_page(src, st, rest[0])
+        print(os.path.relpath(dest, live.root))
+        return 0
+
+    print("unknown: board writeup %s  (add, pose, new, build, status, use, list, file)"
+          % sub, file=sys.stderr)
+    return 1
+
+
+def _flag_value(args, name):
+    for i, a in enumerate(args):
+        if a == name and i + 1 < len(args):
+            return args[i + 1]
+    return None
+
+
+def read_hw_build(live):
+    return homework.last_build(live.live)
+
+
+def read_messages(live):
+    out = []
+    try:
+        with open(os.path.join(live.inbox, "messages.jsonl"), "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    try:
+                        out.append(json.loads(line))
+                    except ValueError:
+                        pass
+    except OSError:
+        pass
+    return out
+
+
+def cmd_inbox(live, args):
+    """What was sent to this session, as a turn reads it. Without `--all`,
+    only the unread lines, and they are marked read: a turn's own prompt
+    already carries them, so a turn has no need of this."""
+    if "--all" in args:
+        msgs = read_messages(live)
+        text = inbox.render(msgs, live) if msgs else ""
+    else:
+        text, _taken = inbox.take(live)
+    print(text or "inbox empty")
+    return 0
+
+
+def cmd_finish(live, args):
+    """Raise the end-of-session offer on the board, where the owner looks."""
+    live.set_state(finished=time.strftime("%Y-%m-%d %H:%M"))
+    print("the board is now offering to save and push this session's work")
+    return 0
+
+
+def push_code(live, held, message, only=None):
+    """`board push` in a coding session: the held files go to
+    `code/<id>` as one commit (`code.vibe`), never to main. Paths outside the
+    held ones are refused."""
+    from tutorboard import code as coding
+    from tutorboard import sessions as stored
+    sid = os.path.basename(os.path.normpath(live.live))
+    paths = [p for p in held.get("paths") or [] if p]
+
+    def record(ok, detail, sha=""):
+        with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+            json.dump({"ok": ok, "at": time.time(),
+                       "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                       "workspace": held.get("subject"), "ref": held.get("ref"),
+                       "sha": sha, "detail": detail[-1200:]}, fh, indent=2)
+        print(detail, file=sys.stdout if ok else sys.stderr)
+        return 0 if ok else 1
+
+    if only:
+        outside = []
+        for p in only:
+            rel = os.path.relpath(os.path.abspath(p), live.atlas).replace(os.sep, "/")
+            if not any(rel == h or rel.startswith(h + "/") or h.startswith(rel + "/")
+                       for h in paths):
+                outside.append(p)
+        if outside:
+            return record(False, (
+                "this session is coding, so its pushes go to "
+                "code/%s and carry only the held paths (%s); not pushed: %s"
+                % (sid, ", ".join(paths), ", ".join(outside))))
+    since = held.get("seen") or ""
+    if not since:
+        code, since = gitops._git(live.atlas, "rev-parse", "HEAD")
+        if code != 0:
+            return record(False, "this checkout has no HEAD to push from")
+    sha, said = coding.vibe(live.atlas, sid, paths, since, message)
+    if not sha:
+        nothing = said.startswith("nothing to push")
+        return record(nothing, said)
+    new = dict(held, sha=sha, seen=sha, prev=held.get("sha") or "")
+    stored.set_code(sid, new, base=live.atlas)
+    return record(True, said, sha)
+
+
+def cmd_push(live, args):
+    """Commit and push this workspace. It does not end the session.
+
+    One path to a commit: `lesson_git.save` with `lesson_git.save_pathspec`,
+    as the save button uses, so the tool, other workspaces and NFS litter stay
+    out, and a change to TUTOR.md alone commits nothing. `board push "msg" --
+    <paths>` narrows it; a path outside the workspace is refused. With no
+    message it is `save: <changed files>`.
+    """
+    from tutorboard.lesson import git as lesson_git
+    only = None
+    if "--" in args:
+        cut = args.index("--")
+        args, only = args[:cut], args[cut + 1:]
+        if not only:
+            print("`--` with no paths after it: name what to commit",
+                  file=sys.stderr)
+            return 1
+    message = " ".join(a for a in args if not a.startswith("--")) or None
+
+    # Never commit into a rebase or merge somebody started: this runs
+    # unattended. Say what is in the way and change nothing.
+    busy = worktree.busy_reason(live.root)
+    if busy:
+        detail = ("nothing was committed: %s in this repository, so a commit now "
+                  "would land in the middle of it. Nothing has been lost -- "
+                  "finish or abort that, then save again." % busy)
+        print(detail, file=sys.stderr)
+        with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+            json.dump({"ok": False, "at": time.time(),
+                       "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                       "detail": detail}, fh, indent=2)
+        return 1
+
+    # PHI content scan (`leaving.py`, calling ai-config/policy/phi.py), because
+    # .gitignore keeps phi files out but not phi content. `--anyway` is a
+    # keyboard act only: a tap must not wave a PHI fence through.
+    if "--anyway" not in args:
+        phi = leaving.reason(live.root)
+        if phi:
+            print(phi, file=sys.stderr)
+            with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+                json.dump({"ok": False, "at": time.time(),
+                           "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+                           "detail": phi}, fh, indent=2)
+            return 1
+
+    # A coding session pushes to its ref, never to main (D17).
+    coding_now = (live.state() or {}).get("code") if live.stored else None
+    if isinstance(coding_now, dict) and coding_now.get("ref"):
+        return push_code(live, coding_now, message, only)
+
+    # Rebuild an out-of-date write-up PDF into the commit, because a stale PDF
+    # beside a newer .tex looks finished and is not.
+    if "--no-build" not in args:
+        stale = hw_stale(live)
+        if stale is not None:
+            print("the write-up is newer than its PDF; compiling %s first"
+                  % stale["name"])
+            code, pdf, out = hw_build(live, stale)
+            if code == 0:
+                print("  built %s" % (pdf or "the document"))
+            else:
+                # Push anyway: the source is the record. Say so on the board,
+                # which is where the owner looks.
+                print("  BUILD FAILED — pushing the source anyway; the PDF will "
+                      "be behind until it is fixed:")
+                print("  " + "\n  ".join(out.strip().splitlines()[-8:]))
+
+    # `top` decides which repository is committed, and the pathspec what in it.
+    top = lesson_git.repo_top(live.root)
+    specs, refused = lesson_git.save_pathspec(live.root, top, only)
+    if refused:
+        print("not in this workspace, so not committed from here: "
+              + ", ".join(refused), file=sys.stderr)
+        return 1
+
+    # `lesson_git.save` leads the message with the workspace, as for the save
+    # button, and keeps a TUTOR.md-only change out of git.
+    where = subjects.identify(live.root)
+    ok, out = lesson_git.save(top, live.root, specs, message)
+    print(out)
+    # `push.json` is shaped exactly as lesson/git.py shapes it; the board reads it.
+    record = {"ok": ok, "at": time.time(),
+              "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+              "workspace": where, "detail": out[-1200:]}
+    with open(live.path("push.json"), "w", encoding="utf-8") as fh:
+        json.dump(record, fh, indent=2)
+    st = live.state()
+    if st.pop("finished", None) is not None:
+        with open(live.path("state.json"), "w", encoding="utf-8") as fh:
+            json.dump(st, fh, indent=2)
+
+    # A save is a save everywhere, and it files nothing away.
+    return 0 if ok else 1
+
+
+def cmd_slate(live, args):
+    """Where the iPad pages are on disk. Open the PNGs -- that is the handwriting."""
+    pages = sorted(n for n in os.listdir(live.slate) if re.match(r"^page-\d+\.png$", n))
+    if not pages:
+        print("slate empty")
+        return 0
+    show = pages if "--all" in args else pages[-6:]
+    if len(show) < len(pages):
+        print("(%d earlier pages not listed; --all for all)" % (len(pages) - len(show)))
+    for n in show:
+        p = os.path.join(live.slate, n)
+        print("%s  %s  %.0f KiB" % (
+            time.strftime("%H:%M:%S", time.localtime(os.path.getmtime(p))),
+            p, os.path.getsize(p) / 1024.0))
+    return 0
+
+
+def cmd_recap(live, args):
+    """The lesson so far, compactly: `brief.recap`. Every turn is handed it;
+    this prints it by hand. `--cards N` widens the full window; `--all`
+    prints every card in full.
+    """
+    full = 1
+    if "--cards" in args:
+        try:
+            full = max(0, int(args[args.index("--cards") + 1]))
+        except (IndexError, ValueError):
+            pass
+    if "--all" in args:
+        full = len(live.card_names())
+    sys.stdout.write(brief.recap(live, full=full))
+    return 0
+
+
+def cmd_brief(live, args):
+    """Everything a cold turn is bound by: the method, the subject's RULES.md
+    at HEAD and its TUTOR.md (`tutorboard.brief`). Every lesson turn is handed
+    it; this prints it by hand. A `[repair]` turn is briefed as a doing turn.
+    """
+    fixing = _repairing(live)
+    sys.stdout.write(brief.briefing(
+        live, sense, doing=True if fixing is not None else None,
+        repair=jobs.repair_brief(live.root, fixing) if fixing is not None
+        else None))
+    return 0
+
+
+def inside_a_turn(live):
+    """The session's agent record while one of its turns runs on this
+    machine, else None."""
+    try:
+        with open(live.path("agent.json"), "r", encoding="utf-8") as fh:
+            st = json.load(fh) or {}
+    except (OSError, ValueError):
+        return None
+    if (st.get("state") or "") != "working":
+        return None
+    if st.get("host") and st["host"] != this_node():
+        return None
+    if not daemon.attached(st, this_node()):
+        return None
+    return st
+
+
+def _repairing(live):
+    """The requests a `[repair]` turn in flight was woken for (`[""]` where no
+    inbox line says), or None when this is no repair turn. A failed job is
+    repaired by a doing turn whatever the mode; `turn_repairs` in agent.json
+    names every one in the batch, else the newest `[repair]` line counts.
+    """
+    st = inside_a_turn(live)
+    if not st:
+        return None
+    rids = st.get("turn_repairs")
+    if isinstance(rids, list) and [r for r in rids if isinstance(r, str) and r]:
+        return [r for r in rids if isinstance(r, str) and r]
+    if st.get("turn_signal") != jobs.REPAIR:
+        return None
+    return [jobs.last_repair(live.root)]
+
+
+def cmd_memo(live, args):
+    """Write one section of the bound subject's TUTOR.md. Body on stdin.
+
+        board memo Now < now.md              replace the "Now" section
+        board memo "Open decisions" --append < more.md
+                                             add to the end of a section
+        board memo --show                    print TUTOR.md
+
+    The sections are "Where things are", "Now", "Open decisions" and "Done
+    recently", matched without regard to case. A missing TUTOR.md starts as
+    their skeleton. Over 800 words is refused, not trimmed, because the brief
+    carries the file every turn. RULES.md is never written.
+    """
+    if live.stored and live.atlas and \
+            os.path.realpath(live.root) == os.path.realpath(live.atlas):
+        print("board memo: this session is bound to no subject, so there is no "
+              "TUTOR.md. `board bind courses/<Name>` or `board bind "
+              "projects/<Name>` first.", file=sys.stderr)
+        return 1
+    if "--show" in args:
+        text = memo.tutor(live.root)
+        print(text if text else "no TUTOR.md")
+        return 0
+    append = "--append" in args
+    words = [a for a in args if not a.startswith("--")]
+    if not words:
+        print("board memo: name the section: %s"
+              % ", ".join('"%s"' % x for x in memo.SECTIONS), file=sys.stderr)
+        return 1
+    body = sys.stdin.read()
+    try:
+        path, n = memo.write(live.root, " ".join(words), body, append=append)
+    except memo.Refused as why:
+        print("board memo: %s" % why, file=sys.stderr)
+        return 1
+    print("%s (%d of %d words)" % (path, n, memo.WORDS))
+    return 0
+
+
+def cmd_round(live, args):
+    """File the ink on one document as a round of its ledger, and print it.
+
+        board round <document>          file the marks on it as numbered
+                                        requests and print the ledger and ids
+        board round <document> --print  the same, with every request in full
+
+    Ink on a document is answered in its ledger, because only a round there
+    becomes pairs the owner can tap through and clears the page once answered.
+    A turn asked to act on marks runs this, then answers every id in the
+    ledger's `answers`.
+
+    `<document>` is the library's id or the name in a mark's key
+    (`doc/<name>/p<n>`). Nothing is woken. An unanswered newest round is
+    printed rather than filed twice; no ink files nothing.
+    """
+    from tutorboard.course import ledger, library
+
+    want = [a for a in args if not a.startswith("--")]
+    if not want:
+        print("board round: which document? `board round <document>`; the "
+              "library's ids are on /library and in `board doctor`",
+              file=sys.stderr)
+        return 1
+    root = live.root
+    doc = library.find_any(root, want[0])
+    if not doc:
+        print("board round: this workspace has no document called %r" % want[0],
+              file=sys.stderr)
+        return 1
+    rs = ledger.rounds(root, doc)
+    if rs and not ledger.landed(root, doc, rs[-1][1]):
+        path, filed = rs[-1][1], False
+    else:
+        rec = library.write_note(live, doc["id"], "", hand_over=True)
+        if not rec.get("ok") or not rec.get("ledger"):
+            print("board round: nothing to file on %s: there is no ink on it "
+                  "and no request reopened. %s" % (doc["title"], rec.get("error") or ""),
+                  file=sys.stderr)
+            return 1
+        path, filed = rec["path"], True
+    led = ledger._read(ledger.ledger_path(path), {}) or {}
+    rel = os.path.relpath(ledger.ledger_path(path), root).replace(os.sep, "/")
+    ids = [i.get("id") for i in led.get("items") or [] if isinstance(i, dict)]
+    print(rel)
+    print("round %s of %s, %s: %d request%s, %s" % (
+        led.get("round") or "?", doc["title"],
+        "filed now" if filed else "filed %s and not answered yet" % (led.get("filed") or ""),
+        len(ids), "" if len(ids) == 1 else "s", ", ".join(ids)))
+    print("Answer every id in that file's `answers`: a disposition (done, partly, "
+          "not done, pushed back), `did` -- one sentence, and for not done and "
+          "pushed back the reply the owner reads beside their ink -- and for done "
+          "and partly `new`, the new wording copied exactly from the source.")
+    if "--print" in args:
+        for it in led.get("items") or []:
+            if not isinstance(it, dict):
+                continue
+            line = "%s  %s, page %s" % (it.get("id"), it.get("kind"), it.get("page") or "-")
+            if it.get("crop"):
+                line += "  crop %s" % it["crop"]
+            print(line)
+            if it.get("text"):
+                print("    " + str(it["text"]).replace("\n", "\n    "))
+            if it.get("reopened_because"):
+                print("    reopened because: %s" % it["reopened_because"])
+    return 0
+
+
+def cmd_deckfig(live, args):
+    """Copy one more figure into a deck whose brief lists it.
+
+        board deckfig <deck dir> <subject> <result id>
+
+    The deck is a directory holding `_brief.json` -- the meeting deck is
+    `docs/meeting` in projects/Meetings -- named relative to this session's
+    subject, or to the Atlas root. The figure is copied into the deck's
+    `figures/` as `<subject>--<id>.<ext>`, and the path to put in
+    `\\includegraphics` is printed. Open the image before you put it on a slide.
+
+    The id may be a word from the figure's name that picks out exactly one;
+    several matches are listed. Names, never paths: `results.find` resolves
+    the id and asks the fence again before the file is opened.
+    """
+    if len(args) != 3:
+        print("board deckfig: say the deck, the subject and the result id -- "
+              "board deckfig <deck dir> <subject> <result id>", file=sys.stderr)
+        return 1
+    want_deck, want_ws, want_id = args
+    base = subjects.root() or live.root
+    deck = None
+    for top in (live.root, base):
+        here = os.path.realpath(os.path.join(top, want_deck))
+        if paths.within(here, os.path.realpath(base)) \
+                and os.path.isfile(os.path.join(here, briefs.BRIEF_JSON)):
+            deck = here
+            break
+    if not deck:
+        print("board deckfig: %s holds no %s, so it is not a deck with a brief"
+              % (want_deck, briefs.BRIEF_JSON), file=sys.stderr)
+        return 1
+    found = subjects.find(want_ws, base)
+    if not found:
+        print("board deckfig: %s is not a subject in this repository"
+              % want_ws, file=sys.stderr)
+        return 1
+    allowed = briefs.drawn_from(deck)
+    if found["id"] not in allowed:
+        print("board deckfig: this deck was made from %s, not %s -- a figure "
+              "comes from a subject the deck is about"
+              % (", ".join(allowed) or "no subject", found["id"]), file=sys.stderr)
+        return 1
+    rid = briefs.figure_named(found["root"], want_id)
+    if isinstance(rid, list):
+        print("board deckfig: %s matches %s in %s -- say one of those ids"
+              % (want_id, ", ".join(rid), found["id"]) if rid else
+              "board deckfig: %s offers no figure called %s -- the ids are in "
+              "the brief's catalog, and a word from the file's name finds one "
+              "that is not listed" % (found["id"], want_id), file=sys.stderr)
+        return 1
+    got = briefs.snapshot(found["root"], rid, found["id"], deck)
+    if not got:
+        print("board deckfig: %s offers no figure called %s -- the ids are in "
+              "the brief's catalog" % (found["id"], want_id), file=sys.stderr)
+        return 1
+    print(got)
+    return 0
+
+
+def cmd_mode(live, args):
+    """Who writes the code in this session: teach or do.
+
+        board mode              print it
+        board mode teach|do     set it; one transcript turn and one inbox line
+
+    The only ways the mode changes are this, `POST /mode`, and the tutor
+    obeying "do it" -- by running this. Nothing infers `do`.
+    """
+    if not args:
+        print("mode: %s" % config.mode_of(live.state()))
+        return 0
+    by = "tutor" if os.environ.get("TUTORBOARD_TURN") else "student"
+    try:
+        mode, changed = session_mode.set_mode(live, args[0], by=by)
+    except ValueError as exc:
+        print("board mode: %s" % exc, file=sys.stderr)
+        return 2
+    print("mode: %s%s" % (mode, "" if changed else "  (already)"))
+    return 0
+
+
+def cmd_meeting(live, args):
+    """The meeting deck: a presentation to the mentors, written over a brief.
+
+        board meeting --since 7d
+        board meeting --since 2026-09-01 --subject projects/PSYCH-ASR
+        board meeting --since last            (since the last deck)
+        board meeting --since monday --print  (the brief; writes nothing)
+
+    The period snaps to a local midnight. Per subject the brief carries the
+    commits that are its own work with their whole messages, how its TUTOR.md
+    changed, the sessions that ended in the period, and the period's figures.
+    Without `--print` it is asked for: the deck in projects/Meetings/docs/
+    meeting/ is replaced, its brief written beside it, and a `[writeup]` turn
+    in a session bound to projects/Meetings writes and builds `meeting.tex`.
+    """
+    def value(flag):
+        if flag in args:
+            n = args.index(flag)
+            if n + 1 < len(args):
+                return args[n + 1]
+        return ""
+
+    base = subjects.root() or live.root
+    when, human = briefs.resolve_since(value("--since"), base)
+    if when is None:
+        print("board meeting: %s" % human, file=sys.stderr)
+        return 1
+    want = [args[i + 1] for i, a in enumerate(args)
+            if a == "--subject" and i + 1 < len(args)]
+    if "--print" in args:
+        blocks, every, why = briefs.blocks_for(base, want or None, when)
+        if why or not blocks:
+            print("board meeting: %s" % (why or "nothing landed in %s" % human),
+                  file=sys.stderr)
+            return 1
+        rec = briefs.write_brief(base, briefs.deck_dir(base) or os.path.join(
+            base, briefs.MEETINGS, briefs.deck_rel()), blocks, when, human=human,
+            dry=True)
+        sys.stdout.write(rec["markdown"] + "\n")
+        return 0
+    from tutorboard.server.routes import library as library_route
+    got, err = library_route.ask_meeting(live, base, when, human, want=want or None)
+    if err:
+        print("board meeting: %s" % (err[0].get("detail") or err[0].get("error")
+                                     or "it could not be asked for"), file=sys.stderr)
+        return 1
+    print("the meeting deck is being written in session %s: %s" % (
+        got.get("session") or "?", os.path.join(base, got["dir"], briefs.STEM + ".tex")))
+    return 0
+
+
+def cmd_job(live, args):
+    """Long work, labelled, so it reports itself.
+
+        board job [--label <slug>] [--session <id>] [--produces <path>]...
+            [--export <path>]... [--fixes <id>] -- <recipe> [VAR=value ...]
+
+    `<recipe>` is a tracked `.sbatch` file in this workspace. `VAR=value` sets
+    a variable its header declares (`#RELAY-VAR NAME PATTERN`); anything
+    undeclared is refused. `--produces` and `--export` are workspace-relative;
+    an `--export` must be approved by the subject's committed `relay.exports`.
+    `--label` is a slug in the request id. `--session` is the Mac session the
+    report wakes, by default `$TUTORBOARD_SESSION`'s. `--fixes <id>` files a
+    repair of a failed request (refused with Slurm); without Slurm a rerun of
+    a recipe whose repair is open must carry it (`jobs.open_fix`), so the cap
+    on automatic attempts counts every one. `--fresh` starts again past the
+    cap, refused inside a turn.
+
+    `board diagnose` is this command for a recipe that prints `RELAY:` lines
+    and produces nothing.
+
+    With Slurm it submits the recipe wrapped so its exit code lands in
+    `relay/state/` (`jobs.submit_recipe`); its end wakes a `[job]` turn.
+    Without Slurm (the Mac) it commits and pushes `relay/requests/<id>.json`,
+    pinned to HEAD, so an uncommitted tracked file under the subject refuses
+    it; the cluster refuses a HEAD lacking that commit. Every problem prints at
+    once and nothing is filed if there is any.
+
+    A turn starts long work through here: a bare `sbatch` is invisible to the
+    board, and on the Mac it is an error.
+
+        board job [--label <slug>] -- sbatch <args>
+                                the raw form, on a machine with Slurm only
+        board job --show        every job and request, folded to its last state
+        board job --batch <file.json> [--session <id>] [--fresh]
+                                many requests in one commit and one push, on a
+                                machine without Slurm (`_job_batch`)
+    """
+    root = live.root
+    args = list(args)
+    if "--batch" in args:
+        return _job_batch(live, args)
+    if args[:1] == ["--show"]:
+        recs = jobs.view(root)
+        if not recs:
+            print("no jobs registered here.")
+            return 0
+        for j in sorted(recs.values(), key=lambda r: r.get("submitted") or 0):
+            print("%-10s %-24s %-11s %s" % (
+                j.get("slurm") or j.get("jobid"),
+                j.get("label") or j.get("thread") or "-",
+                j.get("state") or "PENDING", j.get("cmd", "")))
+        return 0
+    if "--" not in args:
+        print("board job: put the recipe after `--`: board job [--label "
+              "<slug>] [--produces <path>] [--export <path>] -- <recipe> "
+              "[VAR=value]", file=sys.stderr)
+        return 1
+    cut = args.index("--")
+    head, argv = args[:cut], args[cut + 1:]
+    produces, export, words, fixes, i = [], [], [], None, 0
+    fresh = "--fresh" in head
+    head = [h for h in head if h != "--fresh"]
+    while i < len(head):
+        if head[i] in ("--produces", "--export") and i + 1 < len(head):
+            (produces if head[i] == "--produces" else export).append(head[i + 1])
+            i += 2
+            continue
+        if head[i] == "--fixes" and i + 1 < len(head):
+            fixes = head[i + 1]
+            i += 2
+            continue
+        words.append(head[i])
+        i += 1
+    label, session = _job_label(words, "board job")
+    if label is None:
+        return 1
+    rels, bad = _job_paths(root, produces + export)
+    if bad:
+        print("board job: --produces and --export name paths inside this "
+              "workspace, and %s is not. Nothing was submitted."
+              % ", ".join(bad), file=sys.stderr)
+        return 1
+    produces, export = rels[:len(produces)], rels[len(produces):]
+    slurm = jobs.has_slurm()
+    if not argv:
+        print("board job: name the recipe after `--`", file=sys.stderr)
+        return 1
+    if fixes is not None and slurm:
+        print("board job: `--fixes` links a relay request; on the cluster "
+              "`board job` submits directly. Nothing was submitted.",
+              file=sys.stderr)
+        return 1
+    if fresh and fixes is not None:
+        print("board job: `--fresh` starts a new request and `--fixes` "
+              "repairs an old one; name one. Nothing was filed.",
+              file=sys.stderr)
+        return 1
+    if fresh and inside_a_turn(live):
+        print("board job: `--fresh` is the owner's, and this is a turn. A "
+              "repair files its rerun with `--fixes`, inside the cap. Nothing "
+              "was filed.", file=sys.stderr)
+        return 1
+
+    if os.path.basename(argv[0]) == "sbatch":
+        if not slurm:
+            print("board job: this machine has no Slurm, so a bare sbatch is "
+                  "an error here. Name the recipe and its variables instead: "
+                  "board job -- <recipe.sbatch> [VAR=value ...], and the "
+                  "cluster runs it.", file=sys.stderr)
+            return 1
+        if export:
+            print("board job: --export rides a recipe, not a raw sbatch",
+                  file=sys.stderr)
+            return 1
+        return _job_submitted(root, label, jobs.submit(root, label, argv,
+                                                       produces=produces))
+
+    recipe, env, wrong = _recipe_args(root, argv)
+    if wrong:
+        print("board job: %s. Nothing was %s." % (
+            wrong, "submitted" if slurm else "filed"), file=sys.stderr)
+        return 1
+    ok, problems = _recipe_request(root, label, session, recipe, env,
+                                   produces, export, fixes, fresh, slurm)
+    if problems:
+        print("board job: %d problem(s), and nothing was %s:" % (
+            len(problems), "submitted" if slurm else "filed"), file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return 1
+    if slurm:
+        # Wrapped, so the exit code lands where the relay reads it: sacct is
+        # refused on this cluster.
+        return _job_submitted(root, label, jobs.submit_recipe(
+            root, label, recipe, env=env, produces=produces, export=export))
+    return _request_filed(root, ok)
+
+
+def _job_paths(root, paths):
+    """`(rels, bad)`: `paths` made workspace-relative; `bad` the ones outside."""
+    rels, bad = [], []
+    for p in paths:
+        rel = _workspace_path(os.path.relpath(p, root)
+                              if os.path.isabs(p) else p)
+        (rels if rel else bad).append(rel or p)
+    return rels, bad
+
+
+def _recipe_request(root, label, session, recipe, env, produces, export,
+                    fixes, fresh, slurm, pending=()):
+    """`(request, problems)`: the recipe request these words make, checked
+    (`jobs.check`). `pending` are requests checked to be filed with it, whose
+    ids it does not take."""
+    taken = set(r["id"] for r in jobs.requests(root))
+    taken |= set(r["id"] for r in pending)
+    req = {"id": jobs.new_id(label,
+                             os.path.splitext(os.path.basename(recipe))[0],
+                             taken),
+           "kind": "recipe", "recipe": recipe, "env": env,
+           "produces": produces, "export": export}
+    if label:
+        req["label"] = label
+    if session:
+        req["session"] = session
+    if not slurm:
+        req["filed"] = round(time.time(), 3)
+    if fixes is not None:
+        req["fixes"] = fixes
+    ok, problems = jobs.check(root, req, pending=pending)
+    origin = "" if slurm or fresh or fixes is not None else jobs.open_fix(
+        root, recipe, env)
+    if origin:
+        problems = list(problems) + [
+            "%s failed and its repair is open, so its rerun names it: add "
+            "`--fixes %s` (the owner starts over with `--fresh`)"
+            % (origin, origin)]
+    return ok, problems
+
+
+# What one entry of a `board job --batch` file may say.
+BATCH_KEYS = ("recipe", "env", "label", "produces", "export", "fixes")
+
+
+def _job_batch(live, args):
+    """`board job --batch <file.json> [--session <id>] [--fresh]`: many
+    recipe requests in one commit and one push.
+
+    The file is a JSON list of objects: `recipe` (required), `env`
+    ({NAME: value}), `label`, `produces`, `export` (lists) and `fixes`.
+    `--session` and `--fresh` apply to every entry. Each entry is checked as
+    `board job` checks one, and one problem anywhere files nothing. Without
+    Slurm only.
+    """
+    root = live.root
+    args = list(args)
+    i = args.index("--batch")
+    if i + 1 >= len(args):
+        print("board job: --batch names a JSON file: board job --batch "
+              "<file.json> [--session <id>] [--fresh]", file=sys.stderr)
+        return 1
+    path, rest = args[i + 1], args[:i] + args[i + 2:]
+    fresh = "--fresh" in rest
+    rest = [w for w in rest if w != "--fresh"]
+    if "--label" in rest:
+        print("board job: in a batch each entry carries its own `label`. "
+              "Nothing was filed.", file=sys.stderr)
+        return 1
+    label, session = _job_label(rest, "board job")
+    if label is None:
+        return 1
+    if jobs.has_slurm():
+        print("board job: --batch files relay requests, and this machine has "
+              "Slurm: submit each with board job -- <recipe> [VAR=value]. "
+              "Nothing was submitted.", file=sys.stderr)
+        return 1
+    if fresh and inside_a_turn(live):
+        print("board job: `--fresh` is the owner's, and this is a turn. "
+              "Nothing was filed.", file=sys.stderr)
+        return 1
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            entries = json.load(fh)
+    except (OSError, ValueError) as exc:
+        print("board job: %s is not a JSON file I can read: %s. Nothing was "
+              "filed." % (path, exc), file=sys.stderr)
+        return 1
+    if not isinstance(entries, list) or not entries:
+        print("board job: %s must hold a non-empty JSON list of requests. "
+              "Nothing was filed." % path, file=sys.stderr)
+        return 1
+    reqs, problems = [], []
+    for n, entry in enumerate(entries, 1):
+        said = []
+        if not isinstance(entry, dict):
+            problems.append("entry %d: is a %s, not an object"
+                            % (n, type(entry).__name__))
+            continue
+        extra = sorted(k for k in entry if k not in BATCH_KEYS)
+        if extra:
+            said.append("has no %s; an entry says %s" % (
+                ", ".join("`%s`" % k for k in extra), ", ".join(BATCH_KEYS)))
+        recipe = entry.get("recipe")
+        env = entry.get("env", {})
+        lab = entry.get("label", "")
+        fixes = entry.get("fixes")
+        lists = []
+        for key in ("produces", "export"):
+            value = entry.get(key, [])
+            if not isinstance(value, list) or not all(
+                    isinstance(v, str) for v in value):
+                said.append("`%s` must be a list of paths" % key)
+                value = []
+            lists.append(value)
+        if not isinstance(recipe, str) or not recipe:
+            said.append("names no `recipe`")
+        if not isinstance(env, dict):
+            said.append("`env` must be an object of NAME: value")
+        if not isinstance(lab, str) or (lab and not jobs.LABEL_RE.match(lab)):
+            said.append("label %r must be 1-40 characters of a-z, 0-9 and "
+                        "hyphen" % (lab,))
+        if fixes is not None and fresh:
+            said.append("`fixes` repairs an old request and --fresh starts "
+                        "new ones; name one")
+        rels, bad = _job_paths(root, lists[0] + lists[1])
+        if bad:
+            said.append("produces and export name paths inside this "
+                        "workspace, and %s is not" % ", ".join(bad))
+        if said:
+            problems.extend("entry %d: %s" % (n, p) for p in said)
+            continue
+        recipe, _, _ = _recipe_args(root, [recipe])
+        produces, export = rels[:len(lists[0])], rels[len(lists[0]):]
+        ok, said = _recipe_request(root, lab, session, recipe, dict(env),
+                                   produces, export, fixes, fresh, False,
+                                   pending=reqs)
+        if said:
+            problems.extend("entry %d: %s" % (n, p) for p in said)
+            continue
+        reqs.append(ok)
+    if problems:
+        print("board job: %d problem(s) in %s, and nothing was filed:"
+              % (len(problems), path), file=sys.stderr)
+        for line in problems:
+            print("  " + line, file=sys.stderr)
+        return 1
+    hidden = jobs.request_visible(root)
+    if hidden:
+        print("board: %s Nothing was filed." % hidden, file=sys.stderr)
+        return 1
+    changed = jobs.dirty(root)
+    if changed:
+        print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
+        return 1
+    paths, ok, said = jobs.file_requests(root, reqs)
+    if not ok:
+        written = all(os.path.exists(p) for p in paths)
+        print("board: the %d requests %s:\n%s" % (
+            len(reqs), "are written in %s but did not reach the cluster"
+            % os.path.relpath(jobs.requests_dir(root), root) if written
+            else "were not filed", said), file=sys.stderr)
+        return 1
+    print("%d requests filed in one commit and pushed: %s. The cluster's "
+          "relay picks them up on its next pass, and each report wakes %s."
+          % (len(reqs), ", ".join(r["id"] for r in reqs),
+             "session " + session if session else "this workspace's inbox"))
+    return 0
+
+
+def _job_label(words, who):
+    """`(label, session)` out of `--label` and `--session` (default
+    `$TUTORBOARD_SESSION`'s). `label` is "" when absent, None after printing
+    why the words are wrong."""
+    label, session, i = "", "", 0
+    while i < len(words):
+        w = words[i]
+        if w in ("--label", "--session") and i + 1 < len(words):
+            if w == "--label":
+                label = words[i + 1].strip()
+            else:
+                session = words[i + 1].strip()
+            i += 2
+            continue
+        print("%s: %r is not an option here. Work is named with --label "
+              "<slug>; no thread is named." % (who, w), file=sys.stderr)
+        return None, None
+    if label and not jobs.LABEL_RE.match(label):
+        print("%s: --label %r must be 1-40 characters of a-z, 0-9 and hyphen"
+              % (who, label), file=sys.stderr)
+        return None, None
+    if not session:
+        session = os.path.basename(
+            os.environ.get("TUTORBOARD_SESSION", "").rstrip("/"))
+    if session and not jobs.SESSION_RE.match(session):
+        print("%s: %r is not a session id" % (who, session), file=sys.stderr)
+        return None, None
+    return label, session
+
+
+def _recipe_args(root, argv):
+    """`(recipe, env, problem)` out of `<recipe> [VAR=value ...]`.
+
+    The recipe is workspace-relative, or relative to where this was typed."""
+    first = argv[0]
+    if os.path.isabs(first):
+        cand = first
+    elif os.path.exists(os.path.join(root, first)):
+        cand = os.path.join(root, first)
+    else:
+        cand = os.path.join(os.getcwd(), first)
+    recipe = _workspace_path(os.path.relpath(cand, root)) or first
+    env, wrong = {}, []
+    for word in argv[1:]:
+        name, eq, value = word.partition("=")
+        if not eq or not name:
+            wrong.append(word)
+            continue
+        env[name] = value
+    if wrong:
+        return recipe, env, ("after the recipe come VAR=value words only, and "
+                             "%s is not one" % ", ".join(repr(w) for w in wrong))
+    return recipe, env, ""
+
+
+def _job_submitted(root, label, got):
+    rec, why = got
+    if not rec:
+        print("board job: %s" % why, file=sys.stderr)
+        return 1
+    where = jobs.registry(root)
+    print("job %s submitted%s, registered in %s%s"
+          % (rec["jobid"], " as `%s`" % label if label else "",
+             os.path.relpath(where, root),
+             "; its log is " + rec["log"] if rec.get("log") else ""))
+    return 0
+
+
+def _request_filed(root, req):
+    """Commit and push a checked request, and say what happened."""
+    hidden = jobs.request_visible(root)
+    if hidden:
+        print("board: %s Nothing was filed." % hidden, file=sys.stderr)
+        return 1
+    # Pinned to HEAD, so uncommitted edits under the subject are refused.
+    changed = jobs.dirty(root)
+    if changed:
+        print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
+        return 1
+    path, ok, said = jobs.file_request(root, req)
+    rel = os.path.relpath(path, root)
+    if not ok:
+        print("board: the request is written at %s but did not reach the "
+              "cluster:\n%s" % (rel, said), file=sys.stderr)
+        return 1
+    print("request %s filed at %s and pushed. The cluster's relay picks it "
+          "up on its next pass, and its report wakes %s."
+          % (req["id"], rel, "session " + req["session"]
+             if req.get("session") else "this workspace's inbox"))
+    return 0
+
+
+def cmd_ask_cluster(live, args):
+    """Retired: no model runs beside the data, so a failure is not diagnosed
+    by a cluster turn. Its recipe prints `RELAY:` lines, the Mac repairs it,
+    and a question the report does not answer is a diagnostic recipe."""
+    print("board ask-cluster is retired: no model runs on the cluster. A "
+          "failed job's report carries its RELAY: lines and wakes a [repair] "
+          "turn here; to ask the cluster more, file a diagnostic recipe, one "
+          "that prints RELAY: lines and produces nothing:\n"
+          "  board diagnose --fixes <failed request> -- "
+          "<diagnose.sbatch> [VAR=value ...]\nNothing was filed.",
+          file=sys.stderr)
+    return 2
+
+
+def cmd_colibri(live, args):
+    """Queue a task for Colibri, the local model that may read PHI.
+
+        board colibri [--label <slug>] [--session <id>] "<task>"
+        board colibri --show            the queue, oldest first (on the cluster)
+
+    On the cluster it queues the task in libr-local-llm's ignored
+    `relay/state/colibri/` and starts an on-demand generation if none is up.
+    A generation works the queue one task at a time and exits after 20 idle
+    minutes; a dead one is replaced by its clone, and three deaths fail the
+    task.
+
+    On the Mac it files a `colibri` relay request (`colibri.ask`, shared with
+    POST /colibri) and says the wait (`colibri.estimate`). The workspace opts
+    in with `relay.colibri: true`.
+
+    A task is read-only analysis: outputs go under the workspace's ignored
+    `phi/`, and any change git can see fails the task, because nothing
+    Colibri writes may leave the cluster. A report carries only state, counts
+    and public `RELAY:` lines.
+    """
+    from tutorboard import colibri
+    root = live.root
+    words = list(args)
+    if words[:1] == ["--show"]:
+        q = colibri.queue_root()
+        recs = colibri.tasks(q) if q else []
+        if not recs:
+            print("the Colibri queue is empty.")
+            return 0
+        for r in recs:
+            print("%-26s %-9s %-24s %-22s attempts %d, deaths %d" % (
+                r.get("id"), r.get("queue"), r.get("workspace"),
+                r.get("label") or r.get("thread") or "-",
+                int(r.get("attempts") or 0),
+                int(r.get("deaths") or 0)))
+        return 0
+    if not words or not words[-1].strip():
+        print("board colibri: say what the task is", file=sys.stderr)
+        return 1
+    brief = words[-1].strip()
+    label, session = _job_label(words[:-1], "board colibri")
+    if label is None:
+        return 1
+    if len(brief) > jobs.MAX_BRIEF:
+        print("board colibri: the task is %d characters and the cap is %d"
+              % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
+        return 1
+    if jobs.has_slurm():
+        rec, said = colibri.file(label, brief, root)
+        if rec is None:
+            print("board colibri: %s. Nothing was queued." % said,
+                  file=sys.stderr)
+            return 1
+        print("task %s%s: %s. `board colibri --show` lists the queue."
+              % (rec["id"], " (`%s`)" % label if label else "", said))
+        return 0
+    got = colibri.ask(root, brief, label, session)
+    if not got["ok"]:
+        print("board colibri: %d problem(s), and nothing was filed:"
+              % len(got["problems"]), file=sys.stderr)
+        for line in got["problems"]:
+            print("  " + line, file=sys.stderr)
+        return 1
+    print("%s. %s." % (got["said"], colibri.estimate(colibri.status())))
+    return 0
+
+
+def cmd_libr_ai(live, args):
+    """Ask IT's model server, from a subject whose phi is false.
+
+        board libr-ai [--label <slug>] [--session <id>] [--model <m>] "<task>"
+
+    Files a `libr-ai` relay request (`libr_ai.ask`). The relay submits it as a
+    Slurm job that runs opencode once, read-only, in the subject on the
+    cluster, against ai.laureateinstitute.org; the model's answer is the job's
+    log, and the report brings it back and wakes the session. The model is
+    `gpt-oss:120b` unless `--model` names another the server lists.
+
+    IT's server keeps every chat, so a subject with PHI is refused; it uses
+    Colibri. On the cluster itself, `coder` is the direct route.
+    """
+    from tutorboard import libr_ai
+    words = list(args)
+    model = ""
+    if "--model" in words:
+        i = words.index("--model")
+        if i + 1 >= len(words) - 1:
+            print("board libr-ai: --model needs a model name before the task",
+                  file=sys.stderr)
+            return 1
+        model = words[i + 1].strip()
+        del words[i:i + 2]
+    if not words or not words[-1].strip():
+        print("board libr-ai: say what the task is", file=sys.stderr)
+        return 1
+    brief = words[-1].strip()
+    label, session = _job_label(words[:-1], "board libr-ai")
+    if label is None:
+        return 1
+    if len(brief) > jobs.MAX_BRIEF:
+        print("board libr-ai: the task is %d characters and the cap is %d"
+              % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
+        return 1
+    if jobs.has_slurm():
+        print("board libr-ai: this is the cluster, where `coder` reaches IT's "
+              "server directly. Nothing was filed.", file=sys.stderr)
+        return 1
+    got = libr_ai.ask(live.root, brief, label, session, model)
+    if not got["ok"]:
+        print("board libr-ai: %d problem(s), and nothing was filed:"
+              % len(got["problems"]), file=sys.stderr)
+        for line in got["problems"]:
+            print("  " + line, file=sys.stderr)
+        return 1
+    print("%s." % got["said"])
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Tailscale: `tailscale serve` publishes HTTPS to 127.0.0.1 on the board's port
+# once (install.sh), and nothing here re-points it.
+# ---------------------------------------------------------------------------
+
+
+def ts(*args, **kw):
+    """Run the tailscale CLI, whether it is ours or the system's."""
+    prefix, kind = tailscale.tailscale_cli()
+    if not prefix:
+        return 1, "tailscale is not installed"
+    cmd = prefix + list(args)
+    try:
+        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                           timeout=kw.get("timeout", 25))
+        return p.returncode, p.stdout.decode("utf-8", "replace")
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return 1, str(exc)
+
+
+def ts_info():
+    """(ipv4, dns_name) for this node, or (None, None)."""
+    code, out = ts("status", "--json")
+    if code != 0:
+        return None, None
+    # The CLI may print warnings before the JSON; start at the first brace.
+    start = out.find("{")
+    if start == -1:
+        return None, None
+    try:
+        data = json.loads(out[start:])
+    except ValueError:
+        return None, None
+    me = data.get("Self") or {}
+    ips = me.get("TailscaleIPs") or []
+    v4 = next((i for i in ips if ":" not in i), None)
+    name = (me.get("DNSName") or "").rstrip(".")
+    return v4, (name or None)
+
+
+def cmd_vpn(live, args):
+    """`board vpn [status]`: what tailscale says, and where the HTTPS name
+    points. Nothing else: the name is published once and never moved."""
+    sub = args[0] if args else "status"
+    if sub != "status":
+        print("board vpn %s is gone: `tailscale serve` publishes the one board "
+              "server once (board/install.sh); `board vpn` only reports"
+              % sub, file=sys.stderr)
+        return 2
+    code, out = ts("status")
+    print(out.strip())
+    if code == 0:
+        _, served = ts("serve", "status", timeout=15)
+        if served.strip():
+            print()
+            print(served.strip())
+    return code
+
+
+def read_config(root):
+    """`tutorboard.json`, with `name` defaulted to the directory. A `mode` or
+    `stance` in it is ignored: the mode is the session's."""
+    cfg = {"name": None}
+    try:
+        with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
+            cfg.update(json.load(fh) or {})
+    except (OSError, ValueError):
+        pass
+    if not cfg.get("name"):
+        cfg["name"] = os.path.basename(root).replace("-", " ")
+    cfg.pop("mode", None)
+    cfg.pop("stance", None)
+    return cfg
+
+
+def cmd_init(live, args):
+    """Name this repository, so the board does not have to use its directory.
+    Nothing else is declared; a leftover `mode` key is dropped."""
+    name = " ".join(a for a in args if not a.startswith("--")) \
+        or os.path.basename(live.root).replace("-", " ")
+
+    path = os.path.join(live.root, "tutorboard.json")
+    cfg = {}
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                cfg = json.load(fh) or {}
+        except ValueError:
+            pass
+    dropped = cfg.pop("mode", None)
+    cfg["name"] = name
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(cfg, fh, indent=2)
+        fh.write("\n")
+    print("%s\n  name: %s" % (path, name))
+    if dropped:
+        print("  dropped 'mode: %s' -- there is one board and one method now"
+              % dropped)
+    print("  -> answers come back on the board: written on the slate, or typed")
+    return 0
+
+
+EYES_DOC = r"""\documentclass[border=24pt]{standalone}
+\usepackage{amsmath,amssymb}
+\begin{document}
+\begin{minipage}{9cm}
+\centering
+{\Huge\bfseries %(token)s}\\[10pt]
+{\Large $\displaystyle \int_0^{%(a)s} x^{%(b)s}\,dx$}\\[10pt]
+{\large the word is \textbf{%(word)s}}
+\end{minipage}
+\end{document}
+"""
+
+EYES_WORDS = ["lattice", "kernel", "cyclotomic", "residue", "orbit", "cocycle",
+              "spectrum", "filtration", "adjoint", "quotient"]
+
+
+def cmd_build(live, args):
+    """Build documents beside their sources.
+
+        board build path/to/deck.tex
+        board build paper/draft.md [--format docx|pdf] [--strict]
+                                         [--reference-doc journal.docx]
+
+    A .tex runs pdflatex in its own directory (beamer or article, detected),
+    twice and a third time when the log asks; TEXINPUTS holds the subject's
+    `latex/` and the board's `tex/`. Scratch files go on success; `--keep-aux`
+    keeps the `.aux`. A beamer deck with an Overfull or Underfull box fails,
+    its PDF built and each box named by page and source line. A .md builds a .docx with the reference document found
+    from the source upward (`formats/*.docx`), plus a .pdf when the PDF engine
+    exists. A figure that did not reach the .docx fails the build; one that will
+    not sit on the page fails it only with `--strict`.
+    """
+    from tutorboard import build
+    formats, ref, files = [], None, []
+    strict = keep_aux = False
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in ("--format", "--reference-doc"):
+            if i + 1 >= len(args):
+                print("%s needs a value" % a, file=sys.stderr)
+                return 2
+            if a == "--format":
+                if args[i + 1] not in ("docx", "pdf"):
+                    print("--format is docx or pdf", file=sys.stderr)
+                    return 2
+                formats.append(args[i + 1])
+            else:
+                ref = args[i + 1]
+            i += 2
+            continue
+        if a in ("--strict", "-s"):
+            strict = True
+        elif a == "--keep-aux":
+            keep_aux = True
+        elif a.startswith("-"):
+            print("unknown option: %s" % a, file=sys.stderr)
+            return 2
+        else:
+            files.append(a)
+        i += 1
+    if not files:
+        print("usage: board build <file.tex|file.md> [--format docx|pdf] "
+              "[--strict] [--reference-doc F] [--keep-aux]", file=sys.stderr)
+        return 2
+    status = 0
+    for f in files:
+        rec = build.build(f, formats=formats or None, strict=strict,
+                          reference_docx=ref, keep_aux=keep_aux)
+        if rec.get("detail"):
+            print(rec["detail"], file=sys.stdout if rec["ok"] else sys.stderr)
+        for out in rec["built"]:
+            print(out)
+        if not rec["ok"]:
+            status = 1
+    return status
+
+
+def _course_root(want):
+    """A course's directory from its id, slug or path; None when nothing is."""
+    if want and os.path.isdir(want):
+        return os.path.realpath(want)
+    found = subjects.find(want) if want else None
+    return found["root"] if found else None
+
+
+def _here_course():
+    """The course this command is about when none is named: the session's
+    bound subject (TUTORBOARD_SESSION), else the subject holding the
+    working directory. None when neither is one."""
+    sid = sessions.current()
+    if sid:
+        here = os.path.abspath(os.environ["TUTORBOARD_SESSION"])
+        rec = sessions.get(sid, os.path.dirname(os.path.dirname(here))) or {}
+        found = subjects.find(rec.get("subject")) if rec.get("subject") else None
+        if found:
+            return found["root"]
+    cwd = os.path.realpath(os.getcwd())
+    for where in subjects.roots():
+        real = os.path.realpath(where)
+        if cwd == real or cwd.startswith(real + os.sep):
+            return real
+    # A course outside this Atlas: the nearest directory up with a textbook/.
+    while True:
+        if os.path.isdir(os.path.join(cwd, "textbook")):
+            return cwd
+        up = os.path.dirname(cwd)
+        if up == cwd:
+            return None
+        cwd = up
+
+
+def _say_found(got):
+    """One `book.find` answer, as a person reads it."""
+    if not got.get("ok"):
+        print("%s: %s" % (got.get("ref"), got.get("error")))
+        return
+    printed = got.get("printed")
+    print("%s: PDF page %d%s%s" % (
+        got["label"], got["pdf_page"],
+        ", printed page %d" % printed if printed else ", no printed number",
+        ", chapter %s %s" % (got["chapter"]["num"], got["chapter"]["title"])
+        if got.get("chapter") else ""))
+    if got.get("reading"):
+        print("  reading: %s, page %d" % (got["reading"], got["reading_page"]))
+    for more in got.get("also") or []:
+        print("  also: %s" % more)
+    if got.get("text"):
+        print("")
+        print(got["text"])
+    print("")
+
+
+def cmd_textbook(live, args):
+    """A course's textbook: its index, and the tooling that cuts it up.
+
+        board textbook ingest <course> [--upload <pdf>] [--write] [--check]
+        board textbook find [<course>] <ref> [--sheet <pdf>] [--json]
+        board textbook status <course> [--json]
+        board textbook split <course> [NN ...]
+        board textbook scaffold <course> [--chapter-homework] [NN ...]
+        board textbook scaffold <course> --hw NN [NN ...]
+
+    <course> is a subject id (`courses/Galois-Theory`), its slug, or a path to
+    the course directory; `find` defaults to the session's bound course.
+
+    `ingest` reads the one PDF in textbook/ (`--upload` files one there
+    first: a path, or a name in this session's uploads/) into the ignored
+    textbook/index.json, from the PDF's outline and its page text: chapters,
+    sections, printed page numbers and exercises, and every doubt. It writes
+    chapters.tsv only where there is none; otherwise it prints the
+    differences, and `--write` rewrites it. Then it runs split and scaffold
+    --chapter-homework. `--check` writes no chapters.tsv and splits nothing.
+    A run resumes where it stopped.
+
+    `find` resolves "Exercise 3.4", "3.4", "Ch 4 #34", "Section 2.1", "§2.1",
+    "p. 295", "pp. 12-15" or "Ch 7" to PDF and printed pages, the reading
+    excerpt and its page, and the text; the reference needs no quotes. A
+    first word that names no course is part of the reference, in the
+    session's course. `--sheet <pdf>` resolves every reference on an
+    assignment sheet, and a line on it that names a problem but cannot be
+    read is "not indexed" too. What the index does not hold is "not
+    indexed", never guessed.
+
+    `split` cuts the one PDF in textbook/ into chapters/chNN-slug/reading/
+    chNN.pdf by chapters.tsv; `scaffold` writes the chapter and homework .tex
+    files from board/tex/writeup.tex.in and never overwrites. Everything
+    under textbook/ and reading/ stays ignored.
+    """
+    from tutorboard.course import book
+    scripts = {"split": "split-textbook.sh", "scaffold": "scaffold.sh"}
+    subs = ("ingest", "find", "status") + tuple(scripts)
+    if not args or args[0] not in subs:
+        print("usage: board textbook ingest|find|status|split|scaffold "
+              "<course> [...]  (board textbook --help)", file=sys.stderr)
+        return 2
+    sub, rest = args[0], list(args[1:])
+
+    def flag(name):
+        if name in rest:
+            rest.remove(name)
+            return True
+        return False
+
+    def value(name):
+        if name not in rest:
+            return None
+        n = rest.index(name)
+        if n + 1 >= len(rest):
+            raise book.Refused("%s needs a value" % name)
+        got = rest[n + 1]
+        del rest[n:n + 2]
+        return got
+
+    def nowhere(want):
+        print("no course called %r: give its id (courses/<Name>), its name "
+              "or its directory" % want, file=sys.stderr)
+        return 1
+
+    try:
+        if sub == "find":
+            as_json = flag("--json")
+            sheet = value("--sheet")
+            # The first word is the course only where it names one: an
+            # unquoted `find p. 295` is a reference in the session's course.
+            where = None
+            if rest and (len(rest) >= 2 or sheet):
+                where = _course_root(rest[0])
+                if where:
+                    rest = rest[1:]
+            where = where or _here_course()
+            if not where and len(rest) >= 2:
+                print("board textbook find: no course called %r, and no "
+                      "session bound to one: name the course first" % rest[0],
+                      file=sys.stderr)
+                return 1
+            if not where:
+                print("board textbook find: name the course, or run it in a "
+                      "session bound to one", file=sys.stderr)
+                return 2
+            if sheet:
+                chapter = None
+                if rest:
+                    m = re.match(r"(?i)^\s*(?:ch(?:apter)?\.?\s*)?(\d{1,3})\s*$",
+                                 " ".join(rest))
+                    if not m:
+                        print("board textbook find --sheet takes a chapter "
+                              "(\"Ch 4\") at most", file=sys.stderr)
+                        return 2
+                    chapter = int(m.group(1))
+                # A sheet named as the brief names it: relative to the course.
+                if not os.path.isfile(sheet) and \
+                        os.path.isfile(os.path.join(where, sheet)):
+                    sheet = os.path.join(where, sheet)
+                got = book.sheet(where, sheet, chapter)
+            else:
+                if not rest:
+                    print("usage: board textbook find [<course>] <ref> "
+                          "[--sheet <pdf>]", file=sys.stderr)
+                    return 2
+                got = [book.find(where, " ".join(rest))]
+            if as_json:
+                print(json.dumps(got, indent=1, ensure_ascii=False))
+            else:
+                if sheet and not got:
+                    print("no references read off %s" % sheet)
+                for one in got:
+                    _say_found(one)
+            return 0 if got and all(g.get("ok") for g in got) else 1
+
+        if not rest:
+            print("usage: board textbook %s <course> [...]" % sub, file=sys.stderr)
+            return 2
+        want, rest = rest[0], rest[1:]
+        where = _course_root(want)
+        if not where:
+            return nowhere(want)
+        if sub in scripts:
+            return subprocess.call(["bash", os.path.join(TOOL, "scripts",
+                                                         scripts[sub]), where] + rest)
+        if sub == "status":
+            got = book.status(where)
+            if flag("--json"):
+                print(json.dumps(got, indent=1, ensure_ascii=False))
+                return 0
+            print("textbook: %s" % (", ".join(got["pdfs"]) or "none in textbook/"))
+            prog = got.get("progress") or {}
+            if prog:
+                print("last run: %s%s" % (prog.get("state"), (
+                    " at %s (%s of %s)" % (prog.get("step"), prog.get("done"),
+                                           prog.get("total"))
+                    if prog.get("state") == "running" else
+                    (": %s" % prog.get("error")) if prog.get("error") else "")))
+            if not got["indexed"]:
+                print("not indexed: board textbook ingest %s" % want)
+                return 0
+            print("index: %d pages, %d chapters, %d sections, %d exercises, "
+                  "printed pages in %d run(s)" % (
+                      got["pages"], got["chapters"], got["sections"],
+                      got["exercises"], got["labels"]))
+            for r in got["label_runs"]:
+                print("  PDF pages %d-%d: printed = PDF - %d"
+                      % (r["first"], r["last"], r["offset"]))
+            print("chapters.tsv: %s" % got["tsv"])
+            for line in got.get("diff") or []:
+                print("  " + line)
+            for d in got["doubts"]:
+                print("doubt: " + d)
+            return 0
+        # ingest
+        write, check = flag("--write"), flag("--check")
+        upload = value("--upload")
+        if rest:
+            print("board textbook ingest: unexpected %s" % " ".join(rest),
+                  file=sys.stderr)
+            return 2
+        # A session's upload is moved in, as `board file` does; any other
+        # file is copied, and stays where it was.
+        move = False
+        if upload and not os.path.isfile(upload):
+            sid, base, _ = _session_flag([], "board textbook ingest")
+            if not sid:
+                raise book.Refused("%s is not a file, and no session "
+                                   "(TUTORBOARD_SESSION) holds it" % upload)
+            upload, move = sessions._upload(sessions.path(sid, base), upload), True
+        report = book.ingest(where, upload=upload, write=write, check=check,
+                             say=print, move=move)
+        if check:
+            return 0 if not report.get("diff") else 1
+        return 0
+    except (book.Refused, sessions.Refused) as exc:
+        print("board textbook %s: %s" % (sub, exc), file=sys.stderr)
+        return 1
+
+
+def cmd_eyes(live, args):
+    """Settle by experiment whether the assistant driving this can see: render
+    an image carrying a value nobody could guess, and ask. The harness matters
+    as much as the model."""
+    import random
+    stamp = os.path.join(live.session, "eyes")
+    os.makedirs(stamp, exist_ok=True)
+    answer_path = os.path.join(stamp, "answer.txt")
+
+    if "--answer" in args:
+        try:
+            with open(answer_path, "r", encoding="utf-8") as fh:
+                print(fh.read().strip())
+        except OSError:
+            print("nothing generated yet; run: board eyes")
+        return 0
+
+    token = "%04d-%04d" % (random.randint(1000, 9999), random.randint(1000, 9999))
+    word = random.choice(EYES_WORDS)
+    a, b = random.randint(2, 9), random.randint(2, 5)
+    integral = "%s^%s/%s" % (a, b + 1, b + 1)
+
+    # `tex_path`, not `tex`: a local named `tex` shadows the module.
+    tex_path = os.path.join(stamp, "eyes.tex")
+    with open(tex_path, "w", encoding="utf-8") as fh:
+        fh.write(EYES_DOC % {"token": token, "word": word, "a": a, "b": b})
+
+    from tutorboard import build
+    rec = build.build(tex_path)
+    pdf = os.path.join(stamp, "eyes.pdf")
+    if not rec["ok"] or not os.path.exists(pdf):
+        print("could not render the test image; is TeX installed? (board doctor)",
+              file=sys.stderr)
+        print(rec.get("detail") or "", file=sys.stderr)
+        return 1
+
+    png = os.path.join(stamp, "eyes.png")
+    subprocess.run(["pdftoppm", "-png", "-r", "120", "-singlefile", pdf,
+                    os.path.splitext(png)[0]],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60)
+    if not os.path.exists(png):
+        # pdftoppm is not everywhere; the PDF on its own is still a fair test.
+        png = pdf
+
+    with open(answer_path, "w", encoding="utf-8") as fh:
+        fh.write("token: %s\nword:  %s\nintegral evaluates to: %s\n"
+                 % (token, word, integral))
+
+    print(png)
+    print()
+    print("Ask the assistant driving this to open that file and report the token,")
+    print("the word, and what the integral evaluates to.")
+    print("Then run `board eyes --answer` to see whether it read them or invented them.")
+    print()
+    print("If it cannot, it cannot tutor from this board: every answer comes back")
+    print("as handwriting or a photograph, and there is no mode that turns that")
+    print("off any more. Point a different assistant at it -- `board doctor --dry`")
+    print("names the provider and its fallback.")
+    return 0
+
+
+def state_agent(live):
+    """Who is teaching in this workspace right now, off `live/agent.json`."""
+    try:
+        with open(os.path.join(live.session, "agent.json"), "r",
+                  encoding="utf-8") as fh:
+            return json.load(fh) or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def cmd_see(live, args):
+    """What is in this image or PDF page, in words.
+
+        board see path/to/page.png
+        board see sheet.pdf --page 3
+        board see page.png --ask "just the numbers in the right-hand column"
+        board see --route            where an image would go, and nothing else
+
+    For an assistant whose model cannot see: the answer comes back as text on
+    stdout. The image goes to a recipe's `vision` block, resolved through the
+    running agent first and `vision_agent` second (`seeing.py`); `--route`
+    says which.
+
+    A path inside a fence is refused before anything is opened, because this
+    sends the file to a hosted provider and no pre-tool hook sees it.
+    """
+    rest = [a for a in args if not a.startswith("--")]
+    page = None
+    if "--page" in args:
+        n = args.index("--page")
+        page = args[n + 1] if n + 1 < len(args) else None
+    prompt = None
+    if "--ask" in args:
+        n = args.index("--ask")
+        prompt = args[n + 1] if n + 1 < len(args) else None
+    for taken in (page, prompt):
+        if taken in rest:
+            rest.remove(taken)
+
+    who = (state_agent(live) or {}).get("agent")
+    if "--route" in args:
+        settings, why = seeing.route(who)
+        if not settings:
+            print(why, file=sys.stderr)
+            return 1
+        print("%s  %s  via the '%s' recipe"
+              % (settings.get("model"),
+                 settings.get("endpoint")
+                 or " ".join(settings.get("cmd") or []),
+                 settings.get("agent")))
+        return 0
+    if not rest:
+        print("board see <path> -- an image, or a PDF with --page N",
+              file=sys.stderr)
+        return 1
+    try:
+        said, _settings = seeing.describe(rest[0], page=page, prompt=prompt,
+                                          agent=who, root=live.root)
+    except seeing.Refused as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(said)
+    return 0
+
+
+def machine_shape():
+    """What this machine is for. Platform knowledge, so it lives in boardlib."""
+    return machine.machine_shape()
+
+
+def cmd_limit(live, args):
+    """Whether this machine's tutor has any allowance left, and until when.
+
+        board limit              report
+        board limit --clear      say the allowance is back, now
+        board limit --set 3600   say it is gone for this many seconds
+
+    The record is per machine, because an allowance belongs to an account. A
+    failing turn writes it, it expires by itself, `/health` publishes it, and
+    a turn that goes through clears it. `--clear` exists because a provider's
+    reset time is only a promise.
+    """
+    rec = limits.limit_record()
+    if "--set" in args:
+        n = args[args.index("--set") + 1] if args.index("--set") + 1 < len(args) else "3600"
+        limits.mark_limited(time.time() + float(n))
+        print("marked out of allowance for %ss" % n)
+        return 0
+    if "--clear" in args:
+        print("cleared" if limits.clear_limited() else "nothing was recorded")
+        return 0
+    if not rec:
+        print("allowance: fine  (nothing recorded on %s)" % this_node())
+        return 0
+    left = float(rec["until"]) - time.time()
+    print("allowance: GONE until %s  (%d min)"
+          % (time.strftime("%H:%M", time.localtime(rec["until"])), left / 60))
+    print("agent:     %s" % (rec.get("agent") or "unknown"))
+    print("\nturns fail until it returns, and the board says so rather than")
+    print("answering with something worse.")
+    print("clear it early with:  board limit --clear")
+    return 0
+
+
+def cmd_egress(live, args):
+    """Can a turn actually leave this machine, and through where.
+
+        board egress             report
+        board egress --repair    rotate exit nodes until a turn can get out
+
+    An exit node does not touch tailnet traffic, so the iPad still reaches the
+    board, but a provider that blocks VPN egress fails every turn.
+    """
+    node = egress.exit_node()
+    print("exit node: %s" % (node["name"] if node else "none (direct)"))
+    print("probe:     %s" % ", ".join(egress.egress_probe_urls()))
+    ok = egress.egress_ok()
+    print("egress:    %s" % ("reachable" if ok else "NOT REACHABLE"))
+    if ok:
+        if node:
+            egress.remember_good_exit_node(node["ip"])
+        return 0
+    if "--repair" not in args:
+        print("\na turn cannot get out from here. rotate with:  board egress --repair")
+        return 1
+    ok, detail = egress.rotate_exit_node(log=lambda m: print("  " + m))
+    print("\n%s" % ("now reachable through %s" % detail if ok else
+                     "could not repair: %s" % detail))
+    return 0 if ok else 1
+
+
+def cmd_doctor(live, args):
+    """board doctor [--dry] [name ...]
+
+    What this machine has (TeX, KaTeX, a PDF renderer, the tailnet, the
+    server), then one real turn each on the provider and its fallback, or on
+    the recipes named (`agents/doctor.py`): a code word in the prompt has to
+    come back. Unnamed, it also sends the vision route one witness strip, whose
+    digits have to come back. `--dry` spends no turn: it says, per recipe,
+    whether it can take one here and what would run, and names the vision
+    route chain. Inside a turn it is always dry, since a turn
+    starting a turn is a bill nobody asked for. Exit 1 when anything failed.
+    """
+    from tutorboard.agents import doctor as smoke
+    dry = "--dry" in args or bool(os.environ.get("TUTORBOARD_TURN"))
+    names = [a for a in args if not a.startswith("-")]
+    ok = machine_check()
+    print()
+    if dry and "--dry" not in args:
+        print("inside a turn: dry, no turn is spent")
+    ok = smoke.cmd_doctor(None, names, dry=dry) == 0 and ok
+    return 0 if ok else 1
+
+
+def machine_check():
+    """What this machine has, printed. True when nothing is missing."""
+    import platform as _pl
+    import shutil as _sh
+    env_path = tex.tex_env().get("PATH", "")
+    ok = True
+    print("system:   %s %s" % (_pl.system(), _pl.machine()))
+    print("shape:    %s" % machine_shape())
+    print("python:   %s" % sys.version.split()[0])
+    for exe in ("latex", "pdflatex", "dvisvgm"):
+        found = _sh.which(exe, path=env_path)
+        print("%-9s %s" % (exe + ":", found or "MISSING"))
+        ok = ok and bool(found)
+    print("katex:    %s" % ("vendored" if os.path.exists(
+        os.path.join(TOOL, "web", "katex", "katex.min.js")) else "MISSING"))
+    # Not fatal: without a renderer the iPad can save a PDF but not read one
+    # on the board (`paper.renderer`).
+    _rend = paper.renderer()
+    print("pdf pages: %s" % (
+        "%s  (a document can be read on the board)" % _rend[1] if _rend
+        else "no pdftoppm, pdftocairo or gs — a PDF can be saved to the device "
+             "but not read on the board. Install poppler (brew install poppler, "
+             "or your package manager) to fix that."))
+    node = _sh.which("node")
+    if node:
+        p = subprocess.run([node, "-e", "require('jsdom')"], cwd=TOOL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("tests:    %s" % ("all suites runnable" if p.returncode == 0 else
+                                "run `bash test/all.sh` — it fetches what it needs"))
+    else:
+        print("tests:    node not installed (the board does not need it)")
+    print("atlas:    %s" % subjects.root())
+    print("node:     %s" % this_node())
+    print("server:   %s on 127.0.0.1:%d" % (
+        "up" if server_answers() else "down", paths.port()))
+    lim = limits.limit_record()
+    if lim:
+        print("allowance: GONE until %s — '%s' has nothing left to spend here"
+              % (time.strftime("%H:%M", time.localtime(lim["until"])),
+                 lim.get("agent") or "the tutor"))
+    xn = egress.exit_node()
+    if xn:
+        print("exit node: %s  (every request a tutor makes leaves from there)"
+              % xn["name"])
+        print("egress:   %s" % ("reachable" if egress.egress_ok()
+                                else "NOT REACHABLE — board egress --repair"))
+    v4, tsname = ts_info()
+    print("tailnet:  %s  (this machine calls itself '%s')"
+          % (tsname or "not linked", tailscale.tailnet_hostname()))
+    # Not fatal: brew upkeep is setup's machine job (scripts/brew-upgrade.py).
+    from tutorboard import brewcare
+    said = brewcare.summary()
+    if said is not None:
+        print("brew:     %s" % said)
+    # The tools neither brew nor mise keeps current, the mise pins behind and
+    # whatever a deleted subject left installed (scripts/tools.sh, toolplan).
+    print("tools:    %s" % brewcare.tools_doctor())
+    for line in brewcare.lines():
+        if line.startswith("tools: "):
+            print("          %s" % line)
+
+    # --- and the half of the machine that actually teaches -------------------
+    print()
+    return tutor_health() and ok
+
+
+def tutor_health():
+    """Who teaches on this machine, and can they. Printed; True if they can.
+    Read off `recipes.listing`: files only, no provider is asked."""
+    table = assistants.listing()
+    if not table:
+        print("teaching: unknown -- the provider table could not be built")
+        return False
+    print("teaching: provider '%s', fallback '%s'"
+          % (table.get("default"), table.get("fallback") or "none"))
+    if not table.get("machine"):
+        print("          NOBODY can take a turn: %s" % table.get("why"))
+        return False
+    if table.get("why"):
+        print("          %s" % table["why"])
+    return True
+
+
+def cmd_pull(live, args):
+    """board pull [--quiet] [--atlas <dir>]
+    board pull --materials [<subject>...] [--atlas <dir>]
+
+    Fast-forward Atlas (`gitops.pull`), and the vendor checkouts with it when
+    the pull moved a vendor pointer, then name every subject whose lockfile it
+    moved (`gitops.lockfiles_moved`), even with --quiet, since
+    `scripts/setup.sh` must rebuild those. Then fast-forward ai-config now and
+    relink it if it moved (`gitops.sync_private`), because Atlas's pull never
+    moves it. Refused during a rebase, merge or on a detached HEAD. Exit 1 when
+    either pull was refused or failed; 0 when they ran or there is no origin
+    to pull from. The board server's cluster thread pulls on its own; this is
+    the by-hand one, and a coding laptop's only one.
+
+    --materials pulls no git. It copies the Mac mini's ignored inputs
+    (`materials/`, textbooks, readings, lectures, assignments) over SSH from
+    config.json `host`, for every subject or the ones named
+    (`tutorboard.materials`), and refuses plainly when `host` is unset.
+    """
+    base = _flag_value(args, "--atlas") or subjects.root()
+    if "--materials" in args:
+        from tutorboard import materials
+        rest, skip = [], False
+        for a in args:
+            if skip:
+                skip = False
+            elif a == "--atlas":
+                skip = True
+            elif not a.startswith("-"):
+                rest.append(a)
+        return materials.pull(base, rest)
+    _, before = gitops._git(base, "rev-parse", "HEAD")
+    got = gitops.pull(base, quiet="--quiet" in args)
+    if got is None and "--quiet" not in args:
+        print("nothing to pull: %s has no origin" % base)
+    if got:
+        _, after = gitops._git(base, "rev-parse", "HEAD")
+        moved = gitops.lockfiles_moved(base, before, after)
+        if moved:
+            print("  lockfiles moved in %s; rebuild with: bash scripts/setup.sh"
+                  % ", ".join(moved))
+    private = gitops.sync_private(base, paths.STATE_DIR, every=0, say=print)
+    if private and private["pulled"] is None and "--quiet" not in args:
+        print("nothing to pull: %s has no origin"
+              % os.path.join(base, gitops.AI_CONFIG))
+    return 1 if got is False or (private and private["pulled"] is False) else 0
+
+
+def cmd_cost(live, args):
+    """What the turns on this machine cost, read from every session's
+    `cost.jsonl` under the Atlas root's `sessions/`.
+
+        board cost                     every session that billed, one line each
+        board cost <session id>        one session, in total
+        board cost <subject>           every session bound to it, one line each
+        board cost <directory>         one directory's own cost.jsonl
+        board cost <...> --turns       every turn, oldest first
+
+    `--atlas <dir>` reads another tree's sessions. The report is
+    `usage.cost_report` and `usage.cost_all`.
+    """
+    from tutorboard.agents import recipes, usage
+    cfg = recipes.load_config()
+    base = _flag_value(args, "--atlas") or subjects.root()
+    if "--atlas" in args:
+        n = args.index("--atlas")
+        args = args[:n] + args[n + 2:]
+    rows = []
+    for rec in sessions.all(base):
+        where = sessions.path(rec.get("id"), base)
+        if where:
+            rows.append({"dir": "%s %s" % (rec["id"], rec.get("subject") or "unbound"),
+                         "root": where, "id": rec["id"],
+                         "subject": rec.get("subject") or ""})
+    rest = [a for a in args if not a.startswith("--")]
+    turns = "--turns" in args
+    if not rest:
+        if turns:
+            for r in rows:
+                if usage.read_costs(r["root"]):
+                    usage.cost_report(cfg, r, per_turn=True)
+            return 0
+        return usage.cost_all(cfg, rows)
+    if os.path.isdir(rest[0]) and usage.read_costs(rest[0]):
+        where = os.path.abspath(rest[0])
+        return usage.cost_report(cfg, {"dir": os.path.basename(where), "root": where},
+                                 per_turn=turns)
+    want = rest[0].strip("/")
+    pick = [r for r in rows if r["id"] == want]
+    if not pick:
+        pick = [r for r in rows if r["subject"] and (
+            r["subject"] == want or r["subject"].split("/")[-1].lower() == want.lower())]
+    if not pick:
+        print("board cost: no session or subject %r under %s" % (rest[0], base),
+              file=sys.stderr)
+        return 1
+    if len(pick) == 1 or turns:
+        for r in pick:
+            usage.cost_report(cfg, r, per_turn=turns)
+        return 0
+    return usage.cost_all(cfg, pick)
+
+
+def cmd_code(live, args):
+    """A coding session at the cluster: `board code --help`. Run as `board
+    code ...` it never gets here; this is for a caller holding COMMANDS."""
+    from tutorboard import code as coding
+    return coding.main(args)
+
+
+# ---------------------------------------------------------------------------
+COMMANDS = {
+    "status": cmd_status, "pull": cmd_pull, "cost": cmd_cost,
+    "next": cmd_next, "write": cmd_write,
+    "inbox": cmd_inbox,
+    "doctor": cmd_doctor, "slate": cmd_slate, "check": cmd_check,
+    "vpn": cmd_vpn, "init": cmd_init, "eyes": cmd_eyes, "build": cmd_build,
+    "see": cmd_see,
+    "finish": cmd_finish, "push": cmd_push, "history": cmd_history,
+    "writeup": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
+    "egress": cmd_egress, "limit": cmd_limit,
+    "brief": cmd_brief, "memo": cmd_memo,
+    "job": cmd_job, "diagnose": cmd_job,
+    "ask-cluster": cmd_ask_cluster,
+    "colibri": cmd_colibri, "libr-ai": cmd_libr_ai, "code": cmd_code,
+    "meeting": cmd_meeting,
+    "deckfig": cmd_deckfig,
+    "round": cmd_round, "textbook": cmd_textbook,
+    "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
+    "open": cmd_open,
+}
+
+# Retired commands, refused by name with what replaced each.
+GONE = {
+    "hold": "replaced by `board code` (T38)",
+    "send": "replaced by `board code` (T38)",
+    "release": "replaced by `board code` (T38)",
+    "coach": "replaced by `board code` (T38)",
+    "handoff": "replaced by `board memo <section>`: TUTOR.md is the continuity",
+    "direction": "gone: the owner's standing rules are the subject's RULES.md",
+}
+
+# Commands about a path they are given: no `live/` is made for them.
+NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
+           "pull", "cost", "doctor", "vpn", "egress", "limit", "ask-cluster")
+# Commands that touch only the subject: outside a session they run on a
+# sessionless Repo. Every other command refuses without a session.
+SUBJECT_ONLY = ("check", "init", "see", "job", "diagnose", "colibri", "libr-ai", "meeting",
+                "deckfig", "memo")
+
+
+def help_for(cmd, fn):
+    """What one command is for, off its own docstring."""
+    said = (fn.__doc__ or "").strip()
+    if not said:
+        print("board %s -- no help is written for this one. `board help` lists "
+              "every command." % cmd)
+        return 0
+    print("board %s\n\n%s" % (cmd, said))
+    return 0
+
+
+def main(argv):
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        print(__doc__.strip())
+        return 0
+    cmd = argv[0]
+    rest = argv[1:]
+    root = None
+    if "--repo" in rest:
+        n = rest.index("--repo")
+        root = rest[n + 1]
+        rest = rest[:n] + rest[n + 2:]
+    fn = COMMANDS.get(cmd)
+    if not fn and cmd in GONE:
+        print("board %s: %s" % (cmd, GONE[cmd]), file=sys.stderr)
+        return 2
+    if not fn:
+        print("unknown command: %s (try: board help)" % cmd, file=sys.stderr)
+        return 1
+    # Help in the first position is answered before anything else, because
+    # `board write --help` would otherwise write a blank card with no undo.
+    # Only the first position: later it may be an option's value.
+    if rest and rest[0] in ("-h", "--help", "help"):
+        return help_for(cmd, fn)
+    if cmd in NO_LIVE:
+        return fn(None, rest)
+    live = course_repo.resolve(root, create=False,
+                               need_session=cmd not in SUBJECT_ONLY)
+    if not live.sessionless:
+        live.ensure_dirs(cli=True)
+    return fn(live, rest)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

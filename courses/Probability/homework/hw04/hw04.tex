@@ -1,0 +1,110 @@
+% ===========================================================================
+%  Homework 04
+%
+%  A write-up: one problem environment per question, and beneath it a marked
+%  solution region holding the agreed argument. `board writeup add <label>`
+%  writes both and rebuilds the PDF; a region stays empty until its answer is
+%  agreed. Code goes in verbatim, so nothing here needs shell-escape.
+% ===========================================================================
+\documentclass[11pt]{article}
+% The subject's own preamble when it has one (`latex/coursemacros.sty`, on
+% TEXINPUTS through `board build`), else a plain one.
+\IfFileExists{coursemacros.sty}{\usepackage{coursemacros}}{%
+  \usepackage{amsmath}\usepackage{amssymb}\usepackage{amsthm}%
+  \usepackage[margin=1in]{geometry}\usepackage{graphicx}}
+% The board's macro vocabulary, every one a \providecommand, so a card's
+% notation typesets here too and the subject's definitions still win.
+\IfFileExists{board-macros.tex}{\input{board-macros.tex}}{}
+\ifdefined\problem\else
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\fi
+\ifdefined\solution\else
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\fi
+\providecommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Homework 04}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per question, in the order the sheet or the
+% session posed them.
+
+\begin{problem}{2}
+Whether or not it rains today depends on the weather of the last three days. Show how this system can be analyzed as a Markov chain. How many states are needed?
+\end{problem}
+% ===== SOLUTION 2 =====
+Write the weather day by day, for instance rain, sun, rain, sun, sun. Combine the last three days into a single state. Each day is rain or sun, so there are $2^3 = 8$ possible states.
+% ===== END SOLUTION 2 =====
+
+\begin{problem}{3}
+In Exercise 2, suppose that if it has rained for the past three days, then it will rain today with probability 0.8; if it did not rain for any of the past three days, then it will rain today with probability 0.2; and in any other case the weather today will, with probability 0.6, be the same as the weather yesterday. Determine $P$ for this Markov chain.
+\end{problem}
+% ===== SOLUTION 3 =====
+Label the eight states, oldest day first, and index them $0$ to $7$ in that order:
+
+$$\begin{gathered} 0:(S,S,S),\quad 1:(S,S,R),\quad 2:(S,R,S),\quad 3:(S,R,R), \\ 4:(R,S,S),\quad 5:(R,S,R),\quad 6:(R,R,S),\quad 7:(R,R,R). \end{gathered}$$
+
+Then
+
+$$P = \begin{pmatrix}
+.8 & .2 & 0 & 0 & 0 & 0 & 0 & 0 \\
+0 & 0 & .4 & .6 & 0 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 & .6 & .4 & 0 & 0 \\
+0 & 0 & 0 & 0 & 0 & 0 & .4 & .6 \\
+.6 & .4 & 0 & 0 & 0 & 0 & 0 & 0 \\
+0 & 0 & .4 & .6 & 0 & 0 & 0 & 0 \\
+0 & 0 & 0 & 0 & .6 & .4 & 0 & 0 \\
+0 & 0 & 0 & 0 & 0 & 0 & .2 & .8
+\end{pmatrix}.$$
+% ===== END SOLUTION 3 =====
+
+\begin{problem}{5}
+A Markov chain $\{X_n,\ n\ge 0\}$ with states $0,1,2$ has transition probability matrix
+
+$$P=\begin{pmatrix} \tfrac12 & \tfrac13 & \tfrac16 \\[2pt] 0 & \tfrac13 & \tfrac23 \\[2pt] \tfrac12 & 0 & \tfrac12 \end{pmatrix}, \qquad p=\left(\tfrac14,\ \tfrac14,\ \tfrac12\right),$$
+
+where $p$ is the initial distribution, the third entry following from $P\{X_0=0\}=P\{X_0=1\}=\tfrac14$. Find $E[X_3]$.
+\end{problem}
+% ===== SOLUTION 5 =====
+Every row of $P$ sums to $1$, so $P$ is a transition matrix and $p$ is a distribution. The distribution of $X_3$ is $pP^3$: a $1\times n$ vector times an $n\times n$ matrix three times, which gives a $1\times n$ vector again.
+
+$$P^2 = \begin{pmatrix} \tfrac13 & \tfrac5{18} & \tfrac7{18} \\[2pt] \tfrac13 & \tfrac19 & \tfrac59 \\[2pt] \tfrac12 & \tfrac16 & \tfrac13 \end{pmatrix}, \qquad
+P^3 = \begin{pmatrix} \tfrac{13}{36} & \tfrac{11}{54} & \tfrac{47}{108} \\[2pt] \tfrac49 & \tfrac4{27} & \tfrac{11}{27} \\[2pt] \tfrac5{12} & \tfrac29 & \tfrac{13}{36} \end{pmatrix}.$$
+
+Then
+
+$$pP^3 = \left(\tfrac{59}{144},\ \tfrac{43}{216},\ \tfrac{169}{432}\right),$$
+
+whose entries sum to $1$, and for a state taking the value $j$ with probability $P\{X_3=j\}$,
+
+$$E[X_3] = P\{X_3=1\} + 2P\{X_3=2\} = \tfrac{43}{216} + 2\cdot\tfrac{169}{432} = \tfrac{53}{54}.$$
+% ===== END SOLUTION 5 =====
+
+\begin{problem}{14}
+Specify the classes of the following Markov chains, and determine whether they are transient or recurrent:
+
+$$\mathbf{P}_1=\begin{pmatrix}0&\tfrac12&\tfrac12\\[2pt]\tfrac12&0&\tfrac12\\[2pt]\tfrac12&\tfrac12&0\end{pmatrix},\qquad
+\mathbf{P}_2=\begin{pmatrix}0&0&0&1\\[2pt]0&0&0&1\\[2pt]\tfrac12&\tfrac12&0&0\\[2pt]0&0&1&0\end{pmatrix},$$
+
+$$\mathbf{P}_3=\begin{pmatrix}\tfrac12&0&\tfrac12&0&0\\[2pt]\tfrac14&\tfrac12&\tfrac14&0&0\\[2pt]\tfrac12&0&\tfrac12&0&0\\[2pt]0&0&0&\tfrac12&\tfrac12\\[2pt]0&0&0&\tfrac12&\tfrac12\end{pmatrix},\qquad
+\mathbf{P}_4=\begin{pmatrix}\tfrac14&\tfrac34&0&0&0\\[2pt]\tfrac12&\tfrac12&0&0&0\\[2pt]0&0&1&0&0\\[2pt]0&0&\tfrac13&\tfrac23&0\\[2pt]1&0&0&0&0\end{pmatrix}.$$
+\end{problem}
+% ===== SOLUTION 14 =====
+For $\mathbf{P}_1$ the class is $\{0,1,2\}$, and all its states are recurrent.
+
+For $\mathbf{P}_2$ the class is $\{0,1,2,3\}$, and all its states are recurrent.
+
+For $\mathbf{P}_3$ the classes are $\{0,2\}$ and $\{3,4\}$, both recurrent, and $\{1\}$, transient.
+
+For $\mathbf{P}_4$ the classes are $\{0,1\}$ and $\{2\}$, both recurrent, and $\{3\}$ and $\{4\}$, both transient. State $2$ is recurrent because when you are in it you will always return to it.
+% ===== END SOLUTION 14 =====
+
+\end{document}

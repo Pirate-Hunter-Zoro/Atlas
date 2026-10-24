@@ -1,0 +1,12 @@
+{
+  "env": {
+    "QUESTION": "curve"
+  },
+  "export": [],
+  "filed": 1791269506.144,
+  "id": "2026-10-06-knn-across-embedders-paper1-round2-questions",
+  "kind": "recipe",
+  "produces": [],
+  "recipe": "slurm_jobs/review/paper1_round2_questions.sbatch",
+  "thread": "knn-across-embedders"
+}

@@ -1,0 +1,124 @@
+% ===========================================================================
+%  coursemacros.sty — shared preamble for the probability coursework repo
+%
+%  Loaded by every notes and homework file:   \usepackage{coursemacros}
+%  Conventions follow Ross, "Introduction to Probability Models", 10th ed.
+% ===========================================================================
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{coursemacros}[2026/08/24 probability coursework macros]
+
+% --- core mathematics ------------------------------------------------------
+\RequirePackage{amsmath}
+\RequirePackage{amssymb}
+\RequirePackage{amsthm}
+\RequirePackage{mathtools}
+
+% --- layout ----------------------------------------------------------------
+\RequirePackage[margin=1in]{geometry}
+\RequirePackage{enumitem}
+\RequirePackage{fancyhdr}
+\RequirePackage{microtype}
+\RequirePackage{booktabs}
+\RequirePackage[dvipsnames]{xcolor}
+\RequirePackage{graphicx}
+\RequirePackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,automata}
+\RequirePackage[colorlinks=true,linkcolor=BrickRed,citecolor=BrickRed,urlcolor=NavyBlue]{hyperref}
+
+% --- theorem environments --------------------------------------------------
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}[theorem]{Exercise}
+
+\theoremstyle{remark}
+\newtheorem*{remark}{Remark}
+\newtheorem*{note}{Note}
+
+\newtheoremstyle{booknum}{\topsep}{\topsep}{\itshape}{}{\bfseries}{.}{ }{}
+\theoremstyle{booknum}
+\newtheorem*{booktheoremstar}{Theorem}
+\newenvironment{booktheorem}[1]
+  {\begin{booktheoremstar}[Ross #1]}{\end{booktheoremstar}}
+
+% --- problem / solution ----------------------------------------------------
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+
+% --- number systems --------------------------------------------------------
+\newcommand{\NN}{\mathbb{N}}
+\newcommand{\ZZ}{\mathbb{Z}}
+\newcommand{\QQ}{\mathbb{Q}}
+\newcommand{\RR}{\mathbb{R}}
+
+% --- probability primitives ------------------------------------------------
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\PR}[1]{\Prob\!\left(#1\right)}
+\newcommand{\PRc}[2]{\Prob\!\left(#1 \,\middle|\, #2\right)}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\EE}[1]{\E\!\left[#1\right]}
+\newcommand{\EEc}[2]{\E\!\left[#1 \,\middle|\, #2\right]}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\Corr}{Corr}
+\newcommand{\Varc}[2]{\Var\!\left(#1 \,\middle|\, #2\right)}
+\newcommand{\ind}[1]{\mathbf{1}\!\left\{#1\right\}}
+\newcommand{\given}{\,\middle|\,}
+\newcommand{\indep}{\perp\!\!\!\perp}
+\newcommand{\dist}{\sim}
+\newcommand{\iid}{\overset{\text{iid}}{\sim}}
+\newcommand{\convd}{\xrightarrow{\ d\ }}
+\newcommand{\convp}{\xrightarrow{\ p\ }}
+\newcommand{\convas}{\xrightarrow{\text{a.s.}}}
+
+% --- named distributions ---------------------------------------------------
+\newcommand{\Bern}[1]{\mathrm{Bernoulli}(#1)}
+\newcommand{\Bin}[2]{\mathrm{Binomial}(#1,#2)}
+\newcommand{\Poisson}[1]{\mathrm{Poisson}(#1)}
+\newcommand{\Geom}[1]{\mathrm{Geometric}(#1)}
+\newcommand{\NegBin}[2]{\mathrm{NegBin}(#1,#2)}
+\newcommand{\Unif}[2]{\mathrm{Uniform}(#1,#2)}
+\newcommand{\Expo}[1]{\mathrm{Exponential}(#1)}
+\newcommand{\Gam}[2]{\mathrm{Gamma}(#1,#2)}
+\newcommand{\Normal}[2]{\mathcal{N}\!\left(#1,#2\right)}
+\newcommand{\Multinom}[2]{\mathrm{Multinomial}(#1,#2)}
+
+% --- transforms ------------------------------------------------------------
+\newcommand{\mgf}[1]{\phi_{#1}}          % Ross writes the mgf as phi
+\newcommand{\pgf}[1]{G_{#1}}
+\newcommand{\Laplace}[1]{\widetilde{#1}}
+
+% --- stochastic processes --------------------------------------------------
+\newcommand{\process}[2]{\left\{#1(t),\ t \ge #2\right\}}
+\newcommand{\Pij}[2]{P_{#1#2}}           % one-step transition probability
+\newcommand{\Pijn}[3]{P^{(#3)}_{#1#2}}   % n-step transition probability
+\newcommand{\statespace}{\mathcal{S}}
+\newcommand{\hittime}[1]{T_{#1}}
+\DeclareMathOperator{\lcm}{lcm}
+
+% --- odds and ends ---------------------------------------------------------
+\newcommand{\set}[1]{\left\{#1\right\}}
+\newcommand{\setst}[2]{\left\{#1 \;\middle|\; #2\right\}}
+\newcommand{\abs}[1]{\left|#1\right|}
+\newcommand{\diff}[2]{\frac{d#1}{d#2}}
+\newcommand{\pdiff}[2]{\frac{\partial#1}{\partial#2}}
+\newcommand{\todo}[1]{\textcolor{BrickRed}{\textbf{[TODO: #1]}}}
+
+% --- header/footer ---------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\endinput

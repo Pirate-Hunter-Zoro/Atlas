@@ -1,0 +1,20 @@
+{
+  "env": {},
+  "export": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png"
+  ],
+  "filed": 1791269496.337,
+  "id": "2026-10-06-consistency-pass-redraw-cosine-check",
+  "kind": "recipe",
+  "produces": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/bge-en-icl/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-4B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png",
+    "results/Qwen-Qwen3-Embedding-8B/google_medgemma-27b-text-it/cosine_score_random_vs_neighbor.png"
+  ],
+  "recipe": "slurm_jobs/quick_runs/redraw_cosine_check.sbatch",
+  "thread": "consistency-pass"
+}

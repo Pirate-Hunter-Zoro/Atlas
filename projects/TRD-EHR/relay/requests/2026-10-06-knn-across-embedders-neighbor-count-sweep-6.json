@@ -1,0 +1,17 @@
+{
+  "env": {
+    "EMBEDDER": "bge-en-icl",
+    "REDRAW": "1"
+  },
+  "export": [
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
+  ],
+  "filed": 1791270442.729,
+  "id": "2026-10-06-knn-across-embedders-neighbor-count-sweep-6",
+  "kind": "recipe",
+  "produces": [
+    "results/bge-en-icl/google_medgemma-27b-text-it/neighbor_count_sweep/neighbor_count_sweep_manuscript.png"
+  ],
+  "recipe": "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
+  "thread": "knn-across-embedders"
+}

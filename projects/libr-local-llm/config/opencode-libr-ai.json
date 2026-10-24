@@ -1,0 +1,44 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "enabled_providers": ["libr-ai"],
+  "model": "libr-ai/gpt-oss:120b",
+  "default_agent": "libr-ai",
+  "permission": {
+    "webfetch": "deny",
+    "websearch": "deny"
+  },
+  "provider": {
+    "libr-ai": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LIBR AI (IT's Open WebUI)",
+      "options": {
+        "baseURL": "https://ai.laureateinstitute.org/api",
+        "apiKey": "{file:~/.config/libr-ai/key}"
+      },
+      "models": {
+        "gpt-oss:120b": {
+          "name": "GPT-OSS 120B (IT DGX Spark)",
+          "limit": { "context": 131072, "output": 32768 }
+        },
+        "gpt-oss:20b": {
+          "name": "GPT-OSS 20B (IT DGX Spark)",
+          "limit": { "context": 131072, "output": 32768 }
+        }
+      }
+    }
+  },
+  "agent": {
+    "libr-ai": {
+      "mode": "primary",
+      "description": "GPT-OSS on IT's server. Non-PHI work only.",
+      "model": "libr-ai/gpt-oss:120b"
+    },
+    "coder": {
+      "model": "libr-ai/gpt-oss:120b",
+      "permission": {
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+    "logistic_regression": {
+        "roc_score": 0.6600447286327693,
+        "auprc": 0.30582187018357654,
+        "brier_score": 0.13666374514248827,
+        "weighted_calibration_error": 0.007759836012665573,
+        "calibration_slope": 1.06589562033563,
+        "calibration_intercept": -0.022362202564149336,
+        "proportion_risk_score_<0.1": 0.20819633630812587,
+        "proportion_risk_score_>0.9": 0.0,
+        "best_parameters": {
+            "model__C": "0.001",
+            "model__penalty": "l2",
+            "model__solver": "lbfgs"
+        }
+    },
+    "xgboost": {
+        "roc_score": 0.6376960696563723,
+        "auprc": 0.2817960538974588,
+        "brier_score": 0.13867052357817575,
+        "weighted_calibration_error": 0.005522269291909099,
+        "calibration_slope": 1.6360056400299072,
+        "calibration_intercept": -0.1275501251220703,
+        "proportion_risk_score_<0.1": 0.09675904363393784,
+        "proportion_risk_score_>0.9": 0.0,
+        "best_parameters": {
+            "model__learning_rate": "0.01",
+            "model__max_depth": "5",
+            "model__n_estimators": "300",
+            "model__subsample": "0.5"
+        }
+    }
+}

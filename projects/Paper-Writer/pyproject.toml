@@ -1,0 +1,17 @@
+# Paper-Writer is standard library only, its tests included (README: Python 3.9 or
+# newer). This file is here so the workspace's check runs the same way as every
+# other workspace's -- `uv run` in its own .venv/ -- and so a dependency, the day
+# one is added, has one place to go. No extras: nothing is GPU, nothing is a test
+# framework beyond unittest.
+[project]
+name = "paper-writer"
+version = "0.0.0"
+requires-python = ">=3.9"
+dependencies = []
+
+[tool.uv]
+package = false
+environments = [
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+]

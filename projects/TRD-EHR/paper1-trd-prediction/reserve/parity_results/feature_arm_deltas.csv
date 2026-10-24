@@ -1,0 +1,3 @@
+contrast,model,published_roc,parity_roc,delta_roc,delta_ci_low,delta_ci_high,excludes_zero
+feature_vitals_vs_published_feature,logistic_regression,0.6288482973761907,0.6432303906475627,0.014382093271371965,0.009302936540982609,0.020361607662181844,True
+feature_vitals_vs_published_feature,xgboost,0.6492070334223609,0.6513557262913185,0.002148692868957691,-0.001576661751875033,0.005787014612769431,False

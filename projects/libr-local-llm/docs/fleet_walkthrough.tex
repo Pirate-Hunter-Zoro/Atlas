@@ -1,0 +1,620 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{Boadilla}
+\usecolortheme{seahorse}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,backgrounds}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{itemize items}[circle]
+
+\newcommand{\keybox}[1]{%
+  \begin{center}
+  \colorbox{black!8}{\parbox{0.92\textwidth}{\centering #1}}
+  \end{center}}
+\newcommand{\goodbox}[1]{%
+  \begin{center}
+  \colorbox{green!12}{\parbox{0.92\textwidth}{\centering #1}}
+  \end{center}}
+
+\title{A Private AI Assistant For The Lab}
+\subtitle{What we can build, how fast it will feel, and what it will cost}
+\author{\texttt{libr-local-llm}}
+\date{}
+
+\begin{document}
+
+\frame{\titlepage}
+
+%----------------------------------------------------------
+\begin{frame}{The idea, in one sentence}
+
+\goodbox{\large Put an AI assistant \textbf{on the lab's own computers}, so several people can use
+it at once --- and so it is allowed to read patient data, which no outside service ever will be.}
+
+\vspace{1.0em}
+\begin{columns}[T]
+\begin{column}{0.47\textwidth}
+{\large\textbf{Today}}\\[0.4em]
+{\small You use Claude. It is excellent and fast. But every word you send leaves the building, so
+it can never touch a patient recording or transcript.}
+\end{column}
+\begin{column}{0.47\textwidth}
+{\large\textbf{What this would add}}\\[0.4em]
+{\small An assistant living on our own machines. A bit slower. Not quite as clever. But it can look
+at the actual data, because nothing ever leaves.}
+\end{column}
+\end{columns}
+
+\vspace{1.0em}
+\keybox{This is \textbf{not} a replacement for Claude. It is a second tool that can go where Claude
+is not allowed to go.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{First, the one idea everything else depends on}
+
+\keybox{\textbf{The model is not one brain. It is about 19,000 narrow specialists.}\\[0.3em]
+One knows about Python. One knows about Italian grammar. One knows about chemistry names. Nobody
+knows everything.}
+
+\vspace{0.5em}
+{\small To write each word, the model picks the handful of specialists that word needs and
+\textbf{reads their notes}. Reading the notes is the work; everything else is quick. So the design
+question is: \emph{where do we keep 19,000 sets of notes?}}
+
+\begin{center}
+\begin{tikzpicture}[font=\small]
+\node[draw=green!45!black, thick, fill=green!14, rounded corners, minimum width=3.4cm,
+      minimum height=1.4cm, align=center] (a) at (0,0) {\textbf{instant}\\graphics card};
+\node[draw=blue!55!black, thick, fill=blue!12, rounded corners, minimum width=3.4cm,
+      minimum height=1.4cm, align=center] (b) at (4.4,0) {\textbf{fast}\\main memory};
+\node[draw=black!45, fill=black!6, rounded corners, minimum width=3.4cm,
+      minimum height=1.4cm, align=center] (c) at (8.8,0) {\textbf{very slow}\\shared storage};
+\node[font=\scriptsize, text=black!60, below=2pt of a] {only a few fit};
+\node[font=\scriptsize, text=black!60, below=2pt of b] {\textbf{all 19,000 fit}};
+\node[font=\scriptsize, text=black!60, below=2pt of c] {we avoid this};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.4em}
+\goodbox{\small \textbf{The reason this project is possible at all:} our machines have enough main
+memory to hold \emph{every one} of the 19,000 sets of notes. The assistant never has to go to slow
+storage while it is answering you.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{Why it is slow: 600 specialists consulted, per word}
+
+Writing one word is not one lookup. The model works through the question in \textbf{75 rounds}, and
+in each round it consults \textbf{8} specialists.
+
+\vspace{0.6em}
+\keybox{\Large 75 rounds $\times$ 8 specialists = \textbf{600 sets of notes read,\\for every single
+word.}}
+
+\vspace{0.8em}
+That is the entire speed problem, and no clever engineering removes it. \textbf{Reading notes is the
+work.} We can keep the notes somewhere faster --- that is what the previous slide was about --- but
+we cannot read fewer of them.
+
+\vspace{0.7em}
+{\small And reading is only \emph{half} the job. The other half is the thinking the model does once
+it has the notes in front of it. So even if reading were free, we would only be about \textbf{twice}
+as fast. Worth knowing before anyone promises ten times.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{This is the \emph{giant} model's problem}
+
+\keybox{\large You still have to read \textbf{everybody's} notes.\\[0.3em]
+Working together would only avoid slowing anyone down if you all wanted the \textbf{same} notes ---
+and you never do.}
+
+\vspace{0.5em}
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lc@{}}
+\toprule
+\textbf{Asking the giant model} & \textbf{your wait for a page} \\
+\midrule
+alone & about 1 minute \\
+with 3 colleagues also asking & about 2--3 minutes \\
+\textbf{with 7 colleagues also asking} & \textbf{about 5 minutes} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+{\small Measured, not estimated. The group does get through about \textbf{1.7 times} more work than
+taking turns --- but that small gain is split eight ways while your own answer arrives \textbf{five
+times later}.}
+
+\vspace{0.4em}
+\goodbox{\textbf{So the giant model is a one-at-a-time resource.} It is not the thing a crowd
+should be talking to. \textbf{The next slide is why a smaller model escapes this entirely.}}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{Why a smaller model escapes it --- so: more than one helper}
+
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}p{0.19\textwidth}p{0.33\textwidth}p{0.38\textwidth}@{}}
+\toprule
+& \textbf{the giant model} & \textbf{the everyday helper} \\
+\midrule
+notes kept & in ordinary memory & \textbf{on the graphics cards} \\
+reading them & \textbf{slow} --- this is the bottleneck & almost instant \\
+so the slow part is & \textbf{fetching notes} & \textbf{thinking} \\
+does sharing help? & \textbf{no} --- everyone needs different notes & \textbf{yes} --- one machine can do eight people's thinking at once far more cheaply than eight times over \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.4em}
+\keybox{\small \textbf{That is the whole reason for building two.} Fetching cannot be shared;
+thinking can. Make the model small enough that fetching stops being the problem, and a crowd
+suddenly costs almost nothing.}
+
+\vspace{0.4em}
+\begin{center}
+\resizebox{0.95\textwidth}{!}{%
+\begin{tikzpicture}[font=\small, >={Stealth[length=2.5mm]}]
+\node[draw=black!40, fill=black!7, rounded corners, minimum width=2.4cm, minimum height=1.2cm,
+      align=center] (u) at (0,0) {\textbf{you}};
+\node[draw=blue!55!black, very thick, fill=blue!12, rounded corners, minimum width=5.4cm,
+      minimum height=1.2cm, align=center] (a) at (7.0,0) {\textbf{THE EVERYDAY HELPER}\\\emph{everyone at once}};
+\node[draw=green!45!black, very thick, fill=green!14, rounded corners, minimum width=5.4cm,
+      minimum height=1.2cm, align=center] (b) at (15.4,0) {\textbf{THE SPECIALIST}\\\emph{one at a time}};
+\draw[->, very thick] (u) -- node[font=\scriptsize, above] {you talk to} (a);
+\draw[->, very thick, green!45!black] (a) -- node[font=\scriptsize, above] {it consults} (b);
+\end{tikzpicture}}
+\end{center}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{What we actually have to work with}
+
+\begin{center}
+\resizebox{0.98\textwidth}{!}{%
+\begin{tikzpicture}[font=\small,
+  nd/.style={draw=black!45, rounded corners=3pt, fill=black!4, minimum width=2.4cm,
+             minimum height=2.5cm, align=center},
+  g/.style={draw=black!55, fill=white, rounded corners=1.5pt, minimum width=0.55cm,
+            minimum height=0.55cm, inner sep=0pt, font=\tiny},
+  lbl/.style={font=\tiny, inner sep=1pt}
+]
+\foreach \i/\x in {0/0, 1/2.7, 2/5.4, 3/8.1, 4/10.8, 5/13.5} {
+  \node[nd] (n\i) at (\x,0) {};
+  \node[lbl, text=black!70] at (\x,1.0) {\textbf{compute30\i}};
+  \node[g, fill=green!25] at (\x,0.15) {};
+  \node[lbl, text=black!55] at (\x,-0.5) {1 graphics card};
+  \node[lbl, text=black!55] at (\x,-0.85) {1 TB memory};
+}
+\node[nd, minimum width=4.0cm, draw=blue!55!black, very thick, fill=blue!8] (n6) at (17.0,0) {};
+\node[lbl, text=blue!45!black] at (17.0,1.0) {\textbf{compute306}};
+\foreach \k/\dx in {0/-0.95, 1/-0.32, 2/0.32, 3/0.95} { \node[g, fill=blue!30] at (17.0+\dx,0.15) {}; }
+\node[lbl, text=black!55] at (17.0,-0.5) {\textbf{4 graphics cards}};
+\node[lbl, text=black!55] at (17.0,-0.85) {1 TB memory};
+\end{tikzpicture}}
+\end{center}
+
+\vspace{0.5em}
+\keybox{\Large \textbf{7 computers. 10 graphics cards. 7 terabytes of memory.}}
+
+\vspace{0.7em}
+{\small \textbf{The everyday helper needs \emph{one} card.} There are ten, so it is effectively never
+without one. A \emph{bigger} version of it needs several cards together, which only compute306 can
+offer --- so that one is a \textbf{bonus when compute306 is quiet}, never the thing the service
+depends on.}
+
+\vspace{0.5em}
+{\small \textbf{A warning about what more cards buy you.} More cards means \emph{more people served
+at once}. It does \textbf{not} make your own answer come back faster. Ten cards and one person is
+exactly as fast as one card and one person.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{Helper 1 --- the everyday one, and why it is always there}
+
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lll@{}}
+\toprule
+& \textbf{the standard version} & \textbf{the bigger version} \\
+\midrule
+needs & \textbf{one graphics card} & several cards \emph{together} \\
+can run on & \textbf{any of the 7 computers} & compute306 only \\
+how often available & \textbf{essentially always} & when compute306 is quiet \\
+how good & good & better \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\keybox{\small \textbf{You always get the best one that is free, and you never choose.} Same
+command, same window. When the bigger one is up you get slightly better answers; when it is not, you
+get the standard one and nothing breaks.}
+
+\vspace{0.5em}
+{\small \textbf{This matters more than it sounds.} While this was being written somebody else was
+using \textbf{one} of compute306's four cards --- enough to stop a four-card-only design from
+starting at all. A helper that needs one card of ten does not have that problem.}
+
+\vspace{0.2em}
+{\small \textbf{Either version serves everybody at once.} If the crowd grows we start more copies
+--- which adds \emph{people}, not speed.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{Helper 2 --- the specialist}
+
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{How big} & \textbf{744 billion} --- the biggest thing we can run at all \\
+\textbf{Where it lives} & one ordinary machine, using most of its memory \\
+\textbf{How many people} & \textbf{one at a time.} Others wait in line \\
+\textbf{How fast} & roughly \textbf{a page of text per minute} \\
+\textbf{What it is for} & the hard question you would otherwise be stuck on \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.7em}
+\keybox{\textbf{One catch worth planning around.} Waking it up means reading 372 gigabytes off the
+shared storage. That takes about \textbf{27 minutes}. So we wake it in the morning and leave it
+awake, rather than starting it on demand.}
+
+\vspace{0.6em}
+{\small It is slow because it is enormous, and it is worth having \emph{because} it is enormous.
+A minute of waiting for a genuinely hard answer is a good trade. A minute of waiting to rename a
+variable is not --- which is exactly why helper 1 exists.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{How good are they, really --- next to Claude}
+
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.12}
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}p{0.33\textwidth}cccc@{}}
+\toprule
+\textbf{What you are asking for}
+ & \textbf{\begin{tabular}{@{}c@{}}standard\\helper\end{tabular}}
+ & \textbf{\begin{tabular}{@{}c@{}}bigger\\helper\end{tabular}}
+ & \textbf{\begin{tabular}{@{}c@{}}the\\specialist\end{tabular}}
+ & \textbf{Claude} \\
+\midrule
+Explain what this code does
+ & \textcolor{green!40!black}{\textbf{close}} & \textcolor{green!40!black}{\textbf{close}}
+ & \textcolor{green!40!black}{\textbf{close}} & yardstick \\
+Write a small function to a spec
+ & \textcolor{green!40!black}{\textbf{close}} & \textcolor{green!40!black}{\textbf{close}}
+ & \textcolor{green!40!black}{\textbf{close}} & yardstick \\
+Find a bug you can point at
+ & \textcolor{orange!70!black}{worse} & \textcolor{green!40!black}{\textbf{close}}
+ & \textcolor{green!40!black}{\textbf{close}} & yardstick \\
+Weigh two designs against each other
+ & \textcolor{orange!70!black}{worse} & \textcolor{orange!70!black}{worse}
+ & \textcolor{green!40!black}{\textbf{close}} & yardstick \\
+Work through a written spec, many files
+ & \textcolor{orange!70!black}{worse} & \textcolor{orange!70!black}{worse}
+ & \textcolor{red!65!black}{\textbf{no}} \tiny{too slow} & yardstick \\
+Stay on track over a long session
+ & \textcolor{orange!70!black}{worse} & \textcolor{orange!70!black}{worse}
+ & \textcolor{red!65!black}{\textbf{no}} & yardstick \\
+Spot something subtle nobody flagged
+ & \textcolor{red!65!black}{\textbf{no}} & \textcolor{orange!70!black}{worse}
+ & \textcolor{orange!70!black}{worse} & yardstick \\
+\textbf{Know when it is wrong}
+ & \textcolor{red!65!black}{\textbf{no}} & \textcolor{red!65!black}{\textbf{no}}
+ & \textcolor{red!65!black}{\textbf{no}} & \textbf{imperfect too} \\
+\midrule
+\emph{a page of text takes} & \emph{20--30 s} & \emph{20--30 s} & \emph{about a minute} & \emph{about 9 s} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.1em}
+\begin{center}{\scriptsize \textcolor{green!40!black}{\textbf{close}} = you would rarely notice
+\quad \textcolor{orange!70!black}{worse} = noticeably, but usable \quad
+\textcolor{red!65!black}{\textbf{no}} = use a different one}\end{center}
+
+\vspace{0.4em}
+\keybox{\scriptsize \textbf{Read the shape, not the cells.} The specialist is the \emph{best} of
+ours at one hard question and the \emph{worst} at a long piece of work --- long work means many
+turns, and it is slow. \textbf{The fast helpers beat it on anything that needs iterating}, which is
+why it is consulted rather than talked to. The last row is the honest one: \textbf{none of them
+reliably knows when it is wrong}, ours least of all. \textbf{Judgement, not measurement} --- Claude
+will run a proper evaluation and replace it with numbers.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{``Can I just write down what I want and let it code?''}
+
+{\small Yes --- with the everyday helper, and with limits worth knowing first.}
+
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\textbf{A moderate coding job, start to finish} & \textbf{How long} & \textbf{Sensible?} \\
+\midrule
+Claude, today & 3--5 minutes & yes \\
+\textbf{the everyday helper} & \textbf{6--12 minutes} & \textbf{yes} \\
+the specialist & about 30 minutes & no --- leave it alone \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\keybox{\small \textbf{Two to four times slower than Claude for the same job.} Write the
+description, start it, go and do something else for ten minutes. A real workflow, not a demo.}
+
+\vspace{0.3em}
+{\scriptsize \textbf{The catch is not about speed.} To edit your files the model fills in a little
+form for each action, and because we run a \emph{compressed} copy it \textbf{sometimes fills the
+form in wrong}. There is a built-in repair for the simple forms --- open a file, run a command ---
+but \textbf{not for the complicated ones}, and ``change this line to that line'' is a complicated
+one.}
+
+\vspace{0.3em}
+\goodbox{\scriptsize \textbf{Start with small, clearly described jobs and check the result.} How
+often it fills the form in wrong is one of the first things we measure --- if it is often, ``hand it
+a spec'' is a demo, and we want to know that early.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{What it looks like to use}
+
+\begin{center}
+\begin{tikzpicture}[font=\small, >={Stealth[length=2.5mm]},
+  st/.style={draw=black!45, fill=black!6, rounded corners, minimum width=3.0cm,
+             minimum height=1.5cm, align=center}]
+\node[st] (a) at (0,0)   {\textbf{1}\\log in to a\\lab computer};
+\node[st] (b) at (3.8,0) {\textbf{2}\\type one word:\\\texttt{\textbf{fleet}}};
+\node[st, draw=green!45!black, fill=green!14] (c) at (7.6,0) {\textbf{3}\\start asking\\questions};
+\draw[->, thick] (a) -- (b); \draw[->, thick] (b) -- (c);
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.5em}
+\keybox{\textbf{That is the whole interface.} One word. No settings, no flags, no remembering which
+helper to ask for. It starts anything that is not already running, waits for it, picks up your last
+conversation in that folder, and opens.}
+
+\vspace{0.7em}
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\texttt{fleet} & \textbf{everything.} This is the one you type \\
+\texttt{fleet status} & is it running? is anyone waiting? \\
+\texttt{fleet down} & switch it off now, rather than letting it idle off \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+{\small \textbf{You never ask for the specialist by name either.} When a question is hard, the
+everyday helper goes and consults it, says so, and comes back with the answer --- the same way you
+would ask a colleague to check something with an expert.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{``Wait --- do we need to pay for an API key?''}
+
+\goodbox{\large \textbf{No.} Nothing is bought, nothing is billed, and no word you type ever
+reaches Anthropic or anyone else outside the building.}
+
+\vspace{0.5em}
+{\small There are two things called a ``key'' here, and only one is real.}
+
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}p{0.26\textwidth}p{0.66\textwidth}@{}}
+\toprule
+\textbf{The fake one} & The Claude software refuses to start unless a certain box has \emph{something}
+in it. So we type the word \texttt{local}. It is not an account, it is not checked by anyone, and it
+never leaves the machine. It is a seatbelt light, not a ticket. \\[0.5em]
+\textbf{The real one} & \textbf{A password of our own}, that we choose, protecting our own
+assistant. This one matters. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+\keybox{\small \textbf{Why a password at all:} these are \textbf{shared} computers. Anyone else
+logged in could otherwise walk up and use our assistant --- spending our share of the lab's
+computing time, and asking it things we would be answerable for.}
+
+\vspace{0.4em}
+{\small \textbf{One specific hazard:} conversations sit in numbered slots. If a stranger picks the
+number you are using, you do not get two conversations --- you get one, tangled together.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{How the machines get shared --- and why nobody gets blocked}
+
+\begin{center}
+\resizebox{0.98\textwidth}{!}{%
+\begin{tikzpicture}[font=\small,
+  nd/.style={rounded corners=3pt, minimum width=2.5cm, minimum height=1.9cm, align=center,
+             draw=black!45},
+  lbl/.style={font=\tiny, inner sep=1pt},
+  tag/.style={font=\scriptsize, align=center}
+]
+% six single-card nodes
+\node[nd, fill=green!16, draw=green!45!black] (n0) at (0,0)    {};
+\node[nd, fill=green!16, draw=green!45!black] (n1) at (2.8,0)  {};
+\node[nd, fill=green!16, draw=green!45!black] (n2) at (5.6,0)  {};
+\node[nd, fill=orange!18, draw=orange!70!black, thick] (n3) at (8.4,0) {};
+\node[nd, fill=black!3,  draw=black!35, dashed] (n4) at (11.2,0) {};
+\node[nd, fill=green!16, draw=green!45!black] (n5) at (14.0,0) {};
+\node[nd, fill=red!12, draw=red!65!black, very thick, minimum width=3.6cm] (n6) at (17.6,0) {};
+
+\foreach \i/\x in {0/0, 1/2.8, 2/5.6, 3/8.4, 4/11.2, 5/14.0} {
+  \node[lbl, text=black!70] at (\x,1.2) {\textbf{compute30\i}};}
+\node[lbl, text=black!70] at (17.6,1.2) {\textbf{compute306} (4 cards)};
+
+\node[tag] at (0,0.15)    {overnight\\paperwork};
+\node[tag] at (2.8,0.15)  {overnight\\paperwork};
+\node[tag] at (5.6,0.15)  {spare\\capacity};
+\node[tag] at (8.4,0.15)  {\textbf{the}\\\textbf{specialist}};
+\node[tag] at (11.2,0.15) {\textbf{ALWAYS}\\\textbf{LEFT FREE}};
+\node[tag] at (14.0,0.15) {overnight\\paperwork};
+\node[tag] at (17.6,0.15) {\textbf{the everyday helper}\\\emph{everyone talks to this}};
+
+\node[lbl, text=green!30!black] at (0,-1.25)    {back in seconds};
+\node[lbl, text=green!30!black] at (2.8,-1.25)  {back in seconds};
+\node[lbl, text=green!30!black] at (5.6,-1.25)  {back in seconds};
+\node[lbl, text=orange!60!black] at (8.4,-1.25) {back in 27 minutes};
+\node[lbl, text=black!50] at (11.2,-1.25)       {never taken};
+\node[lbl, text=green!30!black] at (14.0,-1.25) {back in seconds};
+\node[lbl, text=red!60!black] at (17.6,-1.25)   {back in minutes};
+\end{tikzpicture}}
+\end{center}
+
+\vspace{0.4em}
+\keybox{\textbf{Of ten graphics cards, eight can be handed back within seconds}, because what is
+running on them is paperwork that can be stopped mid-page and picked up later. \textbf{One is never
+taken at all.}}
+
+\vspace{0.5em}
+{\small \textbf{So how does a colleague get a machine?} Two ways, and neither needs them to ask us.
+\textbf{One is already free} --- we always leave one. And if they need more than that, the system
+sees their job waiting, finishes whatever answer is in progress, and hands a machine back on its
+own. Usually within a minute.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{Being a good neighbour}
+
+{\small Everything on the previous slide happens \textbf{by itself}. Nobody negotiates, nobody
+emails, nobody has to remember to switch anything off. \textbf{You do nothing.}}
+
+\vspace{0.4em}
+\vspace{0.5em}
+\keybox{\small \textbf{The subtle one is ``waits''.} Without it the system hands a computer back,
+notices a second later that it is short of computers, and grabs the same one straight back ---
+beating the very colleague it was trying to help. It would look rude while running code written to
+be polite.}
+
+\vspace{0.4em}
+\begin{center}
+\scriptsize
+\begin{tabular}{@{}ll@{}}
+\toprule
+notices a colleague is stuck & \textbf{automatic} \\
+\textbf{finishes the answer you are waiting on first} & \textbf{automatic} --- it never cuts you off mid-sentence \\
+hands the computer back, waits, takes it again later & \textbf{automatic} \\
+switches off when unused, back on when needed & \textbf{automatic} \\
+restarts itself after a crash & \textbf{automatic} \\
+reconnects you when it moves to a different computer & \textbf{automatic} \\
+holds your question while it is starting up & \textbf{automatic} --- you see ``starting'', not an error \\
+\midrule
+\textbf{switch it off right now} & \textbf{the only button you ever press} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{frame}
+
+
+%----------------------------------------------------------
+\begin{frame}{What to expect: six people log in on Monday morning}
+
+\begin{center}
+\scriptsize
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{@{}p{0.36\textwidth}p{0.58\textwidth}@{}}
+\toprule
+\textbf{Question} & \textbf{Honest answer} \\
+\midrule
+Can six people use it at once? & \textbf{Yes.} All six talk to the everyday helper, all at the same
+time, and it is built for exactly that. \\
+How fast for each of them? & \textbf{A page of text in 20--30 seconds.} It does not noticeably slow
+down as colleagues join. \\
+How does that compare to Claude? & Claude does that page in about \textbf{9 seconds}. So: two to
+three times slower. \textbf{Noticeable. Not painful.} \\
+What if two people need the specialist? & They \textbf{queue}. It serves one at a time, about a
+minute a page, so the second person waits about two minutes. \\
+First thing Monday? & The specialist needs \textbf{27 minutes} to wake up. We wake it before people
+arrive. \\
+Will it be as clever as Claude? & \textbf{For everyday work, close.} For long, tangled problems
+across many files --- \textbf{no}, and we should not pretend otherwise. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.3em}
+{\scriptsize Everything above is an estimate built from real measurements on similar machines. The
+first thing we build is the test that replaces these numbers with ours.}
+
+\end{frame}
+
+%----------------------------------------------------------
+\begin{frame}{The bottom line}
+
+\goodbox{\large \textbf{Six people. Their own terminal. A page of text every 20--30
+seconds.\\[0.25em] A genius down the hall for the hard ones.\\[0.25em] And all of it allowed to read
+the data.}}
+
+\vspace{0.7em}
+\begin{columns}[T]
+\begin{column}{0.47\textwidth}
+{\small\textbf{What we are promising}
+\begin{itemize}\small
+\item Everyone can use it at once
+\item Two to three times slower than Claude
+\item Good enough for everyday work
+\item Nothing ever leaves the building
+\item Nobody has to babysit it
+\end{itemize}}
+\end{column}
+\begin{column}{0.47\textwidth}
+{\small\textbf{What we are not promising}
+\begin{itemize}\small
+\item It will not match Claude on hard problems
+\item The specialist serves one person at a time
+\item It uses a real share of the lab's computers
+\item Every number here still needs confirming
+\end{itemize}}
+\end{column}
+\end{columns}
+
+\vspace{0.6em}
+\begin{center}
+\textbf{Slower. Not as clever. Allowed in the room where the data is.}
+
+{\small That last one is the only reason to build it --- and it is enough.}
+\end{center}
+
+\end{frame}
+
+\end{document}

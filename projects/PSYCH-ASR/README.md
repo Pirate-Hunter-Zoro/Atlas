@@ -1,0 +1,1691 @@
+# PSYCH-ASR: Psychotherapy Session ASR, Diarization & Outcome-Linked NLP
+
+> **AI assistants: read [`RULES.md`](./RULES.md) before doing anything.** It holds the
+> data fence and the owner's rules for this repository. What is next is the **Now** section
+> of [`TUTOR.md`](./TUTOR.md).
+
+Feasibility pipeline for **automated transcription and NLP-based characterization of
+early psychotherapy sessions**, with the goal of predicting treatment response and
+estimating therapist fidelity from what is actually said in the room.
+
+Unlike most prior NLP-for-clinical-outcome work — which operates on text-based
+interventions — this project works from **spoken psychotherapy session recordings**.
+The near-term deliverable is feasibility data and reusable data-processing pathways to
+support a grant application (R21, possibly R01) for processing the full set of sessions.
+
+> **On-prem only.** Recordings are identifiable PHI. Every model in this pipeline
+> (ASR, diarization, downstream NLP) runs locally on LIBR compute. No audio, transcript,
+> or derived feature ever leaves the node or is sent to an external API. See
+> [Privacy & Data Handling](#privacy--data-handling).
+>
+> **Conceptual walkthrough of Stage 1.** A slide deck explaining what Stage 1 actually does
+> — a broad tour of what each of the five calls accomplishes, with the input and output
+> stated at every step, a pipeline diagram of how the waveform and the words flow between the
+> three models, and the traps worth knowing (loose Whisper timestamps, why alignment must
+> precede diarization, unlabelled words) — lives at
+> `docs/stage1_pipeline_walkthrough.pdf`, built from the
+> `.tex` beside it. Read it before modifying Stage 1. The five calls it walks through run as
+> `psych_asr.cli.run_asr`, `psych_asr.cli.diarize_pyannote` and
+> `psych_asr.cli.join_speakers`.
+
+---
+
+## Goals
+
+1. Evaluate feasibility and accuracy of **ASR + speaker diarization** on LIBR
+   psychotherapy recordings.
+2. Extract early-session (sessions 1–3) language, interaction, and acoustic features.
+3. Test whether those features predict treatment response **beyond** baseline severity
+   and early symptom change.
+4. Train preliminary models to estimate session- and item-level **therapist fidelity**
+   from transcripts.
+
+The feasibility framing matters: the goal is not a perfect transcript, but the ability to
+**quantify transcript quality** and identify which feature types remain reliable enough to
+use despite ASR/diarization error.
+
+## Pilot design
+
+- Parent trial: ~70/group randomized; ~65–68/group attended ≥1 session.
+- Pilot subset: **N≈20** from one intervention (behavioral activation) — 10 good
+  responders, 10 poor responders.
+- Scope: transcribe/analyze **sessions 1–3** only. Powered for feasibility and pattern
+  detection, not for confirmatory prediction.
+
+---
+
+## Pipeline
+
+```mermaid
+graph LR
+    A[Raw recording .m4a] --> B(Stage 0: Standardize audio<br/>16 kHz mono WAV)
+    B --> C[Stage 1: ASR + alignment<br/>Whisper / WhisperX]
+    B --> D[Stage 1: Diarization<br/>pyannote]
+    C --> E[Word transcript<br/>timestamps + confidence]
+    D --> F[Speaker turn table<br/>start / end / speaker]
+    E --> G(Stage 2: Merge + role assignment<br/>+ human adjudication)
+    F --> G
+    G --> H[Speaker-labeled transcript<br/>therapist vs patient]
+    H --> I1(Stage 3a: Structural)
+    H --> I2(Stage 3b: Acoustic + paralinguistic)
+    B -. raw waveform .-> I2
+    H --> I3(Stage 3c: LLM turn coding<br/>local vLLM)
+    I1 --> J[Session feature table]
+    I2 --> J
+    I3 --> J
+    J --> K(Stage 4: Feasibility modeling<br/>responder vs non-responder)
+```
+
+**Stage 0 — Standardize.** Convert each recording to 16 kHz mono WAV with a consistent
+naming convention. (The pilot session recordings are ~50 min, 32 kHz, mono AAC — a
+single mixed channel, so diarization cannot rely on channel separation.)
+
+**Stage 1 — ASR + Diarization.** `whisper`/`whisperx` for the transcript with word-level
+timestamps and confidence; `pyannote` for speaker turns. WhisperX is the intended glue: it
+runs Whisper, forced-aligns to word-level timestamps, and assigns speakers from pyannote in
+one pass.
+
+**Stage 2 — Human-in-the-loop QC.** Map anonymous `SPEAKER_00/01` labels to
+therapist/patient (machine-proposed from lexical cues, human-confirmed), flag and correct
+mid-session speaker swaps, and adjudicate a corrected reference transcript against the
+audio. The reference is a human artifact; see *The reference transcript* below.
+
+**Stage 3 — Feature extraction**, deliberately split into three lanes that fail
+independently, ordered by how much they depend on the transcript being right:
+
+- **3a Structural** — talk-time ratio, turn counts and lengths, speech rate, silence,
+  turn-taking latency, overlap and interruptions. Computed from timestamps alone, so it
+  survives a mediocre transcript and is the first thing to build.
+- **3b Acoustic / paralinguistic** — per-word prosody (pitch, loudness, duration) read off
+  the raw waveform at the word boundaries alignment already produced; dimensional affect
+  per turn; and detection of non-verbal vocal events (sighs, breaths, laughter, throat
+  clearing) in the gaps between words. Uses the transcript only for *where to look*, never
+  for *what was said*.
+- **3c Behavioral / content coding** — therapist behaviors (question types, reflections,
+  validation, agenda-setting), patient behaviors (affect, approach/avoidance,
+  hopelessness, self-efficacy), dyadic process, and content themes, coded turn by turn by
+  a locally served LLM. This lane is the one that actually depends on words being correct,
+  and therefore the one the reference transcript exists to keep honest.
+
+**Stage 4 — Feasibility modeling.** Do features separate responders from non-responders
+beyond baseline severity and early symptom change?
+
+---
+
+## Environment & compute
+
+On-prem Linux compute node with GPUs, Slurm-scheduled. Conventions mirror the TRD-EHR
+project on this box:
+
+- **Partition:** `c3_accel`, request GPUs via `#SBATCH --gres=gpu:N`.
+- **Modules:** `module load Anaconda3/2025.06-0`.
+- **Env:** one conda *prefix* env, `asr_env` (Python 3.11), under
+  `/media/studies/ehr_study/analysis/mferguson/venvs/`, built by
+  `scripts/setup_envs.sh`.
+- **GPUs:** request them with `#SBATCH --gres=gpu:N`. The cluster runs
+  `task/cgroup` with `ConstrainDevices=yes`, so a job sees only its allocated
+  devices and Slurm sets `CUDA_VISIBLE_DEVICES` itself. Jobs log an `nvidia-smi`
+  memory line so a later CUDA OOM is explainable from the log alone.
+- **Model weights (offline):** every model is staged once, on the login node, into a
+  `models/` directory on study storage and loaded from there by absolute path.
+  `HF_HUB_OFFLINE=1` is set in every job, so a stray Hub request fails fast instead of
+  fetching weights nobody staged.
+
+Core libraries (pinned in `scripts/setup_envs.sh`): **`whisperx` 3.8.6 anchors the
+whole stack** — its `~=` dependency pins force `torch`/`torchaudio` 2.8.x,
+`torchvision` 0.23.x, `ctranslate2` 4.8.1, `faster-whisper` 1.2.1, and
+`pyannote.audio` 4.0.7, alongside `transformers` 4.55.4, `soundfile`, and the
+system `ffmpeg` 5.1.9 used for Stage 0. The node's CUDA-13.3 driver runs the cu12
+`torch` wheels (backward-compatible); ctranslate2's cuDNN 9 rides in with torch, so
+no system cuDNN is required. pyannote models are gated on Hugging Face — accept the
+terms and download weights once with a token, after which everything runs offline.
+
+**Adding libraries without breaking that pin chain.** Because `whisperx` fixes `torch`
+transitively, any new dependency that pins torch itself is not a package addition but an
+environment fork. The Stage 3b acoustic tools are safe to add in place — `opensmile` and
+`praat-parselmouth` ship self-contained binary wheels and depend on nothing heavier than
+`numpy`/`pandas` — and the Stage 3b model checkpoints load through the `transformers`
+already present. **vLLM is not safe to add in place**: it carries its own torch
+requirement and would drag the whole ASR stack with it. Stage 3c therefore runs from a
+*separate* prefix env, the way the sibling TRD-EHR project already separates its
+`embedder_pipeline` env from its analysis envs. Two envs, one talking to the other over
+HTTP, is the intended shape — not one env that satisfies both.
+
+### Environment architecture
+
+The same reasoning that forks Stage 3c forks the diarization bake-off, and for the same
+cause: a competing diarizer that pins its own `torch` is an environment fork, not a
+package addition. All four now exist, built by `scripts/setup_envs.sh`, each ending in its
+own import smoke-check.
+
+| Env | Python / torch | Holds | Why separate |
+| --- | --- | --- | --- |
+| `asr_env` | 3.11 / 2.8.0+cu128 | whisperx 3.8.6, pyannote.audio 4.0.7 — ASR, alignment, the community-1 baseline diarizer, and the speaker join | Pin set is **locked** to whisperx's `~=` chain |
+| `diarizen_env` | 3.10 / 2.1.1+cu121 | DiariZen (MIT code) and its vendored pyannote-audio fork (reports itself as pyannote.audio 3.1.1) | torch 2.1.1 vs 2.8.0 is a hard conflict — unresolvable in one env |
+| `nemo_env` | 3.11 / 2.13.0+cu130 | `nemo_toolkit[asr]` 2.7.3, for both Sortformer checkpoints | Drags hydra, lightning, omegaconf and its own `transformers` pin against the locked 4.55.4 |
+| `diar_eval_env` | 3.11 / **none** | `pyannote.metrics` 3.2.1 only, CPU | Deliberately torch-free. Whatever measures the arms must be *one* implementation applied identically to all of them, or the comparison measures the measurement instead of the models |
+
+`diar_eval_env` is the one that looks like over-engineering and is not. Folding
+`pyannote.metrics` into `asr_env` risks bumping `pyannote.core` underneath the locked pin
+set, and it quietly couples "how we measure" to "what we measure with."
+
+**DiariZen is a source install, not a package.** It is not on PyPI, and it vendors its own
+`pyannote-audio` fork *in-tree* rather than depending on the released one — the upstream
+pipeline will not accept the raw powerset segmentation checkpoint that DiariZen's subclass
+needs. `setup_envs.sh` therefore clones
+`github.com/BUTSpeechFIT/DiariZen` into `/media/studies/ehr_study/analysis/mferguson/src/`
+and installs three things in order: the cu121 torch trio, the requirements, then the
+package and the vendored fork as editable installs. Every step after the first passes
+`-c constraints.txt`, which re-pins `torch` and `numpy` so that neither the requirements nor
+the fork can drag torch forward underneath the install. The only true git submodule in that
+repo is `dscore`, and it is not needed — scoring happens in `diar_eval_env`.
+
+**`pyannote.metrics` needs `typing_extensions` and does not declare it.** A clean env built
+from `pyannote.metrics` alone fails on its own first import. It is pinned explicitly in
+`setup_envs.sh`; do not remove it on the grounds that nothing appears to use it.
+
+### The seam that makes this cheap
+
+`whisperx.assign_word_speakers` reads exactly three columns off the diarization
+DataFrame — `start`, `end`, `speaker` — and ignores `segment` and `label` entirely
+(verified in the installed `whisperx/diarize.py`). **Any** diarizer that can emit those
+three fields substitutes in with no change to whisperx and no change to the join.
+
+So the interchange format is **RTTM**, and Stage 1 splits at that seam:
+
+| Step | Entry point | Env | In | Out |
+| --- | --- | --- | --- | --- |
+| 1a ASR + alignment | `psych_asr.cli.run_asr` | `asr_env`, GPU | one 16 kHz WAV | `<stem>.aligned.json` — no speaker keys |
+| 1a-i transcribe | `psych_asr.cli.transcribe --typist` | the typist's own, GPU | one 16 kHz WAV | `<stem>.<typist>.asr.json` — no word times |
+| 1a-ii align | `psych_asr.cli.align_words --stopwatch` | `asr_env`, GPU | that file + the WAV | `<stem>.<typist>+<stopwatch>.aligned.json` |
+| 1b diarize | `psych_asr.cli.diarize_pyannote` / `…diarize_diarizen` / `…diarize_sortformer` | per-model env, GPU | the same WAV | `<stem>.<arm>.rttm` |
+| 1c join + render | `psych_asr.cli.join_speakers` | `asr_env`, CPU | aligned JSON + one RTTM | `<stem>.<arm>.diarized.json` + `<stem>.<arm>.transcript.txt` |
+
+`psych_asr/artifacts/rttm_io.py` is the shared reader/writer. It is imported from **all
+four** envs, whose torch and numpy pins are mutually incompatible, so it imports nothing at
+module scope beyond the standard library — `pandas` is imported inside the one function
+that returns the DataFrame shape `assign_word_speakers` wants. The same discipline governs
+the whole `psych_asr.artifacts` subpackage and every `__init__.py` in the package, none of
+which re-export anything; see **Package layout** below.
+
+**The arm name is carried in every filename from 1b onward.** Which transcript came from
+which diarizer is a property of the file, not of a note somewhere — and 1c derives the arm
+from the RTTM's own name, so adding a fifth arm needs no change to the join.
+
+RTTM is chosen because it is the standard diarization interchange format, and what DER
+scorers consume if the arms are eventually scored that way. An arm writes one artifact and
+the join reads that same artifact — no second serialization to keep in sync.
+
+**The methodological reason for the split, which matters more than the compute saving.**
+Stage 1 currently costs ~3 minutes on one A40, so re-running ASR per diarizer is affordable.
+It is still wrong: Whisper's output would then differ across arms, and any comparison would
+be confounded by transcript differences. Running 1a **once** and fanning every diarizer off
+the identical aligned transcript and identical word timings is what makes the arms
+comparable at all.
+
+**The refactor has a built-in regression test.** Job 2032471 (a full ~50 min
+session) produced 489 segments, 7298 words, exactly 2 speaker labels, 89 turns, one UNKNOWN
+segment, 79/21 talk time. Composing 1a → 1b(community-1) → 1c must reproduce those numbers
+exactly. If it does not, the split changed behavior and the difference is a bug, not a
+finding.
+
+### The other two boxes — the seam that has *not* been cut yet
+
+**This reframes the bake-off.** Stage 1 runs three models, and the
+argument that produced the diarization bake-off applies word for word to the other two:
+
+| Box | Nickname | What runs today | Ever compared? |
+| --- | --- | --- | --- |
+| `transcribe` | the typist | `faster-whisper-large-v3`; the grid adds three | **no** |
+| `align` | the stopwatch | torchaudio `WAV2VEC2_ASR_BASE_960H`; the grid adds `WAV2VEC2_ASR_LARGE_LV60K_960H` | **no** |
+| `diarize` | the name-tagger | five arms | yes — undecided |
+
+Both untested boxes are running a **default, not a decision**: whisperx bundles a
+transcriber and resolves an aligner, and nobody chose either. The aligner is the more
+uncomfortable of the two — it is the *base* (small) model trained on **LibriSpeech, 960
+hours of people reading books aloud**. Spontaneous, disfluent, overlapped therapy speech is
+as far from read audiobooks as English gets, and the cost of that mismatch has never been
+measured.
+
+**What makes measuring it possible now** is the corrected reference below (*Stage 2 — the
+corrected reference*). Until a human's 117 corrections were applied, there was nothing in
+this project that could tell a transcript it was wrong.
+
+**The seam, and it is now cut.** 1b splits cleanly because RTTM is a three-column contract
+any diarizer can emit. 1a had no equivalent: `psych_asr.cli.run_asr` did transcribe *and*
+align in one entry point, so `<stem>.aligned.json` was produced rather than accepted. It is
+two jobs now, with a file between them:
+
+| step | entry point | env | in | out |
+| --- | --- | --- | --- | --- |
+| 1a-i | `psych_asr.cli.transcribe --typist` | the typist's own | one 16 kHz WAV | `<stem>.<typist>.asr.json` |
+| 1a-ii | `psych_asr.cli.align_words --stopwatch` | `asr_env`, always | that file + the WAV | `<stem>.<typist>+<stopwatch>.aligned.json` |
+
+**The seam is a file because the two halves do not share an environment.** faster-whisper
+is `asr_env`; Parakeet and Canary are `nemo_env`, the env the Sortformer arms already run
+in, and nothing imports whisperx and NeMo into one process. So a typist hands over
+*segments of text with loose boundaries* — exactly the shape faster-whisper already gave
+the aligner — and the stopwatch never learns which model produced them.
+
+**A typist's own word times are discarded.** Parakeet will happily report them; keeping
+them would confound the typist axis with the stopwatch axis, which is the one thing the
+cube exists to separate. Every typist's words are re-timed against the waveform by
+whichever stopwatch the cell names.
+
+`psych_asr.cli.run_asr` still exists and still writes the un-armed `<stem>.aligned.json`.
+It is the single-typist path the 1a/1b/1c regression gate compares against byte for byte,
+and it is now a composition of the same two halves rather than a separate implementation.
+
+**The grid is a cube, and it is 17 GPU jobs.** Three swappable boxes means three axes, not two:
+4 typists × 2 stopwatches × 5 name-taggers = **40 cells**. The name-tagger never reads a
+word, so its output depends on neither of the other two — transcribe once per typist (4
+runs of 1a-i), align once per typist×stopwatch pair (8 runs of 1a-ii), diarize once per
+name-tagger (5 runs of 1b), then join every cell in one CPU job. A nested loop that re-runs
+diarization per transcript is wasted compute *and* re-introduces exactly the confound the
+1a/1b split exists to remove. See **Running the grid** below.
+
+**Each axis can only move some of the numbers, and that is what keeps 40 cells affordable.**
+The words come from the typist; the times come from the stopwatch, timing the typist's
+words; who-spoke comes from the name-tagger, which reads no words at all. So of the six
+error labels the grading pass below reports, **five are a property of the typist alone** and
+are identical across a whole row of the cube — only *Speaker Attribution* moves along the
+other two axes. One word-level measurement per row, one attribution measurement per cell.
+
+One qualification, and it is the kind that gets overclaimed: it is the five **counts** that
+are fixed along a row, not their `Add Turn?` split. Whether an omission was a whole turn the
+machine never heard or words dropped from inside a turn it did produce depends on the
+candidate's turn boundaries, and those come from the name-tagger. So the Omission bar does
+not move across a row; the share of it that is *structural* can.
+
+**One thing to check before staging any NVIDIA weights:** the licence. Three of the five
+diarizer arms are already non-commercial-only, against a stated R21/R01 deliverable. Record
+which model *wins* and, separately, which model can *ship*.
+
+### Staging model weights (offline)
+
+Every model is downloaded **once on the login node** into a `models/` directory on study
+storage and thereafter loaded by absolute path with `HF_HUB_OFFLINE=1`. The Hugging Face
+CLI (`hf`) ships inside the `asr_env` conda environment.
+
+**Not because the compute nodes are offline — they are not.** They resolve DNS and reach
+`huggingface.co`, so a job with the variable unset silently re-downloads instead of
+failing, and an arm can end up run against a checkpoint that moved under it. Staging pins
+the weights to a path, and re-staging keeps a staged directory as it is; `HF_HUB_OFFLINE=1`
+is what turns a quiet re-download into an error you can see.
+
+The owner's step-by-step for the grid's staging and launch is
+[`docs/HANDOFF.md`](docs/HANDOFF.md).
+
+**Diarization model — `pyannote/speaker-diarization-community-1`.** WhisperX 3.8.6
+defaults its diarizer to this model, and pyannote.audio 4.0.7's `SpeakerDiarization`
+pipeline is built around it: segmentation, embedding, and PLDA all live as subfolders
+of that single repo, and clustering defaults to `VBxClustering`. Because it is
+self-contained, staging it needs no config edits and no `--diarize_model` override.
+`Pipeline.from_pretrained` accepts the local *directory* and finds `config.yaml` inside
+it — there is no need to name the yaml file — and the config's `$model/...` references
+resolve against that same directory.
+
+Its speaker embedder is **WeSpeaker ResNet34 trained on VoxCeleb**, which maps a chunk
+of speech to a fixed-width vector such that same-speaker chunks land near each other;
+clustering those vectors is what separates the speakers. The config sets
+`embedding_exclude_overlap: true`, so regions where both people talk at once are left
+out of embedding extraction and do not contaminate the speaker profiles — relevant here
+because therapist backchannels ("mm-hm") overlap patient speech constantly.
+
+> The older `pyannote/speaker-diarization-3.1` does **not** work offline on
+> pyannote.audio 4.0.7: the 4.x pipeline constructor loads a PLDA model
+> unconditionally, and the 3.1 config predates PLDA, so an offline load raises
+> `LocalEntryNotFoundError`. Use community-1.
+
+Setup. Steps 1 and 2 are needed only while community-1 is not staged: it is the one gated
+repo, and `stage_models.sh` asks for a token only when its directory is missing or empty.
+
+1. **Authenticate.** Create a read-scoped token at
+   `huggingface.co/settings/tokens` and place it in a git-ignored `.env` at the repo
+   root as `HF_TOKEN=...`. Never commit the token.
+2. **Accept the gate.** While logged in as the token's account, open the model page
+   and click *"Agree and access repository."* community-1 is auto-gated, so access is
+   granted instantly (no manual approval).
+3. **Download into `models/`.** `bash scripts/stage_models.sh` on the login node stages
+   every asset in one pass. It sources the git-ignored `.env` with auto-export on, clears
+   `HF_HUB_OFFLINE` for the download only, and pulls every repo by `--local-dir`.
+   - **A staged directory is kept.** A non-empty directory (or, for a single-file stage, a
+     non-empty file) prints `kept <name>` and is not re-fetched, because `hf download`
+     resolves to the latest revision and would move the weights earlier runs used. Delete
+     it to re-fetch.
+   - **It ends with the preflight**, `python -m psych_asr.cli.preflight_models --load`, and
+     exits with its status. The preflight checks every asset by its required files and by
+     an offline load on CPU, and counts the inbox WAVs; a pass ends
+     `RELAY: preflight assets 15 ok 15 ... load-failed 0 inbox-wav 1`. An `empty` or
+     `incomplete` line means delete that directory and rerun.
+   - **`bash scripts/stage_models.sh --check`** runs only the preflight: no `.env`, no
+     download. `slurm_jobs/preflight_models.sbatch` runs the same check from a compute node.
+4. **Load offline.** In pipeline code, set `HF_HUB_OFFLINE=1` and call
+   `Pipeline.from_pretrained()` with the **absolute local directory**, never the Hub id.
+   `psych_asr/config.py` holds that directory and every other staged path, so no argument
+   parser spells one out.
+
+**The two stopwatches are torchaudio bundles, not Hugging Face repos.** Both load from
+`TORCH_HOME` and are fetched from `download.pytorch.org` by `stage_models.sh` (through
+`psych_asr.cli.warm_align_cache`); neither needs a token.
+
+| `--stopwatch` | torchaudio bundle | Cache file in `TORCH_HOME/hub/checkpoints/` |
+| --- | --- | --- |
+| `wav2vec2-base` | `WAV2VEC2_ASR_BASE_960H` | `wav2vec2_fairseq_base_ls960_asr_ls960.pth` (360 MB) |
+| `wav2vec2-large` | `WAV2VEC2_ASR_LARGE_LV60K_960H` | `wav2vec2_fairseq_large_lv60k_asr_ls960.pth` (about 1.2 GB) |
+
+The large bundle stays torchaudio rather than its Hugging Face port: torchaudio layer-norms
+each input waveform for this recipe, and whisperx's Hugging Face branch feeds raw audio, so
+the port would not be the same model. `config.STOPWATCH_CHECKPOINTS` names the cache files,
+and the preflight's load tier asserts they match torchaudio's own.
+
+### Typist bake-off — candidate models
+
+faster-whisper large-v3 is the incumbent for one reason: WhisperX bundles it. That is a
+default, not a decision, so Stage 1a now takes a `--typist` and three challengers are
+staged beside it.
+
+| `--typist` | Weights | Env | Weights license |
+| --- | --- | --- | --- |
+| `large-v3` | `Systran/faster-whisper-large-v3` | `asr_env` | MIT |
+| `large-v3-turbo` | `deepdml/faster-whisper-large-v3-turbo-ct2` | `asr_env` | MIT |
+| `parakeet` | `nvidia/parakeet-tdt-0.6b-v2` | `nemo_env` | CC BY 4.0 |
+| `canary` | `nvidia/canary-1b-flash` | `nemo_env` | CC BY 4.0 |
+
+**None of the four is non-commercial.** That matters because diarizer arms A and B already
+are, and a bake-off that picks a winner it cannot ship has measured the wrong thing. CC BY
+4.0 permits commercial use with attribution; it is not the CC BY-NC 4.0 that constrains the
+diarizer choice.
+
+Systran published no CTranslate2 build of large-v3-turbo, which is why the turbo row names
+a third-party conversion. Its six files are the same layout as the staged large-v3
+directory, so one loader takes both and the only thing varying across that pair is the
+decoder depth — four layers against thirty-two.
+
+The two NVIDIA models load through `nemo.collections.asr` off a `.nemo` archive. The
+registry names the staged *directory*, because that is what `hf download --local-dir`
+produces; `psych_asr.asr.typists.resolve_nemo_checkpoint` finds the single archive inside
+it at load time, since `restore_from` takes the file and nothing else.
+
+**A NeMo typist here is the published checkpoint with local attention, not the published
+checkpoint.** Full self-attention costs memory in the square of the input length: a
+7-second clip is free and a 50-minute session asks for an 86 GiB attention matrix on a
+44 GiB card. `typists.enable_long_audio` therefore switches the encoder to a sliding window
+(`rel_pos_local_attn`, 256 frames each side — 20 seconds) and sets the subsampling chunking
+factor to 1, which is NVIDIA's own documented recipe for audio longer than the training
+segments. It is a caveat on those two rows of the grid, and the alternative is no row.
+
+**Canary does not yet produce a usable transcript of a session.** It stops after its first
+18 seconds: it is an attention encoder-decoder trained on short segments, and a wider
+attention window does nothing for an autoregressive decoder that has run out of output
+length. It needs chunked inference, which is not built. Its row in the grid reads 100.5%
+WER, and that number is a broken transcript rather than a measurement of the model.
+
+#### Running the grid
+
+The grid runs every cell of the cube and keeps every output. It never scores, compares or
+ranks an arm. The owner's step-by-step, from staging to the report, is
+[`docs/HANDOFF.md`](docs/HANDOFF.md).
+
+`slurm_jobs/stage1_grid.sbatch` is the driver and the relay recipe. It runs
+`psych_asr.cli.grid_submit` on `c3_accel` with no GPU: `c3` is suspended by `c3_short`, and
+`c3_short`'s time limit is shorter than a grid.
+
+```bash
+board job -- slurm_jobs/stage1_grid.sbatch GRID_DRY_RUN=1          # plan + preflight, submits nothing
+board job -- slurm_jobs/stage1_grid.sbatch                          # all 40 cells
+board job -- slurm_jobs/stage1_grid.sbatch GRID_TYPISTS=parakeet:canary GRID_TAGGERS=community-1
+board job -- slurm_jobs/stage1_grid.sbatch GRID_REJOIN=<driver job id>
+sbatch slurm_jobs/stage1_grid.sbatch                                # without the relay
+```
+
+`GRID_TYPISTS`, `GRID_STOPWATCHES` and `GRID_TAGGERS` take colon lists; an unknown name is
+refused before any GPU is requested. `GRID_TAGGERS=community-1 GRID_STOPWATCHES=wav2vec2-base`
+is the typist bake-off. Off the cluster, `python -m psych_asr.cli.grid_submit --dry-run`
+prints the same plan.
+
+```text
+transcribe:<t> (4, GPU, the typist's env) --afterok + kill-on-invalid-dep--> align:<t>+<s> (8, GPU, asr_env) --+
+diarize:<n>    (5, GPU, its own env, no dependency) ------------------------------------------------------+--afterany--> join (1, CPU) -> manifest
+```
+
+- **The dependency kinds are not interchangeable.** An align waits for its own typist with
+  `afterok`, and `--kill-on-invalid-dep=yes` cancels it when that typist failed; without it
+  the align stays pending forever and the join never starts. The join waits on every align
+  and diarize with `afterany`, so a dead arm still lets every other cell join, and its cells
+  are reported as missing.
+- **Before submitting**, the driver runs the file-tier preflight for the selected axes and
+  requires exactly one inbox WAV, refuses if another grid driver is live, and cancels what
+  it already submitted if one `sbatch` fails.
+- **One output directory per run.** Every child runs with `PSYCH_ASR_GRID=<driver job id>`;
+  `job_env.sh` exports `PSYCH_ASR_STAGE1_DIR` as `stage1/grid-<id>/` under the data root, and
+  `config.STAGE1_DIR` follows it. No run overwrites an earlier one, and a missing input can
+  only mean it did not land in this run. Without `PSYCH_ASR_GRID`, Stage 1 writes to
+  `stage1/` itself, which is the `run_bakeoff.sh` path.
+- **One log directory per run**: `slurm_jobs/logs/grid-<id>/` holds every child's log,
+  `jobs.tsv` (key, role, Slurm id) and `manifest.json`. The join
+  (`psych_asr.cli.join_grid`, `stage1c_join_grid.sbatch`) writes the manifest: axes,
+  per-input states and per-cell status and counts, with no stem, path or text.
+- **The report.** The driver polls `squeue` until every job has left the queue, then prints
+  `RELAY: grid` lines from the manifest: one per input that did not land, one per failed
+  cell (exception type only), then the plan, the inputs landed and the cell totals, last.
+  It exits 1 only when a cell's join raised or no cell joined.
+- **`GRID_REJOIN=<id>`** submits the join alone for run `<id>`, re-joining its kept inputs
+  without a GPU job. Pass the same subsets the run had; the inbox must still hold the same
+  WAV.
+
+### Diarization bake-off — candidate models
+
+community-1 is the incumbent, not a verdict. Diarization is the bottleneck the whole project
+is gated on, so the choice deserves a measurement rather than a default. All four arms are
+staged, scripted and runnable; none is *scored* yet, because scoring needs the reference
+RTTM that Stage 2's hand-correction pass produces.
+
+| Arm | Model | `--arm` name | Env | Weights license |
+| --- | --- | --- | --- | --- |
+| baseline | `pyannote/speaker-diarization-community-1` | `community-1` | `asr_env` | open, self-host free |
+| A | `BUT-FIT/diarizen-wavlm-large-s80-md-v2` | `diarizen` | `diarizen_env` | **CC BY-NC 4.0** (code is MIT) |
+| B | `nvidia/diar_sortformer_4spk-v1` (offline) | `sortformer` | `nemo_env` | **CC BY-NC 4.0** |
+| C | `nvidia/diar_streaming_sortformer_4spk-v2.1` | `sortformer-streaming` | `nemo_env` | NVIDIA Open Model License |
+| escalation | `pyannote precision-2` | — | — | proprietary; on-prem requires an Enterprise contract |
+
+None of the three challengers is gated on Hugging Face, so unlike the pyannote weights they
+need no click-through before download.
+
+**Licensing is a real constraint here, not boilerplate.** Arms A and B are
+non-commercial-only. For feasibility research at a nonprofit institute that is fine, but the
+stated deliverable is an R21/R01, and an NC weight license is the kind of thing that is
+invisible for two years and then blocks a translation path. Arm C is the only strong
+candidate without that restriction. Record which arm wins *and* whether it can be shipped.
+
+**Why these three challengers.** Both Sortformer variants and DiariZen model overlapping
+speech directly — Sortformer frame-level and multi-label, DiariZen powerset over up to four
+concurrent speakers — where community-1's configuration sets `embedding_exclude_overlap`.
+Note what that setting does and does not do: community-1 still *emits* overlapping turns (the
+segmentation is powerset-based, and 10.9 s of overlap is exactly what it reported), but the
+overlapped stretches are withheld from the speaker-embedding step so a profile is never
+computed from two voices at once. Overlap therefore never contributes to its who-is-who
+decision.
+
+**How much overlap this corpus actually has is unmeasured, and the one number we have is a
+floor rather than an estimate.** Do not assert that therapist backchannels over patient speech
+are "constant" here: that is a premise, not a measurement, and session 1 does not support it —
+the incumbent reports 10.9 s of overlap in a 50-minute session, 0.5% of covered speech. Stage 2's
+corrected reference finds **47 utterances the incumbent never heard at all**, most of them two
+words long. How
+many of those were spoken over the other person is not yet known — so the honest reading is
+that 10.9 s bounds what community-1 *detected*, not what happened, and settling the difference
+is one of the things the arm comparison is for.
+
+**Published DER numbers across these projects are not comparable and must not be tabled
+together.** DiariZen reports at collar 0 s; the NVIDIA CALLHOME figures use the conventional
+0.25 s collar. A collar forgives boundary error at every speaker change, and the same system
+looks far worse without one. The only numbers that will decide this are the ones measured
+here, on this audio, under one collar setting chosen and stated once.
+
+**Two open questions to settle before trusting any arm:**
+
+- *Can the end-to-end models be pinned to two speakers?* The pyannote path takes an exact
+  `num_speakers` and the pipeline currently pins it to 2. Sortformer is end-to-end with a
+  four-speaker ceiling and no clustering stage to constrain the same way. On a known dyad
+  that constraint is worth real DER, and losing it is a genuine cost of switching.
+- *Do they survive a 50-minute file?* An end-to-end transformer over a full session is a
+  memory question the meeting-corpus benchmarks do not answer. The streaming variant handles
+  arbitrary length by construction, which may turn out to be arm C's decisive advantage
+  independent of accuracy.
+
+### Staging the bake-off's model assets
+
+**ASR model — `Systran/faster-whisper-large-v3`.** Staged into
+`models/faster-whisper-large-v3` and loaded by absolute path. `scripts/stage_models.sh`
+automates the login-node staging: it activates `asr_env`, sources the git-ignored `.env`
+with auto-export on (so the `hf` CLI actually inherits `HF_TOKEN` — without auto-export
+the token stays shell-local and the download 401s), clears `HF_HUB_OFFLINE` for the
+download only, then runs `hf download --local-dir`. A successful stage leaves seven files
+with `model.bin` at ~3.6 GB; the `.lock` residue under `.cache/huggingface/download/` is
+normal and can be ignored — the half-failed case is locks with *no* real weights beside
+them.
+
+The same download recipe stages any other Hugging Face model: one
+`hf download ... --local-dir models/<name>` on the login node, then load by path.
+`stage_models.sh` stages every asset the pipeline needs in one pass: the ASR weights,
+community-1, the three bake-off challengers (`diarizen-wavlm-large-s80-md-v2`,
+`diar_sortformer_4spk-v1`, `diar_streaming_sortformer_4spk-v2.1`), the WeSpeaker embedder
+DiariZen needs, the three other typists, and then the two caches that are *not* Hugging
+Face assets — both torchaudio stopwatch bundles and nltk's `punkt_tab`. The challengers come to about 1.8 GB, which is
+small enough that staging is not the slow part of anything.
+
+**How each challenger reaches its weights offline**, since all three differ from the
+`Pipeline.from_pretrained(<dir>)` pattern community-1 uses:
+
+- **Sortformer (both arms)** loads from the `.nemo` archive with
+  `SortformerEncLabelModel.restore_from`, which reads the file directly and makes no Hub
+  call at all. NVIDIA's cards use `from_pretrained` with a token; `restore_from` is the
+  offline equivalent and takes `strict=False`. Arm B's repo also ships transformers-native
+  safetensors beside the archive; they are downloaded and unused, because arm C ships no
+  such thing and one loading path across both arms is worth more than saving 500 MB.
+- **DiariZen** is the awkward one. `DiariZenPipeline.from_pretrained()` calls
+  `snapshot_download` and `hf_hub_download` internally, so it wants either the network or a
+  directory in Hugging Face *cache* layout — which is not the `--local-dir` layout
+  everything else here uses. `psych_asr/diarize/diarizen_arm.py` sidesteps it by constructing the
+  pipeline directly from two absolute paths, which is all `from_pretrained` does once its
+  two downloads resolve: the model hub directory, and the WeSpeaker embedder's
+  `pytorch_model.bin` as a plain file path.
+- **DiariZen's WavLM is not a third download.** Its `config.toml` names
+  `wavlm_src = "wavlm_large_s80_md"`, which looks like a repo id and is not — it resolves to
+  a hardcoded configuration dict in `diarizen/models/module/wavlm_config.py`, and the pruned
+  WavLM weights themselves are inside the 278 MB `pytorch_model.bin`. Nothing to stage.
+
+> **Verify a staged model, don't assume it.** `hf download` can terminate leaving a
+> directory that contains only `README.md` and empty weight subfolders, with lock files
+> under `.cache/huggingface/download/` as the only trace. The directory looks staged from
+> a casual `ls`. Always confirm by file count *and* an actual offline load before treating
+> a model as available.
+
+**Forced alignment is not a Hugging Face download.** For English, WhisperX resolves its
+alignment model to a **torchaudio** bundle (`WAV2VEC2_ASR_BASE_960H`, or the large bundle
+the `--stopwatch` names), fetched from `download.pytorch.org` into the Torch hub cache — not
+from the Hugging Face Hub. Setting `HF_HUB_OFFLINE=1` therefore does *not* protect this path:
+an uncached bundle is fetched silently inside the job. Both bundles are warmed on the login
+node by `scripts/stage_models.sh`, which exports `TORCH_HOME` to `models/torch_home` on study
+storage and runs `psych_asr.cli.warm_align_cache`; torch writes each `.pth` (see the
+stopwatch table above) into a `hub/checkpoints` subfolder of it, and a re-run reuses it. **Every job must export the same `TORCH_HOME`** —
+exporting the variable, not merely having the files on disk, is what makes torch reuse the
+cache instead of re-fetching into `~/.cache`.
+
+**Sentence splitting is a third offline dependency.** WhisperX's alignment step imports
+`nltk` and loads `tokenizers/punkt_tab/english.pickle`, falling back to a live
+`nltk.download()` if the lookup fails — an outbound call that neither `HF_HUB_OFFLINE` nor
+`TORCH_HOME` covers. `scripts/stage_models.sh` downloads the `punkt_tab` package into
+`models/nltk_data` and exports `NLTK_DATA` to it. Note that **`english.pickle` does not
+exist as a file**: `punkt_tab` ships per-language folders of `.tab`/`.txt` data and NLTK
+synthesizes a `PunktTokenizer` from them when that name is requested. The absence of a
+`.pickle` on disk is not a failed download.
+
+**Three environment variables must be exported in every job**, not merely pointed at:
+`HF_HUB_OFFLINE=1`, `TORCH_HOME`, and `NLTK_DATA`. Each library reads its own variable to
+find its cache; having the files on study storage is necessary but not sufficient. All
+three, plus `PYTHONNOUSERSITE`, are exported by `activate_env` in
+`slurm_jobs/lib/job_env.sh`, which every job sources. One helper rather than a copy per
+job, because a job that exports two of the three is the kind of difference nobody notices
+until an arm quietly re-downloads its own weights mid-grid.
+
+**Importing `psych_asr.config` exports `TORCH_HOME` and `NLTK_DATA` as well**, with
+`setdefault`, so an explicit export still wins. The job scripts cover the jobs and nothing
+else: a pytest run, a `python -m psych_asr…` on the login node or an interactive check gets
+the library default, and nltk's default is `~/nltk_data` — whisperx's `alignment.py` calls
+`nltk.download('punkt_tab', quiet=True)` when the lookup misses, which duplicates the staged
+copy in the home folder.
+`HF_HUB_OFFLINE` is deliberately **not** set on import: every job sets it, and setting it
+from an import would also set it on the login node, where `scripts/stage_models.sh`
+downloads. `tests/conftest.py` imports the module before any
+test module for the same reason — nltk reads the variable when it is imported, so the export
+has to come first.
+
+---
+
+## Running Stage 1
+
+**Input convention: `phi/inbox/` holds exactly one `.wav`.** The Stage 1 job takes no
+arguments — it globs the inbox, counts the matches, and aborts with its own message if
+the count is anything other than one, so a mistake surfaces as a one-line error instead
+of a Python traceback (two files silently became a two-line path before the guard
+existed). `standardize.sh` writes its 16 kHz WAV beside the source recording; moving the
+one you want processed into the inbox is a deliberate manual step.
+
+Submit **from the repo root**, and that is load-bearing rather than a convention: nothing
+in this repository is pip-installed into any env, so every step runs as `python -m
+psych_asr.cli.<name>` and it is the submit directory landing on `sys.path` that makes the
+import resolve. The job's log paths are relative to the same place.
+
+**Stage 1 is the 1a/1b/1c chain, submitted two ways.** `slurm_jobs/stage1_grid.sbatch`
+runs every typist × stopwatch × name-tagger cell into its own run directory (**Running the
+grid** above). `bash slurm_jobs/run_bakeoff.sh` runs one typist against every name-tagger
+into `stage1/` itself, and is the path the regression gate checks (**Running the
+diarization bake-off** below). Every job sources
+`slurm_jobs/lib/job_env.sh` and calls `activate_env`, which loads `Anaconda3/2025.06-0`,
+activates the prefix env inside a `set +u` / `set -u` wrap, and exports the four variables
+every job needs: `PYTHONNOUSERSITE`, `HF_HUB_OFFLINE`, `TORCH_HOME`, `NLTK_DATA`.
+
+> **Stage 1 has no single-job path.** One job running all three passes would not persist the
+> pyannote turn table, the one artifact overlapping speech survives in, and a second path kept
+> behaviour-identical to the chain is a standing cost, because the chain runs one arm as
+> happily as five. The regression gate scores the chain against the pre-split fixture.
+
+The three passes below are what Stage 1 does, wherever they run. Stage 1a decodes the audio
+with `whisperx.load_audio` and reuses that array for both of its own passes, so ffmpeg runs
+once per job:
+
+1. **ASR.** Loads the Whisper model by **absolute local path** with `local_files_only`,
+   `float16`, and language forced to English (skipping per-chunk detection), then
+   transcribes. Produces segments with loose (±~0.5 s) boundaries.
+2. **Forced alignment.** `whisperx.load_align_model` for the detected language — which
+   for English resolves to the **torchaudio** `WAV2VEC2_ASR_BASE_960H` bundle out of
+   `TORCH_HOME`, not a Hub download — then `whisperx.align` re-times the existing text
+   against the waveform at phoneme resolution. Adds a `words` list per segment with
+   per-word `start`/`end`/`score`. Note this step *re-splits* segments at sentence
+   boundaries (via nltk `punkt_tab`), so the aligned segment count is normally **higher**
+   than the ASR segment count. `avg_logprob` is carried through the split.
+3. **Diarization.** `DiarizationPipeline` pointed at the local community-1 directory,
+   called with `num_speakers`, then `whisperx.assign_word_speakers` joins its turns onto
+   the transcript by timestamp overlap.
+
+**Why forced alignment must precede diarization.** Diarization emits speaker turns as
+timestamps, and the join is purely temporal. Whisper's native segment edges are loose
+enough that a boundary landing inside a speaker change would stamp words onto the wrong
+person. Word-level times make the join tight.
+
+**Why `--num-speakers` defaults to 2, rather than letting the pipeline infer it.** The
+clustering step decides the speaker count from the data, and it errs in *both*
+directions: it can split one person into two clusters when their voice shifts (a calm
+patient vs. a distressed one), and it can merge two similar voices into one. Every pilot
+session has exactly two people in it, so constraining the count removes both failure
+modes for free. The flag exists rather than a hardcoded 2 in case a session turns out to
+have a third person present.
+
+**Output:** one pair per session per arm — `<stem>.<arm>.diarized.json` (the machine
+artifact, described next) and `<stem>.<arm>.transcript.txt` (the human reading copy, see
+**Readable transcript** below), both under `phi/stage1/`. The un-armed
+`<stem>.diarized.json` beside them is the pre-split fixture the regression gate scores
+against; nothing that still runs writes that name.
+
+`<stem>.<arm>.diarized.json` is a dict of `segments`, `word_segments`,
+and `language`. Each segment carries `start`, `end`, `text`, `avg_logprob`, a `words`
+list, and a `speaker` label; each word carries `start`, `end`, `score`, and `speaker`.
+That `avg_logprob` is the per-segment confidence Stage 2's quality triage runs on. As a
+working scale, above −0.5 is a confident decode and below −1.0 is where Whisper starts
+hallucinating. Speaker labels are anonymous (`SPEAKER_00` / `SPEAKER_01`) — nothing in
+the audio identifies roles, so mapping them to therapist/patient is Stage 2's first job.
+
+> **`speaker` is not guaranteed on every segment or word.** `assign_word_speakers` sets
+> it only where the transcript span actually overlaps a diarized turn, and `fill_nearest`
+> is off by default, so there is no fallback. Anything reading these files must tolerate a
+> missing key rather than indexing it directly. A few unlabeled items is normal; many
+> means diarization under-covered the audio.
+
+### Words with no speaker — three causes wearing one mask
+
+An unlabeled word looks like a diarization failure and usually is not. Reading
+`whisperx/diarize.py` and `whisperx/alignment.py` in the installed 3.8.6, there are exactly
+three ways `speaker` fails to appear on a word, and they call for three different fixes:
+
+1. **The word has no `start`.** `assign_word_speakers` opens its per-word loop with a skip:
+   no `start` key, `continue`, never queried against the turn table at all. Alignment
+   produces such a word when none of its characters received a timestamp — digits, symbols,
+   and foreign script go through the wildcard emission column and can come back NaN — *and*
+   the sentence-level interpolation fallback could not fill it, which happens only when no
+   other word in that sentence has a timestamp either. This is an **alignment** artifact.
+2. **The word has zero duration.** The overlap test requires the intersection of word and
+   turn to be strictly greater than zero, so a word whose `start` and `end` round to the
+   same millisecond matches nothing even when it sits squarely inside a speaker turn. Also
+   an alignment artifact, and invisible unless you look for it.
+3. **The word is timestamped, real, and overlaps no turn.** Only this one is a genuine
+   diarization-coverage story: pyannote emitted no turn covering that span. With
+   `fill_nearest` off, nothing is assigned.
+
+A fourth case hides from a naive count entirely: a segment that fails alignment outright
+(`no characters in this segment found in model dictionary`, or a start time past the audio
+duration) is appended with an empty `words` list, so its words never exist to be counted as
+missing. Segment count and word count are both silently short.
+
+**No diagnostic separates these three, and none is planned.** What settles it is a
+number: the baseline arm leaves
+**5 of 7,298 words** unlabeled on the full session. However those five split across the
+three causes, they are a rounding error on every feature downstream, and the causes stay
+written down above for whoever needs them if a later session comes back with hundreds
+instead of five. A stub is a promise; deleting it is how you stop making one.
+
+### Readable transcript
+
+The `.diarized.json` is the machine artifact; nobody can read indented JSON with a
+`words` list on every segment against playing audio. `psych_asr/transcript/render.py`
+renders the same content as a play script and writes
+`phi/stage1/<stem>.<arm>.transcript.txt`. `psych_asr.cli.join_speakers` calls it as its
+final step (CPU only, sub-second, no models), so the 1c job emits both files for every arm.
+It also runs standalone — give it a `.diarized.json` path and optionally `--outdir` (default: beside
+the input) — which is how to re-render after any change to the format without paying for
+another GPU job.
+
+Format: a summary header, then one block per **turn**, where a turn is a run of
+consecutive segments sharing a speaker, collapsed into a single paragraph:
+
+```text
+[03:12] SPEAKER_00
+    So how has the week been since we last talked? ...
+```
+
+Grouping matters because forced alignment re-splits segments at sentence boundaries, so
+one uninterrupted minute of speech arrives as a dozen segments — ungrouped, the file
+reads as a list of sentences rather than a conversation. Timestamps are `mm:ss` with
+minutes deliberately left unbounded (`62:04`, not `1:02:04`) so a single scale matches
+what a media player's position readout shows. Per-word timings stay in the JSON; a
+reading copy is segment-level text only.
+
+The header carries audio span, total speech time, segment and turn counts, and a
+per-speaker table of talk time, share of speech, turns, and segments — printed to the
+job log as well as written into the file. **Talk-time share is the cheapest possible
+diarization sanity check**: two people in a room do not split 97/3, so that number
+falsifies a collapsed clustering from the log alone, before anyone opens the audio. It
+is also the first Stage 3 structural feature, so it is worth having early. The
+denominator is total speech time, not wall-clock span, so silence does not dilute the
+split between the two people.
+
+Segments with no `speaker` key are rendered as `UNKNOWN` rather than dropped or merged
+into the neighbouring turn — a cluster of `UNKNOWN` blocks is itself the diagnostic that
+diarization under-covered the audio, and hiding them would hide that. `UNKNOWN` always
+sorts last in the summary table; it is a diagnostic, not a person.
+
+The `.txt` is session content and therefore PHI. It is written under `phi/stage1/`,
+which `.gitignore` excludes wholesale — do not write it anywhere else.
+
+> **`DiarizationPipeline` is not exported at package level.** WhisperX 3.8.6's
+> `__init__.py` lazily exposes only `load_model`, `load_audio`, `load_align_model`,
+> `align`, `assign_word_speakers`, and the logging helpers. `whisperx.DiarizationPipeline`
+> raises `AttributeError`; import the class from `whisperx.diarize`.
+
+**Status.** All four passes are verified end to end on the **full first pilot session**
+(~50 min): 489 segments, 7,298 words, coverage to 50:39 of a 50:39 file, exactly 2
+speaker labels, 89 turns, and **one** segment left `UNKNOWN` — diarization covered
+essentially the whole transcript. The whole job took roughly three minutes of wall clock
+on one A40, so the 2 h wall-time request is generous by two orders of magnitude and the
+GPU never needed the ASR model freed between passes.
+
+Talk time split **79% / 21%**. That is lopsided but not a collapsed clustering — this is
+session 1, whose own opening states the therapist will do most of the talking to deliver
+the treatment rationale. Expect a more even split from sessions 2–3; if session 1's
+pattern repeats there, *then* suspect the clustering.
+
+What is **not** established: accuracy. Segment counts and talk-time ratios prove the
+plumbing and that diarization produced a plausible two-speaker structure. Whether the
+labels track the actual therapist and patient — and whether they stay correct through the
+middle of the session, where turn-taking gets messy — needs the human check against the
+audio. That is the open item, and nothing downstream should be built before it passes.
+
+Two warnings in the job's stderr are benign and expected: Lightning auto-upgrading the
+checkpoint format of WhisperX's bundled VAD model, and pyannote disabling TF32 matmuls
+for reproducibility (a small speed cost, nothing else).
+
+---
+
+## Running the diarization bake-off
+
+Same input convention as Stage 1: `phi/inbox/` holds exactly one `.wav`, and every job
+globs it and guards on the count. Submit **from the repo root** — all paths are relative to
+the submit directory.
+
+```bash
+source slurm_jobs/lib/job_env.sh     # sets PSYCH_ASR_DATA; the script refuses without it
+bash slurm_jobs/run_bakeoff.sh
+```
+
+That submits the whole chain as one dependency graph and prints the job ids:
+
+```text
+1a ASR + align  ──┬─> 1b community-1          (asr_env,      GPU)  ──┐
+                  ├─> 1b diarizen             (diarizen_env, GPU)  ──┤
+                  ├─> 1b diarizen-free        (diarizen_env, GPU)  ──┤
+                  ├─> 1b sortformer           (nemo_env,     GPU)  ──┼─> 1c join + render
+                  └─> 1b sortformer-streaming (nemo_env,     GPU)  ──┘   (asr_env, CPU)
+```
+
+**The dependency kinds are not interchangeable.** The 1b jobs depend on 1a with `afterok` —
+there is nothing to diarize against if the transcript never landed. 1c depends on the four
+arms with **`afterany`**, so one arm crashing still produces transcripts for the others; a
+dead arm then shows up as a missing file, which is a result rather than a silent gap. 1c
+iterates over whatever RTTMs exist rather than a fixed arm list, for the same reason.
+
+**1c asks for no GPU.** It loads no models — a timestamp join and a text render, seconds of
+CPU per arm — so it runs on `c3_short` rather than occupying `c3_accel`, which is the single
+four-GPU node the arms themselves need.
+
+Individual jobs run standalone too (`sbatch slurm_jobs/stage1b_diarizen.sbatch`), which is
+how to re-run one arm without paying for the rest.
+
+**Adding a sixth arm is two edits and nothing else**: a `.sbatch` cloned from an existing
+one, and its name appended to the `ARM_JOBS` array at the top of `run_bakeoff.sh`. Stage 1c
+walks whatever RTTMs exist and takes each arm's name from the RTTM's own filename, and the
+join and the renderer are shared by every arm — so none of them knows how many there are.
+
+### Artifacts, and which model produced which
+
+| File | Written by | Holds |
+| --- | --- | --- |
+| `<stem>.aligned.json` | 1a | words + timings, **no speaker keys** |
+| `<stem>.<arm>.rttm` | 1b | that arm's speaker turn table |
+| `<stem>.community-1.exclusive.rttm` | 1b baseline | the same diarization with per-frame speaker count clamped to 1 |
+| `<stem>.<arm>.diarized.json` | 1c | the machine artifact, one per arm |
+| `<stem>.<arm>.transcript.txt` | 1c | the readable transcript, one per arm |
+
+**The turn table is kept** — it is the RTTM, the standard interchange format, so an arm's
+turns survive as a file rather than living only inside the join. That closes the first of
+the three items under *What Stage 1 currently throws away* below, for the bake-off path. The baseline arm additionally persists
+`exclusive_speaker_diarization`, which is what makes overlapping speech recoverable as a set
+difference rather than reconstructed from turn intersections.
+
+### The regression gate
+
+The 1c job ends by running `psych_asr.cli.check_split_regression`, comparing the baseline arm's
+output through the split against the pre-split fixture from job 2032471. It reports two
+levels separately: **structure** (segment/word/turn counts, speaker labels, unlabeled counts,
+talk-time shares), where a mismatch means the refactor changed behavior and is a bug; and
+**exact fields**, where a mismatch with matching structure is worth reading before worrying
+about, since Whisper decodes in float16 on a GPU and is not bit-reproducible across runs.
+
+### What differs per arm, and why it is a finding rather than a detail
+
+- **Pinning the speaker count works differently in all three, and in one of them the
+  obvious knob is a decoy.** On the baseline, `--num-speakers 2` is an exact count passed
+  straight to pyannote. Sortformer is end-to-end with a hard four-speaker ceiling and no
+  clustering stage to constrain at all, so `diarize_sortformer.py` accepts `--num-speakers`
+  for flag compatibility and **ignores it, saying so in the log**. On a known dyad that
+  constraint is worth real DER, so losing it is a genuine cost of switching.
+
+  DiariZen is the decoy. Its `__call__` passes `min_clusters` / `max_clusters` into the
+  clustering, which reads exactly like the knob — and `VBxClustering.__call__` in the
+  vendored fork declares all three count arguments *"not used but kept for compatibility"*
+  and ignores them. Clamping `min_speakers` / `max_speakers` alone returned **four** clusters
+  on a two-person session. The count actually falls out of VBx, which is seeded by an
+  agglomerative pass: `fcluster(dendrogram, ahc_threshold, criterion=ahc_criterion)`. With
+  the shipped criterion `distance` the threshold is a dendrogram cut height (0.6). Switching
+  the criterion to `maxclust` makes scipy read that same threshold as a **maximum number of
+  clusters**, and VBx only ever prunes components, never adds them — so seeding it at 2 pins
+  the clustering at ≤2. That is what `--num-speakers` does on this arm.
+
+  **It still emits three labels, and the third is not a person.** `constrained_argmax` fills
+  its output with a `-2` "unassigned" sentinel and then solves a one-to-one assignment per
+  chunk, so a local speaker with no cluster left to take keeps the `-2`. `VBxClustering`
+  then ends with `np.unique(hard_clusters, return_inverse=True)` to renumber the labels —
+  and `-2` is a value like any other, so it becomes **cluster 0** and every real cluster
+  shifts up by one. Upstream pyannote's clustering classes do not do this; it is specific to
+  the fork DiariZen vendors. The phantom is therefore always label `0`, always tiny (4.1 s
+  of 2362 s on the pilot session, 0.17%), and made of overlap regions where the powerset
+  segmentation found more concurrent speakers than there were clusters to hold them.
+  `diarize_diarizen.py` prints a warning naming it and **does not delete it** — the RTTM
+  stays a faithful record of what the model emitted, and the phantom shows up in the
+  rendered transcript as a speaker with ~0% talk time, which is visible rather than hidden.
+
+  Because pinning it is a deviation from the checkpoint's published configuration, **both
+  ways are run and reported separately**: `diarizen` (pinned) and `diarizen-free`
+  (`--num-speakers 0`, shipped config). Denying a challenger the two-speaker fact that the
+  baseline is given would compare it on worse footing; hiding that the deviation happened
+  would be worse still.
+- **Arm B does not survive a 50-minute file unaided.** NVIDIA's own model card puts the
+  ceiling near 12 minutes on a 48 GB RTX A6000; the A40 has 46 GB and a pilot session is
+  ~50 minutes. `diarize_sortformer.py` therefore windows the audio (10 min windows, 1 min
+  overlap) and stitches the results itself. Arm C handles arbitrary length by construction,
+  which may turn out to be its decisive advantage independent of accuracy.
+- **The stitcher is machinery only arm B needs, and it can be wrong.** Each window numbers
+  its speakers independently, so consecutive windows are matched on the overlap region by
+  the one-to-one pairing that maximizes frame agreement, solved as a linear assignment so
+  two local speakers can never collapse onto one global label. A local speaker with no
+  overlap evidence gets a free slot rather than a guess. Each window contributes the
+  timeline up to the *midpoint* of its overlap with the next, keeping every accepted second
+  away from a window edge where an end-to-end model has least context, and same-speaker
+  turns that a seam cut in half are rejoined so the seam does not inflate arm B's turn count.
+  **Some of arm B's error will be seam error rather than model error**, and that belongs in
+  the writeup.
+
+### Bake-off status — first full run
+
+All five arms ran end to end on the first pilot session (~50 min), off one
+Stage 1a transcript: 489 aligned segments, 7,298 words. The 1a/1b/1c split reproduced the
+pre-split fixture from job 2032471 **byte-identically** — same segments, words, turns,
+speaker labels, unlabeled counts and talk-time shares — so the refactor is behavior-preserving
+and differences between arms are attributable to the diarizers.
+
+| Arm | Turns | Labels | Speech covered | Overlap | Talk-time split | Unlabeled words |
+| --- | ---: | ---: | ---: | ---: | --- | ---: |
+| community-1 | 1023 | 2 | 2381 s | 10.9 s (0.5%) | 79.2 / 20.8 | 5 |
+| diarizen (pinned) | 1128 | 3† | 2362 s | 34.7 s (1.5%) | 79.2 / 20.8 | 3 |
+| diarizen-free | 1136 | 4† | 2362 s | 34.7 s (1.5%) | 79.0 / 20.7 | 3 |
+| sortformer (windowed) | 1111 | 2 | 2367 s | 24.2 s (1.0%) | 79.1 / 20.9 | 2 |
+| sortformer-streaming | 1028 | 4 | 2551 s | 27.1 s (1.1%) | 79.3 / 20.6 | 2 |
+
+† includes the sentinel phantom described above. Both Sortformer arms' extra labels are
+also micro-clusters — 2.0 s and 3.7 s for the streaming arm — not people.
+
+**Pairwise word-level agreement is 99.3–99.7% across every pair.** Only 88 words of 7,298
+(1.2%) are disputed by any arm, in 57 regions, of which just 6 run to three words or more.
+
+**The honest reading: this session cannot decide the bake-off.** Every arm recovers the same
+two-speaker structure and the same 79/21 split, and they differ on roughly one word in eighty.
+That is what the TODO predicted — session 1 is close to the easy case (two people, mostly
+clean turn-taking, one didactic speaker), which is precisely the regime where a diarizer that
+models overlap directly has nothing to show for it. Overlap accounts for 0.5–1.5% of covered
+speech here. **The overlap-stress recording is the instrument that will separate these arms**;
+running it is the next thing that changes the answer, not more analysis of this one.
+
+Three things this run *does* establish, none of which needed the reference RTTM:
+
+1. **Arm B survives a 50-minute file, but only through the windowing.** Six 10-minute windows
+   at 60 s overlap, each returning exactly 2 local speakers, stitched to 2 global speakers.
+   NVIDIA's ~12-minute ceiling is real; the workaround holds.
+2. **Arm C covers ~190 s more speech than every other arm** (2551 s vs 2362–2381 s). With no
+   reference that is not yet an error — it is either better recall of quiet speech or false
+   alarm, and DER decomposition against the hand-corrected subset is what tells them apart.
+   It is the one number in the table that does not look like everything else.
+3. **Neither Sortformer arm can be pinned, and the offline one did not need to be** — it
+   returned exactly two speakers unprompted. The streaming arm returned four, two of them
+   micro-clusters totalling 5.7 s.
+
+**A privacy note worth recording**: NeMo ships a telemetry logger (OneLogger). The job log
+records it initializing with *no exporters configured*, so nothing is collected or
+transmitted. Confirm that line is still present in the log if NeMo is ever upgraded.
+pyannote.audio 4.x telemetry is on by default and posts each pipeline load and apply
+(audio duration, speaker count) to otel.pyannote.ai; `activate_env`, `stage_models.sh`
+and the preflight set `PYANNOTE_METRICS_ENABLED=0` to turn it off.
+
+### Getting a reference when the assistant cannot read the session
+
+The assistant working on this repository is fenced out of every session artifact by a
+`PreToolUse` hook — see *Privacy & Data Handling* below for what it refuses and what it
+deliberately leaves open. That fence is a design input rather than an obstacle, and it has
+one architectural consequence worth stating here: **every artifact that carries session
+content needs a numbers-only sibling.** Region counts, durations and per-arm labels are not
+content, and an artifact that embeds them alongside verbatim spans is blocked whole and
+takes the counts down with it. Anything written against the reference splits: the
+content-carrying file stays blocked, and a summary sibling carries the counts.
+
+The reference itself is not something this repository computes — see *The reference
+transcript* under Stage 2.
+
+---
+
+### What Stage 1 still throws away
+
+**The turn table is kept now, and so is the overlap-free view of it.** Stage 1b writes
+`<stem>.<arm>.rttm` for every arm, and the baseline additionally writes
+`<stem>.<arm>.exclusive.rttm` from pyannote 4.x's `exclusive_speaker_diarization`, so
+overlap is a set difference rather than something reconstructed from turn intersections.
+That is what unblocked the interruption/overlap family of Stage 3a features — overlap
+duration, interruption counts, turn-taking latency, who yields. None of them is computable
+from `.diarized.json` alone, because `assign_word_speakers` resolves each word by
+intersection-duration argmax against the turns, so a word spoken over another speaker gets
+exactly one label and the fact of the overlap vanishes. Retiring the single-job path closed
+the last hole in this: it was the one caller left that dropped the DataFrame on the floor.
+
+Still discarded: `speaker_embeddings`, the third field on the `DiarizeOutput` that
+`DiarizationPipeline.__call__` throws away along with the wrapper object. Reaching it means
+calling the pyannote pipeline directly. Nothing downstream needs it yet; it is recorded here
+so that it is a choice rather than a rediscovery.
+
+What follows is the part that is still genuinely thrown away.
+
+**Whisper's decode-quality metadata.** `.diarized.json` carries `avg_logprob` per segment
+and a wav2vec2 alignment `score` per word, and those are the two confidence channels
+Stage 2's triage runs on today. Whisper computes more than that:
+
+- `no_speech_prob` — the model's own probability that a chunk contains no speech. Text
+  emitted with a high `no_speech_prob` is the classic hallucination signature: Whisper
+  filling a silence with a plausible-sounding sentence. This is a *different* failure from
+  low `avg_logprob` (uncertain decode of real speech) and catches cases confidence alone
+  misses. WhisperX's batched path already calls ctranslate2's `generate`, which accepts a
+  `return_no_speech_prob` flag and returns the value on the result object; WhisperX simply
+  does not ask for it. Retaining it costs one extra argument and no extra compute.
+- `compression_ratio` — the gzip ratio of the emitted text, the standard detector for a
+  degenerate repetition loop. It needs no model at all and can be computed from the text
+  already in the JSON.
+- `temperature` — **not** a signal here. It records which fallback temperature produced a
+  segment in faster-whisper's *sequential* decoder; WhisperX's batched path does no
+  temperature fallback, so the field would be constant. Noted so nobody goes looking.
+
+Do **not** solve this by running a second pass with faster-whisper's sequential
+`WhisperModel.transcribe` to harvest the full `Segment` dataclass. The two decoders
+segment differently and can produce different text, so the metadata would have to be
+joined back by timestamp overlap and would describe segments we did not keep. Extend the
+pass we already run instead.
+
+**Whisper's encoder states.** The 1280-dimensional per-frame encoder representation from
+large-v3 is a learned acoustic-linguistic embedding and a legitimate feature source, but
+ctranslate2 does not expose it — reaching it means loading the model a second time through
+`transformers`. Recorded as an option, deliberately not planned: the interpretable
+features below are what a grant reviewer can read, and an opaque 1280-dim vector at N=20
+is not.
+
+---
+
+## Stage 2 — QC, role assignment, and error metrics
+
+### The reference transcript
+
+**The reference is a human-adjudicated artifact, not a computed one.** A human listened to
+session 1 against the baseline arm's readable transcript and logged one spreadsheet row per
+error; colibrì produced the corrected transcript from that baseline and that error log, and
+the annotator approved the result. It is the reference because she says it is.
+
+**It lives under `phi/`, which is outside git.** Every number derived from it therefore
+rests on a file git cannot see and the assistant cannot read. Nothing in `psych_asr/` builds
+it, reads it, or reproduces it.
+
+It is stored apart from the Stage 1 artifacts on purpose: the arm-discovery globs in
+`artifacts/naming.py` match `<stem>.*` inside the Stage 1 directory, so a reference sitting
+beside the arms would enrol itself as an extra arm in the bake-off it exists to judge.
+
+**It carries words and turn structure, not word timings.** It is the reference for what was
+said and who said it. It is *not* a reference RTTM and must not be scored as though it were.
+Getting one means re-aligning the corrected words to the waveform — a Stage 1a job over
+Stage 2 text, not something to fake by spreading interpolated spans out until they look like
+measurements.
+
+**How an arm is measured against it is an open decision.** It waits on the reference being
+validated, and it may not turn out to be code.
+
+### What the error log says about the diarizer
+
+One number in the log is about the diarizer rather than about any correction pass: **75 of
+the 117 rows change turn structure.** That is read straight off the annotator's `Add Turn?`
+column — 47 utterances the machine never heard at all, 27 it welded into the wrong speaker's
+turn, one it invented. The remaining 42 are words only. Two thirds of a fifty-minute
+listening pass is therefore a verdict on speaker attribution, which is what makes this sheet
+a reference for the arm comparison rather than only a WER input.
+
+The six error labels fall out 69 Omission, 32 Speaker Attribution, 9 Insertion, 5
+Substitution, 1 Proper Noun, 1 Punctuation. The two breakdowns are cut on different axes and
+are not nested: the bar chart counts every row once under its `Error` label, the 75/42 split
+counts every row once under `Add Turn?`.
+
+### The role mapping, read off the sheet
+
+**The mapping is stated in the log, not guessed.** Every speaker-attribution row's AI column
+names the role the *diarizer* assigned those words to, written down by someone who was
+looking at it, and the host turn's machine label is beside it. `SPEAKER_00` → therapist by
+**49 votes to 3**; `SPEAKER_01` → participant by **16 to 0**.
+
+One category of row must *not* vote, and it is the subtle one: a row with `Add Turn?` TRUE
+and no role of its own. Those are utterances the machine missed entirely, so the turn they
+are inserted into is usually the *other* person's, and the host label and the logged role
+are deliberately different. Counting them as agreement takes the `SPEAKER_00` vote from
+decisive to 20–17.
+
+**Session 1 inverts the talk-time heuristic.** In the reference the *therapist* holds
+**78.6%** of the talk time across 108 turns, against the participant's 21.4% across 107 —
+session 1 is the didactic intro. An independent lexical check agrees with the vote and not
+with talk time: the therapist-mapped cluster asks 3.4× as many questions per sentence and
+uses *you/your* 1.7× as often as *I/my*, while the participant-mapped cluster uses *I/my*
+3.3× as often as *you* and has a median turn of 5 words against 43. Do not map roles by
+talk time.
+
+### Proposing therapist vs patient
+
+**For any session with an error log, the question above is already answered** — the log
+states the diarizer's own attribution on every speaker-attribution row, so the mapping is
+read off the sheet rather than inferred. What follows is for the sessions that have no log,
+which is the point: the pilot has to measure whether the mapping can be proposed *without*
+one.
+
+Diarization labels are anonymous by construction, so every session needs
+`SPEAKER_00`/`SPEAKER_01` mapped onto therapist and patient. Doing this by hand for the
+pilot is tolerable (60 sessions); doing it for the full trial is not, so the pilot should
+also measure whether the mapping can be proposed automatically.
+
+**Talk time does not decide it.** The obvious heuristic — the therapist talks less — is
+already known to invert: session 1 is the didactic intro where the therapist delivers the
+treatment rationale. Any rule keyed on talk-time share will be confidently wrong on a
+third of the pilot corpus.
+
+What does discriminate, computed per speaker from the transcript and compared *between the
+two speakers within a session* rather than against an absolute threshold (which is what
+keeps it robust to word error):
+
+- **Pronoun ratio.** Second-person rate (`you`, `your`, `you're`) runs high for the
+  therapist; first-person singular (`I`, `me`, `my`) runs high for the patient. This is the
+  single strongest cue and it survives a mediocre transcript, because function words are
+  the words ASR gets right.
+- **Question rate.** Share of that speaker's turns ending in a question mark, plus rate of
+  turn-initial `what` / `how` / `can you` / `tell me`. Higher for the therapist.
+- **Backchannel turns.** Whole turns consisting only of `mm-hm`, `okay`, `right`, `yeah`,
+  `got it`. The listener produces these, and during patient narrative the listener is the
+  therapist.
+- **Turn-initial framing moves.** `So`, `And so`, `Okay so`, `Let's`, `What I'd like to do`
+  — agenda control, therapist-side.
+- **Protocol vocabulary.** Treatment-manual terms (`activity log`, `behavioral
+  activation`, `homework`, `agenda`, `between sessions`) cluster on the therapist.
+
+The output should be a *proposal with its evidence* — per-cue scores for both speakers
+written into the transcript header next to the existing talk-time table — never a silent
+auto-assignment. The human confirms or overrides in the same pass they are already doing
+for QC. Once all 60 sessions carry a human label, the proposal's accuracy against those
+labels is itself a feasibility result worth reporting: it is the difference between
+"someone must listen to every session" and "someone must spot-check."
+
+### Domain lexicon — local place names and drug names
+
+Whisper spells what it thinks it heard, and the two vocabularies this corpus is guaranteed to
+contain are exactly the two it has the least support for: **Oklahoma place names** (Tahlequah,
+Okmulgee, Bartlesville, Pawhuska, Chouteau, Sapulpa, Owasso) and **psychotropic drug names**
+(fluoxetine, sertraline, escitalopram, bupropion, quetiapine, lamotrigine, aripiprazole). Both
+are cases where the spoken form is a poor guide to the written one — a therapist says
+*floo-OX-uh-teen* and the model writes something phonetically defensible and lexically wrong —
+and both are proper nouns, so a mis-spelling is not a near-miss that a downstream string match
+will forgive. It silently becomes a different token.
+
+Two levers exist, at different stages, and they are not substitutes:
+
+- **Bias the decode (Stage 1).** `whisperx.load_model` accepts an `asr_options` dict, and the
+  installed stack passes both `initial_prompt` and `hotwords` straight through to faster-whisper's
+  prompt construction. `transcribe_and_align` in `psych_asr/asr/align.py` passes neither, so
+  both sit at their `None` defaults. Both end up in the same `sot_prev` region of the prompt — hotword tokens first, prior
+  context after — and that region is capped at half the model's maximum prompt length, so the
+  lexicon competes for a bounded budget and cannot simply be the whole formulary. `hotwords` is
+  the better fit of the two here: it is meant for exactly this (a bare term list, no sentence
+  scaffolding), whereas `initial_prompt` is a style/context prefix that Whisper can echo into the
+  transcript. Note that faster-whisper drops hotwords entirely when `prefix` is set, so do not set
+  both.
+- **Normalize after the fact (Stage 2).** Decode biasing is probabilistic and will not catch
+  everything, so the QC pass should also carry an explicit lexicon file — the canonical spelling
+  plus the misrenderings actually observed in the pilot — and flag near-misses for the human
+  already reading the transcript. The pilot is the only chance to collect that error list cheaply,
+  since 60 hand-checked sessions produce it as a by-product. Build the file from what the corpus
+  actually gets wrong, not from a general formulary; a list assembled by imagination is mostly
+  dead weight against a bounded prompt budget.
+
+The clinically important asymmetry: a wrong place name costs a de-identification review a little
+work, but a wrong **drug** name is a content error in exactly the channel Stage 3c is supposed to
+code. Weight the lexicon accordingly, and treat drug-name accuracy as its own small reportable
+number in the WER analysis rather than letting it average into overall word error, where a handful
+of rare tokens vanishes.
+
+### Mid-session swaps and error rates
+
+Flag and correct speaker swaps, then hand-correct a stratified subset to estimate WER and
+DER. The stratification should be driven by the confidence channels
+above — sample deliberately across the `avg_logprob` range and (once retained) across
+`no_speech_prob`, rather than uniformly at random, so the estimate covers the bad audio
+instead of averaging it away.
+
+---
+
+## Stage 3a — Structural features
+
+Computed from timestamps only. No model, no GPU, no dependence on the words being right —
+which is why this lane is built first and why its features are the ones most likely to
+survive into the grant regardless of how WER lands.
+
+Per session, per speaker: talk time and share of speech (already emitted by the renderer),
+turn count, turn-length distribution, speech rate in words per second of that speaker's own
+speaking time, within-turn pause structure (gaps between consecutive words of the same
+speaker), between-turn latency (the gap from one speaker's last word to the other's first),
+and — from the retained turn table — overlap duration, overlap count, and interruptions
+(overlap that precedes a speaker change, as distinct from a backchannel that does not).
+
+The distinction between an interruption and a backchannel is a real modeling decision, not
+a detail: both are overlap, and only one of them is a rupture. Separating them needs the
+turn table plus the transcript (did the overlapping speaker take the floor, and was their
+overlapping speech a content turn or a `mm-hm`), which is exactly why both artifacts have
+to be persisted.
+
+---
+
+## Stage 3b — Acoustic and paralinguistic features
+
+This lane reads the **raw waveform**, using the transcript only to say *where to look*.
+That decoupling is what makes it robust: a misrecognized word still has correct
+boundaries, because forced alignment placed those boundaries acoustically.
+
+### Per-word prosody
+
+The meeting question was whether tone can be extracted per word. Mechanically yes, with
+one caveat worth stating up front: a word is roughly 300 ms, which is long enough to
+measure **pitch, loudness, and duration** but far too short to measure *emotion*. Per-word
+prosody measures emphasis and stress. Affect is a turn-level quantity (see below).
+
+The clean architecture is one acoustic pass per session, aggregated afterwards at whatever
+granularity a feature needs. **openSMILE** (the `opensmile` Python package, binaries
+bundled, no network at runtime) run in **low-level-descriptor mode** with the
+**eGeMAPSv02** feature set emits a frame-level table at a 10 ms hop covering fundamental
+frequency, loudness, jitter, shimmer, harmonics-to-noise ratio, formants, and spectral
+descriptors. Every word, turn, and session feature is then a windowed aggregate of that one
+table, sliced by timestamps we already have. eGeMAPS is worth preferring over a hand-rolled
+feature set specifically because it is the standard set in computational paralinguistics —
+a reviewer recognizes it, and it needs no defending in a methods section.
+
+Where a genuinely word-scoped pitch contour is wanted (rising terminal, emphatic peak),
+**praat-parselmouth** gives Praat's own F0 and intensity estimation from Python and is the
+reference implementation in speech science.
+
+**Every prosodic feature must be z-scored within speaker within session before it is
+compared across people.** Absolute F0 is mostly a fact about the speaker's vocal tract, not
+about their emotional state; a raw pitch comparison between a therapist and a patient is
+close to a comparison of their sexes. What carries signal is deviation from that speaker's
+own baseline in that session.
+
+### Dimensional affect per turn
+
+For turn-level tone, `audeering/wav2vec2-large-robust-12-ft-emotion-msp-dim` maps a speech
+span to continuous **arousal, dominance, and valence** rather than discrete emotion
+categories. Continuous dimensions are the right choice here: therapy affect does not sort
+cleanly into "angry / sad / happy," and a three-number-per-turn output composes with the
+rest of the feature table where a categorical label does not. It stages offline the same
+way every other model here does. One integration trap: the checkpoint is not a plain
+`AutoModelForAudioClassification` — it uses a custom regression head defined on the model
+card, which has to be reproduced locally for the weights to load.
+
+### Non-verbal vocal events — sighs, huffs, laughter
+
+The meeting's fourth question, and a real feature rather than a curiosity: an audible sigh
+is exactly the kind of moment that would justify a therapist pivoting to grounding or
+relaxation, and it is invisible in a transcript.
+
+**Do not try to get these from Whisper.** Whisper does occasionally emit bracketed
+non-speech tags, but they are suppressed by default, they are inconsistent across chunks,
+and their presence is driven by what the training subtitles happened to annotate. That is
+not a measurement channel.
+
+The right tool is an **audio-event classifier trained on AudioSet**, whose 527-class
+ontology contains precisely the categories at issue: *Sigh*, *Gasp*, *Breathing*, *Groan*,
+*Grunt*, *Throat clearing*, *Sniff*, *Cough*, *Laughter*, *Crying/sobbing*. The Audio
+Spectrogram Transformer checkpoint `MIT/ast-finetuned-audioset-10-10-0.4593` is available
+through `transformers` as an `ASTForAudioClassification` and stages offline exactly like
+the ASR and diarization weights.
+
+Two architectural points do most of the work here:
+
+1. **Run it on the gaps, not on the speech.** The word timestamps and the turn table
+   already partition the session into speech and non-speech. Sighs and breaths live in the
+   silences — between turns, and in intra-turn gaps longer than roughly 400 ms. Classifying
+   only those windows cuts the compute by roughly the talk-time fraction and removes the
+   dominant false-positive source, which is the classifier firing on ordinary speech.
+2. **Attribute the event to a speaker.** An event in a gap belongs to whoever is speaking
+   on either side of it, and when the flanking speakers differ the attribution is genuinely
+   ambiguous and should be recorded as such rather than guessed. A sigh is a different
+   feature depending on whose it is.
+
+The honest caveat, which belongs in the methods section rather than in a footnote: AudioSet
+models are trained on consumer video audio, and their precision on 16 kHz mono clinical
+recordings is unknown. This needs a small hand-labeled validation set before any
+sigh-derived feature is trusted — which is the same "quantify the quality, don't assume
+it" discipline the ASR side already runs on.
+
+---
+
+## Stage 3c — Behavioral and content coding with a local LLM
+
+The features that psychotherapy process research actually cares about — open versus closed
+questions, simple versus complex reflections, validation, agenda-setting, patient
+approach/avoidance language, hopelessness, self-efficacy — are judgments about discourse,
+not string matches. This is the lane the on-prem constraint bites hardest, and it is where
+the sibling `TRD-EHR` project's serving pattern is reused wholesale rather than reinvented.
+
+**The unit of analysis is the turn, not the session.** Asking a model to score a whole
+50-minute session on a fidelity scale produces one unverifiable number. Asking it to assign
+a code to each therapist turn produces hundreds of small, individually checkable judgments
+that aggregate into a session score with a known composition. It also matches the way human
+process-coding manuals are built, which is what makes agreement measurable at all.
+
+**A turn is uncodeable out of context.** Whether a therapist utterance is a reflection is
+defined relative to what the patient just said. The prompt unit is therefore a short
+window — the preceding patient turn plus the therapist turn under judgment — not an
+isolated string.
+
+**Serving.** The inference stack itself is not part of this repo. It lives in the sibling
+`libr-local-llm` (`projects/libr-local-llm` in the checkout), which is shared infrastructure for this project and
+`TRD-EHR` both — Ollama installed user-local and served on Slurm GPU nodes, with the vLLM
+path for this stage still to be built. Its README carries the bootstrap sequence,
+environment variables, and the traps already paid for; the remaining task list is
+`projects/libr-local-llm/planning/LOCAL-LLM_TODO.txt`. **Whatever drives this stage must have no
+tool-calling surface** — no web fetch, no search, nothing that can put a fragment of a
+session into an outbound request. That is a hard requirement of the on-prem constraint at
+the top of this README, not a preference, and it is why the clinical path is a plain Python
+client rather than a tool-enabled coding agent.
+
+Clone `TRD-EHR`'s vLLM pattern: a Slurm array where each task starts one
+tensor-parallel server on its own GPU pair, publishes its `http://<node>:<port>` to an
+index-keyed endpoint file that the consumer array reads by task id, runs with prefix
+caching and `--max-num-seqs` pinned to the client's concurrency semaphore. Output shape is
+enforced server-side with guided JSON decoding so the model emits the code object and
+nothing else — no prose preamble, no fence stripping on the client. Judgments are cached in
+a per-shard SQLite database merged by a reduce step, so a re-run resumes nearly free.
+Prefix caching matters more here than it did for TRD-EHR: the coding manual is a long
+shared prompt prefix reused across every turn in the corpus.
+
+**Model choice is an open decision.** `google_medgemma-27b-text-it` is already staged on
+study storage from TRD-EHR, but therapy process coding is a discourse-pragmatics task, not
+a medical-knowledge task, so MedGemma's domain tuning buys little and its instruction
+following is the thing that actually matters. A strong general instruct model in the 30B
+class is the likelier fit and would need staging. Decide this by measuring agreement, not
+by argument.
+
+**Reliability is the deliverable.** Every code the LLM assigns must be validated against
+human coding on a stratified subset, reported as Cohen's κ per code. Codes that reach
+acceptable agreement are usable at full-trial scale; codes that do not are reported as
+not-yet-feasible. That measurement is also the answer to the planning deck's open question
+about how much human coding is necessary: enough to estimate agreement per code, not all of
+it — and the pilot is what establishes how much "enough" is.
+
+---
+
+## Stage 4 — Feasibility modeling
+
+Twenty participants, sessions 1–3, so at most 60 session-level rows and 20 outcome labels.
+That number governs everything.
+
+- **Pre-specify a small feature set.** Feature count has to be cut to single digits before
+  modeling starts, chosen on the reliability evidence from Stages 2 and 3 rather than by
+  searching for what separates the groups. A search over a wide feature table at N=20 will
+  find separation whether or not it exists.
+- **The sampling design is extreme-group.** Ten good and ten poor responders are the tails
+  of the parent trial, not a random sample of it. Extreme-group sampling inflates apparent
+  effect sizes relative to the full trial, so an effect measured here is a *power input for
+  the R21*, not an estimate of the effect the full study would see. This must be stated as
+  a limitation wherever a number is reported.
+- **"Beyond baseline severity and early symptom change"** is a nested-model claim, and at
+  N=20 a nested test with two covariates plus a feature is not credibly powered. The honest
+  form is to report the marginal association and the partial association given baseline,
+  both with intervals, and say plainly that the incremental claim is what the grant is for.
+- **Continuous outcome where available.** Dichotomizing an outcome that exists on a scale
+  throws away power the pilot cannot spare, even though the dichotomy was the sampling
+  device.
+- **Validation, if any, is leave-one-out**, and any reported discrimination is
+  hypothesis-generating. Nothing in Stage 4 is a result.
+
+---
+
+## Overlapping speech — the diarization stress test
+
+The first pilot session is close to the easy case: two people, mostly clean turn-taking,
+one didactic speaker. A recording with substantial simultaneous speech is the real test of
+mono diarization, and one is expected from a collaborator.
+
+Two things should be true before that audio arrives, so that processing it is turnkey:
+
+1. **The turn table is being persisted** (see *What Stage 1 currently throws away*).
+   Without it, an overlap test cannot be scored, because the joined transcript structurally
+   cannot represent two speakers at once.
+2. **The expected failure mode is written down in advance.** `assign_word_speakers` gives
+   each word a single label by intersection-duration argmax, so overlap will not appear as
+   dual-labeled words. It will appear as words attributed to the wrong speaker, words
+   dropped by ASR entirely because the overlapping voices masked them, and turn boundaries
+   in the wrong place. Judging the run against the wrong expectation would read a
+   transcript-level artifact as a diarization failure, or vice versa.
+
+Note that community-1's config sets `embedding_exclude_overlap: true`, so overlapped
+regions are excluded from speaker-embedding extraction and do not contaminate the two
+speaker profiles. That protects clustering *identity* under overlap; it says nothing about
+whether the words in those regions land on the right person.
+
+### Turn-resolution knobs — what is actually tunable when people interrupt
+
+The intuition is that somewhere there is a "minimum gap before we cut between speakers"
+parameter, and that shortening it would make the pipeline track rapid exchanges. There is
+such a parameter on each side of the pipeline, they live in different libraries, and only
+one of them is worth touching. Enumerated from the installed sources so nobody goes hunting
+twice:
+
+- **Diarization side: `segmentation.min_duration_off`, and it is already maxed out.**
+  pyannote's `SpeakerDiarization` pipeline exposes exactly one timing hyperparameter, and it
+  *fills* intra-speaker gaps shorter than that many seconds, merging what would otherwise be
+  two turns into one. community-1's `config.yaml` sets it to **0.0** — no filling at all,
+  so every gap the segmentation model detects already becomes a turn boundary. The knob only
+  runs in the merge direction; there is nothing below zero. Turn resolution on this side is
+  therefore a property of the powerset segmentation model, not a setting. Its other
+  parameters (`clustering.threshold` 0.6, `Fa` 0.07, `Fb` 0.8) govern *who* a turn belongs
+  to, not *where* it is cut.
+- **ASR side: `chunk_size`, and this is the one that matters.** WhisperX runs its own
+  bundled VAD before Whisper and merges consecutive speech regions into decode chunks until
+  the accumulated span exceeds `chunk_size` seconds — default **30**. Under heavy
+  interruption a single 30-second chunk spans many speaker changes, Whisper decodes it as
+  one block, and the segments it emits straddle speaker boundaries. Forced alignment
+  re-splits at sentence boundaries afterwards, which softens this but does not fix it: a
+  sentence boundary is not a speaker boundary, and a sentence that two people built together
+  has neither. `chunk_size`, `vad_onset` (0.500), and `vad_offset` (0.363) are all settable
+  through the `vad_options` dict argument of `whisperx.load_model`; nothing in
+  `psych_asr/asr/align.py` passes it today, so all three sit at their defaults. Lowering
+  `chunk_size` cuts more often and costs Whisper decoding context — a real WER trade, which
+  is why it is an experiment to run against the overlap recording rather than a default to
+  change on argument.
+- **Not settable through that dict:** the VAD's own `min_duration_on` / `min_duration_off`,
+  both hardcoded to 0.1 s in `whisperx/vads/pyannote.py`'s `load_vad_model`. Changing them
+  means constructing the VAD pipeline yourself and passing it to `load_model` as
+  `vad_model`, which the loader accepts and which then overrides `vad_method`.
+- **Overriding a pyannote parameter, if it ever is worth doing.** `DiarizationPipeline`
+  keeps the underlying pyannote `Pipeline` on its `model` attribute, and that object's
+  `instantiate` method accepts a *partial* nested dict — `segmentation` is itself a
+  sub-pipeline, so passing only its sub-dict re-instantiates that one value and leaves the
+  clustering parameters as the config set them. Prefer this to editing the staged
+  `config.yaml`: the staged model directory should stay a faithful copy of what was
+  downloaded.
+
+The honest summary is that the note's instinct points at the ASR chunker, not the diarizer.
+The diarizer already cuts on every detected pause; it is Whisper's 30-second decode window
+that is coarse. Whether that costs anything on real overlapping speech is an empirical
+question, and the overlap recording is the instrument for answering it — run it once at the
+default and once at a shorter `chunk_size`, and score both against the same turn table.
+
+---
+
+## Repository layout
+
+```bash
+.
+├── README.md              # this file (committed)
+├── RULES.md               # the data fence and the owner's rules
+├── TUTOR.md               # the tutor's notes: where things are, what is next
+├── .gitignore             # PHI, audio, transcripts, envs all excluded
+├── docs/                  # the Stage 1 walkthrough deck + HANDOFF.md (owner's grid steps)
+├── psych_asr/             # the pipeline package — every entry point runs from here
+│   ├── config.py              # staged model paths, artifact dirs, arm names (stdlib only)
+│   ├── grid.py                # the Stage 1 grid: axes, job plan, manifest, RELAY lines (stdlib)
+│   ├── preflight.py           # file-tier check of every staged asset + inbox WAV count (stdlib)
+│   ├── join.py                # Stage 1c: RTTM or Annotation -> speaker-stamped transcript
+│   ├── artifacts/             # on-disk shapes. STDLIB ONLY — all four envs import these
+│   │   ├── rttm_io.py             # RTTM read/write + turn-table diagnostics
+│   │   ├── naming.py              # <stem>.<arm>.<kind>, parsed and built in one place
+│   │   └── transcripts.py         # load/save, relink_word_segments, tolerant readers
+│   ├── transcript/            # turn grouping, the talk-time table, the readable render
+│   │   ├── turns.py               # collapse consecutive same-speaker segments
+│   │   ├── summary.py             # talk-time shares + the header every job prints
+│   │   └── render.py              # .diarized.json -> the play-script .txt (+ line index)
+│   ├── asr/                   # Stage 1a, split in two so the typist can be varied
+│   │   ├── typists.py             # the typist registry + the seam's contract (stdlib)
+│   │   └── align.py               # the stopwatch: wav2vec2 forced alignment (whisperx)
+│   ├── diarize/               # Stage 1b, one module per arm + the shared stitcher
+│   │   ├── pyannote_arm.py        # baseline; keeps the exclusive (overlap-free) view
+│   │   ├── diarizen_arm.py        # arm A; the AHC pin and the sentinel-cluster warning
+│   │   ├── sortformer_arm.py      # arms B and C; .nemo restore, streaming preset
+│   │   └── windowing.py           # arm B's window stitcher (numpy/scipy, no model)
+│   ├── evaluate/              # the behaviour-preservation gate
+│   │   └── regression.py          # the 1a/1b/1c behaviour-preservation gate
+│   └── cli/                   # one module per job step; argparse and printing only
+│       ├── transcribe.py          ├── align_words.py      # Stage 1a, split in two
+│       ├── run_asr.py             ├── join_speakers.py    ├── gpu_smoke.py
+│       ├── diarize_pyannote.py    ├── render_transcript.py├── warm_align_cache.py
+│       ├── diarize_diarizen.py    ├── check_split_regression.py
+│       ├── diarize_sortformer.py  ├── preflight_models.py # file + offline-load check
+│       ├── grid_submit.py         # the grid driver: submit, wait, report
+│       └── join_grid.py           # the grid's 1c: join every landed cell, write the manifest
+├── scripts/               # shell only; everything Python lives in the package
+│   ├── setup_envs.sh          # builds all four conda prefix envs, each smoke-checked
+│   ├── standardize.sh         # Stage 0: one recording in -> 16 kHz mono WAV beside it
+│   └── stage_models.sh        # login-node staging of every offline model asset
+├── slurm_jobs/            # .sbatch job scripts; logs/ gitignored
+│   ├── lib/job_env.sh                    # activate_env / report_gpu / sole_wav / session_stem
+│   ├── run_bakeoff.sh                    # submits the whole 1a -> 1b×N -> 1c chain
+│   ├── stage1_grid.sbatch                # NO GPU — the grid driver and relay recipe
+│   ├── preflight_models.sbatch           # NO GPU — the staging preflight from a compute node
+│   ├── stage1a_asr.sbatch                # 1 GPU
+│   ├── stage1a_transcribe.sbatch         # 1 GPU, env follows the typist
+│   ├── stage1a_align.sbatch              # 1 GPU, always asr_env
+│   ├── stage1b_pyannote.sbatch           # 1 GPU, asr_env
+│   ├── stage1b_diarizen.sbatch           # 1 GPU, diarizen_env, speaker count pinned
+│   ├── stage1b_diarizen_free.sbatch      # 1 GPU, diarizen_env, shipped config
+│   ├── stage1b_sortformer.sbatch         # 1 GPU, nemo_env, offline + windowed
+│   ├── stage1b_sortformer_streaming.sbatch  # 1 GPU, nemo_env
+│   ├── stage1c_join.sbatch               # NO GPU — join, render, regression gate
+│   ├── stage1c_join_grid.sbatch          # NO GPU — the grid's join + manifest
+│   └── gpu_smoke.sbatch                  # GPU/ctranslate2 sanity job
+├── tests/                 # pytest over SYNTHETIC transcripts and turn tables — no PHI
+└── phi/                   # raw + derived data — GITIGNORED (PHI)
+    ├── inbox/                 # exactly one .wav — the file Stage 1 will process
+    ├── stage1/                # Stage 1 output, one set per arm (see the artifact table above)
+    │                          #   + grid-<id>/, one directory per grid run
+    │                          #   + the QC error log export the annotator produced
+    └── stage2/                # the human-adjudicated reference transcript
+```
+
+### Package layout — the two rules that shape it
+
+**Nothing is pip-installed, and every entry point is `python -m psych_asr.cli.<name>` run
+from the repo root.** A `pip install -e .` into four envs would mean four reinstalls after
+every code change, and it would make the package's dependency metadata a fifth thing to
+keep consistent with four incompatible pin sets. Running from the repo root costs nothing
+and is already the rule every job followed.
+
+**No `__init__.py` re-exports anything.** They hold a docstring and no imports at all. This
+is the env contract expressed as an import graph: the package is imported from four envs
+whose torch, numpy and transformers pins are mutually incompatible, so a convenience
+re-export at any level would make importing *any* module drag in *every* module's
+third-party dependencies — and `diar_eval_env`, which is deliberately torch-free, would
+lose the ability to read an RTTM. Callers name the module they want in full, and each
+module declares only what it actually needs. Which env a module belongs to is then readable
+straight off its import block.
+
+The layers, from the bottom:
+
+| Layer | Imports | Runs in |
+| --- | --- | --- |
+| `config`, `artifacts/*`, `transcript/*`, `evaluate/regression` | standard library only | all four envs |
+| `diarize/windowing` | numpy, scipy | any env with numpy |
+| `asr/align`, `join`, `diarize/pyannote_arm` | whisperx, pyannote.audio | `asr_env` |
+| `diarize/diarizen_arm` | DiariZen + its vendored fork | `diarizen_env` |
+| `diarize/sortformer_arm` | NeMo | `nemo_env` |
+| `cli/*` | whichever of the above its step needs | per step |
+
+Every `cli` module is argument parsing, path handling and printing, and nothing else. The
+work lives in the library modules and is reachable without a parser, which is what makes it
+testable at all.
+
+### Tests
+
+`tests/` is pytest over **synthetic** transcripts and turn tables — every fixture is
+generated in the test that uses it, so there is no session content anywhere in the suite
+and it runs without the cluster. Run it from the repo root:
+
+```bash
+python -m pytest tests -q
+```
+
+126 tests in `asr_env`; the ones that need `whisperx` or `torchaudio` skip themselves
+elsewhere, so the same suite runs in torch-free `diar_eval_env`. The grid, preflight and
+driver tests (`test_grid.py`, `test_join_grid_plan.py`, `test_preflight.py`,
+`test_imports_light.py`) are stdlib and run anywhere, including `uv run --extra test python
+-m pytest tests -q` on the Mac. `tests/board/job_env.py` checks the shell side: the
+per-run directory, the grid-id refusal, the relay variables and `bash -n` on every recipe.
+
+What it deliberately does **not** cover is anything that needs a model. Whisper's decode,
+pyannote's clustering, DiariZen's VBx and Sortformer's forward pass are exercised only by
+an actual Slurm run, and the artifact that proves the pipeline still behaves is the
+regression gate in `psych_asr/evaluate/regression.py`, which `stage1c_join.sbatch` runs
+against the job-2032471 fixture on every bake-off. Unit tests check the glue; the gate
+checks the pipeline.
+
+Planned additions, in the order the roadmap above builds them (nothing here exists yet):
+`psych_asr/features/` for the structural features (Stage 3a), the openSMILE acoustic pass
+and the non-speech-gap event classifier (Stage 3b), and the vLLM turn-coding driver plus
+its judgment-cache merge (Stage 3c), each with an sbatch cloned from
+`stage1a_asr.sbatch`; and a `stage_models.sh` extension covering the audio-event and
+dimensional-affect checkpoints.
+
+---
+
+## Privacy & Data Handling
+
+### Where the session data is, and it is not in here
+
+**`phi/`, in this workspace, and git cannot see a byte of it.**
+
+The recordings are 308 MB of identifiable PHI with participant IDs in the filenames, and they
+sit in the workspace deliberately: a project's data belongs with the project, and a directory
+nobody can find is a directory somebody eventually re-creates somewhere worse.
+
+**Three fences hold it, and not one of them is trusted on its own.**
+
+| The fence | Where | What it stops |
+| --- | --- | --- |
+| `/phi/`, anchored, the first rule | this workspace's `.gitignore` | git seeing it at all |
+| the tracked-file audit | `board/test/tracked.py` | the whole suite passing if any of it is ever tracked |
+| the directory fence | `ai-config/policy/phi.py` | an assistant reading a syllable of it |
+
+**The directory is called `phi` because the third fence matches on that name**, whole, by
+the directory rather than by what is under it. The move therefore cost that fence nothing
+and it cannot have silently stopped matching. Rename this directory and 308 MB of PHI
+quietly stops being fenced while everybody goes on believing in a hook. Do not rename it.
+
+It is **not symlinked in** from anywhere either. A symlink is a tracked file pointing at
+PHI, which hands the next reader of a public repository a map straight to it.
+
+| | |
+| --- | --- |
+| The audio going in | `phi/inbox/` — exactly one `.wav` |
+| What Stage 1 writes | `phi/stage1/` |
+| What Stage 2 writes | `phi/stage2/` |
+| To point it elsewhere | `PSYCH_ASR_DATA=/some/other/place` |
+
+Both defaults are derived from the code's own location rather than from `$HOME`, so a
+clone of this workspace anywhere finds its own data and never another checkout's.
+
+One variable, read in two places and nowhere else: `psych_asr/config.py` derives
+`DATA_ROOT`, `INBOX_DIR`, `STAGE1_DIR` and `STAGE2_DIR` from it, and
+`slurm_jobs/lib/job_env.sh` exports it and sets `INPUT_DIR` before any job uses one. The
+paths are **absolute**, and that is the other half of it: a path resolved against the submit
+directory means a job launched from the wrong place writes session content somewhere nobody is
+looking for it.
+
+The tracked tree carries the numbers *about* the sessions — the job logs, the figures —
+and never the sessions themselves. That is the part that matters, because that is what a
+paper cites.
+
+### The rest of it
+
+- Recordings are **identifiable PHI**; participant IDs appear in filenames.
+- `.gitignore` still excludes all audio, converted audio, transcripts, diarization output
+  (`.rttm/.srt/.vtt`), and structured feature files (`.json/.csv/.parquet`) by default —
+  belt and braces behind the directory rule above, not instead of it.
+- All processing is **on-prem**; no external/cloud inference. Local inference runs through the
+  sibling `libr-local-llm` repo, whose loopback-only endpoint and default-deny web-tool
+  configuration exist to keep that true. Any model or agent that reads transcripts must have
+  no tool-calling surface at all: a tool-enabled agent placing a session fragment into a
+  search query is an exfiltration event under this constraint, not a bug.
+- **The rule is written down, and separately it is enforced.** `RULES.md` opens
+  with **The data fence**, which binds any assistant working here whether or not anything
+  stops it. Underneath that, a `PreToolUse` guard (`~/.claude/hooks/block-phi.py`)
+  refuses every read of the raw audio, the diarization and ASR output shapes, and anything
+  under `phi/` (`stage2/` included, by the same directory rule that covers `stage1/`). A
+  command that prints transcript spans to stdout counts as a read and is refused on the same
+  grounds. Left open on purpose, because refusing more would make the assistant useless on
+  the bake-off: `slurm_jobs/logs/**` (counts and durations), every pipeline entry point and
+  every job that runs one, and `ls`/`find`/`stat` against the artifacts. Filenames and sizes
+  are not content: the numbers about a session are not the session, and a pass nobody can
+  audit is a pass nobody should trust.
+- **The fence turns on where inference runs, not on which model it is.** A hosted assistant
+  reading a transcript has transmitted a therapy session to a third party. A model whose
+  weights execute on LIBR compute, with no tool-calling surface, is inside the fence, and
+  reading session content is its *job* — the reference pass, turn coding, adjudicating where
+  the diarizers disagree. `RULES.md` (its *The data fence* section) names this exception. An
+  open-weight model served over somebody else's API is outside it; the licence is irrelevant
+  and the network path is what counts.
+- Raw and derived data live under `phi/` (gitignored) or on study storage — never in the
+  tracked tree.
+
+## The live board
+
+Lessons are not read in the terminal. The assistant runs `board start` from this repository and
+tells you which address to open. This machine gets a `127.0.0.1` one; the iPad, which is not on
+the institute network, reaches the same board over **Tailscale**. All of them show the same page
+at the same time.
+
+On the iPad, open it once in Safari and use Share → **Add to Home Screen**. After that it is an
+app with its own icon, no browser chrome, and a long-press shortcut straight to the slate.
+
+Everything the assistant teaches appears there as typeset mathematics the moment it is written:
+real LaTeX, real subgroup lattices and commutative diagrams, no refresh and no compile step. You
+answer in the terminal, in the box at the bottom of the board, or by hand: the ✎ button opens a
+slate you write on with the Apple Pencil. Tap send and the assistant opens the page and reads
+your handwriting — no exporting, no airdropping, no retyping a proof you already wrote. Turn on
+*live* and it sees each page as you pause. Photos and PDFs dropped anywhere on the board work
+too.
+
+With the board on the iPad and the slate for your working, a whole session can happen without
+touching the keyboard.
+
+You never run a board command. The tool is `board/` at the root of Atlas, on the path as `board`; `board/README.md` explains the
+rest.

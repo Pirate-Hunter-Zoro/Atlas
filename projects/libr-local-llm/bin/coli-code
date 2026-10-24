@@ -1,0 +1,462 @@
+#!/bin/bash
+# Put colibri to work in a directory. Any directory, any task.
+#
+#   coli-code                          # Claude Code, TUI, in the current directory
+#   coli-code -d ~/Atlas/projects/X    # ...somewhere else
+#   coli-code "fix the failing test"   # one-shot, no TUI
+#   coli-code -a opencode              # the other front end
+#   coli-code --yes "..."              # do not stop to ask about each tool call
+#   coli-code -c "and now the tests"   # continue the session already open
+#   coli-code --instructions           # carry the repository's CLAUDE.md in too
+#
+# -c is not a nicety on this model, it is the whole cost argument. The client's
+# preamble is 15,900 tokens and prefill runs at a few tokens a second, so a fresh
+# session is two to three hours before the first word; a continued one reuses the
+# KV prefix and starts answering. Anything driving this in turns -- the tutor
+# board's headless daemon, most obviously -- must continue rather than reopen.
+#
+# A step killed with its generation exits 75 here, which is how the board's
+# daemon tells a hop from a bad answer, and 76 where there is no generation
+# worth stepping into yet, which is a wait rather than either.
+#
+# The endpoint is loopback-only on the serving node, so the client has to run
+# there. This steps into the existing allocation with `srun --overlap` rather
+# than ssh: no key, and it lands inside the job with the right devices visible.
+set -euo pipefail
+
+_self="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+. "$(dirname "$_self")/scripts/colibri-env.sh"
+
+AGENT=claude
+WORKDIR="$PWD"
+YES=""
+CONTINUE=""
+INSTRUCTIONS=""
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -a|--agent)  AGENT="$2"; shift 2 ;;
+        -d|--dir)    WORKDIR="$2"; shift 2 ;;
+        -p|--port)   COLI_PORT="$2"; shift 2 ;;
+        --yes)       YES=1; shift ;;
+        -c|--continue) CONTINUE=1; shift ;;
+        --instructions) INSTRUCTIONS=1; shift ;;
+        -h|--help)   awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"; exit 0 ;;
+        --)          shift; break ;;
+        *)           break ;;
+    esac
+done
+MESSAGE="$*"
+
+case "$AGENT" in
+    claude|opencode) ;;
+    *) echo "coli-code: -a takes 'claude' or 'opencode'" >&2; exit 2 ;;
+esac
+
+[ -d "$WORKDIR" ] || { echo "coli-code: no such directory: $WORKDIR" >&2; exit 2; }
+WORKDIR="$(cd "$WORKDIR" && pwd -P)"
+
+# ONLY THE GUARDED FRONT END RUNS ON THE NODE.
+#
+# The egress guard below is a `PreToolUse` hook, which is a thing the claude
+# front end has and the other one does not. Both get a shell, and a shell on a
+# compute node has an outbound route and whatever credential the home holds --
+# so the unguarded one can read PHI and run curl, or start a hosted turn, which
+# are the two events this arrangement exists to prevent.
+#
+# So it is refused three ways, each failing closed:
+#   1. wherever Slurm is (`sbatch` on the PATH), which is the cluster, whatever
+#      directory it is pointed at;
+#   2. in a workspace that holds `phi/` or whose `tutorboard.json` says
+#      "phi": true, looked for from the directory up to its repository root;
+#   3. where `generic.py --path` says the directory is fenced, which is the
+#      lab's question and answered by the policy every other guard reads. A
+#      missing adapter is no answer, not an answer of "not fenced".
+_refuse_unguarded() {
+    echo "coli-code: ${AGENT} has no pre-tool hook, so it cannot carry the egress" >&2
+    echo "guard, and $1. Use the default front end: coli-code -d ${WORKDIR}" >&2
+    exit 2
+}
+_phi_workspace() {
+    local d="$1"
+    while :; do
+        [ -d "$d/phi" ] && return 0
+        if [ -f "$d/tutorboard.json" ] && python3 -c \
+            'import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get("phi") is True else 1)' \
+            "$d/tutorboard.json" 2>/dev/null; then
+            return 0
+        fi
+        [ -e "$d/.git" ] || [ "$d" = / ] && return 1
+        d="$(dirname "$d")"
+    done
+}
+if [ "$AGENT" != claude ]; then
+    if command -v sbatch >/dev/null 2>&1; then
+        _refuse_unguarded "this machine runs Slurm, where only the guarded front end runs"
+    fi
+    if _phi_workspace "$WORKDIR"; then
+        _refuse_unguarded "${WORKDIR} is in a workspace that holds phi/"
+    fi
+    _asks="$ATLAS_ROOT/ai-config/adapters/generic.py"
+    if [ ! -r "$_asks" ]; then
+        echo "coli-code: cannot tell whether ${WORKDIR} is behind the PHI fence --" >&2
+        echo "there is no policy at $_asks. Refusing the unguarded front end." >&2
+        exit 1
+    fi
+    if ! python3 "$_asks" --path "$WORKDIR/" >/dev/null 2>&1; then
+        _refuse_unguarded "${WORKDIR} is behind the PHI fence"
+    fi
+fi
+
+# What this exits when the generation its step ran in ended under it. 75 is
+# EX_TEMPFAIL: nothing failed, the machinery went away.
+COLI_CARRIED_AWAY=75
+# EX_TEMPFAIL's neighbour: there is no generation worth stepping into yet, and
+# waiting costs nothing. A driver re-asks under a backoff; a person reads the
+# line above it and goes and has lunch.
+COLI_NOTHING_YET=76
+
+# Find the server. Ask Slurm rather than reading a state file: a state file goes
+# stale the moment a job ends, squeue never does. Under a chain there can be two
+# generations running at once for an hour, so this asks which one can ANSWER
+# rather than taking whichever Slurm listed first.
+#
+# A DRIVER THAT IS INSIDE A GENERATION NAMES IT. The task queue's worker runs in
+# the on-demand generation it is working for, and `COLI_JOB` is that job: the
+# task goes to the server it was claimed on, not to whichever one Slurm lists.
+# Matched rather than trusted, because it is handed to srun as a job id.
+JOB_ID=""
+if printf '%s' "${COLI_JOB:-}" | grep -Eq '^[0-9]+$'; then
+    JOB_ID="$(coli_jobs | awk -v j="$COLI_JOB" '$1 == j && $2 == "RUNNING" { print $1 }')"
+fi
+[ -n "$JOB_ID" ] || JOB_ID="$(coli_serving_job)"
+if [ -z "$JOB_ID" ]; then
+    PENDING="$(coli_live_jobs | awk '$2 != "RUNNING" { print $1; exit }')"
+    if [ -n "$PENDING" ]; then
+        echo "The server is queued as job ${PENDING} and has not started yet." >&2
+        echo "Reason: $(squeue -j "$PENDING" -h -o '%r')" >&2
+    else
+        echo "No colibri server is running. Start one:" >&2
+        echo "    coli-up" >&2
+    fi
+    exit "$COLI_NOTHING_YET"
+fi
+NODE="$(squeue -j "$JOB_ID" -h -o '%N')"
+echo "Using ${COLI_JOB_NAME} job ${JOB_ID} on ${NODE}" >&2
+
+# THE WALLTIME IS A CEILING ON THE TURN, AND UNDER A CHAIN IT IS A CEILING ON
+# THIS CLIENT ONLY. `srun --overlap` makes this a STEP of that generation, so the
+# client dies when the generation does -- the chain replaces the server, not the
+# session. `coli-code -c` continues where it left off and the on-disk KV makes
+# the continuation cheap, which is why the number is worth printing.
+LEFT="$(coli_seconds_left "$JOB_ID")"
+
+# A GENERATION WITH MINUTES LEFT IS NOT WORTH STARTING IN. A fresh session pays
+# about ninety minutes of prefill before its first token and a resumed one pays
+# minutes, so the floor is an hour cold and half an hour warm. Only refuse where
+# a SUCCESSOR EXISTS -- with the chain broken there is nothing to wait for, and
+# trying beats stalling. RUNNING or PENDING only: a generation that has
+# self-cancelled sits in the queue as COMPLETING for a minute, and a job that is
+# leaving is not one to wait for.
+FLOOR=3600
+[ -n "$CONTINUE" ] && FLOOR=1800
+if [ -n "$LEFT" ] && [ "$LEFT" -lt "$FLOOR" ]; then
+    NEXT_JOB="$(coli_jobs | awk -v j="$JOB_ID" \
+        '$1 != j && ($2 == "RUNNING" || $2 == "PENDING") { print $1; exit }')"
+    if [ -n "$NEXT_JOB" ]; then
+        echo "Job ${JOB_ID} has $(( LEFT / 60 )) min left and this session needs $(( FLOOR / 60 ))" >&2
+        echo "to prefill. Job ${NEXT_JOB} is the one to step into; exiting ${COLI_NOTHING_YET} rather" >&2
+        echo "than spending the walltime on a preamble that cannot finish." >&2
+        exit "$COLI_NOTHING_YET"
+    fi
+fi
+if [ -n "$LEFT" ] && [ "$LEFT" -lt 3600 ]; then
+    echo "That generation has $(( LEFT / 60 )) min of walltime left. This client is a step" >&2
+    echo "of it and ends with it; the chain brings the server back on another node." >&2
+    echo "It is picked up again with 'coli-code -c' on the generation the chain brings up." >&2
+fi
+
+# --------------------------------------------------------------- the transcript
+#
+# A driver that can read `phi` writes a transcript that quotes `phi`. Both front
+# ends keep their session history under $HOME by default -- ~/.claude/projects and
+# ~/.local/share/opencode -- which is exactly where a hosted assistant reads all
+# day. Redirect both stores under a directory named `phi`, which is fenced whole
+# and by name in ai-config/policy/phi.py, so the existing rule covers this without
+# a new rule to keep in step.
+SESSION_DIR="$COLI_SESSION_ROOT/$AGENT"
+mkdir -p "$SESSION_DIR"
+# No chmod here on purpose. This filer serves NFSv4 ACLs and synthesises the
+# POSIX mode bits from them lossily -- the same defect that makes `os.access`
+# lie -- so a chmod writes back a mode derived from a bad reading and can drop
+# the real ACL. The parent directory already restricts this tree.
+
+# Clearing the outer job's SLURM_* is load-bearing. Run from inside another
+# allocation -- a VSCode remote session on a compute node, an interactive srun --
+# the nested srun inherits the OUTER job's step context and dies with exit 192,
+# even though --jobid names a different job explicitly.
+srun_on_server() {
+    (
+        for v in $(env | grep -oE '^SLURM_[A-Z_0-9]+' || true); do unset "$v"; done
+        exec srun --jobid="$JOB_ID" --overlap "$@"
+    )
+}
+
+BASE="http://127.0.0.1:${COLI_PORT}"
+
+if [ "$AGENT" = claude ]; then
+    # A fresh config directory is not just about where the transcript lands: it
+    # also decides the size of the preamble, and on this engine the preamble is
+    # the bill. Prefill runs at a few tokens per second on the CPU-streaming
+    # path, so every token of system prompt, tool catalog, MCP server, plugin and
+    # CLAUDE.md is paid for in wall-clock before the first word comes back.
+    # An empty config dir carries none of them.
+    #
+    # It also means the PHI hook in ~/.claude is not loaded. That is the point:
+    # this model runs on our own hardware and reading `phi` is the job it exists
+    # for. It is also why the transcript goes behind the fence above.
+    mkdir -p "$SESSION_DIR"
+    if [ ! -f "$SESSION_DIR/.claude.json" ]; then
+        cat > "$SESSION_DIR/.claude.json" <<'SEED'
+{ "hasCompletedOnboarding": true, "theme": "dark", "autoUpdates": false }
+SEED
+    fi
+
+    # ------------------------------------------------------- THE OTHER HALF
+    #
+    # The read fence comes off so this model can do its job. What replaces it
+    # is a fence in the other direction: nothing it reads may leave the node.
+    #
+    # THE ROUTE IS NOT THE CONTROL. These compute nodes resolve DNS and reach
+    # arbitrary hosts over HTTPS -- measured on the serving node, not assumed --
+    # so "a local model cannot exfiltrate" is false as a statement about the
+    # wiring and has to be made true as a guard. And a deny list over the web
+    # tools alone would be decoration, because a coding agent has a shell and
+    # the shell has curl. `policy/egress.py` judges the shell too.
+    #
+    # A HOOK, NOT A PERMISSION. `--yes` is `--dangerously-skip-permissions`, and
+    # the unattended session that carries it is exactly the one that needs this.
+    # PreToolUse runs whatever the permission mode says; a deny rule is a
+    # question, and this repository's own argument about questions is that they
+    # are answered by whoever is in a hurry.
+    EGRESS_HOOK="$ATLAS_ROOT/ai-config/adapters/claude_code_egress.py"
+    if [ ! -r "$EGRESS_HOOK" ]; then
+        echo "coli-code: no egress guard at $EGRESS_HOOK" >&2
+        echo "This session reads PHI on the strength of that guard existing, so" >&2
+        echo "it does not start without it. Check out ai-config/ and try again." >&2
+        exit 1
+    fi
+    cat > "$SESSION_DIR/settings.json" <<JSON
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          { "type": "command", "command": "python3 $EGRESS_HOOK", "timeout": 10 }
+        ]
+      }
+    ]
+  },
+  "permissions": { "deny": ["WebFetch", "WebSearch"] }
+}
+JSON
+    if [ -n "$INSTRUCTIONS" ] && [ -r "$HOME/.claude/CLAUDE.md" ]; then
+        cp -L "$HOME/.claude/CLAUDE.md" "$SESSION_DIR/CLAUDE.md"
+        echo "Carrying CLAUDE.md into the preamble ($(wc -c <"$SESSION_DIR/CLAUDE.md") bytes)." >&2
+        echo "At a few tokens per second of prefill, that is minutes before the first word." >&2
+    else
+        rm -f "$SESSION_DIR/CLAUDE.md"
+    fi
+
+    # ANTHROPIC_AUTH_TOKEN, not ANTHROPIC_API_KEY. Both reach the gateway --
+    # colibri accepts `Authorization: Bearer` as well as `x-api-key` -- but the
+    # API_KEY spelling makes the client ask, on first run in a fresh config
+    # directory, whether you really meant to use a key it has not seen. That
+    # prompt is a blocking question in a session that may be running unattended.
+    # The token spelling sets the bearer header and asks nothing. The gateway
+    # does not check it either way unless COLI_API_KEY is set on the server.
+    ENVS=(
+        "ANTHROPIC_BASE_URL=$BASE"
+        "ANTHROPIC_AUTH_TOKEN=local"
+        "ANTHROPIC_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_DEFAULT_OPUS_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_DEFAULT_SONNET_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL=$COLI_MODEL_ID"
+        "ANTHROPIC_SMALL_FAST_MODEL=$COLI_MODEL_ID"
+        "CLAUDE_CONFIG_DIR=$SESSION_DIR"
+        # The client does not know this model, so it assumes the 200k window it
+        # uses for the ones it does know and sizes auto-compact against that --
+        # which is 69k tokens past what the server will accept, and the overrun
+        # surfaces as a refused request rather than a compaction. Tell it the
+        # real number; it says so itself in the warning it prints.
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS=${COLI_CTX:-131072}"
+        # AND THE CLIENT'S OWN CLOCKS, WHICH ARE SET FOR A HOSTED MODEL.
+        # `API_TIMEOUT_MS` defaults to 600000 -- ten minutes for one request --
+        # against a server that answers a single call in a hundred seconds on a
+        # good one and takes far longer on a long generation. The whole turn
+        # exits 1 on `Request timed out` when a call crosses it, so this is the
+        # ceiling the board's four-hour recipe timeout was never reaching.
+        "API_TIMEOUT_MS=${COLI_API_TIMEOUT_MS:-14400000}"
+        # The body idle watchdog is on for any provider that is not Anthropic's
+        # own, which this gateway is not, and it gives up after five minutes of
+        # quiet. Prefill IS quiet.
+        "API_FORCE_IDLE_TIMEOUT=0"
+        # The two stream watchdogs run whatever the line above says, and the
+        # client clamps both to thirty minutes, so thirty minutes is what there
+        # is to take. A generation that goes longer than that between bytes is
+        # past what this client can be told to wait for.
+        "CLAUDE_STREAM_FIRST_BYTE_TIMEOUT_MS=1800000"
+        "CLAUDE_BYTE_STREAM_IDLE_TIMEOUT_MS=1800000"
+        "CLAUDE_STREAM_IDLE_TIMEOUT_MS=1800000"
+        # A tool call on this node reads a filer and runs a suite. Two minutes
+        # is the default and it is a hosted model's default.
+        "BASH_DEFAULT_TIMEOUT_MS=${COLI_BASH_TIMEOUT_MS:-1800000}"
+        # Every one of these is a call to a host nobody asked to be called:
+        # telemetry, the changelog, the updater, and the small-model calls that
+        # title a conversation. They are off because a session reading PHI
+        # should be talking to the gateway and to nothing else -- and the node
+        # CAN reach them, which is the reason to say so rather than rely on a
+        # timeout.
+        "DISABLE_NON_ESSENTIAL_MODEL_CALLS=1"
+        "DISABLE_TELEMETRY=1"
+        "DISABLE_ERROR_REPORTING=1"
+        "DISABLE_AUTOUPDATER=1"
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1"
+    )
+    CLI=(claude)
+    # The belt over the hook's braces. `--strict-mcp-config` means no MCP
+    # server is picked up from anywhere, whatever a config file elsewhere says,
+    # and the two named tools are the ones whose entire job is a network call.
+    # Neither of these is the control -- the hook is, because these are
+    # settings and the hook runs under the bypass flag below.
+    # Comma-separated on purpose: the space-separated spelling is variadic and
+    # swallows whatever positional follows it.
+    CLI+=(--strict-mcp-config --disallowedTools WebFetch,WebSearch)
+    [ -n "$YES" ] && CLI+=(--dangerously-skip-permissions)
+    # WHICH CONVERSATION, BY NAME WHERE A DRIVER KNOWS THE NAME. `--continue`
+    # takes the most recent conversation in this directory, and "most recent"
+    # is not "mine": a hand-run client in the same workspace between a hop and
+    # the pick-up is newer, and a turn killed during prefill can leave the
+    # previous mission's conversation as the newest. $COLI_SESSION_ID is a uuid
+    # the driver minted and holds in the mission record, so the resume names
+    # the conversation instead of guessing at it. Matched rather than trusted:
+    # a bad id would be handed to the client as a flag value.
+    #
+    # Without one, the store is per-agent under $COLI_SESSION_ROOT with
+    # CLAUDE_CONFIG_DIR pointed at it, and the client finds its own last
+    # conversation in the directory it was given.
+    if printf '%s' "${COLI_SESSION_ID:-}" \
+       | grep -Eqi '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'; then
+        if [ -n "$CONTINUE" ]; then CLI+=(--resume "$COLI_SESSION_ID")
+        else CLI+=(--session-id "$COLI_SESSION_ID"); fi
+    elif [ -n "$CONTINUE" ]; then
+        CLI+=(--continue)
+    fi
+    if [ -n "$MESSAGE" ]; then CLI+=(-p "$MESSAGE"); fi
+else
+    ENVS=(
+        "OPENAI_BASE_URL=$BASE/v1"
+        "OPENAI_API_KEY=local"
+        "XDG_DATA_HOME=$SESSION_DIR/data"
+        "XDG_STATE_HOME=$SESSION_DIR/state"
+        "XDG_CONFIG_HOME=$SESSION_DIR/config"
+    )
+    mkdir -p "$SESSION_DIR/config/opencode"
+    # opencode reaches the gateway as a plain OpenAI-compatible provider. Its own
+    # config lives under the fenced XDG_CONFIG_HOME so the ollama provider in
+    # config/opencode.json is not disturbed.
+    cat > "$SESSION_DIR/config/opencode/opencode.json" <<JSON
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "model": "colibri/${COLI_MODEL_ID}",
+  "enabled_providers": ["colibri"],
+  "permission": { "webfetch": "deny", "websearch": "deny" },
+  "provider": {
+    "colibri": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Colibri (GLM-5.2 int4, local)",
+      "options": { "baseURL": "${BASE}/v1" },
+      "models": { "${COLI_MODEL_ID}": { "name": "GLM-5.2 int4 (colibri)" } }
+    }
+  }
+}
+JSON
+    CLI=(opencode)
+    if [ -n "$MESSAGE" ]; then
+        CLI+=(run)
+        # `-c` on `run`, and only there: continuing is a property of a
+        # non-interactive turn. The TUI opens on its own last session already.
+        [ -n "$CONTINUE" ] && CLI+=(-c)
+        CLI+=(-m "colibri/${COLI_MODEL_ID}" -- "$MESSAGE")
+    else CLI+=(-m "colibri/${COLI_MODEL_ID}"); fi
+fi
+
+# The invocation crosses a `bash -lc` string boundary, so everything interpolated
+# into it is quoted with printf %q: the far side is the same bash, so %q
+# round-trips exactly and a path or prompt containing a quote cannot break the
+# command apart. A login shell is used so nvm's PATH -- and therefore both CLIs --
+# exists on the far node.
+Q_ENV="$(printf '%q ' "${ENVS[@]}")"
+Q_CLI="$(printf '%q ' "${CLI[@]}")"
+Q_DIR="$(printf '%q' "$WORKDIR")"
+
+# `unset -f opencode` first. ~/.bashrc defines an `opencode` SHELL FUNCTION that
+# probes OLLAMA_HOST and, finding nothing there, prints the ollama-up advice
+# instead of running anything -- it is a signpost for the ollama stack and has no
+# idea this one exists. The far side is a login shell, so the function is defined
+# there. `command opencode` would also reach past it, but not through `exec`:
+# `exec` takes a program, and `command` is a builtin, so the two do not compose.
+#
+# OPENCODE_CONFIG and OPENCODE_CONFIG_CONTENT are unset on both sides of the
+# boundary. Either one, inherited from the caller or set by the far side's login
+# profile, is a config opencode merges over the fenced one written above -- a
+# second provider, a remote MCP server, the webfetch permission put back.
+unset OPENCODE_CONFIG OPENCODE_CONFIG_CONTENT
+REMOTE="unset -f opencode 2>/dev/null; unset OPENCODE_CONFIG OPENCODE_CONFIG_CONTENT; cd ${Q_DIR} && export ${Q_ENV} && exec ${Q_CLI}"
+
+cat >&2 <<BANNER
+Directory:  ${WORKDIR}
+Endpoint:   ${BASE}  (${COLI_MODEL_ID})
+Transcript: ${SESSION_DIR}  -- behind the phi fence, deliberately
+
+This model decodes at 3.2-4.4 tok/s and prefills at a few tok/s. A short, single
+ask works. An iterative agent session re-pays its growing context every turn.
+BANNER
+
+set +e
+if [ -n "$MESSAGE" ]; then
+    srun_on_server --quiet bash -lc "$REMOTE"
+else
+    # --pty is what makes the terminal interactive through Slurm.
+    srun_on_server --quiet --pty bash -lc "$REMOTE"
+fi
+RC=$?
+set -e
+[ "$RC" -eq 0 ] && exit 0
+
+# WAS THAT A FAILED TASK, OR A GENERATION THAT ENDED UNDER THE STEP?
+# The exit code cannot say: a cancelled step is 128+signum but srun also exits 1
+# on its own job-ended paths, and `sacct` is unusable here -- slurmdbd refuses
+# connections on 6819. Ask Slurm, the way `coli_serving_job` does.
+#
+# A job that has self-cancelled sits in the queue as COMPLETING for a moment, so
+# LISTED IS NOT ENOUGH -- only RUNNING is still there. And an empty `coli_jobs`
+# is also what a controller that is briefly unreachable looks like, so it is
+# asked three times, ten seconds apart, before it is believed.
+#
+# LEAN TOWARDS 75. A false 75 costs one `--continue` against a live server,
+# which just continues the work; a false "the task failed" costs the mission.
+GONE=1
+for _ in 1 2 3; do
+    if coli_jobs | awk -v j="$JOB_ID" '$1 == j && $2 == "RUNNING" { f = 1 } END { exit !f }'; then
+        GONE=0; break
+    fi
+    sleep 10
+done
+if [ "$GONE" -eq 1 ]; then
+    echo "Job ${JOB_ID} is no longer running: the generation this client was a step of" >&2
+    echo "ended under it. Exiting ${COLI_CARRIED_AWAY} so whatever drives this picks the" >&2
+    echo "session up with 'coli-code -c' on the generation the chain brought up." >&2
+    exit "$COLI_CARRIED_AWAY"
+fi
+exit "$RC"

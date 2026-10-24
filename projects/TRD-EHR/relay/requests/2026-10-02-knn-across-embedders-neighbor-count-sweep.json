@@ -1,0 +1,14 @@
+{
+  "env": {
+    "EMBEDDER": "bge-small-en-v1.5"
+  },
+  "export": [],
+  "filed": 1790969463.732,
+  "id": "2026-10-02-knn-across-embedders-neighbor-count-sweep",
+  "kind": "recipe",
+  "produces": [
+    "results/bge-small-en-v1.5/google_medgemma-27b-text-it/neighbor_count_sweep"
+  ],
+  "recipe": "slurm_jobs/quick_runs/neighbor_count_sweep.sbatch",
+  "thread": "knn-across-embedders"
+}

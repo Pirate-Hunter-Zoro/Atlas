@@ -1,0 +1,80 @@
+# ---- Slurm logs ----
+# Job logs record hostnames, paths, and prompts; keep them out of git.
+slurm_jobs/logs/*
+!slurm_jobs/logs/.gitkeep
+
+# ---- Never commit ----
+# No PHI should ever reach this repo -- it holds infrastructure only, no data
+# and no transcripts. These patterns are belt-and-braces.
+# A Colibri task writes its outputs here, and `relay.check_task` fails a task
+# whose workspace has a change git can see, so the fence is ignored whole.
+/phi/
+*.m4a
+*.wav
+*.mp3
+*.json
+!config/opencode.json
+!config/claude-settings.json
+# And this one is not a copy of a live file, it IS the file: `ds-code` exports
+# OPENCODE_CONFIG at it where it sits. Left ignored, a fresh clone has the
+# command and not the provider it points at.
+!config/opencode-deepseek.json
+# The board's file for this workspace: its name and the check a turn runs.
+!/tutorboard.json
+
+# AN ARTIFACT'S RECORD IS TRACKED: `docs/doc.json` and `docs/<slug>/doc.json`
+# hold a document's title, its source file and the sessions that asked for it.
+!/docs/doc.json
+!/docs/*/doc.json
+# Its feedback rounds are not: the root .gitignore keeps them on disk, and a
+# negation here would let a round's JSON back in.
+
+*.jsonl
+
+# so must the markdown linter's, which is config and not data
+!.markdownlint.json
+*.csv
+*.gguf
+*.safetensors
+
+# ---- Editor / OS / secrets ----
+.claude/
+.vscode/
+.env
+.DS_Store
+Thumbs.db
+*~
+.*.swp
+__pycache__/
+*.pyc
+node_modules/
+
+# THE THREAD FILE IS TRACKED: this project's deliverables and threads, which is
+# judgement no other file contains. The negation comes after the `*.json` rule
+# above, or that rule is the last match and wins.
+!threads.json
+# And the board's declaration of this workspace, whose `"phi": true` keeps a
+# held step's check to RELAY: lines on the cluster's checkout too.
+!tutorboard.json
+
+# THE RELAY'S REQUESTS AND REPORTS ARE TRACKED: they are how the Mac and
+# the cluster talk, through the repository. Each must survive the blanket *.json
+# rule above.
+!relay/requests/*.json
+!relay/reports/*.json
+
+# ---- LaTeX build artifacts ----
+# docs/*.tex is the source and docs/*.pdf is the deliverable; everything
+# pdflatex writes alongside them regenerates on the next build.
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.fls
+*.fdb_latexmk
+
+# ---- chain state ----
+# The stop flag and anything else the running chain writes. Runtime, not config.
+slurm_jobs/state/

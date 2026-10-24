@@ -1,0 +1,7 @@
+{
+  "brief": "Smoke test. Read only; write no file anywhere. Run python3 --version, and count the files git tracks under slurm_jobs. End with exactly two lines, each starting at column 0 with RELAY: and nothing before it: RELAY: python <version> and RELAY: slurm_jobs tracked files <count>.",
+  "filed": 1791221601.886,
+  "id": "2026-10-05-colibri-colibri",
+  "kind": "colibri",
+  "thread": "colibri"
+}

@@ -1,0 +1,12 @@
+{
+  "env": {
+    "QUESTION": "operating_point"
+  },
+  "export": [],
+  "filed": 1791269516.339,
+  "id": "2026-10-06-reviewer-findings-paper1-round2-questions-3",
+  "kind": "recipe",
+  "produces": [],
+  "recipe": "slurm_jobs/review/paper1_round2_questions.sbatch",
+  "thread": "reviewer-findings"
+}

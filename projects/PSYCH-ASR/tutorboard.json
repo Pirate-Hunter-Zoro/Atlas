@@ -1,0 +1,18 @@
+{
+  "name": "PSYCH-ASR",
+  "phi": true,
+  "check": "uv run --extra test python -m pytest tests -q",
+  "relay": {
+    "colibri": true,
+    "fingerprint": {
+      "path_keys": [
+        "PSYCH_ASR_DATA",
+        "TORCH_HOME",
+        "NLTK_DATA",
+        "HF_HOME"
+      ],
+      "open_keys": [],
+      "names": false
+    }
+  }
+}

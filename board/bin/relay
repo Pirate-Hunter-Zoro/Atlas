@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""
+relay -- the cluster's relay, and what its scrontab entry runs.
+
+    relay [--once] [--quiet]   one pass: pull, submit, poll, report, push
+    relay --status             the last pass, and every workspace's requests
+    relay --entry              print the scrontab entry
+    relay --install            write it into this user's scrontab
+
+The scrontab entry runs `board/scripts/relay-pass.sh`, which pulls in bash
+and then runs `relay --once --quiet`.
+
+It runs on the cluster's python3, which may be 3.7, and imports the relay path
+only: no board server, no tutor runner, no model.
+See `tutorboard/relay.py`.
+"""
+
+import os
+import shutil
+import sys
+
+TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, TOOL)
+from tutorboard import jobs, relay                                    # noqa: E402
+
+
+def main(argv):
+    if "-h" in argv or "--help" in argv:
+        print(__doc__.strip())
+        return 0
+    if "--entry" in argv:
+        sys.stdout.write(relay.scrontab_block())
+        return 0
+    if "--install" in argv:
+        if not shutil.which("scrontab"):
+            print("no scrontab on this machine: the relay runs on the cluster",
+                  file=sys.stderr)
+            return 1
+        ok, said = relay.install()
+        print(said or ("scrontab entry installed: a pass every %d minutes"
+                       % relay.PASS_MINUTES if ok else "scrontab refused the entry"))
+        return 0 if ok else 1
+    if "--status" in argv:
+        print(relay.status())
+        return 0
+    if not jobs.has_slurm():
+        print("relay: no Slurm here. The relay runs on the cluster; "
+              "this machine files requests with `board job`.", file=sys.stderr)
+        return 1
+    got = relay.run_pass(pull_vendor=relay.pull_vendor)
+    if "--quiet" not in argv or got.get("error"):
+        if got.get("skipped"):
+            print("relay: pass skipped: %s" % got["skipped"])
+        else:
+            print("relay: %d submitted, %d refused, %d ended"
+                  % (len(got.get("submitted") or []),
+                     len(got.get("refused") or []),
+                     len(got.get("ended") or [])))
+        if got.get("error"):
+            print("relay: %s" % got["error"], file=sys.stderr)
+    return 1 if got.get("error") else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

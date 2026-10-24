@@ -1,0 +1,332 @@
+\documentclass[aspectratio=169]{beamer}
+\usetheme{default}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+
+\title{Predicting TRD by retrieval: an importance-weighted neighbour metric, the $k$ sweep, and the subgroup analysis}
+\subtitle{TRD-EHR, predictions arm}
+\date{September 2026}
+
+\newcommand{\fig}[1]{\includegraphics[width=\linewidth,height=0.75\textheight,keepaspectratio]{figures/#1}}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{The setting}
+  \begin{itemize}
+    \item Cohort: 42{,}579 patients with major depression; 7{,}455 (17.5\%) develop treatment-resistant depression (TRD).
+    \item Each patient's record is summarised and embedded into a 4096-dimensional vector (Qwen3-Embedding-8B, the primary encoder).
+    \item Split: 34{,}063 \textbf{pool} (training) patients and 8{,}516 held-out \textbf{anchors} (test patients).
+    \item Leading trained classifiers on the same test set:
+      \begin{itemize}
+        \item embedded logistic regression: ROC AUC 0.657 (0.643--0.672)
+        \item feature-vector XGBoost: ROC AUC 0.649 (0.634--0.664)
+      \end{itemize}
+    \item The question here: how well does \emph{retrieval} predict TRD --- score an anchor by the outcomes of the pool patients most like it?
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Retrieval prediction is three moves}
+  \begin{enumerate}
+    \item \textbf{Measure} how alike the anchor $x$ is to every pool patient $y$: a similarity $s(x,y)$.
+    \item \textbf{Keep} the $k$ most similar: the neighbourhood $N_k(x)$.
+    \item \textbf{Average} their TRD labels, weighted by similarity.
+  \end{enumerate}
+  \vspace{1em}
+  Two retrieval arms differ only in move 1:
+  \begin{itemize}
+    \item \textbf{plain cosine} --- the baseline, and the published arm;
+    \item \textbf{importance-weighted cosine} --- the metric reweighted by what the logistic regression relied on.
+  \end{itemize}
+  Moves 2 and 3 are identical in both.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Move 1, plain: cosine similarity}
+  \[
+    \cos(x,y) = \frac{x\cdot y}{\lVert x\rVert\,\lVert y\rVert}
+  \]
+  The angle between two vectors, ignoring their length: 1 for the same direction, 0 for unrelated, $-1$ for opposite.
+
+  \vspace{0.6em}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      A two-dimensional example:\\[0.4em]
+      \begin{tabular}{lccc}
+        \toprule
+        patient & embedding & TRD & $\cos(x,\cdot)$ \\
+        \midrule
+        anchor $x$ & $(1,0)$ & ? & \\
+        A & $(3,4)$ & 1 & 0.600 \\
+        B & $(0,2)$ & 0 & 0 \\
+        C & $(1,1)$ & 0 & 0.707 \\
+        \bottomrule
+      \end{tabular}
+    \end{column}
+    \begin{column}{0.45\textwidth}
+      \begin{itemize}
+        \item $\cos(x,A) = 3/(1\cdot 5) = 0.6$
+        \item $\cos(x,B) = 0/(1\cdot 2) = 0$
+        \item $\cos(x,C) = 1/\sqrt{2} = 0.707$
+        \item The $k=2$ neighbours are C and A.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Move 1, weighted: the importance-weighted cosine}
+  \[
+    z_d = \frac{x_d-\mu_d}{\sigma_d}, \qquad
+    w_d = \frac{|\beta_d|}{\sum_e |\beta_e|}
+  \]
+  \[
+    \langle x,y\rangle_w = \sum_d w_d\, z_d(x)\, z_d(y), \qquad
+    \mathrm{sim}_w(x,y) = \frac{\langle x,y\rangle_w}{\sqrt{\langle x,x\rangle_w\,\langle y,y\rangle_w}}
+  \]
+  \begin{itemize}
+    \item $\mu_d,\sigma_d$: the StandardScaler inside the fitted logistic-regression pipeline, fitted on the 34{,}063 pool patients and reused as is. Anchors never touch it.
+    \item $\beta_d$: that logistic regression's coefficients.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Why standardise first}
+  \begin{itemize}
+    \item $\beta$ was fitted on $z$, so the similarity is computed on $z$. The weights and the space must match.
+  \end{itemize}
+  \vspace{0.8em}
+  \textbf{How concentrated the weights are} (elastic-net logistic regression, 4096 dimensions):
+  \begin{itemize}
+    \item 385 of 4096 coefficients are non-zero, so 3711 dimensions get $w_d=0$ and drop out.
+    \item The top 41 dimensions (1\%) carry 31.08\% of the total $|\beta|$ mass.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{The weighted cosine on the example}
+  Assume $\mu=0$ and $\sigma=1$, so $z$ is the embedding itself. Take $w = (0.9, 0.1)$: dimension 1 carries the signal.
+  \[
+    \langle x,y\rangle_w = 0.9\,x_1y_1 + 0.1\,x_2y_2
+  \]
+  \begin{center}
+  \begin{tabular}{lccccc}
+    \toprule
+    patient & embedding & $\langle x,\cdot\rangle_w$ & $\langle\cdot,\cdot\rangle_w$ & plain cosine & $\mathrm{sim}_w$ \\
+    \midrule
+    A (TRD) & $(3,4)$ & 2.7 & $8.1+1.6=9.7$ & 0.600 & \textbf{0.914} \\
+    C & $(1,1)$ & 0.9 & $0.9+0.1=1.0$ & 0.707 & \textbf{0.949} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  with $\langle x,x\rangle_w = 0.9$, so $\mathrm{sim}_w(x,A) = 2.7/\sqrt{0.9\cdot 9.7} = 0.914$.
+
+  \vspace{0.6em}
+  A disagrees with $x$ badly on dimension 2 (4 against 0). The model says dimension 2 barely predicts TRD: A agrees where it matters and becomes a close neighbour.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Moves 2 and 3: the risk line}
+  \[
+    \mathrm{risk}(x) = \frac{\sum_{y\in N_k(x)} \max\{s(x,y),0\}^{\alpha}\,\mathrm{TRD}_y}{\sum_{y\in N_k(x)} \max\{s(x,y),0\}^{\alpha}}
+  \]
+  \begin{itemize}
+    \item \textbf{Sum over the $k$ nearest}, not the whole pool. Summing over all 34{,}063 lets everyone vote and drifts the score toward the base rate.
+    \item \textbf{Clamp at zero.} A cosine can be negative; with odd $\alpha$ a neighbour at $s=-0.2$ would vote $-0.00032$. Among the 50 nearest a negative similarity is rare, so the clamp is a guard.
+    \item \textbf{Raise to $\alpha$} ($\alpha=5$ in the published arm) so the closest neighbours count far more.
+    \item The same number $s$ both ranks the neighbours and weights their votes.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{What $\alpha$ does to a vote}
+  \begin{center}
+  \begin{tabular}{lcc}
+    \toprule
+    neighbour & similarity $s$ & outcome \\
+    \midrule
+    A & 0.9 & TRD \\
+    B & 0.6 & no TRD \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+  \begin{itemize}
+    \item $\alpha=1$: $\hat r = 0.9/(0.9+0.6) = 0.60$.
+    \item $\alpha=5$: $0.9^5\approx 0.590$, $0.6^5\approx 0.078$, so $\hat r = 0.590/(0.590+0.078)\approx 0.88$.
+    \item At $\alpha=5$ the closer neighbour carries almost the whole vote.
+  \end{itemize}
+  \vspace{0.5em}
+  On the real data this sharpening changes nothing: see the sweep.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Sweeping $k$ from 1 to the whole pool}
+  \begin{itemize}
+    \item The published arm used a fixed $k=50$, never chosen.
+    \item We scored every $k$ from 1 to all 34{,}063 pool patients, for both metrics, at $\alpha = 1, 2, 5$, and took the held-out ROC AUC at each.
+    \item Bootstrap 95\% intervals were computed at a spread of $k$ values, $k=50$ included.
+    \item At the published setting (plain cosine, $\alpha=5$, $k=50$) the sweep reproduces the published 0.594.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Figure 4: neighbourhood size matters more than the metric}
+  \begin{columns}[T]
+    \begin{column}{0.64\textwidth}
+      \fig{research-trd-ehr--dgemma-27b-text-it-neighbor-count-sweep-neighbor-count-sweep-manuscript-3d597044.png}
+    \end{column}
+    \begin{column}{0.35\textwidth}
+      \small
+      Held-out ROC AUC against $k$ (log scale), $\alpha=1$. Every line carries its bootstrap 95\% band, the two classifiers' included (grey).
+      \begin{itemize}
+        \item Both curves climb to roughly $k=300$ and are flat from there.
+        \item Weighted: best $k=295$, 0.625 (0.610--0.641).
+        \item Plain: best $k=757$, 0.618 (0.602--0.634).
+        \item Both stay below the two classifiers, and below their bands, at every $k$.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Sharpening is dead in both arms}
+  \begin{columns}[T]
+    \begin{column}{0.68\textwidth}
+      \fig{research-trd-ehr--b-google-medgemma-27b-text-it-neighbor-count-sweep-neighbor-count-sweep-2041a7cc.png}
+    \end{column}
+    \begin{column}{0.31\textwidth}
+      \small
+      Both metrics at $\alpha = 1, 2, 5$ with bootstrap intervals. Grey bands: the reference lines' intervals.
+      \begin{itemize}
+        \item Weighted best: 0.625, 0.625, 0.624.
+        \item Plain best: 0.618 at all three.
+        \item The three curves of each metric lie on top of each other.
+        \item Random-neighbour KNN ($k=50$, bottom line): 0.499 (0.483--0.515), chance.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{The retrieval slate}
+  Two arms, cosine weighting throughout; the similarity that ranks is the similarity that weights.
+  \begin{itemize}
+    \item \textbf{Importance-weighted cosine KNN} --- the arm.
+    \item \textbf{Plain cosine KNN} --- the baseline, the published \texttt{NEAREST\_COSINE}.
+  \end{itemize}
+  \vspace{0.5em}
+  Out: uniform weighting, the MedGemma clinical-similarity judge, combined weighting, the fusion analysis, subsampled retrieval.\\
+  Kept as negative controls in the supplement: random and farthest retrieval.
+
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Subgroups: what a contrast is}
+  One contrast = one model's AUC inside a subgroup minus \emph{the same model's} AUC in the rest. No model is tested against another.
+  \begin{itemize}
+    \item 24 subgroup levels across 8 families: sex, race, age band, marital status, smoking, religion, depression severity, recurrence.
+    \item ``Rest'' is everyone outside that level who has a value for the family; patients with no recorded value sit on neither side. Sex and race are binary: male against female, white against non-white.
+    \item 10 models: four classifiers on FEATURE, four on EMBEDDED, plain and weighted cosine KNN.
+    \item $24\times 10 = 240$ contrasts, each with a bootstrap interval and a two-sided bootstrap p-value.
+  \end{itemize}
+  240 tests at once need a multiplicity correction.
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Benjamini--Hochberg}
+  Sort the $m$ p-values, $p_{(1)}\le\dots\le p_{(m)}$. Rank $i$ is held to a bar that rises with its rank:
+  \[
+    p_{(i)} \le \frac{i}{m}\,q, \qquad q = 0.05.
+  \]
+  \begin{itemize}
+    \item Find the \textbf{largest} rank $i$ that clears its bar. That contrast and every one with a smaller p-value are considered significant.
+    \item A p-value that misses its own bar is still considered significant if a larger one further down clears.
+    \item It controls the false discovery rate: the expected share of significant contrasts that are false. Bonferroni holds every test to $q/m$ and is stricter.
+    \item In the pipeline: \texttt{benjamini\_hochberg} in \texttt{review/subgroups/core.py}, applied once across all 240 contrasts, not per family.
+  \end{itemize}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Benjamini--Hochberg by hand}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \textbf{Example 1}, $m=5$, $q=0.05$\\[0.3em]
+      \setlength{\tabcolsep}{4pt}\begin{tabular}{ccccc}
+        \toprule
+        $i$ & $p_{(i)}$ & bar $\tfrac{i}{5}q$ & clears? & significant? \\
+        \midrule
+        1 & 0.001 & 0.01 & yes & yes \\
+        2 & 0.025 & 0.02 & \textbf{no} & \textbf{yes} \\
+        3 & 0.028 & 0.03 & yes & yes \\
+        4 & 0.035 & 0.04 & yes & yes \\
+        5 & 0.300 & 0.05 & no & no \\
+        \bottomrule
+      \end{tabular}\\[0.4em]
+      \small Largest passing rank is 4: ranks 1--4 are considered significant, rank 2 included. Stopping at the first miss gives only rank 1, which is what Bonferroni's flat bar of 0.01 gives. Had $p_{(5)}$ been 0.05, all five would go.
+    \end{column}
+    \begin{column}{0.46\textwidth}
+      \textbf{Example 2}, same bars\\[0.3em]
+      \setlength{\tabcolsep}{4pt}\begin{tabular}{ccccc}
+        \toprule
+        $i$ & $p_{(i)}$ & bar & clears? & significant? \\
+        \midrule
+        1 & 0.004 & 0.01 & yes & yes \\
+        2 & 0.030 & 0.02 & no & no \\
+        3 & 0.045 & 0.03 & no & no \\
+        4 & 0.047 & 0.04 & no & no \\
+        5 & 0.060 & 0.05 & no & no \\
+        \bottomrule
+      \end{tabular}\\[0.4em]
+      \small Largest passing rank is 1: only rank 1 is considered significant.
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Subgroup results: how to read the contrast plot}
+  \begin{columns}[T]
+    \begin{column}{0.36\textwidth}
+      \fig{research-trd-ehr--review-subgroups-subgroup-contrasts-forest-747ba00c.png}
+    \end{column}
+    \begin{column}{0.62\textwidth}
+      \footnotesize
+      \begin{itemize}
+        \item ``Against the rest'': one model's AUC inside a group minus the same model's AUC on every other test patient. Never Married vs rest: 2{,}364 patients against the other 6{,}123.
+        \item Each row is one contrast. Each dot is its $\Delta$AUC with a 95\% interval; right of the dotted zero line, the model separates TRD better inside the group.
+        \item Filled: considered significant after BH. Hollow: not. Age 18--29 has intervals clear of zero, but none survives BH.
+        \item Three of the ten models are drawn, one per arm. Blue: embedded logistic regression. Red: feature logistic regression. Green: importance-weighted nearest neighbours.
+        \item 60 of 240 contrasts exclude zero before correction; 24 are significant after BH (bar at rank 24: 0.005; next p-value: 0.006). 4 of the 24 are in these demographic rows. One is drawn here (green, Never Married, $-0.047$). The other three belong to models not drawn.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+% ---------------------------------------------------------------
+\begin{frame}{Subgroup results: recurrence is where the models differ}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \fig{research-trd-ehr--review-subgroups-subgroup-contrasts-forest-clinical-4e4cba93.png}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \footnotesize
+      Same plot, for the clinical rows: MDD severity and recurrence.
+      \begin{itemize}
+        \item Recurrent vs rest and Single Episode vs rest are filled in all three arms. Across all ten models, these two rows hold 19 of the 24 significant contrasts.
+        \item Embedded logistic regression: $+0.059$ ($+0.030$ to $+0.089$) for 2{,}177 recurrent patients against the other 6{,}339; $-0.065$ ($-0.096$ to $-0.035$) for single-episode patients.
+        \item The models predict nothing differently. The patients differ: TRD is easier to tell apart among recurrent patients (AUC 0.698) than among first-episode ones (0.633).
+        \item The 20th clinical one, Severe vs rest, is plain cosine KNN, which is not drawn.
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\end{document}
