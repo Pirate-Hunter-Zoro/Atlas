@@ -63,7 +63,7 @@ A server started by hand or by a test sets neither variable, so it never pulls t
 | `tutorboard/lesson/` | cards, inbox, slate, turns, uploads, the save |
 | `tutorboard/course/` | a subject on disk: config, Repo, homework, library, reader pages, ledger, burn, book (the textbook index) |
 | `tutorboard/agents/` | provider recipes, usage and cost, `board doctor` |
-| `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, sync, code, gitops, audit, fenced, leaving |
+| `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, sync, code, gitops, audit |
 | `web/` | home, board, slate and library pages; reader; ink; `sw.js`; vendored KaTeX and math.js |
 | `tex/` | `board-macros.tex` (generated from `web/macros.js` by `tools/sync-macros.py`) and the write-up template |
 | `scripts/` | install, ship, save-and-push |
@@ -130,10 +130,9 @@ to the target subject, else to a new session bound to it.
 A subject is a directory directly under `courses/` or `projects/` (`subjects.py`). No registry,
 no marker file.
 
-- **`tutorboard.json`** holds `name`, `phi` and `check`. `board init` writes one.
-- **Create.** "+ course", "+ project" or `board bind <id> --create`. A project needs
-  `--phi yes|no`; yes also writes the PHI ignore stanza. One commit makes the directory,
-  `tutorboard.json` and a `TUTOR.md` skeleton.
+- **`tutorboard.json`** holds `name` and `check`. `board init` writes one.
+- **Create.** "+ course", "+ project" or `board bind <id> --create`. One commit makes the
+  directory, `tutorboard.json` and a `TUTOR.md` skeleton.
 - **Memory.** `RULES.md` is the owner's; the brief reads it at HEAD and flags a working-tree
   edit, and the pre-commit hook refuses it in a turn. `TUTOR.md` is the tutor's: sections
   "Where things are", "Now", "Open decisions", "Done recently", at most 800 words, written
@@ -142,11 +141,10 @@ no marker file.
   whose only change is `TUTOR.md` commits nothing, so it rides with End or the next save of
   real work. A save with no message says `save: <changed files>`; `gitops.is_save` reads
   a save back only bare or under the subject's own prefix, so `board: ...` is work.
-- **Delete** from the iPad needs the name typed. It is refused unless `tutorboard.json` at HEAD
-  sets `phi` to `false` literally, no open session is bound to it and no coding session holds
-  it. The board never removes a PHI subject.
-  `GET /subject/delete?subject=<id>` answers the same question read-only: `phi` at HEAD, `why`
-  (`phi`, `open-session`, `coding` or empty), one `blocker` sentence naming every
+- **Delete** from the iPad needs the name typed. It is refused while an open session is bound
+  to it or a coding session holds it.
+  `GET /subject/delete?subject=<id>` answers the same question read-only: `why`
+  (`open-session`, `coding` or empty), one `blocker` sentence naming every
   reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit; the
   directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
@@ -303,16 +301,14 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 
 - **Standard library only; add no runtime dependency.** Every dependency is one more thing to
   install on every machine.
-- **Never read, list or copy anything under `phi/`, `results/`, or a directory named in
-  `tutorboard/fenced.py` `NEVER`.** They hold identifiable patient data; existence checks only.
-- **Never weaken the PHI guards:** `test/tracked.py`, `ai-config/policy/phi.py` fencing by
-  name, the anchored `/phi/` ignores and `.githooks/commit-msg`. Each is the only thing
-  between one mistake and a public commit.
+- **Never weaken the public-repository guards:** `test/tracked.py`, `audit.py`, the root
+  `.gitignore` and `.githooks/`. Each is the only thing between one mistake and a public
+  commit.
 - **Every commit is public.** Never commit a session, ink, an upload, a material, a third-party
-  file, a log tail, a participant id or a lab storage path, because git keeps it forever.
+  file, a log tail, a key or a machine's own path, because git keeps it forever.
   `.githooks/pre-commit` runs `audit.py` over the staged paths and refuses these.
-- **A turn may not commit `RULES.md`, change a `tutorboard.json`'s `phi`, or commit `board/`
-  in the main worktree.** The pre-commit hook refuses each while
+- **A turn may not commit `RULES.md`, delete a `tutorboard.json`, or commit `board/` in the
+  main worktree.** The pre-commit hook refuses each while
   `TUTORBOARD_TURN` is set, because those are the owner's decisions.
 - **Commit named paths only, through `gitops.commit`.** A commit carries the index, and a
   terminal in the same checkout may have staged something else.
@@ -329,17 +325,17 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 
 ```
 python3 board/test/run.py              every suite, four at a time
-python3 board/test/run.py --guards     the PHI guards only
+python3 board/test/run.py --guards     the public-repository guards only
 python3 board/test/run.py sync code    the suites named
 ```
 
 A suite is any `*.py` or `*.js` file in `test/` that `run.py` does not list as a helper:
 discovery, not a registry. The run also covers Paper-Writer's unittests,
-`tools/sync-macros.py --check`, and ai-config's PHI policy tests. The suite needs `node`;
+`tools/sync-macros.py --check`, and ai-config's own tests. The suite needs `node`;
 it installs jsdom into `board/node_modules` on first run, for development only.
 
-- `tracked.py` audits every tracked path in Atlas for PHI, size, credentials and third-party
-  work. It runs early, because a public commit cannot be taken back.
+- `tracked.py` audits every tracked path in Atlas for size, recordings, credentials and
+  third-party work. It runs early, because a public commit cannot be taken back.
 - `teaching.py` checks that `TEACHING.md` stays under 600 lines and that every command and
   section it names exists.
 - `truthful.py` checks the documents against the tree: no moved address, no dropped config

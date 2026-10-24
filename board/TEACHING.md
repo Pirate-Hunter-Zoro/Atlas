@@ -75,9 +75,7 @@ A session starts unbound, in teach mode. A subject is a directory directly under
   unbound can still be sent from its chip.
 - **A new one is `board bind projects/<Name> --create`**, only when no listed
   subject fits. It makes the directory, `tutorboard.json` and a `TUTOR.md`
-  skeleton in one commit. A project must say `--phi yes` or `--phi no`: does it
-  hold patient data? Yes also keeps `phi/`, `results/` and `.env` out of git.
-  Never guess: ask.
+  skeleton in one commit. Never guess: ask.
 - **An unbound session refuses** `board writeup`, `board file` and `board memo`.
 - **The brief names the other open sessions on the same subject**, each with
   its write-up and newest card, so a new lecture starts from where they are.
@@ -417,16 +415,14 @@ subject's check. The Mac wakes your turn with a `[code] step N` line.
 `[unheld]` line says it is gone. Never ask them to paste code or push by hand.
 
 - **Each step line names the `git diff` to read.** `git log -1` on the step
-  carries its check: pass or fail, the exit, the `RELAY:` lines, and the output
-  only where the subject's output is open. Do not run the check here.
+  carries its check: pass or fail, the exit, the `RELAY:` lines and the output.
+  Do not run the check here.
 - **The held files are the owner's while the session codes.** A commit to them
   on main is refused. In do mode, edit them here and `board push`, which their
   loop applies. On this Mac your edit becomes a step of its own as your
   turn ends; a `[stepped]` line says so and wakes nothing.
-- **Your card is public.** In a fenced subject: aggregate numbers only, never a
-  row, an identifier or a path to lab storage.
 - **The check is yours to write only where the subject declares none**, as a
-  tracked script; in a fenced subject it prints only aggregate `RELAY:` lines.
+  tracked script.
 
 ### A deck or a paper, on demand
 

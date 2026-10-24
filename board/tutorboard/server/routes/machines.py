@@ -139,7 +139,7 @@ def post(h, repo, path):
 
     if path == "/default-agent":
         # The one provider setting: writes only `provider`, which the next
-        # turn re-reads. Refused: unknown, unrunnable here, or in-fence. A
+        # turn re-reads. Refused: unknown or unrunnable here. A
         # spent allowance is allowed; the fallback covers it.
         from ...agents import recipes
         try:

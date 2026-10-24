@@ -85,7 +85,7 @@ def check_program(word):
 
 def _leaves(word):
     """Does this word of a check reach outside the workspace (absolute, home
-    or `..`, anywhere in it)? A check is judged by its own workspace's fence."""
+    or `..`, anywhere in it)? A check stays inside its own workspace."""
     for part in _WORD_SPLIT.split(str(word).replace("\\", "/")):
         if part.startswith(("/", "~", "$")) or ".." in part.split("/"):
             return True

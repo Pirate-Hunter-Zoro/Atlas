@@ -238,7 +238,7 @@ def _entry(root, d, rec, ident=None):
 
 def list(root):                                              # noqa: A001
     """Every artifact of the subject at `root`: `docs/*/` by name, then the
-    ones placed in place, in walk order. Fenced paths are never listed."""
+    ones placed in place, in walk order."""
     from .course import library                          # local: library imports this
     root = os.path.realpath(root)
     out = []

@@ -11,9 +11,9 @@ sessions and the invariants. How a tutor turn teaches is
 
 - **The repository is public.** Every commit is published the moment it is pushed, and git
   keeps it forever. The TRD-EHR manuscript links here, so it stays public.
-- **No PHI in git.** Patient data lives only on the cluster, in ignored `phi/` and `results/`
-  directories. Anchored ignore rules, `.githooks/pre-commit` and `board/test/tracked.py` each
-  refuse it on their own, because any one guard can be deleted by accident.
+- **Nothing private in git.** Other people's work, keys, recordings and large binaries stay on
+  disk. Ignore rules, `.githooks/pre-commit` and `board/test/tracked.py` each refuse them on
+  their own, because any one guard can be deleted by accident.
 - **No AI provider is load-bearing.** Every AI use in Atlas reads one provider table and walks
   it in order, so any provider can be added, removed, or go away. DeepSeek on the Mac mini alone
   runs all of it. The README in `board/` says how to add one.
@@ -45,7 +45,7 @@ Inside a subject:
 
 | Path | What it is | Tracked |
 | --- | --- | --- |
-| `tutorboard.json` | `name`, `phi`, `check` | yes |
+| `tutorboard.json` | `name`, `check` | yes |
 | `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
 | `TUTOR.md` | the tutor's memory, written only with `board memo`; committed with End or real work, never alone | yes |
@@ -53,10 +53,7 @@ Inside a subject:
 | `docs/<slug>/` | an artifact: `doc.json` plus its source | yes |
 | `**/feedback/<stem>-<date>-v<n>*` | a document's feedback rounds, read from disk by `ledger.py` | no |
 | `materials/`, `.ink/` | uploaded and third-party files, and ink on documents | no |
-| `phi/`, `results/`, `.env` | cluster data; never read by an agent | no |
-
-`phi` gates check output: a coding session's check output reaches the tutor only when
-`tutorboard.json` sets `phi` to `false` literally, on disk and at HEAD.
+| `results/`, `.env` | job output, and a machine's secrets | no |
 
 Textbooks, lecture slides, assignment handouts, `materials/` and session uploads are ignored.
 Worked solutions, write-ups and the owner's handwritten answers are tracked.
@@ -147,8 +144,6 @@ steps without the board's LaunchAgent, and boots out one left from before. It sk
 serve, the provider config and the port-8778 check. Deleting the role file makes the next run a
 host.
 
-- `ai-config/policy/phi.py` must be there. Without it, `board code` withholds every check's
-  output from the tutor. Setup says when it is missing.
 - `board pull` brings the laptop up to date: Atlas and ai-config. It names
   each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those. `board code
   <session> <paths>` pulls main first too.
@@ -165,12 +160,12 @@ host.
 ## Assistant CLIs
 
 Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
-config, its PHI hook, and how to install, update and run it. The scripts that act on the
+config, its hooks, and how to install, update and run it. The scripts that act on the
 descriptors name no vendor, so adding an assistant is one file, and none is required.
 `setup-mac.sh` fast-forwards `ai-config` first, since Atlas's pull never moves it. Then it
 runs these two, which a second run leaves unchanged:
 
-- `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`), each PHI hook and
+- `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`), each hook and
   settings file, the daily audit and update timers, and one marked block in `~/.bashrc` that
   sources `ai-config/scripts/shell.sh`.
 - `ai-config/scripts/install-clis.sh` runs the vendor's own installer for any CLI that is
