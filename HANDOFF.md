@@ -157,8 +157,8 @@ existing vision route on the slate PNG.
 
 ## The owner's
 
-- **Time Machine has no destination** (`tmutil destinationinfo`). Set one now. Materials,
-  sessions, `.ink/` and the Colibri course's sources live only on the Mac disk.
+- **Backups.** MEGA backs up `~/Developer`, which holds materials, sessions and `.ink/`. Outside
+  it: `~/.config/tutor-board/` (keys.env, config.json) and `~/Archive/`.
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
@@ -171,9 +171,6 @@ existing vision route on the slate PNG.
 - **Keep `~/.elan`.** Its 2.7 GB v4.34.1 toolchain is reused by every Lean subject.
 - **Delete the ignored `projects/Lean-Theorem-Proving`** (about 14 GB of `.lake`) on any laptop
   that has it. `subjects.walk` lists any directory under `projects/` as a subject.
-- **In ai-config,** drop `workspaces/lean-theorem-proving.allow` and its `PERMISSIONS.md` rows.
-- **Push ai-config's `update-tools` commit.** It puts each descriptor's `A_BIN_DIR` on the PATH,
-  so a curl-installed opencode is updated. It is committed on ai-config's main, not pushed.
 - **Tools on every machine.** Run `bash scripts/setup-mac.sh` twice on the Mac mini, and
   `bash scripts/setup-mac.sh --coding` twice on each laptop. The second run must
   end clean with `Brewfile.all unchanged`. The first installs mise, ghostscript and tesseract,
