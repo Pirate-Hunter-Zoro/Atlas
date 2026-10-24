@@ -8,8 +8,9 @@ repository. Nothing touches the real `sessions/`.
 
   * `homework.pose` writes a statement only where the label is absent, a
     `\\todo` or empty, lays an empty region under a problem with none, and
-    never touches a region or a transcribed statement; an unchanged file is
-    not rewritten.
+    never touches a region or a transcribed statement (a region-only label
+    is stated; a problem missing its `\\end{problem}` is refused); an
+    unchanged file is not rewritten.
   * `homework.current` is the pinned label, else the next problem to write up
     once it is stated.
   * `board writeup pose <label>` pins session.json `problem`.
@@ -141,6 +142,25 @@ try:
     check("their argument in region 1 is untouched", "Their argument." in text)
     said, why = homework.pose(tex, "../x", "S")
     check("a label that is not a label is refused", said is None and "label" in why)
+    prose = os.path.join(course, "homework", "hw01", "prose.tex")
+    PROSE = ("\\begin{document}\nProblem 7. Stated in prose.\n% ===== SOLUTION 7 =====\n"
+             "% ===== END SOLUTION 7 =====\n\\end{document}\n")
+    write(prose, PROSE)
+    said, why = homework.pose(prose, "7", "Another statement.")
+    check("a label with a region and no problem environment is stated, and left alone",
+          said == {"label": "7", "statement": "kept", "region": "kept"}
+          and read(prose) == PROSE, (said, why, read(prose)))
+    OPEN = ("\\begin{document}\n\\begin{problem}{5}\n\\todo{statement not yet transcribed}\n"
+            "\\begin{problem}{6}\nProblem six, transcribed.\n\\end{problem}\n"
+            "\\end{document}\n")
+    write(prose, OPEN)
+    said, why = homework.pose(prose, "5", "Problem five.")
+    check("a problem with no \\end{problem} of its own never borrows the next one's",
+          said is None and "end{problem}" in why and read(prose) == OPEN, (said, why))
+    said, why = homework.add(prose, "5", "Problem five.", "An argument.")
+    check("and add refuses it too, writing nothing",
+          said is None and "end{problem}" in why and read(prose) == OPEN, (said, why))
+    os.remove(prose)
 
     # --- homework.current ------------------------------------------------------
     probs = homework.problems(tex)

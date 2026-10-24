@@ -592,13 +592,17 @@ def start(root, state, session=None, title=None, author=""):
 
 
 def _find_problem(lines, label):
-    """`(begin, end)` line indices of the problem environment for `label`."""
+    """`(begin, end)` line indices of the problem environment for `label`;
+    `end` is None when another problem opens before this one closes, so a
+    missing `\\end{problem}` never borrows the next problem's."""
     opener = "\\begin{problem}{%s}" % label
     for i, line in enumerate(lines):
         if opener in line:
             for j in range(i, len(lines)):
                 if "\\end{problem}" in lines[j]:
                     return i, j
+                if j > i and "\\begin{problem}" in lines[j]:
+                    return i, None
             return i, None
     return None, None
 
@@ -656,6 +660,8 @@ def add(tex, label, statement, argument):
             begin, end = _find_problem(lines, label)
     opened, closed = _find_region(lines, label)
     arg_lines = arg.splitlines()
+    if begin is not None and end is None and closed is None:
+        return None, "problem %s in %s has no \\end{problem}" % (label, tex)
     if opened is not None and closed is not None:
         if _region_written(lines[opened + 1:closed]):
             said["region"] = "replaced"
@@ -690,7 +696,8 @@ def pose(tex, label, statement):
 
     The statement is written only where the label is absent, a `\\todo` or
     empty; a transcribed statement and every solution region are left as
-    they are. A problem with no region gets an empty marker pair under it.
+    they are. A label with a region but no problem environment is
+    stated already, and is left alone. A problem with no region gets an empty marker pair under it.
     `({label, statement, region}, None)`, or `(None, why)` with nothing
     written; an unchanged file is not rewritten.
     """
@@ -718,6 +725,9 @@ def pose(tex, label, statement):
         if _find_region(lines, label)[0] is None:
             lines[end + 1:end + 1] = [top, bottom]
             said["region"] = "added"
+    elif begin is None and _find_region(lines, label)[0] is not None:
+        # Stated in prose above its region, as `problems_in` counts it.
+        pass
     elif begin is None:
         last = None
         for i in range(len(lines) - 1, -1, -1):
