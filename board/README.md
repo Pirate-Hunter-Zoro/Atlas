@@ -184,7 +184,10 @@ tree gets a `doc.json` written in place, so its ids hold.
   statement and pins session.json `problem`, the problem on their screen; the panel switches
   it with `POST /problem`. The payload's `problem` is that problem's statement as a card and
   its givens, the named matrices and tuples with math.js text (`tutorboard/course/givens.py`),
-  read from the pinned set alone and cached on its mtime.
+  read from the pinned set alone and cached on its mtime. On the board `web/problem.js` draws
+  it as `#probbar` in the chrome: the label opens the whole statement (`#probpanel`, fixed,
+  outside the sticky chrome), a picker switches problems, and each given's chip goes to the
+  calculator (`Calc.enter`), into the typed answer, or onto the clipboard as TeX.
 - **Deck or paper.** The Make menu creates the `doc.json`; a `[writeup]` turn writes and
   builds it.
 - **Meeting deck.** `board meeting --since 7d` or home's meeting panel: one brief of the

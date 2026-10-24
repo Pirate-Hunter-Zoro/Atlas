@@ -61,6 +61,7 @@ var SHELL = [
   "/static/ledger.css",
   "/static/calc-core.js",
   "/static/calc.js",
+  "/static/problem.js",
   "/static/slate.js",
   "/static/codeview.js",
   "/static/vendor/highlight/highlight.min.js",

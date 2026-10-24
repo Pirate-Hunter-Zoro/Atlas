@@ -194,6 +194,26 @@ const REF = [
                        : fail('1/3 carries no fraction hint: ' + third.frac);
 }
 
+// ---- a given from the problem bar, defined as its chip's calc text, and a
+// matrix result read as fractions element by element (problem.js, givens.py)
+{
+  const e = Core.create(math);
+  const P = e.evaluate('P = [1/2, 1/3, 1/6; 0, 1/3, 2/3; 1/2, 0, 1/2]');
+  const p = e.evaluate('p = [1/4, 1/4, 1/2]');
+  P.ok && p.ok ? ok('a given\'s calc text defines it') : fail('a given will not define: ' + (P.error || p.error));
+  const r = e.evaluate('p*P^3');
+  r.ok && r.frac === '[59/144, 43/216, 169/432]'
+    ? ok('p*P^3 reads [59/144, 43/216, 169/432]')
+    : fail('p*P^3 carries ' + JSON.stringify(r.frac));
+  const sq = e.evaluate('P^2');
+  sq.frac === '[[1/3, 5/18, 7/18], [1/3, 1/9, 5/9], [1/2, 1/6, 1/3]]'
+    ? ok('a matrix keeps its rows')
+    : fail('P^2 carries ' + JSON.stringify(sq.frac));
+  e.evaluate('[1, 2; 3, 4]').frac === null && e.evaluate('[0.5, pi]').frac === null
+    ? ok('no hint for whole numbers, nor where an entry is no small fraction')
+    : fail('a matrix hint where none belongs');
+}
+
 // ---- DEG / RAD
 {
   const e = Core.create(math);

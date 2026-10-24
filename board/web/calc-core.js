@@ -1198,10 +1198,34 @@ function create(mathjs, opts) {
     try { return M.format(v, FMT); } catch (e) { return String(v); }
   }
 
-  function fracHint(v) {
+  function fracOf(v) {
     if (typeof v !== "number" || !isFinite(v) || Number.isInteger(v) || Math.abs(v) > 1e9) return null;
     var r = rational(v, 10000, 1e-12);
     return r && Math.abs(r[0]) < 1e6 ? r[0] + "/" + r[1] : null;
+  }
+
+  /* A number as a fraction, and a matrix or list element by element in its
+     own shape, so p*P^3 reads [59/144, 43/216, 169/432]. Null when nothing
+     in it is a fraction, or when any entry is neither a whole number nor a
+     fraction small enough to read. */
+  function fracHint(v) {
+    if (typeof v === "number") return fracOf(v);
+    var rows = v && v.isMatrix ? v.toArray() : Array.isArray(v) ? v : null;
+    if (!rows || !rows.length) return null;
+    var any = false;
+    function cell(x) {
+      if (Array.isArray(x)) {
+        var inner = x.map(cell);
+        return inner.indexOf(null) >= 0 ? null : "[" + inner.join(", ") + "]";
+      }
+      if (typeof x !== "number" || !isFinite(x)) return null;
+      if (Number.isInteger(x) && Math.abs(x) < 1e15) return String(x);
+      var f = fracOf(x);
+      if (f) any = true;
+      return f;
+    }
+    var out = cell(rows);
+    return out && any ? out : null;
   }
 
   function clean(msg) {

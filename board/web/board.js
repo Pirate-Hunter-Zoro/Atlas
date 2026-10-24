@@ -1284,6 +1284,9 @@ function render(data) {
   paintSession(state, data.push, data.agent, data.export,
                (data.hw && data.hw.build) || null);
   paintHomework(data.hw);
+  /* The problem on their screen, and its givens (web/problem.js). A past
+     lesson has none. */
+  if (window.Problem) window.Problem.paint(data.archived ? null : data.problem);
   if (!started) paintWaiting(data);
   seedTextDrafts(data);
   paintNotesSend();
@@ -3063,6 +3066,19 @@ if (els.calc && window.Calc) {
   window.Calc.onChange(paintCalc);
   els.calc.onclick = function () { window.Calc.toggle(); };
   if (window.Calc.wasOpen()) window.Calc.open();
+}
+
+/* THE PROBLEM ON THEIR SCREEN. problem.js owns the strip, the statement and
+   a given's menu; this hands it the session's routes, the card renderer and
+   the course's macros, and `render` paints it from every frame. */
+if (window.Problem) {
+  window.Problem.init({
+    post: function (url, body) { return postJson(BASE + url, body); },
+    markdown: renderMarkdown,
+    typeset: typeset,
+    macros: courseMacros,
+    ended: function () { return !!(headerState && headerState.ended); },
+  });
 }
 
 /* ----------------------------------------------- sending the annotations */

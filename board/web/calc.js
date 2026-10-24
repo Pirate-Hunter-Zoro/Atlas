@@ -15,7 +15,8 @@
    private tab, a full quota) costs the memory and nothing else.
 
    board.js owns the ⋯ menu entry and calls Calc.toggle(); this file owns the
-   panel. Loaded before board.js.
+   panel. Calc.enter(text) evaluates a definition handed over from a given's
+   chip (problem.js). Loaded before board.js.
    ========================================================================== */
 
 (function () {
@@ -439,6 +440,20 @@ window.Calc = {
   onChange: function (cb) { listeners.push(cb); },
   /* for the test suite: evaluate as if typed and pressed = */
   run: function (text) { if (!panel) build(); els.input.value = text; run(); },
+  /* A definition from somewhere else -- a given's chip (web/problem.js):
+     the panel opens and `text` is evaluated as if typed, so `P = [...]`
+     defines P and lands in the history. Whatever was half-typed is put
+     back afterwards. */
+  enter: function (text) {
+    if (!text) return;
+    open();
+    var was = els.input.value;
+    els.input.value = String(text);
+    run();
+    ensureEngine(function () {
+      if (!els.input.value && was) { els.input.value = was; caret = null; }
+    });
+  },
   wasOpen: function () { return !!saved.open; },
 };
 

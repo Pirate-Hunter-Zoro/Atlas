@@ -112,6 +112,18 @@
   <span id="hw-build"></span>
 </div>
 
+<!-- THE PROBLEM ON THEIR SCREEN (web/problem.js), so a statement never
+     scrolls away: its label, which opens the whole statement in #probpanel
+     and closes it, a picker over every problem in the set, and one chip per
+     given -- each a menu that puts it in the calculator, the typed answer or
+     the clipboard. -->
+<div id="probbar" class="probbar" hidden>
+  <button id="prob-open" class="prob-open" type="button" aria-expanded="false"
+          aria-controls="probpanel" title="the whole statement (tap again to close)"><span id="prob-label">problem</span></button>
+  <select id="prob-pick" class="prob-pick" aria-label="switch problem"></select>
+  <span id="prob-chips" class="prob-chips"></span>
+</div>
+
 <!-- A CODING SESSION. The exact command that starts or resumes this
      session's coding session, to copy into a terminal on the owner's laptop
      (the cluster runs the same one): shown while it is coding (with its held
@@ -240,6 +252,22 @@
     takes every session's next turn.</p>
   <div id="agentpick-ways" class="agentpick-ways"></div>
   <p id="agentpick-said" class="hdrmenu-note muted"></p>
+</div>
+
+<!-- THE STATEMENT, AND A GIVEN'S MENU: layers over the lesson, outside
+     #chrome for the reason the menus above are -- a scroller inside a sticky
+     element does not scroll on WebKit. problem.js hangs the statement under
+     the chrome, at most 45% of the glass, scrolling on its own. -->
+<div id="probpanel" class="probpanel" hidden>
+  <button id="probpanel-close" class="probpanel-close" type="button" title="close the statement">✕</button>
+  <div id="probpanel-body" class="body probpanel-body"></div>
+</div>
+<div id="probmenu" class="barmenu probmenu" hidden>
+  <div id="probmenu-head" class="probmenu-head"></div>
+  <button id="probmenu-calc" type="button">to calculator</button>
+  <button id="probmenu-say" type="button">into typed answer</button>
+  <button id="probmenu-copy" type="button">copy TeX</button>
+  <p id="probmenu-said" class="hdrmenu-note muted"></p>
 </div>
 
 <div id="barmenu" class="barmenu" hidden>
@@ -586,6 +614,8 @@
      is fetched by calc.js the first time the panel opens. -->
 <script src="/static/calc-core.js"></script>
 <script src="/static/calc.js"></script>
+<!-- The problem on their screen; before board.js, which paints it. -->
+<script src="/static/problem.js"></script>
 <!-- Code in a card: highlight.js (six languages) and the numbering board.js
      calls. Before board.js, which renders fences with them. -->
 <script src="/static/vendor/highlight/highlight.min.js"></script>
