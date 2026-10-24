@@ -317,6 +317,11 @@ Every session speaks and listens; a subject's `speech.lang` only sets the defaul
   beside it; the tutor gets a waking `[speech]` line naming that file, never the audio, and
   reads it with `board hear`. Each job writes one `cost.jsonl` line; `board cost` lists them
   apart from turns. `board doctor` speaks one word and hears it back.
+- `web/speak.js` is the speak tab (`#tab-speak`, `#speakbox`): `getUserMedia` on the record
+  tap only, every track stopped after the take, `audio/mp4` else `audio/webm;codecs=opus`. It
+  also adds each card's speak button and plays `say` phrases from a Blob, since nothing serves
+  a Range. The menu's auto-speak plays a new card's phrases, never its prose. It is stored per
+  subject, defaults to `speech.auto`, and its tap unlocks iOS audio.
 
 ## Invariants
 

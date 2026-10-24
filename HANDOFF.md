@@ -76,91 +76,14 @@ Rules that hold throughout:
 These are pre-approved. Write each from its bullets, and commit it when its item runs. None is
 waiting.
 
-## 14. Speech: every tutor speaks, listens and judges pronunciation
-
-Every session gets this, math included. A language subject turns it on by default.
-
-DeepSeek has no audio model, so the local recipe ends every chain. Never track audio: the
-audit's binary refusal stays.
-
-- **The table: `board/tutorboard/agents/speech.py`.**
-  - `DEFAULT_SPEECH` holds the recipes:
-    - `azure`: TTS by SSML. STT and assessment by the REST short-audio endpoint with the base64
-      `Pronunciation-Assessment` header (Phoneme granularity, Comprehensive, EnableMiscue,
-      HundredMark). The audio is WAV PCM 16 kHz mono, at most 30 s. The keys are
-      `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` in keys.env.
-    - `openai`: `gpt-4o-mini-tts`, and `gpt-4o-mini-transcribe` with multipart built by hand.
-    - `local`:
-      - TTS: `say`, rendered to m4a, falling back to `espeak-ng` for Irish (ga), which macOS
-        has no voice for.
-      - STT: `whisper-cli` with a ggml model in `~/.local/share/tutor-board/models/`.
-      - Assessment: `tutorboard/speech/tones.py`.
-  - Azure's Irish voices are `ga-IE-OrlaNeural` and `ga-IE-ColmNeural`.
-  - `config.json` gets a `speech` block, laid over the defaults like `agents`, with
-    `order = {tts, stt, assess}`. The default order is azure, openai, local.
-  - `chain(kind, lang)` skips a recipe that is unkeyed, missing its command, limited, stood down
-    or lacking the language, and always ends with local.
-  - `run()` walks it the way `seeing.describe` does, and writes one cost line to `cost.jsonl`.
-- **The local tone check: `speech/tones.py`, stdlib.**
-  - A YIN F0 tracker, with median smoothing and octave-jump repair.
-  - Semitones relative to the speaker's median.
-  - Syllables come from whisper timestamps, else from voiced runs merged to the target count.
-  - Classify each syllable against T1 to T4 and neutral, and run DTW against the TTS reference.
-  - Output each syllable's target tone, heard tone and confidence, plus a word diff.
-  - A low-confidence verdict counts as unknown. The scratch prototype found 6 voiced runs for 4
-    syllables, so it ships labelled.
-- **Listening: `POST /s/<id>/speech/say`.**
-  - The request is multipart: audio, `answers`, `ref`, `lang` and `pinyin`.
-  - Save it to `sessions/<id>/speech/`.
-  - Convert with `afconvert`, or `ffmpeg` for webm.
-  - Run STT, then assess when there is a `ref`, and write `<base>.heard.json`.
-  - Then write the turn record and a waking `[speech] heard: '...'. Target: '...'. <verdict>`
-    line with `file:`. The tutor never gets raw audio.
-  - Add the route to `ENDED_REFUSES`, and add `board hear <file>`.
-- **Speaking.**
-  - Cards may carry a fence opened with `say <lang>` and an optional `pinyin="ni3 hao3"`.
-  - `lesson/cards.py` synthesises these, as `extract_tikz` does, into
-    `~/.cache/tutor-board/speech/<sha>.m4a`, served at `/speech/<sha>.m4a`.
-  - Each card head gets a speak button: `POST /speech/card` reads the prose and skips math and
-    code.
-  - An auto-speak toggle, stored per subject, is also the iOS audio unlock.
-  - Playback fetches to a Blob, since there is no Range support.
-- **Recording: `web/speak.js`.**
-  - A third answer tab, `#tab-speak`, opens a `#speakbox` with record/stop, a level meter and the
-    last heard block with tone chips.
-  - MIME type: `audio/mp4`, else `audio/webm;codecs=opus`.
-  - Call `getUserMedia` only on tap, and stop the tracks after each take.
-  - Add it to the `sw.js` shell.
-- **Per subject:** `tutorboard.json` may hold `speech = {lang, native, voice, auto}`.
-  `course/config.read_config` keeps it, and `truthful.py` stays green. `SPEECH_SENSE` is included
-  when a subject has `speech` or a session holds heard files. TEACHING.md gets a short drill
-  section within its cap.
-- **Setup:**
-  - The Brewfile gets `whisper-cpp`, `ffmpeg` and `espeak-ng`.
-  - `setup-mac.sh` downloads one whisper model with a checksum, and a second run changes nothing.
-  - `board doctor` speaks one word and transcribes it back as a witness.
-- **Tests:** `board/test/speech.py` covers fake HTTP recipes, chain order, WAV synthesised at run
-  time with `wave`, sine-sweep tone classification and the route. A JS suite stubs MediaRecorder.
-
-Done when, on the iPad PWA:
-- A zh-CN `say` phrase plays.
-- A take shows "heard: ..." within about 5 s, with per-syllable tones.
-- `board doctor --dry` names a working local TTS, STT and assessment.
-
-Expected cost at 5 hours a week is about $3-5 a month (Azure's free tier covers most of it), and
-$0 local-only.
-
-Language subjects need nothing else from the board. Handwriting already covers kanji, kana and
-hanzi, and a subject only sets `speech`. Drawing and art come later. That work adds colour and
-pressure brushes to the slate with a reference-image layer, and critique goes through the
-existing vision route on the slate PNG.
-
 ## The owner's
 
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
-- **For item 14:** download the premium Tingting, Kyoko and Amélie voices in System Settings.
+- **Speech.** Run `bash scripts/setup-mac.sh` on each Mac. It installs `whisper-cpp` and
+  `espeak-ng` and fetches the whisper model. Download the premium Tingting, Kyoko and Amélie
+  voices in System Settings.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
   `setup-mac.sh --coding` the Mac mini's tailnet name.
 - **Read `board/TEACHING.md` once.** Every turn is told to follow it.
@@ -249,6 +172,10 @@ These are built but not yet used for real. Strike each one after an evening on t
   - A response typing out, and the typed half of the answer panel.
   - Whether the verdict band and streak chip feel like information or like a scoreboard.
 
+- **Speech,** on a subject whose `speech.lang` is zh-CN:
+  - A zh-CN `say` phrase plays.
+  - A take on the speak tab shows "heard: ..." within about 5 s, with a tone chip per syllable.
+  - `board doctor --dry` names a working local TTS, STT and assessment.
 ## The work it is for
 
 Each item's open tasks live in its subject's TUTOR.md.
