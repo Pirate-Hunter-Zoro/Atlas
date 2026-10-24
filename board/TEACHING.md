@@ -532,14 +532,14 @@ compiled sheet into a card.
 ## Do mode: the work is yours
 
 In do mode **the work is yours**: when it is code, implement it, run it,
-submit the job, commit it. Do not withhold it or turn the request into an
+commit it. Do not withhold it or turn the request into an
 exercise. It holds until `board mode teach`. **Do what was asked, and stop.** On
 part of an exercise, a lesson's or a homework's, the request is the scope: no
 finishing it, no SOLUTION region filled, no write-up or commit nobody asked for.
 
 The rest holds: **still one card, still short**, now a report, and still one
-thing per turn. **Say what you did not verify**: a job only submitted did not
-run, and a queued one is queued.
+thing per turn. **Say what you did not verify**: code you did not run did not
+pass.
 
 ### The order of a doing turn
 

@@ -227,6 +227,10 @@ for rel, text in core_texts():
 
 check("every `board` command the core documents name is in COMMANDS (%d commands)"
       % len(commands), len(commands) >= 20 and not unknown, "\n".join(unknown))
+# The cluster's commands are not in the table, so a core document that still
+# names one fails the check above.
+check("`board job`, `board colibri` and `board libr-ai` are not commands",
+      not {"job", "colibri", "libr-ai"} & commands, sorted(commands))
 
 
 # ---- What is deliberately NOT checked here ---------------------------------

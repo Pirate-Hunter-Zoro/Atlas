@@ -1,23 +1,22 @@
 # HANDOFF: what is left
 
 This file lists the work still to do, in the order to do it. Delete an item when it lands.
-Agents never ssh to the cluster; cluster steps are the owner's.
 
 ## How to run this file
 
 The owner starts a session with "read HANDOFF.md and get to work with ultracode". Then:
 
-0. **Commit the plan.** If HANDOFF.md or LIBR-EXIT.md shows as modified, commit both from the
-   main checkout before making any worktree, with
-   `bash board/scripts/save-and-push.sh "HANDOFF: the plan" -- HANDOFF.md LIBR-EXIT.md`. A
-   worktree branches from HEAD.
+0. **Commit the plan.** If HANDOFF.md shows as modified, commit it from the main checkout
+   before making any worktree, with
+   `bash board/scripts/save-and-push.sh "HANDOFF: the plan" -- HANDOFF.md`. A worktree
+   branches from HEAD.
 1. **Do not ask; every decision is made.** They are under *Owner decisions*. The owner files
    under *Owner files* are pre-approved.
    - Write each owner file from its bullets, and commit it when its item runs, by pathspec in
      its own commit.
    - A new subject's RULES.md lands right after that item's `subjects.create`, which refuses a
      directory that already exists.
-   - Stop for the owner only where an item says the owner acts: the iPad, the cluster, or a key.
+   - Stop for the owner only where an item says the owner acts: the iPad or a key.
      Ask only if the tree contradicts this file in a way it does not foresee.
 2. **Then take the items in order.** Each item is one workflow chain:
    - Re-inventory against the tree. Line numbers drift, so find code by name.
@@ -31,7 +30,7 @@ The owner starts a session with "read HANDOFF.md and get to work with ultracode"
    passes. Move the on-device criteria into *On the glass* in the same commit, and name them in
    the report as the owner's.
 3. **Between items, report in six lines or fewer.** Say what landed, what was skipped and why,
-   and what the owner must do on the iPad or the cluster.
+   and what the owner must do on the iPad.
 
 Rules that hold throughout:
 - **The main checkout serves the iPad live.** Merging board code restarts the board. Merge only
@@ -48,19 +47,12 @@ Rules that hold throughout:
 ## Owner decisions
 
 - **Atlas stays public.**
-- **What leaves.**
-  - The LIBR exit removes every PHI guard, and `projects/Meetings` with the meeting deck.
-  - `projects/Paper-Writer` is scrapped in the same run, and zipped with a history bundle like
-    the LIBR projects.
-  - The bundles' history filter is `git-filter-repo`, installed through brew for the run and
-    uninstalled after.
 - **Git and sync.**
   - TUTOR.md stays tracked, but commits only with End or with real work.
   - End's commit and the sync pass push to GitHub automatically.
   - Laptops get the ignored course inputs by rsync over SSH from the Mac mini.
 - **Owner files are pre-approved:** the owner's RULES.md files, the subject READMEs and the
   ai-config `update-tools` fix.
-- **Galois:** the p=13, d=2 worked case of ch07 13(d) carries into the course.
 - **Brew upgrades.** Both upgraders stay.
   - The external `com.mikeyferguson.brewupgrade` keeps its job.
   - `atlas.brew-upgrade` keeps a full brew upgrader on every clone.
@@ -84,26 +76,12 @@ Rules that hold throughout:
 These are pre-approved. Write each from its bullets, and commit it when its item runs. None is
 waiting.
 
-
-## 5. The LIBR exit
-
-Run `LIBR-EXIT.md`. The owner's section 5a is done, and it
-stops midway for the owner's section 5b.
-
-It zips TRD-EHR, PSYCH-ASR, libr-local-llm and Paper-Writer with their write-ups, results and
-sessions to `~/LIBR-handoff-<date>/`. It records Colibri's upstream instead of zipping it. It
-removes the cluster, every PHI guard, Meetings, Paper-Writer and the vendored Colibri.
-
-Sections 1 and 2 are done: every zip and bundle in `~/LIBR-handoff-2026-10-23/` verifies. Section 3
-waits for the owner's section 5b.
-
-
 ## 14. Speech: every tutor speaks, listens and judges pronunciation
 
 Every session gets this, math included. A language subject turns it on by default.
 
-DeepSeek has no audio model, so the local recipe ends every chain. Run this after the exit, so
-no PHI rule applies. Never track audio: the audit's binary refusal stays.
+DeepSeek has no audio model, so the local recipe ends every chain. Never track audio: the
+audit's binary refusal stays.
 
 - **The table: `board/tutorboard/agents/speech.py`.**
   - `DEFAULT_SPEECH` holds the recipes:
@@ -133,8 +111,7 @@ no PHI rule applies. Never track audio: the audit's binary refusal stays.
     syllables, so it ships labelled.
 - **Listening: `POST /s/<id>/speech/say`.**
   - The request is multipart: audio, `answers`, `ref`, `lang` and `pinyin`.
-  - Save it to `sessions/<id>/speech/`. Never use a dir named `audio`, or a file named
-    `.transcript.txt` or `.aligned.json`.
+  - Save it to `sessions/<id>/speech/`.
   - Convert with `afconvert`, or `ffmpeg` for webm.
   - Run STT, then assess when there is a `ref`, and write `<base>.heard.json`.
   - Then write the turn record and a waking `[speech] heard: '...'. Target: '...'. <verdict>`
@@ -180,9 +157,9 @@ existing vision route on the slate PNG.
 
 ## The owner's
 
-- **LIBR-EXIT section 5b**, on the cluster. Then copy `~/LIBR-handoff-2026-10-23/` to a second disk.
 - **Time Machine has no destination** (`tmutil destinationinfo`). Set one now. Materials,
-  sessions, `.ink/`, the Colibri course's sources and the LIBR zips live only on the Mac disk.
+  sessions, `.ink/` and the Colibri course's sources live only on the Mac disk. Copy the
+  project zips in `~/LIBR-handoff-2026-10-23/` to a second disk.
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
@@ -191,20 +168,37 @@ existing vision route on the slate PNG.
   and Amélie voices in System Settings.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
   `setup-mac.sh --coding` the Mac mini's tailnet name.
-- **After the exit:** run `bash scripts/setup-mac.sh` once on every laptop clone, so the purged
-  projects' leftovers go.
 - **Read `board/TEACHING.md` once.** Every turn is told to follow it.
 - **Keep `~/.elan`.** Its 2.7 GB v4.34.1 toolchain is reused by every Lean subject.
-- **Before the cluster next pulls main,** check that `squeue -n mathlib` is empty. Then delete the
-  ignored `projects/Lean-Theorem-Proving` there (about 14 GB of `.lake`) and on any laptop that
-  has it. `subjects.walk` lists any directory under `projects/` as a subject.
+- **Delete the ignored `projects/Lean-Theorem-Proving`** (about 14 GB of `.lake`) on any laptop
+  that has it. `subjects.walk` lists any directory under `projects/` as a subject.
 - **In ai-config,** drop `workspaces/lean-theorem-proving.allow` and its `PERMISSIONS.md` rows.
 - **Push ai-config's `update-tools` commit.** It puts each descriptor's `A_BIN_DIR` on the PATH,
   so a curl-installed opencode is updated. It is committed on ai-config's main, not pushed.
 - **Tools on every machine.** Run `bash scripts/setup-mac.sh` twice on the Mac mini, and
   `bash scripts/setup-mac.sh --coding` twice on each laptop. The second run must
   end clean with `Brewfile.all unchanged`. The first installs mise, ghostscript and tesseract,
-  and re-renders the tutor-board plist with mise's shims on its PATH.
+  re-renders the tutor-board plist with mise's shims on its PATH, and deletes the retired
+  projects' leftovers and vendor checkouts.
+- **ai-config.** The policy files are already copied into `courses/Colibri/materials/policy/`.
+  - First unregister `block-phi.py` in the Claude settings, because a registered hook whose
+    target is missing blocks every tool call. Then delete `policy/phi.py` and the PHI hook
+    adapters.
+  - Drop `shell.sh`'s NFS wrappers.
+  - Port the systemd timers (the daily audit and CLI updates) to launchd.
+  - Drop the egress and LOCAL-MODELS fence, the lab-path deny rules and the `~/Atlas` paths.
+  - Drop `README.md`'s Colibri line.
+- **`~/.claude/CLAUDE.md`'s "AI Providers: None Is Load-Bearing" section** names the cluster,
+  PHI, Colibri and a deleted egress document. Rewrite it for the Mac, and the same section in
+  `~/.config/opencode/AGENTS.md`.
+- **Memory notes** in `~/.claude/projects/-Users-mikeyferguson-Developer-Atlas/memory/`:
+  `colibri-read-only.md` (and its `MEMORY.md` line) describes Colibri reading the cluster's
+  data; delete it. `no-pattern-deletes-in-dotfiles.md` names the cluster in its example.
+- **Leftover config and files:**
+  - the dead `serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` keys in
+    `~/.config/tutor-board/config.json`;
+  - `~/.local/state/tutor-board/scrontab.*`;
+  - `~/Archive/atlas-migration/`.
 
 ## Loose ends in the code
 
@@ -232,8 +226,8 @@ These are built but not yet used for real. Strike each one after an evening on t
   - Teach and do persist until switched, and a do turn runs `board check`.
 - **Documents:**
   - The Colibri deck's round 2. In the Colibri library, re-ask its revise: its 40 requests are
-    unanswered, because the last revise timed out. Let it finish, then End. End commits with no
-    participant-scan refusal, and the ledger shows round 2 answered.
+    unanswered, because the last revise timed out. Let it finish, then End. End commits, and the
+    ledger shows round 2 answered.
   - One document all the way round: Make, build, read, ink, "Say what's wrong", revise.
   - The round as pairs on the Colibri deck: tap the chip, a row and a pip, and mark pairs fine
     or not fixed.
