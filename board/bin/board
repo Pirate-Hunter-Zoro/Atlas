@@ -2245,11 +2245,12 @@ GONE = {
     "direction": "gone: the owner's standing rules are the subject's RULES.md",
 }
 
+# Commands in none of the three lists below refuse without a session.
 # Commands about a path they are given: no `live/` is made for them.
 NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
            "pull", "cost", "doctor", "vpn", "egress", "limit", "hear")
 # Commands that touch only the subject: outside a session they run on a
-# sessionless Repo. Every other command refuses without a session.
+# sessionless Repo.
 SUBJECT_ONLY = ("check", "init", "see", "memo")
 # Commands that say less outside a session: with none named they run with no
 # Repo, anywhere, instead of refusing.
