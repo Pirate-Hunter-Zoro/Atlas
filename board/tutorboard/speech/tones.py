@@ -59,7 +59,48 @@ TONE_MARKS = {
     "ō": ("o", 1), "ó": ("o", 2), "ǒ": ("o", 3), "ò": ("o", 4),
     "ū": ("u", 1), "ú": ("u", 2), "ǔ": ("u", 3), "ù": ("u", 4),
     "ǖ": ("ü", 1), "ǘ": ("ü", 2), "ǚ": ("ü", 3), "ǜ": ("ü", 4),
+    # The breve is typed for the caron often enough to be read as it.
+    "ă": ("a", 3), "ĕ": ("e", 3), "ĭ": ("i", 3), "ŏ": ("o", 3), "ŭ": ("u", 3),
 }
+
+# Every final each initial takes: the syllables `targets` cuts joined pinyin
+# into (zhōngguó is zhong guo). `-` is the zero initial.
+_FINALS = {
+    "-": "a ai an ang ao e ei en eng er o ou",
+    "b": "a ai an ang ao ei en eng i ian iao ie in ing o u",
+    "p": "a ai an ang ao ei en eng i ian iao ie in ing o ou u",
+    "m": "a ai an ang ao e ei en eng i ian iao ie in ing iu o ou u",
+    "f": "a an ang ei en eng o ou u",
+    "d": "a ai an ang ao e ei en eng i ia ian iao ie ing iu ong ou u uan ui un uo",
+    "t": "a ai an ang ao e eng i ian iao ie ing ong ou u uan ui un uo",
+    "n": "a ai an ang ao e ei en eng i ian iang iao ie in ing iu ong ou u uan uo "
+         "ü üe ue",
+    "l": "a ai an ang ao e ei eng i ia ian iang iao ie in ing iu o ong ou u uan "
+         "un uo ü üe ue",
+    "g": "a ai an ang ao e ei en eng ong ou u ua uai uan uang ui un uo",
+    "k": "a ai an ang ao e ei en eng ong ou u ua uai uan uang ui un uo",
+    "h": "a ai an ang ao e ei en eng ong ou u ua uai uan uang ui un uo",
+    "j": "i ia ian iang iao ie in ing iong iu u uan ue un",
+    "q": "i ia ian iang iao ie in ing iong iu u uan ue un",
+    "x": "i ia ian iang iao ie in ing iong iu u uan ue un",
+    "zh": "a ai an ang ao e ei en eng i ong ou u ua uai uan uang ui un uo",
+    "ch": "a ai an ang ao e en eng i ong ou u ua uai uan uang ui un uo",
+    "sh": "a ai an ang ao e ei en eng i ou u ua uai uan uang ui un uo",
+    "r": "an ang ao e en eng i ong ou u ua uan ui un uo",
+    "z": "a ai an ang ao e ei en eng i ong ou u uan ui un uo",
+    "c": "a ai an ang ao e en eng i ong ou u uan ui un uo",
+    "s": "a ai an ang ao e en eng i ong ou u uan ui un uo",
+    "y": "a an ang ao e i in ing o ong ou u uan ue un",
+    "w": "a ai an ang ei en eng o u",
+}
+SYLLABLES = frozenset((i if i != "-" else "") + f
+                      for i, fs in _FINALS.items() for f in fs.split())
+_LONGEST = max(len(s) for s in SYLLABLES)
+
+# What ends a phrase: third-tone sandhi does not reach across it.
+_BREAK = r"[,.;:!?\n，。、；：！？…]+"
+# What only separates syllables.
+_GAP = r"[\s'’‘\-]+"
 
 
 # ---------------------------------------------------------------------------
@@ -69,40 +110,83 @@ def _tone_name(n):
     return {1: "T1", 2: "T2", 3: "T3", 4: "T4", 5: "neutral", 0: "neutral"}.get(n)
 
 
+def _bare(run):
+    """`(letters, tones)`: the run without its marks, and the tone each
+    letter carried (0 for none)."""
+    letters, marks = "", []
+    for ch in run:
+        base, tone = TONE_MARKS.get(ch, (ch, 0))
+        letters += base
+        marks.append(tone)
+    return letters, marks
+
+
+def segment(run):
+    """`[(syllable, tone or None)]`: a run of pinyin letters cut into
+    syllables, the longest one that leaves a cuttable rest first, one tone
+    mark at most a syllable; an erhua r stays on its syllable. None when the
+    run is not pinyin."""
+    letters, marks = _bare(run)
+    n = len(letters)
+    memo = {}
+
+    def cut(i):
+        if i == n:
+            return []
+        if i in memo:
+            return memo[i]
+        memo[i] = None
+        for j in range(min(n, i + _LONGEST + 1), i, -1):
+            piece = letters[i:j]
+            if piece not in SYLLABLES:
+                if not (piece.endswith("r") and piece[:-1] in SYLLABLES
+                        and piece != "er" and (j == n or letters[j] not in "aeiouü")):
+                    continue
+            toned = [t for t in marks[i:j] if t]
+            if len(toned) > 1:
+                continue
+            rest = cut(j)
+            if rest is not None:
+                memo[i] = [(piece, toned[0] if toned else None)] + rest
+                break
+        return memo[i]
+    return cut(0)
+
+
 def targets(pinyin):
-    """`[{syllable, target, expect}]` for `ni3 hao3` or `nǐ hǎo`: the written
-    tone, and the one spoken once third-tone and 不 sandhi are applied."""
-    out = []
-    said = str(pinyin or "").lower()
+    """`[{syllable, target, expect}]` for `ni3 hao3`, `nǐ hǎo` or `nǐhǎo`:
+    the written tone, and the one spoken once third-tone and 不 sandhi are
+    applied, each phrase (between commas and stops) on its own."""
+    said = unicodedata.normalize("NFC", str(pinyin or "")).lower()
+    said = said.replace("u:", "ü").replace("v", "ü")
     toned = bool(re.search(r"[1-5]", said) or any(c in TONE_MARKS for c in said))
-    for token in re.split(r"[\s',.;:!?，。、！？-]+", said):
-        if not token:
-            continue
-        for m in re.finditer(r"([a-zü:vāáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]+)([0-5])?", token):
-            syl, tone = "", None
-            for ch in m.group(1):
-                if ch in TONE_MARKS:
-                    base, tone = TONE_MARKS[ch]
-                    syl += base
-                else:
-                    syl += ch
-            if m.group(2):
-                tone = int(m.group(2))
-            syl = syl.replace("u:", "ü").replace("v", "ü")
-            if tone is None and toned:
-                tone = 5          # untoned among toned syllables: neutral
-            out.append({"syllable": syl, "target": _tone_name(tone)})
-    for s in out:
-        s["expect"] = s["target"]
-    # Third tone before third tone is spoken as a second.
-    for i in range(len(out) - 1):
-        if out[i]["target"] == "T3" and out[i + 1]["target"] == "T3":
-            out[i]["expect"] = "T2"
-    # 不 before a fourth tone is spoken as a second.
-    for i in range(len(out) - 1):
-        if out[i]["syllable"] == "bu" and out[i]["target"] == "T4" \
-                and out[i + 1]["target"] == "T4":
-            out[i]["expect"] = "T2"
+    out = []
+    for group in re.split(_BREAK, said):
+        phrase = []
+        for token in re.split(_GAP, group):
+            for m in re.finditer(r"([a-zü%s]+)([0-5])?" % "".join(TONE_MARKS), token):
+                pieces = segment(m.group(1))
+                if pieces is None:
+                    letters, marks = _bare(m.group(1))
+                    pieces = [(letters, next((t for t in marks if t), None))]
+                if m.group(2):
+                    pieces[-1] = (pieces[-1][0], int(m.group(2)))
+                for syl, tone in pieces:
+                    if tone is None and toned:
+                        tone = 5          # untoned among toned syllables: neutral
+                    phrase.append({"syllable": syl, "target": _tone_name(tone)})
+        for s in phrase:
+            s["expect"] = s["target"]
+        # Third tone before third tone is spoken as a second.
+        for i in range(len(phrase) - 1):
+            if phrase[i]["target"] == "T3" and phrase[i + 1]["target"] == "T3":
+                phrase[i]["expect"] = "T2"
+        # 不 before a fourth tone is spoken as a second.
+        for i in range(len(phrase) - 1):
+            if phrase[i]["syllable"] == "bu" and phrase[i]["target"] == "T4" \
+                    and phrase[i + 1]["target"] == "T4":
+                phrase[i]["expect"] = "T2"
+        out += phrase
     return out
 
 

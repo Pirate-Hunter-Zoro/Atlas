@@ -598,6 +598,23 @@ try:
           and aims[0]["syllable"] == "ni")
     check("不 before a fourth tone is expected second",
           [a["expect"] for a in tones.targets("bu4 shi4")] == ["T2", "T4"])
+    for joined, want in (("zhōngguó", [("zhong", "T1"), ("guo", "T2")]),
+                         ("nǐhǎo", [("ni", "T3"), ("hao", "T3")]),
+                         ("xuésheng", [("xue", "T2"), ("sheng", "neutral")]),
+                         ("zhong1guo2", [("zhong", "T1"), ("guo", "T2")]),
+                         ("xī'ān", [("xi", "T1"), ("an", "T1")]),
+                         ("xīān", [("xi", "T1"), ("an", "T1")]),
+                         ("jiangu", [("jian", None), ("gu", None)])):
+        got = [(a["syllable"], a["target"]) for a in tones.targets(joined)]
+        check("joined pinyin %s is cut into its syllables" % joined, got == want, got)
+    check("a breve is read as the third tone it was typed for",
+          [a["target"] for a in tones.targets("nĭ hăo wŏ")] == ["T3", "T3", "T3"])
+    phones = speech.ssml("zh-CN", "v", "中国你好", "zhōngguó nǐhǎo")
+    check("so Azure's SAPI phones are one number a syllable",
+          'ph="zhong 1 guo 2 ni 3 hao 3"' in phones, phones)
+    aims = tones.targets("wǒ hǎo, nǐ hǎo. hǎo")
+    check("third-tone sandhi stays inside its phrase, never across a comma or stop",
+          [a["expect"] for a in aims] == ["T2", "T3", "T2", "T3", "T3"], aims)
     samples, _spans = phrase(["T2", "T3"])
     path = os.path.join(box, "nihao.wav")
     wav(path, samples)
