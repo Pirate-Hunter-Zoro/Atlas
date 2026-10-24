@@ -1,13 +1,12 @@
 /* ==========================================================================
    reader.js -- the one reader: every PDF on the glass, and the ink on it.
 
-   ONE READER FOR EVERY PDF VIEW. The library's documents (the meeting deck
-   among them) and a document opened from a card on the board are the same
-   thing: page pictures drawn by the machine holding the PDF
-   (`course/paper.py` says why it is pictures), one `figure.lib-page` per page
-   carrying `data-ann="<inkKey>/p<n>"`, the pen out of `annotate.js`, the
-   pinch out of `readerzoom.js`, and every save of the ink through
-   `inkkeep.js`. A page with `#reader` markup of its own (the library) has it
+   ONE READER FOR EVERY PDF VIEW. The library's documents and a document
+   opened from a card on the board are the same thing: page pictures drawn by
+   the machine holding the PDF (`course/paper.py` says why it is pictures), one
+   `figure.lib-page` per page carrying `data-ann="<inkKey>/p<n>"`, the pen out
+   of `annotate.js`, the pinch out of `readerzoom.js`, and every save of the
+   ink through `inkkeep.js`. A page with `#reader` markup of its own (the library) has it
    adopted; a page without one (the board) gets it built, the same ids, over
    everything else (`reader-over`).
 
@@ -17,7 +16,7 @@
    `Reader.mount(opts)` once per page, before the first open, takes:
      keeper       an `InkKeep` already made (the board's, which also keeps the
                   cards' ink); otherwise one is made from `keep`
-     keep         `InkKeep.make` options: build, stamp, paint, saved, url
+     keep         `InkKeep.make` options: build, paint, saved, url
      url(path)    where this page asks for a server path (`libUrl`, the
                   board's session prefix); the burn and a kept copy use it
      committed()  a pinch has landed (`ReaderZoom`'s)

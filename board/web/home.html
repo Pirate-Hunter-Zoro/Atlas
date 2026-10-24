@@ -121,10 +121,6 @@
       <span class="action-name">Annotate a PDF</span>
       <span class="action-sub">upload one and write on it</span>
     </button>
-    <button id="act-meeting" class="action" type="button" hidden>
-      <span class="action-name">Meeting deck</span>
-      <span class="action-sub">over a period you choose</span>
-    </button>
   </section>
 
   <section id="settings">
@@ -302,41 +298,6 @@
         <span class="action-name">Close</span>
       </button>
     </div>
-  </div>
-</div>
-
-<!-- The meeting deck: a period, and the subjects it covers; none chosen is
-     every subject that moved. The deck is docs/meeting/ in the subject
-     /subjects.json names as `meetings`, and making one replaces the one
-     before. -->
-<div id="notes" class="sheet" hidden>
-  <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="notes-title">
-    <p class="eyebrow">the meeting deck</p>
-    <h3 id="notes-title">A deck for the meeting</h3>
-    <p class="sheet-line">A presentation for your mentors, written by the
-      assistant from what landed. Every number is checked against its source.</p>
-    <div id="notes-since" class="notes-since">
-      <button type="button" data-since="last">since the last deck</button>
-      <button type="button" data-since="monday">since Monday</button>
-      <button type="button" data-since="7d">the last week</button>
-      <button type="button" data-since="30d">the last month</button>
-    </div>
-    <p class="sheet-line">Which subjects? None chosen is every one that moved.</p>
-    <div id="notes-list" class="notes-which"></div>
-    <div class="sheet-actions">
-      <button id="notes-make" class="action primary" type="button" disabled>
-        <span class="action-name">Make the deck</span>
-        <span class="action-sub" id="notes-make-sub">choose a period</span>
-      </button>
-      <button class="action" id="notes-close" type="button">
-        <span class="action-name">Close</span>
-      </button>
-    </div>
-    <p class="sheet-line" id="notes-said" hidden></p>
-    <a id="notes-read" class="action primary" hidden>
-      <span class="action-name">Read the deck</span>
-      <span class="action-sub" id="notes-read-sub"></span>
-    </a>
   </div>
 </div>
 

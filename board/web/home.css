@@ -293,24 +293,6 @@ button.action { font: inherit; cursor: pointer; }
   border-radius: 0 .4rem .4rem 0;
   font-size: .92rem; line-height: 1.4;
 }
-/* THE PERIOD. Buttons rather than a date field: a date picker on a tablet,
-   ten minutes before a meeting, is the wrong shape of question. The chosen
-   one is pressed. */
-.notes-since { display: grid; gap: .5rem; margin-top: 1.1rem; }
-@media (min-width: 30rem) { .notes-since { grid-template-columns: 1fr 1fr; } }
-.notes-since button {
-  font: inherit; font-family: var(--ui); font-size: .92rem;
-  padding: .75rem .9rem; text-align: left; cursor: pointer;
-  color: var(--ink); background: var(--paper);
-  border: 1px solid var(--rule); border-radius: .5rem;
-}
-.notes-since button:hover:not(:disabled) {
-  border-color: var(--accent); background: var(--paper-2);
-}
-.notes-since button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-}
 /* `--accent`, not a `--bad` of its own. This stylesheet has no such token, and
    inventing one means defining it in BOTH blocks at the top or it is invisible
    in one theme — which is the rule `test/hub.js` enforces. `.pushline.bad`
@@ -382,24 +364,6 @@ button.action { font: inherit; cursor: pointer; }
 /* Over the sheets, which cover the whole glass: a sheet has its own close and
    the stack must not sit under one. */
 #panic { z-index: 63; }
-
-/* ---------- which subjects the deck is about ----------
-   A row per subject, chosen or not. None chosen is every subject that moved,
-   so the list narrows a decision rather than asking for one from nothing. */
-.notes-which { display: grid; gap: .3rem; margin-top: .7rem;
-  max-height: 46vh; overflow: auto; }
-.notes-which button {
-  font: inherit; font-family: var(--ui); font-size: .9rem;
-  display: flex; align-items: baseline; gap: .5rem;
-  padding: .55rem .7rem; text-align: left; cursor: pointer;
-  color: var(--ink); background: var(--paper);
-  border: 1px solid var(--rule); border-radius: .45rem;
-}
-.notes-which button[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-}
-.notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
 
 /* ---------- where a past session is sent ----------
    Every course and project in the one picker order (Random lessons, Recent,

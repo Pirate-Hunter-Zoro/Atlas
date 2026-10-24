@@ -6,12 +6,10 @@
    used first), past sessions (the newest ten), the actions, and settings.
 
    Everything it reads is unprefixed and one of these: GET /sessions.json,
-   /subjects.json (which also names the Meetings subject, or null),
-   /notices.json, /sync.json (the sync health),
-   /assistants.json, /subject/delete?subject=<id> (whether a subject can be
-   deleted, and why not) and, for the meeting deck, /library.json?subject=
-   <the Meetings subject>. Everything it writes is one of: POST
-   /sessions/new, /subjects/new, /subject/delete, /session/delete, /meeting,
+   /subjects.json, /notices.json, /sync.json (the sync health),
+   /assistants.json and /subject/delete?subject=<id> (whether a subject can
+   be deleted, and why not). Everything it writes is one of: POST
+   /sessions/new, /subjects/new, /subject/delete, /session/delete,
    /default-agent,
    /artifact?subject=<id> (a deck or a paper from a subject's row),
    /client-error (what broke on this page, for the board's log), a past
@@ -57,7 +55,6 @@ var els = {
   pastMore: $("past-more"),
   find: $("find"),
   panic: $("panic"),
-  actMeeting: $("act-meeting"),
   actNotes: $("act-notes"),
   actNotesSub: $("act-notes-sub"),
   actAnnotate: $("act-annotate"),
@@ -87,15 +84,6 @@ var els = {
   makerGo: $("maker-go"),
   makerGoSub: $("maker-go-sub"),
   makerClose: $("maker-close"),
-  notes: $("notes"),
-  notesSince: $("notes-since"),
-  notesList: $("notes-list"),
-  notesMake: $("notes-make"),
-  notesMakeSub: $("notes-make-sub"),
-  notesClose: $("notes-close"),
-  notesSaid: $("notes-said"),
-  notesRead: $("notes-read"),
-  notesReadSub: $("notes-read-sub"),
   artmaker: $("artmaker"),
   artmakerWhere: $("artmaker-where"),
   artmakerMake: $("artmaker-make"),
@@ -1206,168 +1194,6 @@ function route() {
 
 window.addEventListener("hashchange", route);
 
-/* ------------------------------------------------------- the meeting deck */
-/* ONE DECK, replaced by each ask; git history keeps every `meeting.tex`. A
-   writer turn takes minutes, so the sheet watches the Meetings library, whose
-   payload carries the deck's record as `meeting`. "Read the deck" is that
-   library with the deck opened (`?doc=`): `Reader.open`, and "say what is
-   wrong" files a round that queues a `[revise]` turn in a Meetings session.
-   Which subject is Meetings is /subjects.json's `meetings`; with none, the
-   action is not offered. */
-var notesSince = "";
-var notesWant = {};
-var notesTimer = null;
-var NOTES_POLL = 10000;
-
-/* The Meetings subject's id, or "" when this Atlas has none. */
-function meetings() { return (subjectsData && subjectsData.meetings) || ""; }
-function meetingsQ() { return "subject=" + encodeURIComponent(meetings()); }
-
-function openNotes() {
-  if (!meetings()) return;
-  els.notesSaid.hidden = true;
-  notesSince = "";
-  notesWant = {};
-  paintSince();
-  paintWhich();
-  els.notesRead.hidden = true;
-  pollNotes(true);
-  els.notes.hidden = false;
-}
-
-function closeNotes() {
-  els.notes.hidden = true;
-  if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
-}
-
-function notesSay(text, bad) {
-  els.notesSaid.hidden = false;
-  els.notesSaid.className = "sheet-line" + (bad ? " bad" : "");
-  els.notesSaid.textContent = text;
-}
-
-function pollNotes(quiet) {
-  if (!meetings()) return Promise.resolve();
-  return getJSON("/library.json?" + meetingsQ())
-    .then(function (got) { paintNotesState(got || {}, quiet); })
-    .catch(function () { /* a poll is quiet; the next one asks again */ });
-}
-
-/* THE DECK'S ROW in the Meetings library: the document carrying `meeting`. */
-function deckRow(got) {
-  var out = null;
-  (got.documents || []).forEach(function (d) { if (d.meeting && !out) out = d; });
-  return out;
-}
-
-function watchNotes() {
-  if (notesTimer) clearInterval(notesTimer);
-  notesTimer = setInterval(function () {
-    if (els.notes.hidden || document.hidden) return;
-    pollNotes(false);
-  }, NOTES_POLL);
-}
-
-function paintNotesState(got, quiet) {
-  var rec = got.meeting;
-  if (!rec) return;
-  var n = (rec.subjects || []).length;
-  var what = plural(n, "subject", "subjects")
-    + (rec.period ? ", " + rec.period : rec.since ? ", " + rec.since : "");
-  if (rec.state === "being written") {
-    els.notesRead.hidden = true;
-    notesSay("Being written in Meetings: " + what + ". This sheet says when it is ready.");
-    watchNotes();
-    return;
-  }
-  if (notesTimer) { clearInterval(notesTimer); notesTimer = null; }
-  if (rec.state === "did not land") {
-    if (!quiet) notesSay(rec.why || "The deck did not land. Ask for it again.", true);
-    return;
-  }
-  var row = deckRow(got);
-  if (!rec.ready || !row) return;
-  var check = rec.check || {};
-  var unsupported = (check.numbers || []).length + (check.figures || []).length
-    + (check.internal || []).length;
-  els.notesRead.setAttribute("href", "/library?" + meetingsQ() + "&doc="
-    + encodeURIComponent(row.id) + "&from=home");
-  els.notesRead.hidden = false;
-  els.notesReadSub.textContent = what
-    + (unsupported ? " · " + unsupported + " to check" : "")
-    + (row.marks && row.marks.pages ? " · marked up" : "");
-  if (!quiet) {
-    notesSay("Ready: " + plural(rec.pages || row.pages || 0, "slide", "slides")
-             + " about " + what + ". It replaced the one before it.");
-  }
-}
-
-function paintSince() {
-  Array.prototype.forEach.call(els.notesSince.querySelectorAll("button[data-since]"),
-    function (b) {
-      b.setAttribute("aria-pressed",
-                     b.getAttribute("data-since") === notesSince ? "true" : "false");
-    });
-  paintTicks();
-}
-
-/* Every course and project but Meetings itself, which is where the deck goes. */
-function paintWhich() {
-  els.notesList.innerHTML = "";
-  ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
-    if (s.id === meetings()) return;
-    var b = el("button");
-    b.type = "button";
-    b.setAttribute("data-id", s.id);
-    b.appendChild(el("span", "tick"));
-    b.appendChild(el("span", "", s.name || s.id));
-    b.onclick = function () {
-      notesWant[s.id] = !notesWant[s.id];
-      paintTicks();
-    };
-    els.notesList.appendChild(b);
-  });
-  paintTicks();
-}
-
-function chosen() {
-  return Object.keys(notesWant).filter(function (id) { return notesWant[id]; });
-}
-
-function paintTicks() {
-  Array.prototype.forEach.call(els.notesList.querySelectorAll("button"), function (b) {
-    var on = !!notesWant[b.getAttribute("data-id")];
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.querySelector(".tick").textContent = on ? "✓" : "·";
-  });
-  var n = chosen().length;
-  els.notesMake.disabled = !notesSince;
-  els.notesMakeSub.textContent = !notesSince ? "choose a period"
-    : (n ? plural(n, "subject", "subjects") : "every subject that moved")
-      + ", replacing the last deck";
-}
-
-function makeDeck() {
-  if (!notesSince) return;
-  els.notesMake.disabled = true;
-  notesSay("asking for it…");
-  postJSON("/meeting", { since: notesSince, items: chosen() }).then(function (rec) {
-    rec = rec || {};
-    els.notesMake.disabled = false;
-    if (!rec.ok) {
-      notesSay(rec.detail || rec.error || "the deck could not be asked for", true);
-      return;
-    }
-    notesSay(rec.detail || "Being written in Meetings.");
-    els.notesRead.hidden = true;
-    pollNotes(false);
-    watchNotes();
-  }).catch(function (e) {
-    els.notesMake.disabled = false;
-    notesSay(e.message || "the board did not answer", true);
-  });
-}
-
 /* ------------------------------------------------------------------- tutor */
 /* The machine's one provider setting, set with POST /default-agent: every
    session's next turn goes to it, or to its fallback when it cannot. Drawn by
@@ -1486,7 +1312,6 @@ function refresh() {
     subjectsData = all[1] || { subjects: [] };
     paintSessions(sessionsData);
     paintSubjects(subjectsData);
-    els.actMeeting.hidden = !meetings();
     if (all[2]) paintNotices(all[2]);
     route();
     loadHealth();
@@ -1544,7 +1369,6 @@ els.artmakerClose.onclick = closeArtmaker;
 els.artmaker.addEventListener("click", function (ev) {
   if (ev.target === els.artmaker) closeArtmaker();
 });
-els.actMeeting.onclick = openNotes;
 els.actNotes.onclick = newNotes;
 els.actAnnotate.onclick = openAnnot;
 els.annotFile.addEventListener("change", function () { annotSay(""); paintAnnot(); });
@@ -1554,17 +1378,6 @@ els.annotGo.onclick = annotate;
 els.annotClose.onclick = closeAnnot;
 els.annot.addEventListener("click", function (ev) {
   if (ev.target === els.annot) closeAnnot();
-});
-els.notesClose.onclick = closeNotes;
-els.notesMake.onclick = makeDeck;
-els.notes.addEventListener("click", function (ev) {
-  if (ev.target === els.notes) closeNotes();
-});
-els.notesSince.addEventListener("click", function (ev) {
-  var b = ev.target.closest ? ev.target.closest("button[data-since]") : null;
-  if (!b) return;
-  notesSince = b.getAttribute("data-since");
-  paintSince();
 });
 els.themeBtn.onclick = function () {
   if (window.Typeface) window.Typeface.theme("next");
@@ -1592,7 +1405,6 @@ els.sender.addEventListener("click", function (ev) {
 document.addEventListener("keydown", function (ev) {
   if (ev.key !== "Escape") return;
   if (!els.maker.hidden) closeMaker();
-  if (!els.notes.hidden) closeNotes();
   if (!els.artmaker.hidden) closeArtmaker();
   if (!els.annot.hidden) closeAnnot();
   if (!els.dropper.hidden) closeDropper();

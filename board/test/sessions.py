@@ -18,7 +18,6 @@ repository and a temp trash. Nothing here touches the real `sessions/`.
     and nothing else; `delete` moves the directory to the trash.
   * `/sessions/` is ignored, and the pre-commit hook refuses
     `git add -f sessions/x/cards/0001.md`.
-  * The meeting gather reads an ended session from the store.
   * `bind` sets `subject` with a non-waking `[bind]` line and files nothing;
     `bind --create` makes a subject in one commit, with the PHI ignore stanza
     for a patient-data project, and refuses `../x`, `/abs` and `research/x`.
@@ -81,7 +80,7 @@ os.environ["TUTORBOARD_COURSES"] = base
 os.environ["TUTORBOARD_TRASH"] = trash
 os.environ.pop("TUTORBOARD_SESSION", None)
 
-from tutorboard import briefs, gitops, paths, sessions   # noqa: E402
+from tutorboard import gitops, paths, sessions   # noqa: E402
 from tutorboard.course import homework                              # noqa: E402
 from tutorboard.course import repo as course_repo                   # noqa: E402
 from tutorboard.lesson import inbox as inbox_mod                    # noqa: E402
@@ -297,23 +296,6 @@ try:
     check("delete is a move: the session is whole in the trash",
           os.path.isfile(os.path.join(gone, "session.json"))
           and not os.path.exists(b_dir) and os.path.isdir(a_dir))
-
-    # ---- the meeting gather reads an ended session ----------------------------
-    d = sessions.new("Splitting fields", base=base, now=now - 3 * 3600)
-    d_dir = sessions.path(d["id"], base)
-    sessions.repo(d["id"], base).set_state(subject="courses/Galois")
-    write(os.path.join(d_dir, "cards", "0001-lesson.md"),
-          "---\nkind: lesson\n---\nA card.\n")
-    write(os.path.join(d_dir, "cards", "0002-lesson.md"),
-          "---\nkind: lesson\n---\nAnother.\n")
-    sessions.end(d["id"], base=base, now=now - 3600)
-    blocks, _, why = briefs.blocks_for(base, ["courses/Galois"], now - 6 * 3600)
-    held = [r for blk in blocks for r in blk["sessions"]]
-    check("the meeting gather's session walk reads a fixture ended session",
-          not why and d["id"] in [r["id"] for r in held], (why, held))
-    row = [r for r in held if r["id"] == d["id"]]
-    check("with its two cards, titled by the session",
-          row and row[0]["cards"] == 2 and row[0]["title"] == "Splitting fields")
 
     # ---- bind, and bind --create ----------------------------------------------
     from tutorboard.lesson import notes as lesson_notes             # noqa: E402

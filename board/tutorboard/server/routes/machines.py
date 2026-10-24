@@ -1,21 +1,18 @@
-"""The server's own routes: health, the sync health, the meeting deck, the
-provider setting, `/seen` and a page's error report.
+"""The server's own routes: health, the sync health, the provider setting,
+`/seen` and a page's error report.
 
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     atlas     unprefixed only, over every subject, by a sessionless Repo over
               the Atlas root; 404 under `/s/<id>/`:
               GET  /sync.json
-              POST /meeting  /default-agent
+              POST /default-agent
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
               handler answers for the server
               POST /client-error: one line in the server's log, the same
               under `/s/<id>/` and unprefixed
-
-`/meeting` asks the Meetings subject's tutor (`library.ask_meeting`); the
-deck is read, inked and corrected in that subject's library.
 """
 
 import json
@@ -31,7 +28,6 @@ from ... import keys
 from ... import limits
 from ... import subjects
 from ... import sync
-from ... import briefs
 from ... import stamp
 from ...lesson import state
 
@@ -140,30 +136,6 @@ def post(h, repo, path):
             repo.set_state(seen=time.time())
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
-
-    if path == "/meeting":
-        # The meeting deck: `{since, items}` (no items: every subject that
-        # moved), via `library.ask_meeting`.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:                                    # noqa: BLE001
-            return h.send_json({"ok": False, "detail": "bad json"}, status=400)
-        if not isinstance(payload, dict):
-            payload = {}
-        base = subjects.root() or repo.root
-        when, said = briefs.resolve_since(payload.get("since") or "", base)
-        if when is None:
-            return h.send_json({"ok": False, "detail": said}, status=400)
-        items = payload.get("items")
-        items = [str(w) for w in items if isinstance(w, str) and w.strip()][:200] \
-            if isinstance(items, list) else []
-        from . import library as library_route         # local: a cycle
-        try:
-            return library_route.meeting_deck(h, repo, base, when, said,
-                                              want=items or None)
-        except Exception as exc:                             # noqa: BLE001
-            return h.send_json({"ok": False,
-                                "detail": str(exc)[-300:]}, status=500)
 
     if path == "/default-agent":
         # The one provider setting: writes only `provider`, which the next

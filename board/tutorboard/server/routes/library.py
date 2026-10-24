@@ -63,7 +63,7 @@ from . import NOT_MINE
 from . import writing
 from .. import registry
 from ...runner import service as runner
-from ... import (artifacts, briefs, fenced, leaving, paths, sense, subjects,
+from ... import (artifacts, fenced, leaving, paths, sense, subjects,
                  writeups)
 from ...course import burn
 from ...course import ledger
@@ -73,7 +73,7 @@ from ...lesson import turns
 
 def get(h, repo, path):
     if path == "/library.json":
-        return h.send_json(with_deck(library.status(repo), repo))
+        return h.send_json(library.status(repo))
 
     if path == "/materials.json":
         found = subjects.find(repo.root, registry.base_of(repo))
@@ -239,7 +239,7 @@ def post(h, repo, path):
             page = int(payload.get("page") or 0)
         except (TypeError, ValueError):
             page = 0
-        found = library.carried(repo, doc, library.marks(repo, doc))
+        found = library.marks(repo, doc)
         items = ledger.preview(repo, found, payload.get("text") or "", page=page,
                                merge=_pages(payload.get("merge")),
                                round_no=ledger.next_round(repo.root, doc),
@@ -349,15 +349,11 @@ def _artifact(h, repo):
                         "subject": art.get("subject") or ""})
 
 
-def _dispatch_writeup(h, repo, match, makes, about, line=None, prepare=None,
-                      ask=None):
+def _dispatch_writeup(h, repo, match, makes, about, ask=None):
     """Ask for a document in the workspace `match` names (or this one), and
-    return `{id, rec, root}` or the refusal already sent. `prepare(target,
-    id)` runs once the ask is allowed and before it is recorded (the meeting
-    deck writes its brief there); a dict it returns may name `doc_dir`.
+    return `{id, rec, root}` or the refusal already sent.
     """
-    got, err = dispatch(repo, match, makes, about, line=line, prepare=prepare,
-                        ask=ask)
+    got, err = dispatch(repo, match, makes, about, ask=ask)
     if err:
         return h.send_json(err[0], status=err[1])
     if got.get("woke"):
@@ -374,7 +370,7 @@ class _Refusal(Exception):
         self.payload, self.status = payload, status
 
 
-def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
+def dispatch(repo, match, makes, about, ask=None):
     """`_dispatch_writeup` without a request: `({id, rec, root, woke}, None)`
     or `(None, (payload, status))`. The CLI and the front door share it.
 
@@ -386,45 +382,33 @@ def dispatch(repo, match, makes, about, line=None, prepare=None, ask=None):
 
     def ready(target, wid):
         """Make what the ask needs in `target`, and return the inbox text."""
-        doc_dir, text = None, line
-        if line is None and prepare is None:
-            # A plain ask makes its artifact first, so the turn is told the
-            # exact file, from the Atlas root.
-            try:
-                art = artifacts.create(
-                    target.root,
-                    about[:80] or ("Slides" if makes == "slides" else "Paper"),
-                    session=target.live if target.stored else None,
-                    ext=".tex" if makes == "slides" else ".md")
-            except (ValueError, OSError) as exc:
-                raise _Refusal({"ok": False, "error": "no document could be made "
-                                "here: %s" % exc}, 409)
-            doc_dir = art["rel"]
-            top = os.path.realpath(target.atlas or registry.base_of(repo))
+        # The artifact is made first, so the turn is told the exact file, from
+        # the Atlas root.
+        try:
+            art = artifacts.create(
+                target.root,
+                about[:80] or ("Slides" if makes == "slides" else "Paper"),
+                session=target.live if target.stored else None,
+                ext=".tex" if makes == "slides" else ".md")
+        except (ValueError, OSError) as exc:
+            raise _Refusal({"ok": False, "error": "no document could be made "
+                            "here: %s" % exc}, 409)
+        top = os.path.realpath(target.atlas or registry.base_of(repo))
 
-            def rel(p):
-                # From the Atlas root; a workspace outside it is named whole.
-                p = os.path.realpath(p)
-                said = os.path.relpath(p, top)
-                return p if said.startswith("..") else said.replace(os.sep, "/")
-            src = rel(art["path"])
-            made["artifact"] = {"id": art["id"], "source": src,
-                                "subject": rel(target.root)}
-            text = "[writeup] " + sense.writeup_sense(makes, about, source=src)
-        if prepare:
-            try:
-                got = prepare(target, wid)
-            except Exception as exc:                         # noqa: BLE001
-                raise _Refusal({"ok": False,
-                                "error": "nothing could be prepared: %s" % exc}, 500)
-            if isinstance(got, dict) and got.get("doc_dir"):
-                doc_dir = got["doc_dir"]
+        def rel(p):
+            # From the Atlas root; a workspace outside it is named whole.
+            p = os.path.realpath(p)
+            said = os.path.relpath(p, top)
+            return p if said.startswith("..") else said.replace(os.sep, "/")
+        src = rel(art["path"])
+        made["artifact"] = {"id": art["id"], "source": src,
+                            "subject": rel(target.root)}
         made["rec"] = writeups.ask(target, wid, makes, about,
                                    agent="",
-                                   doc_dir=doc_dir,
+                                   doc_dir=art["rel"],
                                    session=(os.path.basename(target.live)
                                             if target.stored else None))
-        return {"text": text or ("[writeup] " + sense.writeup_sense(makes, about))}
+        return {"text": "[writeup] " + sense.writeup_sense(makes, about, source=src)}
 
     record = {"rev": 0, "kind": "text", "answers": None, "from": "student",
               "signal": "writeup", "read": False}
@@ -564,88 +548,6 @@ def _strings(payload, key):
     return [str(x) for x in got if isinstance(x, (str, int))][:500]
 
 
-def ask_meeting(repo, base, since_ts, human, want=None):
-    """Ask for the meeting deck: `({id, host, where, dir, record}, None)` or
-    `(None, (payload, status))`. The brief is `briefs.blocks_for` the period
-    and subjects; `briefs.replace` runs in `prepare`, so a refusal leaves the
-    last deck standing.
-    """
-    blocks, every, why = briefs.blocks_for(base, want, since_ts)
-    if why:
-        return None, ({"ok": False, "detail": why}, 400)
-    if not blocks:
-        return None, ({"ok": False, "detail": (
-            "Nothing landed in %s in %s, so there is nothing to present. "
-            "Choose a longer period." % (human, ", ".join(
-                s["id"] for s in every) or "any subject"))}, 400)
-    if not briefs.meetings_root(base):
-        return None, ({"ok": False, "detail": (
-            "%s is missing; `board bind %s --create --phi yes` makes it"
-            % (briefs.MEETINGS, briefs.MEETINGS))}, 409)
-    period = briefs.period_text(since_ts)
-    rel = briefs.deck_rel()
-    about = ("the meeting deck for %s, briefed in %s/%s"
-             % (period, rel, briefs.BRIEF_MD))[:writeups.ABOUT_CHARS]
-    line = "[writeup] " + sense.writeup_sense("slides", sense.meeting_about(
-        rel, period, "%s/%s" % (briefs.MEETINGS, rel)))
-    made = {}
-
-    def prepare(target, wid):
-        made["rec"] = briefs.replace(
-            base, blocks, since_ts, human,
-            session=os.path.basename(target.live) if target.stored else None,
-            ink=briefs.ink_dirs(base, repo))
-        return made["rec"]
-
-    got, err = dispatch(repo, {"id": briefs.MEETINGS}, "slides", about, line=line,
-                        prepare=prepare, ask="the meeting deck")
-    if err:
-        payload = dict(err[0])
-        payload.setdefault("detail", payload.get("error") or "")
-        return None, (payload, err[1])
-    brief = made.get("rec", {}).get("brief") or {}
-    return {"id": got["id"], "host": briefs.MEETINGS, "where": "Meetings",
-            "dir": "%s/%s" % (briefs.MEETINGS, rel), "record": brief,
-            "woke": got.get("woke"), "session": got.get("session")}, None
-
-
-def meeting_deck(h, repo, base, since_ts, human, want=None):
-    """`POST /meeting`: the meeting deck asked for, and the sheet told it is
-    being written. The sheet then watches the Meetings library (`with_deck`)."""
-    got, err = ask_meeting(repo, base, since_ts, human, want=want)
-    if err:
-        return h.send_json(err[0], status=err[1])
-    h.hub.worker.dirty.set()
-    rec = got["record"]
-    return h.send_json({
-        "ok": True, "id": got["id"], "name": "meeting", "state": "being written",
-        "host": got["host"], "where": got["where"], "dir": got["dir"],
-        "session": got.get("session"),
-        "workspaces": rec.get("subjects") or [],
-        "names": rec.get("names") or {}, "since": human,
-        "period": rec.get("period") or "",
-        "detail": ("The assistant is writing it in Meetings. It takes several "
-                   "minutes, and this sheet says when it is ready. It replaces "
-                   "the deck before it.")})
-
-
-def with_deck(payload, repo):
-    """The Meetings library's payload with the meeting deck's record on its
-    row as `meeting` (`briefs.deck`); other subjects pass through."""
-    if registry.subject_of(repo) != briefs.MEETINGS:
-        return payload
-    try:
-        rec = briefs.deck(registry.base_of(repo) or subjects.root())
-    except Exception:                                        # noqa: BLE001
-        rec = None
-    rel = briefs.deck_rel()
-    for doc in payload.get("documents") or []:
-        if doc.get("artifact") == rel:
-            doc["meeting"] = rec
-    payload["meeting"] = rec
-    return payload
-
-
 def rework_refused(repo, doc):
     """Why this document may not be overhauled from here, or "".
 
@@ -686,22 +588,19 @@ def _revise(h, repo, doc, note_rel, ask="revise", purpose="", ledger_rel="",
             ids=()):
     """Ask for the revision: a `[revise]` (or `[rework]`) line and a turn woken
     on it. The turn runs fresh and writes no card (`HEADLESS_REVISE_PROMPT`).
-    The line names the source and, for a deck, its brief; `ledger_rel` and
-    `ids` are the requests to answer. `ask` sets the signal, prompt and clock
+    The line names the source; `ledger_rel` and `ids` are the requests to
+    answer. `ask` sets the signal, prompt and clock
     (`turn_plan`, `doing_now`). The session it runs in goes on the
     document's doc.json (`_asked_from`).
     """
-    brief = ""
-    if library.from_sittings(repo.root, doc):
-        brief = "%s/%s" % (doc["dir"], library.DECK_BRIEF)
     if ask == "rework":
         line = "[rework] " + sense.rework_sense(doc.get("source") or doc["rel"],
-                                                note_rel, purpose, brief=brief,
+                                                note_rel, purpose,
                                                 ledger=ledger_rel, ids=ids,
                                                 source=doc.get("source") or "")
     else:
         line = "[revise] " + sense.revise_sense(doc["rel"], note_rel,
-                                                brief=brief, ledger=ledger_rel,
+                                                ledger=ledger_rel,
                                                 ids=ids,
                                                 source=doc.get("source") or "")
     record = {

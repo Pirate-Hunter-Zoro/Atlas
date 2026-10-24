@@ -276,10 +276,7 @@ check("marks handed over this way are recorded as sent, so the board stops "
       all(lesson_notes.load_notes_sent(repo).get(m["key"]) for m in found))
 check("and the payload says a document has been drawn on",
       [d["marks"] for d in library.status(repo)["documents"]
-       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6, "waiting": 2}])
-# A DOCUMENT NOT MADE FROM SITTINGS SENDS ALL ITS INK EVERY ROUND, as it always
-# has: `waiting` is every marked page. Only a deck with a brief beside it keeps
-# ink an earlier round delivered behind -- test/briefs.py.
+       if d["id"] == marked["id"]] == [{"pages": 2, "strokes": 6}])
 
 # THE INK COMES BACK WITH THE PAGES. The library page opens no sitting and reads
 # no `state.json`, so it holds no live payload to restore marks out of -- the
@@ -852,13 +849,13 @@ p1_stem = led_ink(1, [S([0.10, 0.10, 0.20, 0.12, 0.15, 0.14]),
 p2_stem = led_ink(2, [S([0.10, 0.08, 0.60, 0.08, 0.60, 0.14, 0.10, 0.14])], png=False)
 
 library.forget()
-split = ledger.preview(lrepo, library.carried(lrepo, ldoc, library.marks(lrepo, ldoc)),
+split = ledger.preview(lrepo, library.marks(lrepo, ldoc),
                        "The abstract overclaims.\n\nSay considered, not significant.")
 check("the filing panel is shown the split before anything is sent: three "
       "inked regions and two paragraphs are five requests",
       [(i["kind"], i["page"]) for i in split]
       == [("ink", 1), ("ink", 1), ("ink", 2), ("text", 0), ("text", 0)])
-merged = ledger.preview(lrepo, library.carried(lrepo, ldoc, library.marks(lrepo, ldoc)),
+merged = ledger.preview(lrepo, library.marks(lrepo, ldoc),
                         "", merge=[1])
 check("and 'those marks on page 1 are one request' is one tap: merged, the "
       "page is one request",

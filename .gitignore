@@ -62,17 +62,6 @@ build/
 *-marked.pdf
 *-marked-[0-9]*.pdf
 
-# ---- the meeting deck: projects/Meetings/docs/meeting/ ----
-# `meeting.tex` and doc.json are tracked. The brief quotes commits and
-# sessions, the figures are copies of results, and the sidecar and the marks'
-# pictures are rewritten on every build: none of them is tracked.
-/projects/Meetings/docs/meeting/_brief.*
-/projects/Meetings/docs/meeting/_provenance.json
-/projects/Meetings/docs/meeting/figures/
-/projects/Meetings/docs/meeting/marks/
-# An older machine's root pointer to the deck. Nothing writes it.
-/meetings/
-
 # ---- other people's published papers ----
 # The citation libraries hold PDFs whose copyright belongs to their authors.
 # The INDEXES are tracked -- README.md, CITATION_MAP.md, the role-grouped

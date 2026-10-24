@@ -1387,10 +1387,10 @@ const heelSwipe = (id, x, y, dx, dy) => {
           return reply({ ok: true, scratch: 'courses/Random', subjects: [
             { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
             { id: 'courses/Random', kind: 'course', slug: 'Random', name: 'Random lessons' },
-            { id: 'projects/Meetings', kind: 'project', slug: 'Meetings', name: 'Meetings' }] });
+            { id: 'projects/Mosaic', kind: 'project', slug: 'Mosaic', name: 'Mosaic' }] });
         }
         if (url === '/sessions.json') {
-          return reply({ ok: true, sessions: [{ id: '20261001-090000', subject: 'projects/Meetings' }] });
+          return reply({ ok: true, sessions: [{ id: '20261001-090000', subject: 'projects/Mosaic' }] });
         }
         if (url === urlState) {
           return reply({ pages: Object.keys(saved).sort().map((k) => saved[k]) });
@@ -1538,7 +1538,7 @@ const heelSwipe = (id, x, y, dx, dy) => {
     check('an unbound canvas\'s End offers every course and project before it ends, '
           + 'in the one order: Random lessons, Recent, Courses, Projects',
           !panel.hidden && !posts.some((p) => p.url === B + '/end')
-          && rows4.map((b) => b.textContent).join(',') === 'Random lessons,Meetings,Galois Theory'
+          && rows4.map((b) => b.textContent).join(',') === 'Random lessons,Mosaic,Galois Theory'
           && Array.from(d4.querySelectorAll('.notes-send-group')).map((g) => g.textContent)
             .join(',') === 'Recent,Courses'
           && d4.getElementById('notes-send-list').firstElementChild === rows4[0],

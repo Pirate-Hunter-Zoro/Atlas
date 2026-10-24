@@ -63,7 +63,7 @@ A server started by hand or by a test sets neither variable, so it never pulls t
 | `tutorboard/lesson/` | cards, inbox, slate, turns, uploads, the save |
 | `tutorboard/course/` | a subject on disk: config, Repo, homework, library, reader pages, ledger, burn, book (the textbook index) |
 | `tutorboard/agents/` | provider recipes, usage and cost, `board doctor` |
-| `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, briefs (the meeting deck), sync, code, gitops, audit, fenced, leaving |
+| `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, sync, code, gitops, audit, fenced, leaving |
 | `web/` | home, board, slate and library pages; reader; ink; `sw.js`; vendored KaTeX and math.js |
 | `tex/` | `board-macros.tex` (generated from `web/macros.js` by `tools/sync-macros.py`) and the write-up template |
 | `scripts/` | install, ship, save-and-push |
@@ -122,8 +122,8 @@ enters it. `board brief` and `board recap` print the same text.
 **Uploads** land in the session's `uploads/` with a non-waking line. The tutor files them into
 the bound subject with `board file`, `materials/` by default, and their ink follows.
 
-**Non-session asks** (library feedback, Make from home, a meeting ask) go to the newest open
-session bound to the target subject, else to a new session bound to it.
+**Non-session asks** (library feedback, Make from home) go to the newest open session bound
+to the target subject, else to a new session bound to it.
 
 ## Subjects
 
@@ -187,9 +187,6 @@ tree gets a `doc.json` written in place, so its ids hold.
   taint the canvas the slate draws the figure's dvipng PNG instead.
 - **Deck or paper.** The Make menu creates the `doc.json`; a `[writeup]` turn writes and
   builds it.
-- **Meeting deck.** `board meeting --since 7d` or home's meeting panel: one brief of the
-  period (`briefs.py`), and the deck at `projects/Meetings/docs/meeting/` is replaced. git
-  history keeps the old ones.
 - **Reader.** One reader (`web/reader.js`) shows every PDF as page pictures drawn on the Mac.
   "Say what's wrong" files the marked pages as a round of the document's ledger and wakes a
   `[revise]` turn, which edits the source or writes `TUTOR.md`. The turn runs in the
@@ -229,7 +226,7 @@ tree gets a `doc.json` written in place, so its ids hold.
 - **Home** (`/`, `web/home.js`): open sessions, New session with New canvas beside it, the
   Tutor chooser, notices, a search, courses and projects most recently used first (each row
   can make a deck or paper, or be deleted), the newest ten past sessions (an unbound one can be
-  sent to a subject, a canvas given to the tutor), the Annotate a PDF and Meeting deck actions,
+  sent to a subject, a canvas given to the tutor), the Annotate a PDF action,
   the sync health, settings. A script that did not load shows a Retry line, and what
   breaks is posted to `/client-error`.
 - **Board** (`/s/<id>/board`): the session header (subject chip, mode, End), the cards, the

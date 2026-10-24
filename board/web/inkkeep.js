@@ -25,20 +25,15 @@
      4. ONLY WHAT WENT IS CLEAN. A stroke drawn while the save was in the air
         is still owed.
      5. INK KNOWS ITS BUILD. The reader says which build is on the glass for a
-        key (`opts.build`), and it rides on every save of freshly drawn ink,
-        with anything else the reader stamps on it (`opts.stamp`).
-     6. INK FOR A PAGE THAT IS GONE IS LET GO. A save the board answers with
-        `gone` was drawn on something since replaced, and retrying it would
-        write it onto the replacement.
+        key (`opts.build`), and it rides on every save of freshly drawn ink.
 
    `send` is NEVER set from here. Each reader decides what its ink becomes,
    and neither makes a turn per ring drawn.
 
    `InkKeep.make(opts)` takes:
      build(id)   the `{digest, at, pages}` the key was drawn on, or null
-     stamp(id)   more fields for a fresh body of the key, or null
      paint()     repaint whatever says where the ink is
-     saved(done) after a round, `done` = [{id, ok, gone}]
+     saved(done) after a round, `done` = [{id, ok}]
      url         where a body is POSTed (default `/annotate/save`): the
                  reader's session or subject route
    and answers `{save, queue, flush, settle, owed, failed}`. `InkKeep.words`
@@ -79,8 +74,6 @@ function make(opts) {
        keeps whatever it was sent with. */
     var build = dirty && opts.build ? opts.build(id) : null;
     if (build) body.build = build;
-    var more = dirty && opts.stamp ? opts.stamp(id) : null;
-    if (more) Object.keys(more).forEach(function (k) { body[k] = more[k]; });
     return body;
   }
 
@@ -117,17 +110,10 @@ function make(opts) {
         var read = r && r.json ? r.json().catch(function () { return {}; })
                                : Promise.resolve({});
         return read.then(function (got) {
-          if (got && got.gone) return got;
           if (r && r.ok === false) throw new Error("the board answered " + r.status);
           return got;
         });
       }).then(function (got) {
-        if (got && got.gone) {
-          /* What it was drawn on is gone: let it go, not try it again. */
-          if (A().unsaved().indexOf(id) >= 0) A().clean(id);
-          if (owed[id] === body) delete owed[id];
-          return { id: id, ok: true, gone: true };
-        }
         if (got && got.ok === false) throw new Error(got.error || "refused");
         var now = A().unsaved().indexOf(id) >= 0
           ? JSON.stringify(A().payload(id, false).strokes || [])

@@ -82,7 +82,6 @@ UNPREFIXED = (
     ("GET", "/source/*", "subject?"),
     # machines
     ("GET", "/sync.json", "atlas"),
-    ("POST", "/meeting", "atlas"),
     ("POST", "/default-agent", "atlas"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),
@@ -465,16 +464,12 @@ class Handler(BaseHTTPRequestHandler):
         if how == "new":
             return self.new_session(registry)
         if how == "subjects":
-            # `meetings`: the Meetings subject's id when this tree has it,
-            # else null; `scratch` the same for the catch-all every picker
-            # offers first (`subjects.SCRATCH`). `phi` per subject is the
-            # working tree's, for display.
-            from .. import briefs
+            # `scratch`: the catch-all every picker offers first
+            # (`subjects.SCRATCH`) when this tree has it, else null. `phi`
+            # per subject is the working tree's, for display.
             every = subjects.all(registry.atlas)
             return self.send_json({
                 "ok": True,
-                "meetings": briefs.MEETINGS if any(
-                    one["id"] == briefs.MEETINGS for one in every) else None,
                 "scratch": subjects.scratch(registry.atlas),
                 "subjects": [dict({k: one[k] for k in ("id", "kind", "slug", "name")},
                                   phi=subjects.phi(one["root"])) for one in every]})

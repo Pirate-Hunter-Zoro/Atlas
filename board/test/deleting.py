@@ -156,17 +156,14 @@ check("nothing refused moved or committed",
           "projects/Secret", "projects/NoKey", "courses/Open", "courses/Coded"))
       and not os.path.isdir(TRASH))
 
-# /subjects.json carries each subject's phi, from the working tree, and the
-# Meetings id, which this tree does not have.
+# /subjects.json carries each subject's phi, from the working tree.
 status, got = ask("GET", "/subjects.json")
 phis = dict((one["id"], one.get("phi", "absent")) for one in got.get("subjects", []))
 check("/subjects.json carries phi per subject, as the working tree says it",
       phis.get("projects/Secret") is True and phis.get("projects/NoKey") is None
       and phis.get("projects/Flipped") is False and phis.get("courses/Keep") is False)
 check("a phi that is not true or false is null there, never the word itself",
-      phis.get("projects/Worded") is None)
-check("and meetings is null where there is no Meetings subject",
-      status == 200 and "meetings" in got and got["meetings"] is None)
+      status == 200 and phis.get("projects/Worded") is None)
 
 # The read-only check the delete sheet asks first.
 def asked(subject):

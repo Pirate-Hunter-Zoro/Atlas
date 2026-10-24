@@ -447,15 +447,12 @@ REVISE_SENSE = (
 )
 
 
-def revise_sense(document_rel, feedback_rel, brief="", ledger="", ids=(),
-                 source=""):
-    """The inbox line for one round of feedback on one document. `brief`: a
-    deck's `_brief.md`, else "" (`DECK_BRIEF_SENSE`). `ledger`, `ids`: the
-    round's requests (`LEDGER_SENSE`). `source`: what it is built from
-    (`BUILD_SENSE`)."""
+def revise_sense(document_rel, feedback_rel, ledger="", ids=(), source=""):
+    """The inbox line for one round of feedback on one document. `ledger`,
+    `ids`: the round's requests (`LEDGER_SENSE`). `source`: what it is built
+    from (`BUILD_SENSE`)."""
     return (REVISE_SENSE % (document_rel, feedback_rel) + _build(source)
-            + _deck_brief(brief) + _ledger(ledger, ids) + MEASURE_SENSE
-            + RULE_SENSE)
+            + _ledger(ledger, ids) + MEASURE_SENSE + RULE_SENSE)
 
 
 # Built from the source by `board build`, so an edit anywhere else is lost.
@@ -497,32 +494,6 @@ def _ledger(ledger, ids):
                            ", ".join(shown), ledger)
 
 
-# A deck with a brief: an addition asked for in ink is the correction, not a
-# widening. The brief holds the scope and the figure catalogue, and a frame
-# stays one page because marks find slides by page number.
-DECK_BRIEF_SENSE = (
-    " THIS DECK WAS COMPOSED FROM A BRIEF, and what it covers is written down "
-    "in `%s`: read it before changing anything. Ink or a note asking for "
-    "something to be ADDED is the feedback, not a widening -- add it, from the "
-    "sources the brief names; the sessions' cards and transcripts it points "
-    "at are yours to read for this. A figure its catalog lists and the deck "
-    "does not have yet is fetched with `board deckfig %s <subject> <result id>`, "
-    "which copies it into the deck's figures/ and prints the path to "
-    "\\includegraphics; one the catalog does not list is found by giving a "
-    "word from its file name in place of the id. Open the image before using "
-    "it. Something asked to "
-    "come OUT comes out. Keep one page per frame (no allowframebreaks): the next "
-    "round of ink finds its slide by page number. "
-)
-
-
-def _deck_brief(brief):
-    brief = (brief or "").strip()
-    if not brief:
-        return ""
-    return DECK_BRIEF_SENSE % (brief, os.path.dirname(brief) or ".")
-
-
 # A rework is an overhaul and carries what the document is now for, named
 # here as well as in the feedback file so the board can paint it.
 REWORK_SENSE = (
@@ -542,12 +513,12 @@ REWORK_SENSE = (
 )
 
 
-def rework_sense(document_rel, feedback_rel, purpose, brief="", ledger="",
-                 ids=(), source=""):
-    """The inbox line for an overhaul of one document. `brief`, `ledger`, `ids`
-    and `source` as for `revise_sense`."""
+def rework_sense(document_rel, feedback_rel, purpose, ledger="", ids=(),
+                 source=""):
+    """The inbox line for an overhaul of one document. `ledger`, `ids` and
+    `source` as for `revise_sense`."""
     return (REWORK_SENSE % (document_rel, feedback_rel, (purpose or "").strip())
-            + _build(source) + _deck_brief(brief) + _ledger(ledger, ids)
+            + _build(source) + _ledger(ledger, ids)
             + MEASURE_SENSE + RULE_SENSE)
 
 
@@ -604,46 +575,6 @@ def writeup_sense(makes, about="", source=None):
     if source:
         line += (FILE_SENSE[kind] + DOC_BUILD_SENSE) % {"source": source}
     return line + MEASURE_SENSE + RULE_SENSE
-
-
-# The meeting deck: a professional presentation of recent progress, from
-# `_brief.md` (`briefs.write_brief`). The file name is fixed: the artifact is
-# projects/Meetings/docs/meeting/.
-MEETING_ABOUT = (
-    "THE MEETING DECK: a progress presentation to the MENTORS who supervise "
-    "these projects, over %(period)s. Everything it may say is in "
-    "`%(dir)s/_brief.md` -- read that file first, whole. It has each subject's "
-    "commits with their whole messages, how its TUTOR.md changed, the sessions "
-    "that ended, and the figures already copied into `%(dir)s/figures/`. The "
-    "audience knows the field and saw none of the work. Tell them what was "
-    "FOUND, with its number and its figure; what CHANGED in direction, and "
-    "why; what is NEXT, in plain words; and what you need FROM THEM. A "
-    "changelog is not a presentation: choose the findings, and leave the "
-    "housekeeping out. "
-    "THE SHAPE: a title slide saying the period exactly as the brief gives it; "
-    "one summary slide with each project in one line and its headline number; "
-    "then, per project, as many slides as it needs; then one closing slide of "
-    "the decisions or asks for the mentors. ONE PAGE PER FRAME: no "
-    "allowframebreaks, no \\pause, no overlays. "
-    "NO INTERNAL NAMES ON A SLIDE: no commit hashes, no lines copied from "
-    "TUTOR.md as typed, no 'his' or 'her' without saying whose (the senior "
-    "author, a collaborator), and no links to the board. NUMBERS ONLY FROM THE "
-    "SOURCES: every number on a slide must appear in the brief or a file it "
-    "names; the board checks each one after the build and lists any it cannot "
-    "find beside the deck. "
-    "THE FILE IS `%(dir)s/meeting.tex` (`%(full)s/meeting.tex` from the Atlas "
-    "root), that name exactly and no other, and it outranks any other file "
-    "named above. Write it whole: it replaces the deck before it. Build it with "
-    "`board build` on that file. A LaTeX error is yours to fix before the turn "
-    "ends."
-)
-
-
-def meeting_about(deck_dir, period, full=None):
-    """What the meeting deck is about: its brief, and the period it covers.
-    `deck_dir` is relative to projects/Meetings; `full` to the Atlas root."""
-    return MEETING_ABOUT % {"dir": deck_dir, "period": period,
-                            "full": full or deck_dir}
 
 
 def session_sense(repo, doing=None):

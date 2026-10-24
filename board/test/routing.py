@@ -111,9 +111,6 @@ def write(path, text):
         fh.write(text)
 
 
-# The meeting deck's subject, as the repository tracks it.
-write(os.path.join(atlas, "projects", "Meetings", "tutorboard.json"),
-      json.dumps({"name": "Meetings", "phi": True}))
 for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
     write(os.path.join(atlas, rel, "tutorboard.json"),
           json.dumps({"name": os.path.basename(rel), "phi": False}))
@@ -134,7 +131,7 @@ for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
 
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]
 subprocess.run(["git", "init", "-q", atlas], check=True)
-write(os.path.join(atlas, ".gitignore"), "/sessions/\n**/.ink/\n/meetings/\n")
+write(os.path.join(atlas, ".gitignore"), "/sessions/\n**/.ink/\n")
 subprocess.run(GIT + ["-C", atlas, "add", "-A"], check=True)
 subprocess.run(GIT + ["-C", atlas, "commit", "-q", "-m", "projects/Beta: the fixture"],
                check=True)
@@ -360,7 +357,6 @@ DRIVE = {
     ("POST", "/writeup/seen", "library"): ("session", [
         ("/writeup/seen", {"id": "t0001"}, OK)]),
     # machines
-    ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
     ("GET", "/sync.json", "machines"): ("atlas", [("/sync.json", None, OK)]),
@@ -587,21 +583,15 @@ for who in ("A", "B"):
           % (who, who), MARK[who].encode("utf-8") in own
           and MARK[who].encode("utf-8") in named and MARK[who].encode("utf-8") in table)
 
-# The meeting deck is read in the Meetings library: its own page and routes
-# are not served.
-gone = [p for p in ("/meeting", "/meeting/", "/meeting/view", "/meeting/deck.json",
-                    "/meeting/pdf") if ask("GET", p)[0] != 404]
-check("the meeting page and its GET routes are gone (404): %s" % gone, not gone)
-
 # Document ink saved outside a session: the named subject's .ink/, or the
 # Atlas root's with none named.
 before = snapshot()
 ask("POST", "/annotate/save?subject=" + SUBJECT["B"],
     {"card": "doc/beta-notes/p3", "strokes": [{"pts": [[5, 5]]}]})
-ask("POST", "/annotate/save", {"card": "doc/meeting/p1", "strokes": [{"pts": [[6, 6]]}]})
+ask("POST", "/annotate/save", {"card": "doc/notes/p1", "strokes": [{"pts": [[6, 6]]}]})
 wrote = changed(before, snapshot())
 check("unprefixed document ink lands in the named subject's .ink/, or the Atlas root's",
-      len(wrote) == 2 and wrote[0].startswith(os.path.join(".ink", "doc-meeting-p1-"))
+      len(wrote) == 2 and wrote[0].startswith(os.path.join(".ink", "doc-notes-p1-"))
       and wrote[1].startswith(os.path.join(SUBJECT["B"], ".ink", "doc-beta-notes-p3-")))
 
 for who in ("A", "B"):
@@ -660,13 +650,6 @@ status, _, grew = landed("POST", "/s/%s/library/feedback" % SID["B"],
                          {"document": DOC["B"], "text": "a note from B's board"})
 check("library feedback from a session's own board lands in that session",
       status == 200 and only(grew, DIR["B"], "[revise]"))
-had = set(r["id"] for r in sessions.all(atlas))
-status, reply, grew = landed("POST", "/meeting", {"since": "3650d", "items": [SUBJECT["B"]]})
-made = [r for r in sessions.all(atlas) if r["id"] not in had]
-check("a meeting ask lands in a session bound to projects/Meetings, and nowhere else "
-      "(%d %s)" % (status, reply[:200]),
-      status == 200 and len(made) == 1 and made[0]["subject"] == "projects/Meetings"
-      and only(grew, sessions.path(made[0]["id"], atlas), "[writeup]"))
 status, _, grew = landed("POST", "/artifact?subject=" + SUBJECT["B"],
                          {"make": "deck", "about": "a deck from home"})
 check("a deck asked for from a subject's row lands in its subject's session",
@@ -718,9 +701,9 @@ check("/sessions.json lists both sessions", SID["A"] in listed and SID["B"] in l
 status, reply = ask("GET", "/subjects.json")
 check("/subjects.json lists every subject",
       sorted(s["id"] for s in json.loads(reply.decode("utf-8"))["subjects"])
-      == sorted(list(SUBJECT.values()) + [LONE, "projects/Meetings"]))
-check("/subjects.json names the Meetings subject's id",
-      json.loads(reply.decode("utf-8")).get("meetings") == "projects/Meetings")
+      == sorted(list(SUBJECT.values()) + [LONE]))
+check("/subjects.json names no meetings subject",
+      "meetings" not in json.loads(reply.decode("utf-8")))
 check("and names no catch-all where the tree has no courses/Random",
       "scratch" in json.loads(reply.decode("utf-8"))
       and json.loads(reply.decode("utf-8"))["scratch"] is None)

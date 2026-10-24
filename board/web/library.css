@@ -233,11 +233,6 @@ body { font-family: var(--ui); color: var(--ink); }
 .note-said { font-size: .8rem; color: var(--ink-2); line-height: 1.45; margin: 0; }
 .note-said.bad { color: var(--bad); }
 
-/* ---------- what no source supports ---------- */
-/* The meeting deck's check, listed under the reader's bar. */
-#reader-check summary { cursor: pointer; }
-#reader-check ul { margin: .3rem 0 0; padding-left: 1.2rem; }
-
 /* ---------- what this workspace has produced ---------- */
 /* Under the documents, on the same page, because "everything this workspace
    has made" is one question. The directory is the group and is CLOSED until it

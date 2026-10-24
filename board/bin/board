@@ -45,15 +45,6 @@ The assistant runs these. The student never does.
     board round <document> [--print]   the ink on a paper, deck or write-up,
                                        filed as a round of its ledger; prints
                                        the ledger and the ids to answer
-    board deckfig <deck dir> <subject> <id>
-                                       copy one more figure into a deck whose
-                                       brief lists it; prints the path to use
-    board meeting --since 7d [--subject <id>]...
-                                       THE meeting deck, projects/Meetings/
-                                       docs/meeting/: a presentation to the
-                                       mentors, written by a turn over a brief
-                                       of the period, replaced each time.
-                                       --print shows the brief
     board inbox [--all]                what the student sent; marks it read
     board check [<path>]               run the bound subject's tutorboard.json
                                        `check` from its root (with a path, its
@@ -144,7 +135,7 @@ if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
 from tutorboard import (assistants, brief, gitops,
                         leaving, limits, machine, memo,
                         paths, plain, reasoning, seeing, sense, sessions, tex, worktree)
-from tutorboard import briefs, subjects
+from tutorboard import subjects
 from tutorboard import mode as session_mode
 from tutorboard.net import egress, tailscale
 from tutorboard.course import config, homework, paper
@@ -1338,66 +1329,6 @@ def cmd_round(live, args):
     return 0
 
 
-def cmd_deckfig(live, args):
-    """Copy one more figure into a deck whose brief lists it.
-
-        board deckfig <deck dir> <subject> <result id>
-
-    The deck is a directory holding `_brief.json` -- the meeting deck is
-    `docs/meeting` in projects/Meetings -- named relative to this session's
-    subject, or to the Atlas root. The figure is copied into the deck's
-    `figures/` as `<subject>--<id>.<ext>`, and the path to put in
-    `\\includegraphics` is printed. Open the image before you put it on a slide.
-
-    The id may be a word from the figure's name that picks out exactly one;
-    several matches are listed. Names, never paths: `results.find` resolves
-    the id and asks the fence again before the file is opened.
-    """
-    if len(args) != 3:
-        print("board deckfig: say the deck, the subject and the result id -- "
-              "board deckfig <deck dir> <subject> <result id>", file=sys.stderr)
-        return 1
-    want_deck, want_ws, want_id = args
-    base = subjects.root() or live.root
-    deck = None
-    for top in (live.root, base):
-        here = os.path.realpath(os.path.join(top, want_deck))
-        if paths.within(here, os.path.realpath(base)) \
-                and os.path.isfile(os.path.join(here, briefs.BRIEF_JSON)):
-            deck = here
-            break
-    if not deck:
-        print("board deckfig: %s holds no %s, so it is not a deck with a brief"
-              % (want_deck, briefs.BRIEF_JSON), file=sys.stderr)
-        return 1
-    found = subjects.find(want_ws, base)
-    if not found:
-        print("board deckfig: %s is not a subject in this repository"
-              % want_ws, file=sys.stderr)
-        return 1
-    allowed = briefs.drawn_from(deck)
-    if found["id"] not in allowed:
-        print("board deckfig: this deck was made from %s, not %s -- a figure "
-              "comes from a subject the deck is about"
-              % (", ".join(allowed) or "no subject", found["id"]), file=sys.stderr)
-        return 1
-    rid = briefs.figure_named(found["root"], want_id)
-    if isinstance(rid, list):
-        print("board deckfig: %s matches %s in %s -- say one of those ids"
-              % (want_id, ", ".join(rid), found["id"]) if rid else
-              "board deckfig: %s offers no figure called %s -- the ids are in "
-              "the brief's catalog, and a word from the file's name finds one "
-              "that is not listed" % (found["id"], want_id), file=sys.stderr)
-        return 1
-    got = briefs.snapshot(found["root"], rid, found["id"], deck)
-    if not got:
-        print("board deckfig: %s offers no figure called %s -- the ids are in "
-              "the brief's catalog" % (found["id"], want_id), file=sys.stderr)
-        return 1
-    print(got)
-    return 0
-
-
 def cmd_mode(live, args):
     """Who writes the code in this session: teach or do.
 
@@ -1417,57 +1348,6 @@ def cmd_mode(live, args):
         print("board mode: %s" % exc, file=sys.stderr)
         return 2
     print("mode: %s%s" % (mode, "" if changed else "  (already)"))
-    return 0
-
-
-def cmd_meeting(live, args):
-    """The meeting deck: a presentation to the mentors, written over a brief.
-
-        board meeting --since 7d
-        board meeting --since 2026-09-01 --subject projects/PSYCH-ASR
-        board meeting --since last            (since the last deck)
-        board meeting --since monday --print  (the brief; writes nothing)
-
-    The period snaps to a local midnight. Per subject the brief carries the
-    commits that are its own work with their whole messages, how its TUTOR.md
-    changed, the sessions that ended in the period, and the period's figures.
-    Without `--print` it is asked for: the deck in projects/Meetings/docs/
-    meeting/ is replaced, its brief written beside it, and a `[writeup]` turn
-    in a session bound to projects/Meetings writes and builds `meeting.tex`.
-    """
-    def value(flag):
-        if flag in args:
-            n = args.index(flag)
-            if n + 1 < len(args):
-                return args[n + 1]
-        return ""
-
-    base = subjects.root() or live.root
-    when, human = briefs.resolve_since(value("--since"), base)
-    if when is None:
-        print("board meeting: %s" % human, file=sys.stderr)
-        return 1
-    want = [args[i + 1] for i, a in enumerate(args)
-            if a == "--subject" and i + 1 < len(args)]
-    if "--print" in args:
-        blocks, every, why = briefs.blocks_for(base, want or None, when)
-        if why or not blocks:
-            print("board meeting: %s" % (why or "nothing landed in %s" % human),
-                  file=sys.stderr)
-            return 1
-        rec = briefs.write_brief(base, briefs.deck_dir(base) or os.path.join(
-            base, briefs.MEETINGS, briefs.deck_rel()), blocks, when, human=human,
-            dry=True)
-        sys.stdout.write(rec["markdown"] + "\n")
-        return 0
-    from tutorboard.server.routes import library as library_route
-    got, err = library_route.ask_meeting(live, base, when, human, want=want or None)
-    if err:
-        print("board meeting: %s" % (err[0].get("detail") or err[0].get("error")
-                                     or "it could not be asked for"), file=sys.stderr)
-        return 1
-    print("the meeting deck is being written in session %s: %s" % (
-        got.get("session") or "?", os.path.join(base, got["dir"], briefs.STEM + ".tex")))
     return 0
 
 
@@ -2302,8 +2182,6 @@ COMMANDS = {
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "memo": cmd_memo,
     "code": cmd_code,
-    "meeting": cmd_meeting,
-    "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
     "open": cmd_open,
@@ -2324,7 +2202,7 @@ NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
            "pull", "cost", "doctor", "vpn", "egress", "limit")
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo. Every other command refuses without a session.
-SUBJECT_ONLY = ("check", "init", "see", "meeting", "deckfig", "memo")
+SUBJECT_ONLY = ("check", "init", "see", "memo")
 
 
 def help_for(cmd, fn):

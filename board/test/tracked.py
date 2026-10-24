@@ -269,7 +269,7 @@ _SHAPES = (
     ("projects/TRD-EHR/notes/lectures.md", False),
     ("projects/X/src/assignment.py", False),
     ("board/tutorboard/sessions.py", False),
-    ("projects/X/docs/meeting/meeting.tex", False))
+    ("projects/X/docs/talk/talk.tex", False))
 _wrong = [p for p, refused in _SHAPES if bool(audit.problems(p)) is not refused]
 _keep = "courses/Probability/chapters/ch01-introduction/lectures/.gitkeep"
 if audit.other_peoples_work(_keep):

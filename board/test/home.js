@@ -9,8 +9,7 @@
 //      chooser under New session saying who takes the next turn; the search,
 //      the most-recently-used order and the newest ten past sessions; a
 //      subject deleted from its row (and the ones that cannot be, saying
-//      why); an unbound past session sent to a course or project; and the
-//      Meetings subject read from the server.
+//      why); and an unbound past session sent to a course or project.
 //   2. Against a real server on a temp Atlas holding a Galois session with
 //      45 cards, so card 0003 is older than the board's window of 40: `/`
 //      asks nothing of the old switch route or /atlas.json, New session opens an unbound
@@ -94,7 +93,7 @@ async function stubbed() {
   const SUBJECTS = [
     { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
     { id: 'courses/Probability', kind: 'course', slug: 'Probability', name: 'Probability' },
-    { id: 'projects/Meetings', kind: 'project', slug: 'Meetings', name: 'Meetings' },
+    { id: 'projects/Mosaic', kind: 'project', slug: 'Mosaic', name: 'Mosaic' },
     { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' },
     { id: 'projects/libr-local-llm', kind: 'project', slug: 'libr-local-llm', name: 'Local LLM' }];
   const AGENTS = [
@@ -103,8 +102,8 @@ async function stubbed() {
   // GET /subject/delete?subject=, by subject: what the check says.
   const CHECKS = {
     'courses/Probability': { why: '', blocker: '', phi: false, sessions: [] },
-    'projects/Meetings': { why: 'phi', phi: true, sessions: [],
-      blocker: 'projects/Meetings may hold patient data, so the board does not remove it' },
+    'projects/Mosaic': { why: 'phi', phi: true, sessions: [],
+      blocker: 'projects/Mosaic may hold patient data, so the board does not remove it' },
     'courses/Galois-Theory': { why: 'open-session', phi: false, sessions: [SID, GAL],
       blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it; end them first; '
         + 'request 2026-10-09-gal has no terminal report yet' },
@@ -134,17 +133,10 @@ async function stubbed() {
         { id: LECT, title: 'Lecture 4', subject: null, subject_name: null, mode: 'teach',
           opened: '2026-08-30 09:00:00', ended: '2026-08-30 10:00:00',
           url: '/s/' + LECT + '/board' }].concat(older) },
-    '/subjects.json': { ok: true, meetings: 'projects/Meetings', subjects: SUBJECTS },
+    '/subjects.json': { ok: true, subjects: SUBJECTS },
     '/notices.json': { ok: true, notices: [
       { t: now - 60, text: 'report t0031 landed', subject: 'projects/TRD-EHR' },
       { t: now - 30, text: 'report t0032 landed', subject: 'projects/TRD-EHR' }] },
-    // The Meetings library, carrying the deck's record (`with_deck`).
-    '/library.json': { subject: 'projects/Meetings', documents: [
-      { id: 'meeting', artifact: 'docs/meeting', pdf: true, pages: 4, marks: { pages: 1 },
-        meeting: { state: 'ready', ready: true, deck: '2026-10-08T09:00:00' } }],
-      meeting: { state: 'ready', ready: true, deck: '2026-10-08T09:00:00', pages: 4,
-                 period: 'the last week', subjects: ['TRD-EHR'],
-                 check: { numbers: [{ value: '0.7', frame: 2 }], figures: [], internal: [] } } },
     // The sync health (`sync.health`).
     '/sync.json': { ok: true, synced: false, down: true,
       lines: ['not synced: fatal: Not possible to fast-forward, aborting.',
@@ -313,7 +305,7 @@ async function stubbed() {
         && /Galois Theory/.test(courses[0].textContent));
   const names = (list) => Array.from(d.querySelectorAll(list + ' .row-name')).map((e) => e.textContent);
   check('the most recently used first, then the untouched ones by name',
-        names('#project-list').join('|') === 'TRD-EHR|Local LLM|Meetings'
+        names('#project-list').join('|') === 'TRD-EHR|Local LLM|Mosaic'
         && names('#course-list').join('|') === 'Galois Theory|Probability');
   const sub = (id) => (d.querySelector('[data-subject="' + id + '"] .row-sub') || {}).textContent;
   check('a row says when it was last used, when it has been',
@@ -405,25 +397,6 @@ async function stubbed() {
         d.getElementById('maker-phi').hidden);
   d.getElementById('maker-close').click();
 
-  // The meeting deck lists the subjects, Meetings itself left out.
-  d.getElementById('act-meeting').click();
-  const which = Array.from(d.querySelectorAll('#notes-list button')).map((b) => b.getAttribute('data-id'));
-  check('Meeting deck is offered, since /subjects.json names a Meetings subject',
-        !d.getElementById('act-meeting').hidden);
-  check('and opens its sheet over every subject but Meetings',
-        !d.getElementById('notes').hidden && which.length === 4
-        && which.indexOf('projects/Meetings') < 0);
-  check('home.js reads which subject is Meetings rather than naming one',
-        !/projects\/Meetings/.test(fs.readFileSync(path.join(WEB, 'home.js'), 'utf8')));
-  await sleep(30);
-  const read = d.getElementById('notes-read');
-  check('a ready deck is offered as the Meetings library opened on it, the one reader',
-        !read.hidden && read.getAttribute('href')
-          === '/library?subject=projects%2FMeetings&doc=meeting&from=home'
-        && /1 to check/.test(d.getElementById('notes-read-sub').textContent)
-        && w.asked.some((r) => r.url === '/library.json?subject=projects%2FMeetings')
-        && !w.asked.some((r) => /^\/meeting\//.test(r.url)));
-  d.getElementById('notes-close').click();
   check('Notes and Annotate a PDF are live',
         !d.getElementById('act-notes').disabled && !d.getElementById('act-annotate').disabled);
 
@@ -549,23 +522,23 @@ async function stubbed() {
         dropper.hidden
         && d.getElementById('said').textContent === 'Probability is in the trash (/t/x/courses-Probability).'
         && w.asked.filter((r) => r.url === '/subjects.json').length > askedSubjects);
-  await openDrop('projects/Meetings');
+  await openDrop('projects/Mosaic');
   check('a subject that may hold patient data asks for no name, and says it goes on the cluster',
         !dropper.hidden && d.getElementById('dropper-ask').hidden && dropGo.hidden
         && /patient data/.test(dropWhy().textContent)
         && /cluster/.test(dropWhy().textContent) && /git rm/.test(dropWhy().textContent));
   d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
   check('Escape closes it', dropper.hidden);
-  const saidPhi = CHECKS['projects/Meetings'];
-  CHECKS['projects/Meetings'] = { why: 'phi', phi: null, sessions: [],
-    blocker: 'projects/Meetings: tutorboard.json at HEAD does not say "phi": false '
+  const saidPhi = CHECKS['projects/Mosaic'];
+  CHECKS['projects/Mosaic'] = { why: 'phi', phi: null, sessions: [],
+    blocker: 'projects/Mosaic: tutorboard.json at HEAD does not say "phi": false '
       + '(no tutorboard.json at HEAD), so the board does not remove it' };
-  await openDrop('projects/Meetings');
+  await openDrop('projects/Mosaic');
   check('one whose HEAD says nothing of patient data shows the board\'s sentence, '
         + 'naming what is missing, not the patient-data one',
         d.getElementById('dropper-ask').hidden && dropGo.hidden
-        && dropWhy().textContent === CHECKS['projects/Meetings'].blocker);
-  CHECKS['projects/Meetings'] = saidPhi;
+        && dropWhy().textContent === CHECKS['projects/Mosaic'].blocker);
+  CHECKS['projects/Mosaic'] = saidPhi;
   d.getElementById('dropper-close').click();
   await openDrop('courses/Galois-Theory');
   const held = Array.from(dropWhy().querySelectorAll('a')).map((a) => a.getAttribute('href'));
@@ -601,7 +574,7 @@ async function stubbed() {
         + 'Recent, then Courses, then Projects',
         !sender.hidden && d.getElementById('sender-title').textContent === 'Lecture 4'
         && sendIds().join('|') === ['courses/Galois-Theory', 'projects/TRD-EHR',
-          'courses/Probability', 'projects/libr-local-llm', 'projects/Meetings'].join('|')
+          'courses/Probability', 'projects/libr-local-llm', 'projects/Mosaic'].join('|')
         && Array.from(d.querySelectorAll('#sender-list .sender-group'))
           .map((e) => e.textContent).join('|') === 'Recent|Courses|Projects');
   typeIn(d.getElementById('sender-find'), 'prob');
@@ -663,15 +636,6 @@ async function stubbed() {
         d.getElementById('said').textContent === 'Lecture 4 went to Probability. uploads/notes.pdf '
         + 'stayed in the session: a file of that name is already in its materials.');
   w.sendReply = null;
-
-  // NO MEETINGS SUBJECT.
-  {
-    const mw = load('', { over: { '/subjects.json': { ok: true, meetings: null,
-                                                      subjects: SUBJECTS.slice(0, 4) } } });
-    await sleep(80);
-    check('with no Meetings subject the Meeting deck is not offered',
-          mw.document.getElementById('act-meeting').hidden);
-  }
 
   // THE BOOT CHECK, at the end of home.html.
   {
@@ -887,7 +851,7 @@ async function stubbed() {
   // `scratch`), the send sheet offers it first, under no heading, and Annotate
   // preselects it.
   {
-    const withRandom = { ok: true, meetings: 'projects/Meetings', scratch: 'courses/Random',
+    const withRandom = { ok: true, scratch: 'courses/Random',
       subjects: SUBJECTS.concat([{ id: 'courses/Random', kind: 'course', slug: 'Random',
                                    name: 'Random lessons' }]) };
     const rw = load('', { over: { '/subjects.json': withRandom } });
@@ -898,7 +862,7 @@ async function stubbed() {
     const first = rd.getElementById('sender-list').firstElementChild;
     check('the send sheet offers Random lessons first, then Recent, Courses, Projects',
           ids.join('|') === ['courses/Random', 'courses/Galois-Theory', 'projects/TRD-EHR',
-            'courses/Probability', 'projects/libr-local-llm', 'projects/Meetings'].join('|')
+            'courses/Probability', 'projects/libr-local-llm', 'projects/Mosaic'].join('|')
           && first && first.getAttribute('data-id') === 'courses/Random'
           && /Random lessons/.test(first.textContent));
     rd.getElementById('sender-close').click();
@@ -1059,8 +1023,8 @@ git("config", "user.email", "fixture@example.invalid")
 git("config", "commit.gpgsign", "false")
 gal = os.path.join(atlas, "courses", "Galois-Theory")
 write(os.path.join(gal, "tutorboard.json"), json.dumps({"name": "Galois Theory", "phi": False}))
-write(os.path.join(atlas, "projects", "Meetings", "tutorboard.json"),
-      json.dumps({"name": "Meetings", "phi": True}))
+write(os.path.join(atlas, "projects", "Mosaic", "tutorboard.json"),
+      json.dumps({"name": "Mosaic", "phi": True}))
 write(os.path.join(atlas, ".gitignore"), "/sessions/\n*/*/live/\n")
 git("add", "-A")
 git("commit", "-q", "-m", "fixture")
@@ -1268,15 +1232,12 @@ async function real() {
       const r = await fetch(new URL(href, base));
       if (r.status === 404) bad.push('link ' + href);
     }
-    // The routes this page reads that the server may not serve yet: the
-    // delete check, and `meetings` in /subjects.json. Where it has them they
-    // are pressed like everything else; where it does not, their controls are
-    // left alone and the page must not offer what it cannot do.
+    // The route this page reads that the server may not serve yet: the
+    // delete check. Where it has it, it is pressed like everything else; where
+    // it does not, its controls are left alone.
     const probe = await fetch(base + '/subject/delete?subject=courses%2FGalois-Theory');
     const checks = probe.status !== 404;
     if (!checks) console.log('skip  this server has no GET /subject/delete, so no row\'s delete is pressed');
-    const subjectsNow = await (await fetch(base + '/subjects.json')).json();
-    const named = 'meetings' in subjectsNow;
     const before = w.__requests.length;
     const buttons = Array.from(d.querySelectorAll('button'))
       .filter((b) => visible(d, b) && !b.disabled);
@@ -1286,15 +1247,11 @@ async function real() {
       b.click();
       await sleep(40);
       // Inside a sheet the buttons are visible now: press those too, once.
-      ['notes', 'maker', 'dropper'].forEach((id) => {
+      ['maker', 'dropper'].forEach((id) => {
         const sheet = d.getElementById(id);
         if (sheet.hidden || sheet.__pressed) return;
         sheet.__pressed = true;
-        if (id === 'notes') {
-          d.querySelector('#notes-since button[data-since="7d"]').click();
-          d.getElementById('notes-make').click();
-          d.getElementById('notes-close').click();
-        } else if (id === 'maker') {
+        if (id === 'maker') {
           d.querySelector('#maker-phi button[data-phi="no"]').click();
           d.getElementById('maker-close').click();
         }
@@ -1310,16 +1267,6 @@ async function real() {
       .map((r) => r.method + ' ' + r.url));
     check('no visible control calls a route that 404s'
           + (bad.length ? ': ' + bad.join(', ') : ''), bad.length === 0);
-    if (named && subjectsNow.meetings) {
-      check('the controls pressed reached the meeting deck',
-            w.__requests.some((r) => r.url === '/meeting' && r.method === 'POST')
-            && w.__requests.some((r) => r.url === '/library.json?subject='
-                                 + encodeURIComponent(subjectsNow.meetings)));
-    } else {
-      check('a server that names no Meetings subject gets no Meeting deck action',
-            d.getElementById('act-meeting').hidden
-            && !w.__requests.some((r) => r.url === '/meeting'));
-    }
     if (checks) {
       check('a row\'s delete asked the server whether that subject can go',
             w.__requests.some((r) => /^\/subject\/delete\?subject=/.test(r.url) && r.status === 200));

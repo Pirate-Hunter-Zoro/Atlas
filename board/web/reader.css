@@ -1,8 +1,8 @@
 /* ==========================================================================
    reader.css -- the one reader's sheet (`reader.js`).
 
-   Every PDF on the glass is this markup: the library's documents (the
-   meeting deck among them) and a document opened on the board. The board's
+   Every PDF on the glass is this markup: the library's documents and a
+   document opened on the board. The board's
    reader is built by `reader.js` and goes over everything (`reader-over`);
    the library's is the page.
    ========================================================================== */

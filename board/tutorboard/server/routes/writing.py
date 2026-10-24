@@ -237,17 +237,6 @@ def post(h, repo, path):
             # No session: only document ink, and only saved.
             return h.send_json({"ok": False, "error": "card ink and a send are a "
                                 "session's: /s/<id>/annotate/save"}, status=400)
-        # Ink saved against another deck (`briefs.deck_id`) is not this one's,
-        # because keys are page numbers; `gone` tells the page to drop it.
-        if card.startswith("doc/meeting/") and payload.get("deck") is not None:
-            from ... import briefs                     # local: avoids a cycle
-            from ..registry import base_of
-            here = briefs.deck_id(base_of(repo) or repo.root)
-            if str(payload.get("deck")) != here:
-                return h.send_json(
-                    {"ok": False, "gone": True,
-                     "error": "these marks were drawn on another deck"},
-                    status=409)
         record_path = ann_path(repo, card)
         os.makedirs(os.path.dirname(record_path), exist_ok=True)
         strokes = payload.get("strokes") or []

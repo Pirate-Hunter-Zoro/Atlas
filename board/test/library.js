@@ -1584,9 +1584,9 @@ const named = (title) => rows().filter(
 })();
 
 /* ==========================================================================
-   INK FOLLOWS THE READER'S ZOOM. The case is `test/inkzoom.js`, shared with
-   the meeting deck; here it runs on a paper's pages, on a DOM of its own so
-   nothing it draws is owed to the main page's saves.
+   INK FOLLOWS THE READER'S ZOOM. The case is `test/inkzoom.js`; here it runs
+   on a paper's pages, on a DOM of its own so nothing it draws is owed to the
+   main page's saves.
    ========================================================================== */
 async function inkFollowsZoom() {
   const ID = 'writeups-zoom-zoom';
@@ -1655,7 +1655,7 @@ async function inkIsKept() {
     id: ID, dir: 'writeups/notes', stem: 'notes', title: 'Notes on the cohort',
     kind: 'paper', formats: ['pdf', 'tex'], rel: 'writeups/notes/notes.pdf',
     pages: 2, pdf: true, stale: false, iso: '2026-09-28', notes: [],
-    marks: { pages: 0, strokes: 0, waiting: 0 },
+    marks: { pages: 0, strokes: 0 },
   }] };
   const BUILD = { digest: 'abc123def4567890', at: 1790000000, pages: 2 };
   const S = { c: '#e8746c', w: 2, p: [0.1, 0.1, 0.3, 0.4], pr: [0.5, 0.5] };
@@ -2097,7 +2097,7 @@ async function lazyPagesArePictured() {
     id: ID, dir: 'writeups/lazy', stem: 'lazy', title: 'A long deck',
     kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/lazy/lazy.pdf',
     pages: 4, pdf: true, stale: false, iso: '2026-10-01', notes: [],
-    marks: { pages: 4, strokes: 4, waiting: 4 },
+    marks: { pages: 4, strokes: 4 },
   }] };
   const net = { view: { [key(1)]: [FIX], [key(3)]: [OLD], [key(4)]: [OLD], [key(5)]: [OLD] },
                 wiped: null, save: 'ok', hold: null };
@@ -2433,7 +2433,7 @@ async function changesArePins() {
     pages: 2, pdf: true, stale: false, iso: '2026-09-29',
     notes: [{ name: '2026-09-29-v1.md', day: '2026-09-29', v: 1 },
             { name: '2026-09-30-v1.md', day: '2026-09-30', v: 1 }],
-    marks: { pages: 1, strokes: 3, waiting: 1 },
+    marks: { pages: 1, strokes: 3 },
     ledger: { rounds: 2, items: 6, open: 4, reopened: 0 },
   }] };
   const ans = (d, did, oldw, neww) => ({ disposition: d, did: did, old: oldw || '',
@@ -2840,7 +2840,7 @@ async function oldBuildInk() {
     id: ID, dir: 'writeups/colibri', stem: 'colibri', title: 'Colibri',
     kind: 'deck', formats: ['pdf', 'tex'], rel: 'writeups/colibri/colibri.pdf',
     pages: 3, pdf: true, stale: false, iso: '2026-10-01', notes: [],
-    marks: { pages: 3, strokes: 3, waiting: 3 },
+    marks: { pages: 3, strokes: 3 },
   }] };
   const net = { feedback: 'ok' };
   const log = [];
@@ -2932,7 +2932,7 @@ async function oldBuildInk() {
   click(byId('reader-say'));
   byId('note-text').value = '';
   byId('note-text').dispatchEvent(new w.Event('input', { bubbles: true }));
-  LIB.documents[0].marks = { pages: 1, strokes: 1, waiting: 1 };
+  LIB.documents[0].marks = { pages: 1, strokes: 1 };
   log.length = 0;
   click(byId('note-send'));
   await sleep(150);
@@ -2948,7 +2948,7 @@ async function oldBuildInk() {
     ? ok('no answer: with ink still waiting in the reloaded list, send is live again')
     : fail('no answer: send stayed dead with ink still waiting');
 
-  LIB.documents[0].marks = { pages: 0, strokes: 0, waiting: 0 };
+  LIB.documents[0].marks = { pages: 0, strokes: 0 };
   click(byId('note-send'));
   await sleep(150);
   byId('note-send').disabled

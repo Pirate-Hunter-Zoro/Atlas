@@ -747,17 +747,6 @@ def marks(repo, doc, index=None):
     return out
 
 
-# The brief beside a deck (`briefs.py`, which imports this module).
-DECK_BRIEF = "_brief.md"
-
-
-def from_sittings(root, doc):
-    """Is this a deck with its brief beside it?"""
-    where = (doc or {}).get("dir") or ""
-    return bool(where) and os.path.isfile(
-        os.path.join(root, *(where.split("/") + [DECK_BRIEF])))
-
-
 def last_round_landed(root, doc):
     """Did the newest round of feedback on this document come back? Yes with
     no round, answers in its ledger, `## What was changed` under the note, or
@@ -771,21 +760,6 @@ def last_round_landed(root, doc):
     if not os.path.isfile(path):
         return True
     return ledger.landed(root, doc, path)
-
-
-def carried(repo, doc, found, sent=None):
-    """The marks in `found` that the next note on `doc` carries: every mark,
-    except on a deck made from sittings whose last round landed, where only
-    ink no round delivered goes, because its slides renumber. A round that did
-    not land sends everything again, so a retry is a tap.
-    """
-    if not found or not from_sittings(repo.root, doc) \
-            or not last_round_landed(repo.root, doc):
-        return list(found)
-    from ..lesson import notes as lesson_notes        # local: avoids a cycle
-
-    sent = lesson_notes.load_notes_sent(repo) if sent is None else sent
-    return [m for m in found if not sent.get(m["key"])]
 
 
 def wipe_delivered(repo, doc, sent=None):
@@ -950,8 +924,8 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
                hand_over=True, merge=()):
     """One round of feedback on one document. Returns a record to paint.
 
-    Marks count as saying something, so an empty textarea with ink is a note;
-    which ink goes is `carried`'s. A round is a list of requests
+    Marks count as saying something, so an empty textarea with ink is a note,
+    and every marked page goes. A round is a list of requests
     (`course/ledger.py`): each inked region, each typed paragraph, and each
     reopened earlier request under its own id; `merge` joins marks on one page
     into one request. The ledger beside the note is what the turn answers.
@@ -969,7 +943,7 @@ def write_note(repo, ident_wanted, text, page=0, ask="revise", purpose="",
     ask = clean_ask(ask)
     said = (text or "").strip()
     aim = (purpose or "").strip()
-    found = carried(repo, doc, marks(repo, doc))
+    found = marks(repo, doc)
     if ask == "rework" and len(aim) < PURPOSE_LEAST:
         return {"ok": False,
                 "error": "say what the document is FOR now, in a sentence -- an "
@@ -1212,14 +1186,8 @@ def status(repo):
             ink = marks(repo, doc, index=index)
         except Exception:                                    # noqa: BLE001
             ink = []
-        # What a note would carry, via `carried` so the two cannot disagree.
-        try:
-            waiting = len(carried(repo, doc, ink, sent))
-        except Exception:                                    # noqa: BLE001
-            waiting = len(ink)
         doc["marks"] = {"pages": len(ink),
-                        "strokes": sum(m["strokes"] for m in ink),
-                        "waiting": waiting}
+                        "strokes": sum(m["strokes"] for m in ink)}
         # What was taken off, read after the wipe, so an open reader drops it.
         try:
             if buried is None or went:

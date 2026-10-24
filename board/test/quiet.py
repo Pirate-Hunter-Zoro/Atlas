@@ -10,8 +10,7 @@
     `save: <changed files>` under the subject's prefix.
   * `gitops.is_save` reads the old save strings and `save:` back as saves,
     bare or under the subject's own prefix, and nothing else: a `board: ` or
-    `HANDOFF: ` commit is work. `briefs.is_save` and the beside-the-lesson
-    filter both ask it, and briefs alone adds the hand-off.
+    `HANDOFF: ` commit is work. The beside-the-lesson filter asks it.
 
 Everything runs in a temp Atlas (`TUTORBOARD_COURSES`) with no origin.
 """
@@ -52,7 +51,7 @@ os.environ["TUTORBOARD_TRASH"] = trash
 os.environ.pop("TUTORBOARD_SESSION", None)
 os.environ.pop("TUTORBOARD_TURN", None)
 
-from tutorboard import briefs, gitops, sessions                       # noqa: E402
+from tutorboard import gitops, sessions                               # noqa: E402
 from tutorboard.lesson import git as lesson_git                       # noqa: E402
 
 
@@ -164,13 +163,6 @@ try:
           gitops.save_message(["a", "b", "c", "d", "e"])
           == "save: a, b, c and 2 more"
           and gitops.save_message(["a"]) == "save: a")
-    ids = {"projects/Probe", "projects/TRD-EHR"}
-    check("`briefs.is_save` asks it, and adds the hand-off",
-          briefs.is_save("projects/Probe: save: notes.md", ids)
-          and briefs.is_save("TRD-EHR: hand-off", ids)
-          and not briefs.is_save("projects/Probe: knn", ids))
-    check("but a work commit naming a handoff stays work in briefs",
-          not briefs.is_save(work[7], ids) and not briefs.is_save(work[8], ids))
 
     for name, msg in (("w1", "board: HANDOFF drops the commit decision"),
                       ("w2", "HANDOFF: the owner's answers"),
