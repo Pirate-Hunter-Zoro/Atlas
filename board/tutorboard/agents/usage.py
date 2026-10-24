@@ -418,6 +418,22 @@ def read_costs(where):
             pass
         return out
 
+def split_speech(rows):
+    """`(turn rows, speech rows)`: a speech job (`agents/speech.record_cost`)
+    is a line of its own in the same file, and is not a turn."""
+    return ([t for t in rows if t.get("kind") != "speech"],
+            [t for t in rows if t.get("kind") == "speech"])
+
+
+def speech_line(rows):
+    """One line for a place's speech jobs, or None."""
+    if not rows:
+        return None
+    by = sorted({t.get("agent") or "?" for t in rows})
+    return ("  speech: %d job(s), $%.3f (%s)"
+            % (len(rows), sum(t.get("usd", 0) for t in rows), ", ".join(by)))
+
+
 def _window(cfg):
     try:
         return int(cfg.get("quota_tokens") or 0)
@@ -436,7 +452,7 @@ def cost_all(cfg, found):
     """`board cost`: every place in `found` that billed, one line each.
     Each is `{dir, root}`, `root` a session directory or a workspace root."""
     share = _share(_window(cfg))
-    rows = [(c, read_costs(c["root"])) for c in found]
+    rows = [(c, split_speech(read_costs(c["root"]))[0]) for c in found]
     rows = [(c, r) for c, r in rows if r]
     if not rows:
         print("no turn has reported a cost on this machine yet.")
@@ -470,9 +486,11 @@ def cost_report(cfg, course, per_turn=False):
     """
     window = _window(cfg)
     share = _share(window)
-    rows = read_costs(course["root"])
+    rows, spoken = split_speech(read_costs(course["root"]))
     if not rows:
         print("%s: no turn has reported a cost here yet." % course["dir"])
+        if spoken:
+            print(speech_line(spoken))
         return 0
 
     if per_turn:
@@ -521,6 +539,8 @@ def cost_report(cfg, course, per_turn=False):
     print("  dearest turn: %s tokens%s over %d round trips (%s)"
           % (thousands(dear.get("tokens", 0)), share(dear.get("tokens", 0)),
              dear.get("requests", 0), dear.get("iso", "?")))
+    if spoken:
+        print(speech_line(spoken))
     if not window:
         print("  set `quota_tokens` in the config to see these as a share of "
               "one allowance window")

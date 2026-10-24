@@ -81,6 +81,17 @@ PAGES = (os.environ.get("TUTORBOARD_PAGES")
          or os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"),
                          "tutor-board", "pages"))
 
+# Synthesised speech, one `<sha>.m4a` a phrase (`speech/synth.py`), outside the
+# tree so audio can never be committed. `TUTORBOARD_SPEECH` moves it.
+SPEECH = (os.environ.get("TUTORBOARD_SPEECH")
+          or os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.join(HOME, ".cache"),
+                          "tutor-board", "speech"))
+
+# The local speech-to-text model (`scripts/speech-model.sh` fetches it).
+# `TUTORBOARD_MODELS` moves it.
+MODELS = (os.environ.get("TUTORBOARD_MODELS")
+          or os.path.join(HOME, ".local", "share", "tutor-board", "models"))
+
 # What the hub stats each second in a session directory. A directory counts
 # its entries too, since rewriting a file in place leaves its mtime alone.
 SESSION_WATCHED = ("cards", "turns.jsonl", "inbox/messages.jsonl", "state.json",
