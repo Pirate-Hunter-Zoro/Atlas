@@ -9,6 +9,7 @@ which a browser without `audio/mp4` records, need `ffmpeg`. Neither present is
 
 import array
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -20,6 +21,8 @@ RATE = 16000
 
 # Azure's short-audio REST endpoint takes at most this much.
 MAX_SECONDS = 30
+# What a converter may write past MAX_SECONDS before the WAV is trimmed.
+MARGIN = 2
 
 # What afconvert cannot read.
 NEEDS_FFMPEG = (".webm", ".ogg", ".oga", ".opus", ".mkv")
@@ -158,33 +161,78 @@ def converter_for(src):
     return "ffmpeg" if shutil.which("ffmpeg") else None
 
 
+def duration(src):
+    """`src`'s length in seconds as `afinfo` estimates it, or None."""
+    if not shutil.which("afinfo"):
+        return None
+    try:
+        done = subprocess.run(["afinfo", src], stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                              timeout=TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    m = re.search(rb"estimated duration:\s*([0-9.]+)", done.stdout or b"")
+    try:
+        return float(m.group(1)) if m else None
+    except ValueError:
+        return None
+
+
 def to_wav16k(src, dst, limit=MAX_SECONDS):
     """`src` as WAV PCM 16 kHz mono 16-bit at `dst`, at most `limit` seconds.
     A WAV of that shape is copied; anything else goes through `afconvert`, or
-    `ffmpeg` for WebM and Ogg."""
+    `ffmpeg` for WebM and Ogg. A converter never writes much more than
+    `limit`: ffmpeg stops at `limit` + MARGIN, and a source `afinfo` says is
+    longer goes through ffmpeg instead, or is refused. `dst` is written whole
+    or not at all: a conversion that fails or times out leaves nothing."""
+    fd, tmp = tempfile.mkstemp(prefix=".wav16k-", suffix=".wav",
+                               dir=os.path.dirname(os.path.abspath(dst)))
+    os.close(fd)
+    try:
+        _to_wav16k(src, tmp, limit)
+        if limit and seconds(tmp) > limit:
+            trim(tmp, limit)
+        os.replace(tmp, dst)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+    return dst
+
+
+def _to_wav16k(src, dst, limit):
     shape = wav_shape(src)
     if shape and shape[:3] == (RATE, 1, 16):
-        if os.path.abspath(src) != os.path.abspath(dst):
-            shutil.copyfile(src, dst)
+        shutil.copyfile(src, dst)
+        return
+    tool = converter_for(src)
+    if not tool:
+        raise Unconvertible(
+            "%s needs %s to be read, and it is not installed here (brew "
+            "install ffmpeg)" % (os.path.basename(src),
+                                 "ffmpeg" if src.lower().endswith(NEEDS_FFMPEG)
+                                 else "afconvert or ffmpeg"))
+    if tool == "afconvert" and limit:
+        # afconvert cannot stop early: a source longer than the limit, or one
+        # whose length cannot be told, goes through ffmpeg or not at all.
+        secs = duration(src)
+        if secs is None or secs > limit + MARGIN:
+            if not shutil.which("ffmpeg"):
+                raise Unconvertible(
+                    "%s is %s, over the %d s a take may be, and only ffmpeg "
+                    "(not installed here) can cut it short" % (
+                        os.path.basename(src),
+                        "of a length afinfo cannot tell" if secs is None
+                        else "%.0f s long" % secs, limit))
+            tool = "ffmpeg"
+    if tool == "afconvert":
+        _run(["afconvert", src, "-o", dst, "-f", "WAVE", "-d", "LEI16@%d" % RATE,
+              "-c", "1"])
     else:
-        tool = converter_for(src)
-        if not tool:
-            raise Unconvertible(
-                "%s needs %s to be read, and it is not installed here (brew "
-                "install ffmpeg)" % (os.path.basename(src),
-                                     "ffmpeg" if src.lower().endswith(NEEDS_FFMPEG)
-                                     else "afconvert or ffmpeg"))
-        if tool == "afconvert":
-            _run(["afconvert", src, "-o", dst, "-f", "WAVE", "-d", "LEI16@%d" % RATE,
-                  "-c", "1"])
-        else:
-            _run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", src,
-                  "-ar", str(RATE), "-ac", "1", "-c:a", "pcm_s16le", "-f", "wav", dst])
-        if not wav_shape(dst):
-            raise Unconvertible("%s converted to nothing readable" % src)
-    if limit and seconds(dst) > limit:
-        trim(dst, limit)
-    return dst
+        _run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", src]
+             + (["-t", "%d" % (limit + MARGIN)] if limit else [])
+             + ["-ar", str(RATE), "-ac", "1", "-c:a", "pcm_s16le", "-f", "wav", dst])
+    if not wav_shape(dst):
+        raise Unconvertible("%s converted to nothing readable" % src)
 
 
 def trim(path, limit=MAX_SECONDS):

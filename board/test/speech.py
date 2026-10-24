@@ -999,6 +999,11 @@ try:
                             filename="take.m4a", ctype="audio/mp4")
     check("audio nothing can read is 502, in words",
           status == 502 and "not heard" in got.get("error", ""), got)
+    left = sorted(os.listdir(folder))
+    check("and leaves the recording, but no 16 kHz WAV or half-written temp",
+          got.get("audio") in left and not any(
+              f.startswith(".wav16k-") or f == got["audio"].rsplit(".", 1)[0] + ".wav"
+              for f in left), left)
 
     ended = sessions.new("ended", base=atlas)["id"]
     sessions.end(ended, base=atlas)
@@ -1033,6 +1038,104 @@ try:
     status, got = post_json("/s/%s/speech/card" % sid, {"card": "../x"})
     check("and refuses a card id that is not one", status == 400)
     httpd.shutdown()
+
+    # A conversion is bounded by time: stand-ins for afinfo, afconvert and
+    # ffmpeg, alone on the PATH.
+    fakes = os.path.join(box, "fakes")
+    os.makedirs(fakes)
+    conv_log = os.path.join(box, "conv.log")
+    small = os.path.join(box, "small.wav")
+    wav(small, syllable(CONTOURS["T1"], 0.4))
+
+    def fake(name, body):
+        path = os.path.join(fakes, name)
+        with open(path, "w") as fh:
+            fh.write("#!/bin/sh\necho %s \"$@\" >> %s\n%s\n" % (name, conv_log, body))
+        os.chmod(path, 0o755)
+
+    def fresh(*names):
+        for f in os.listdir(fakes):
+            os.remove(os.path.join(fakes, f))
+        open(conv_log, "w").close()
+        for name, body in names:
+            fake(name, body)
+
+    LAST = "for a; do last=$a; done"
+    long_src = os.path.join(box, "long.m4a")
+    with open(long_src, "wb") as fh:
+        fh.write(b"m4a")
+    out_dir = os.path.join(box, "conv")
+    os.makedirs(out_dir)
+    dst = os.path.join(out_dir, "take.wav")
+    keep_path, keep_timeout = os.environ["PATH"], audio.TIMEOUT
+    os.environ["PATH"] = fakes + ":/bin"
+    try:
+        fresh(("afinfo", "echo 'estimated duration: 3600.0 sec'"),
+              ("afconvert", "exit 1"),
+              ("ffmpeg", "%s; cp %s \"$last\"" % (LAST, small)))
+        audio.to_wav16k(long_src, dst)
+        calls = open(conv_log).read()
+        check("an hour-long take afconvert would read whole goes through ffmpeg, "
+              "stopped at the limit and a margin",
+              "afconvert" not in calls and "-t %d" % (audio.MAX_SECONDS + audio.MARGIN)
+              in calls and audio.wav_shape(dst), calls)
+        os.remove(dst)
+        fresh(("afinfo", "echo 'estimated duration: 3600.0 sec'"),
+              ("afconvert", "exit 1"))
+        try:
+            audio.to_wav16k(long_src, dst)
+            refused = ""
+        except audio.Unconvertible as exc:
+            refused = str(exc)
+        check("and without ffmpeg it is refused in words, nothing written",
+              "3600 s long" in refused and os.listdir(out_dir) == [], refused)
+        fresh(("afinfo", "echo 'estimated duration: 3.0 sec'"),
+              ("afconvert", "cp %s \"$3\"" % small))
+        audio.to_wav16k(long_src, dst)
+        check("a short take still goes through afconvert",
+              "afconvert" in open(conv_log).read() and audio.wav_shape(dst))
+        os.remove(dst)
+        fresh(("afinfo", "echo 'estimated duration: 3.0 sec'"),
+              ("afconvert", "echo half > \"$3\"; exit 1"))
+        try:
+            audio.to_wav16k(long_src, dst)
+        except audio.Unconvertible:
+            pass
+        check("a conversion that fails leaves no partial WAV", os.listdir(out_dir) == [],
+              os.listdir(out_dir))
+        audio.TIMEOUT = 1
+        fresh(("afinfo", "echo 'estimated duration: 3.0 sec'"),
+              ("afconvert", "echo half > \"$3\"; exec sleep 5"))
+        try:
+            audio.to_wav16k(long_src, dst)
+            timed = ""
+        except audio.Unconvertible as exc:
+            timed = str(exc)
+        check("nor one that times out", "took more than" in timed
+              and os.listdir(out_dir) == [], (timed, os.listdir(out_dir)))
+    finally:
+        os.environ["PATH"], audio.TIMEOUT = keep_path, keep_timeout
+
+    from tutorboard.speech import hear
+    deaf_live = os.path.join(box, "deaf")
+    os.makedirs(os.path.join(deaf_live, "speech"))
+    deaf_take = os.path.join(deaf_live, "speech", "t1.m4a")
+    shutil.copyfile(small, deaf_take)
+    keep_run = speech.run
+
+    def deaf(*a, **k):
+        raise speech.Refused("nobody could do stt")
+    speech.run = deaf
+    try:
+        hear.take(deaf_live, deaf_take, "zh-CN")
+        raised = False
+    except speech.Refused:
+        raised = True
+    finally:
+        speech.run = keep_run
+    check("a take nobody could hear leaves its recording and no 16 kHz WAV",
+          raised and sorted(os.listdir(os.path.join(deaf_live, "speech"))) == ["t1.m4a"],
+          os.listdir(os.path.join(deaf_live, "speech")))
 
     # =======================================================================
     # 7. `board hear`, the audit, the multipart fields

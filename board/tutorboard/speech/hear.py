@@ -50,7 +50,8 @@ def take(live, recording, lang, ref=None, pinyin=None, voice=None, cfg=None,
     """Hear the recording at `recording` (inside `live/speech/`): write
     `<base>.wav` and `<base>.heard.json` beside it and return the record.
     Raises `speech.Refused` when nobody could transcribe it, and
-    `audio.Unconvertible` when it could not be read."""
+    `audio.Unconvertible` when it could not be read; either way no `.wav`
+    is left beside the recording."""
     lang = speech.clean_lang(lang)
     if not lang:
         raise speech.Refused("a language tag such as zh-CN is needed")
@@ -62,9 +63,16 @@ def take(live, recording, lang, ref=None, pinyin=None, voice=None, cfg=None,
         kept = os.path.join(folder, base + ".orig.wav")
         os.replace(recording, kept)
         recording = kept
+    # Written whole or not at all; and a take nobody could hear leaves only
+    # the recording, never a 16 kHz copy that no record names.
     wav = audio.to_wav16k(recording, wav)
     began = time.time()
-    heard, stt_by = speech.run("stt", lang, {"wav": wav}, live=live, cfg=cfg)
+    try:
+        heard, stt_by = speech.run("stt", lang, {"wav": wav}, live=live, cfg=cfg)
+    except BaseException:
+        if os.path.exists(wav):
+            os.remove(wav)
+        raise
     rec = {"base": base, "lang": lang, "target": ref or "", "pinyin": pinyin or "",
            "answers": answers, "heard": heard.get("text") or "",
            "words": heard.get("words") or [], "stt_by": stt_by,
