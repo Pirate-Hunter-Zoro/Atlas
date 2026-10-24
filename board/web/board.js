@@ -159,6 +159,7 @@ var els = {
   sendType: document.getElementById("send-type"),
   tabWrite: document.getElementById("tab-write"),
   tabType: document.getElementById("tab-type"),
+  tabSpeak: document.getElementById("tab-speak"),
   file: document.getElementById("file"),
   drop: document.getElementById("drop")
 };
@@ -1162,6 +1163,7 @@ function render(data) {
         when += " · wrote on card " + (m.answers || "?");
         if (m.where) when += " " + m.where;
       }
+      if (m.kind === "speech") when += " · said aloud";
       if (nth) when += " · answer " + nth + " of " + oneOf.length;
       if ((m.rev || 1) > 1) when += " · revised";
       node.querySelector(".when").textContent = when;
@@ -1172,7 +1174,10 @@ function render(data) {
         chip.textContent = SIGNAL_LABEL[m.signal] || m.signal;
         node.querySelector(".when").after(chip);
       }
-      node.querySelector(".text").innerHTML = renderMarkdown(m.text || "");
+      node.querySelector(".text").innerHTML = m.kind === "speech"
+        ? renderMarkdown("heard: " + (m.text || "(nothing)")
+                         + (m.verdict ? "\n\n" + m.verdict : ""))
+        : renderMarkdown(m.text || "");
       if (m.png && onBoard) {
         /* The working is on the board under this question's run -- below the
            feedback, which is where a correction wants it. One line here, so the
@@ -1507,6 +1512,8 @@ function render(data) {
        came back for ink that had gone days ago. */
     window.Annotate.loadSent(data.notes_sent);
   }
+  /* The last take heard. */
+  if (window.Speak) window.Speak.paint(data);
   renderScratch(data.uploads || []);
   /* And every address written into the lesson, checked against the payload
      that just arrived. A card naming a document that moved this morning reads
@@ -3089,6 +3096,18 @@ if (window.Problem) {
                     : g.id + " is still being typeset; try again in a moment";
       });
     },
+  });
+}
+
+/* SPEAKING AND LISTENING. speak.js owns the spoken half of the answer panel;
+   this hands it the session's routes and the question a take answers, and
+   `render` paints it. */
+if (window.Speak) {
+  window.Speak.init({
+    api: api,
+    question: function () { return answering.question || lastNewestCard || null; },
+    ended: function () { return !!(headerState && headerState.ended); },
+    sent: function () { setAnswerKind("speak"); },
   });
 }
 
@@ -6299,7 +6318,8 @@ function answerKind() {
   try {
     var saved = JSON.parse(localStorage.getItem(ANSWER_KIND) || "null");
     if (saved && saved.sitting === sittingTag()
-        && (saved.kind === "type" || saved.kind === "write")) {
+        && (saved.kind === "type" || saved.kind === "write"
+            || saved.kind === "speak")) {
       return saved.kind;
     }
   } catch (e) {}
@@ -6372,6 +6392,7 @@ function panelKind() {
   var t = answering.latest;
   if (t) {
     if (t.kind === "ink" || t.kind === "annotation") return "write";
+    if (t.kind === "speech") return "speak";
     if (t.kind === "text" && !t.signal) return "type";
   }
   return answerKind();
@@ -6392,13 +6413,18 @@ function paintPanel() {
      this is where the person actually is when a follow-up question lands them on
      a blank sheet. */
   paintCarry(els.carry, open ? liveSlot : null);
-  var typing = open && panelKind() === "type";
+  var kind = open ? panelKind() : "write";
+  var typing = kind === "type";
+  var speaking = kind === "speak";
   els.typebox.hidden = !typing;
   var slate = document.getElementById("slate");
-  if (slate) slate.hidden = typing;
-  document.getElementById("drawbar").hidden = !(open && !typing);
-  els.tabWrite.classList.toggle("on", !typing);
+  if (slate) slate.hidden = typing || speaking;
+  document.getElementById("drawbar").hidden = !(open && kind === "write");
+  els.tabWrite.classList.toggle("on", kind === "write");
   els.tabType.classList.toggle("on", typing);
+  /* The spoken half is speak.js's; the tab is this panel's. */
+  if (els.tabSpeak) els.tabSpeak.classList.toggle("on", speaking);
+  if (window.Speak) window.Speak.show(speaking);
   /* THE BOX BELONGS TO THE QUESTION, NOT TO WHICHEVER TAB IS SHOWING: the draft
      is restored whenever the panel is open. What was sent comes back ABOVE the
      box (`paintSay`), never into it. Typesetting and sizing happen only on the
@@ -6407,7 +6433,7 @@ function paintPanel() {
   if (open) restoreTextDraft();
   syncSaid();
   if (typing) { paintSay(); autosize(); }
-  else if (writer) requestAnimationFrame(writer.relayout);
+  else if (!speaking && writer) requestAnimationFrame(writer.relayout);
   dockSaySoon();
 }
 
@@ -6691,6 +6717,7 @@ function say(signal) {
 
 els.tabWrite.onclick = function () { pickKind("write"); };
 els.tabType.onclick = function () { pickKind("type"); };
+if (els.tabSpeak) els.tabSpeak.onclick = function () { pickKind("speak"); };
 
 function sendTyped() {
   if (!els.saybox.value.trim()) return;

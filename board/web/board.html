@@ -507,6 +507,7 @@
     <span class="tabs">
       <button id="tab-write" type="button" class="tab on">✎ write</button>
       <button id="tab-type" type="button" class="tab">⌨ type</button>
+      <button id="tab-speak" type="button" class="tab">● speak</button>
     </span>
     <span id="writer-hint"></span>
     <!-- A follow-up question is a new board, and a new board is a blank sheet.
@@ -554,6 +555,18 @@
       <button id="say-grow" type="button" title="taller box" aria-label="taller box">⤢</button>
       <button id="send-type" type="button">send</button>
     </div>
+  </div>
+  <!-- The spoken half (web/speak.js): a take recorded here is heard by the
+       board and handed to the tutor as words. The microphone is asked for on
+       the record tap and let go after every take. -->
+  <div id="speakbox" hidden>
+    <div id="speak-target" hidden></div>
+    <div id="speakrow">
+      <button id="speak-rec" type="button">● record</button>
+      <span id="speak-meter"><span id="speak-level"></span></span>
+      <span id="speak-state"></span>
+    </div>
+    <div id="heard" hidden></div>
   </div>
   <!-- Sending into silence is the thing that makes a person wonder whether it
        arrived. This sits under the surface they sent from and says it did. -->
@@ -613,6 +626,9 @@
      calls. Before board.js, which renders fences with them. -->
 <script src="/static/vendor/highlight/highlight.min.js"></script>
 <script src="/static/codeview.js"></script>
+<!-- Speaking, listening and the heard block; before board.js, which hands it
+     the session's routes. -->
+<script src="/static/speak.js"></script>
 <!-- Which assistants this machine can run, by the rules the home screen
      draws them by. Before board.js, whose tutor chip opens them. -->
 <script src="/static/who.js"></script>

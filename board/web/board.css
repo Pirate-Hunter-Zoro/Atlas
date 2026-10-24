@@ -2110,3 +2110,42 @@ body[data-ended] #btn-annotate, body[data-ended] #btn-slate, body[data-ended] #b
 body[data-ended] #notesend, body[data-ended] #drop {
   display: none !important;
 }
+
+/* ---------------------------------------------------------------- speaking
+   web/speak.js. The spoken half of the answer panel records a take and shows
+   what was heard, a chip per syllable. Tone chips are never colour alone: each says the
+   tone it heard, and `?` when it could not tell. */
+#speakbox { display: flex; flex-direction: column; gap: .55rem; padding: .7rem .9rem; color: #e9e7e2; }
+#speak-target { font-size: 1.05rem; }
+#speakrow { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
+#speak-rec {
+  font: inherit; font-family: var(--ui); font-size: .9rem; cursor: pointer;
+  padding: .55rem 1rem; border-radius: .45rem;
+  border: 1px solid #3a3e47; background: #2c2f37; color: #e9e7e2;
+}
+#speak-rec.on { background: #e0827c; border-color: #e0827c; color: #15161a; }
+#speak-rec:disabled { opacity: .5; cursor: default; }
+#speak-meter {
+  display: inline-block; width: 8rem; height: .45rem; border-radius: .25rem;
+  background: #2c2f37; overflow: hidden; visibility: hidden;
+}
+#speak-meter.on { visibility: visible; }
+#speak-level { display: block; height: 100%; width: 0%; background: #9fd49a; }
+#speak-state { font-family: var(--ui); font-size: .78rem; color: #b9bcc4; }
+#speak-state.bad { color: #e0a35c; }
+#heard {
+  border: 1px solid #2c2f37; border-radius: .45rem; background: #101114;
+  padding: .45rem .7rem .55rem; display: flex; flex-direction: column; gap: .35rem;
+}
+#heard .heard-text { font-size: 1.05rem; }
+#heard .heard-target, #heard .heard-verdict { font-family: var(--ui); font-size: .78rem; color: #b9bcc4; }
+#heard .tones { display: flex; gap: .35rem; flex-wrap: wrap; }
+#heard .tone {
+  display: inline-flex; gap: .3rem; align-items: baseline;
+  padding: .15rem .45rem; border-radius: .35rem; border: 1px solid #3a3e47;
+  font-family: var(--ui); font-size: .8rem;
+}
+#heard .tone .t { font-weight: 700; }
+#heard .tone.ok { border-color: #9fd49a; color: #9fd49a; }
+#heard .tone.off { border-color: #e0827c; color: #e0827c; }
+#heard .tone.unknown { color: #8b8f98; border-style: dashed; }
