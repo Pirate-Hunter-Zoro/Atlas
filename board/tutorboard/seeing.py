@@ -99,10 +99,6 @@ def route(agent=None, table=None, exclude=()):
         tried.append(name)
         if name in exclude:
             continue
-        if (agents.get(name) or {}).get("private"):
-            dark.append("'%s' is an in-fence model and never a vision route"
-                        % name)
-            continue
         got = (agents.get(name) or {}).get("vision")
         if not got or not (got.get("endpoint") or got.get("cmd")):
             continue

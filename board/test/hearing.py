@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The Mac hears the cluster inside the board server, and the server gives
-way to committed code.
+"""The Mac hears origin inside the board server, and the server gives way to
+committed code.
 
 What the checks are about:
 
@@ -10,12 +10,10 @@ What the checks are about:
     main as well is merged and pushed, unless something is staged, which is
     recorded in pull.json as `skipped: staged changes`, as is a failed
     ls-remote. The code refs are kept on the thread.
-  * D16. A report wakes its open filing session, reopens an ended one, and
-    is a home notice (`/notices.json`) where no session filed it. A notice
-    starts no turn.
-  * ONE WAKE. A report ends once: one `[job]` line, or `[repair]` for a
-    failure the Mac repairs (board/test/repair.py). A fresh clone hears
-    nothing of the reports it arrived with.
+  * D16. A machinery line (`sync.wake`) wakes its open session, reopens an
+    ended one, and is a home notice (`/notices.json`) where no session takes
+    it. A notice starts no turn, and a non-waking line queues nothing. A
+    fresh clone has no notices.
   * FRESHNESS. A server with TUTORBOARD_FRESH=1 exits 0 once committed board
     code changed and no turn runs: a commit mid-turn waits for the turn. An
     uncommitted edit triggers no exit.
@@ -25,18 +23,16 @@ What the checks are about:
   * CODING SESSIONS. A real server on port 8779 with TUTORBOARD_SYNC=1:
     a step pushed to code/S wakes S within one tick and records session.json
     `code`; a Mac commit to a held path on main is refused; `board push` in
-    S lands on code/S and the cluster's loop applies it; a deleted ref clears
+    S lands on code/S and the laptop's loop applies it; a deleted ref clears
     `code` and puts the held files back.
-  * ONE PATH ON BOTH MACHINES. A `results/` path the tree lacks is read from
-    `exports/results/` by the results library.
 
 With TUTORBOARD_REHEARSE_LAUNCHD=1 it also rehearses the LaunchAgent for
 real, under the label tutor-board.rehearsal on port 8779 against copies: a
 committed change makes the server exit 0 and launchd start it again with the
 same interpreter; then the job is booted out. The suite leaves it off.
 
-Synthetic repositories only: a bare origin, a "Mac" clone and a "cluster"
-clone, with `TUTOR_SLURM=0` standing in for the Mac.
+Synthetic repositories only: a bare origin, a "Mac" clone and a "laptop"
+clone.
 """
 import json
 import os
@@ -53,16 +49,14 @@ import urllib.request
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 box = tempfile.mkdtemp(prefix="tutor-hearing-box-")
-os.environ["TUTOR_SLURM"] = "0"
 os.environ["BOARD_STATE_DIR"] = os.path.join(box, "state")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(box, "config")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["BOARD_NO_TAILNET"] = "1"
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-             "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH"):
+             "TUTORBOARD_SYNC", "TUTORBOARD_FRESH"):
     os.environ.pop(name, None)
-from tutorboard import gitops, jobs, paths, sessions, stamp, sync  # noqa: E402
-from tutorboard.course import library                                  # noqa: E402
+from tutorboard import gitops, sessions, stamp, sync  # noqa: E402
 from tutorboard.runner import service                                  # noqa: E402
 from tutorboard.runner import turn as runturn                          # noqa: E402
 from tutorboard.server import app                                      # noqa: E402
@@ -120,13 +114,6 @@ class FakeRunner(object):
         return True
 
 
-RECIPE = """#!/bin/bash
-#SBATCH --job-name=sweep
-#RELAY-VAR EMBEDDER [a-z0-9.-]{1,40}
-
-echo "RELAY: done"
-"""
-
 base = tempfile.mkdtemp(prefix="tutor-hearing-")
 try:
     origin = os.path.join(base, "origin.git")
@@ -139,19 +126,15 @@ try:
     git(mac, "config", "user.name", "t")
     ws = os.path.join(mac, "projects", "Proj")
     write(os.path.join(mac, ".gitignore"), "/sessions/\n")
-    # Anchored: an unanchored `results/` would hide `exports/results/` too.
-    write(os.path.join(ws, ".gitignore"), "/results/\nrelay/state/\n")
     write(os.path.join(ws, "tutorboard.json"), json.dumps({"name": "Proj"}))
-    write(os.path.join(ws, "slurm", "sweep.sbatch"), RECIPE)
     git(mac, "add", "-A")
     git(mac, "commit", "-q", "-m", "start")
     git(mac, "remote", "add", "origin", origin)
     git(mac, "push", "-q", "-u", "origin", "main")
-    cluster_top = os.path.join(base, "cluster")
-    git(base, "clone", "-q", origin, cluster_top)
-    git(cluster_top, "config", "user.email", "c@example.com")
-    git(cluster_top, "config", "user.name", "c")
-    cws = os.path.join(cluster_top, "projects", "Proj")
+    laptop_top = os.path.join(base, "laptop")
+    git(base, "clone", "-q", origin, laptop_top)
+    git(laptop_top, "config", "user.email", "c@example.com")
+    git(laptop_top, "config", "user.name", "c")
     os.environ["TUTORBOARD_COURSES"] = mac
     state = os.path.join(base, "state")
     runner = service.install(FakeRunner(mac))
@@ -162,12 +145,12 @@ try:
     def origin_main():
         return git(origin, "rev-parse", "main").strip()
 
-    def cluster_commit(rel, text, msg="the cluster moves on"):
-        git(cluster_top, "pull", "-q", "--ff-only")
-        write(os.path.join(cluster_top, rel), text)
-        git(cluster_top, "add", "-A")
-        git(cluster_top, "commit", "-q", "-m", msg)
-        git(cluster_top, "push", "-q")
+    def laptop_commit(rel, text, msg="the laptop moves on"):
+        git(laptop_top, "pull", "-q", "--ff-only")
+        write(os.path.join(laptop_top, rel), text)
+        git(laptop_top, "add", "-A")
+        git(laptop_top, "commit", "-q", "-m", msg)
+        git(laptop_top, "push", "-q")
 
     def pull_state():
         try:
@@ -176,16 +159,15 @@ try:
         except (OSError, ValueError):
             return {}
 
-    # --- the cluster thread: one ls-remote, a pull only on change -------------
+    # --- the sync thread: one ls-remote, a pull only on change ----------------
     ear = sync.Sync(mac, state_dir=state, say=lambda m: None)
     check("the ear's cadence is twenty seconds, and an ls-remote ten",
           sync.EVERY == 20 and sync.LS_TIMEOUT == 10
-          and not hasattr(jobs, "PULL_EVERY") and not hasattr(jobs, "pull_due")
           and not hasattr(gitops, "hear_pass"))
     got = ear.once()
     check("with origin's main equal to HEAD there is no pull",
           got["pulled"] is False and ear.pulls == 0 and ear.main == head(mac))
-    cluster_commit("notes/one.txt", "one\n")
+    laptop_commit("notes/one.txt", "one\n")
     got = ear.once()
     check("when origin's main differs there is one pull, and HEAD is there",
           got["pulled"] is True and ear.pulls == 1
@@ -203,13 +185,13 @@ try:
           ear.pulls == 1)
     git(mac, "push", "-q")
 
-    git(cluster_top, "pull", "-q", "--ff-only")
-    git(cluster_top, "push", "-q", "origin", "HEAD:refs/heads/code/20261009-120000")
+    git(laptop_top, "pull", "-q", "--ff-only")
+    git(laptop_top, "push", "-q", "origin", "HEAD:refs/heads/code/20261009-120000")
     ear.once()
     check("the code refs are kept on the ear",
-          ear.code == {"refs/heads/code/20261009-120000": head(cluster_top)}
+          ear.code == {"refs/heads/code/20261009-120000": head(laptop_top)}
           and ear.pulls == 1)
-    git(cluster_top, "push", "-q", "origin", ":refs/heads/code/20261009-120000")
+    git(laptop_top, "push", "-q", "origin", ":refs/heads/code/20261009-120000")
     ear.once()
     check("and a deleted one is gone", ear.code == {})
 
@@ -220,7 +202,7 @@ try:
     write(os.path.join(mac, "notes", "diverge.txt"), "mac side\n")
     ok_, said_ = gitops.commit(mac, ["notes/diverge.txt"], "the Mac diverges")
     assert ok_ and said_.startswith("committed"), said_
-    cluster_commit("notes/two.txt", "two\n")
+    laptop_commit("notes/two.txt", "two\n")
     write(os.path.join(mac, "notes", "staged.txt"), "staged\n")
     git(mac, "add", "--", "notes/staged.txt")
     mine = head(mac)
@@ -236,8 +218,7 @@ try:
           git(mac, "diff", "--cached", "--name-only").strip()
           == "notes/staged.txt"
           and not os.path.exists(os.path.join(mac, ".git", "MERGE_HEAD")))
-    from tutorboard import relay                                    # noqa: E402
-    told = relay.health(mac, state_dir=state, fresh=True)
+    told = sync.health(mac, state_dir=state, fresh=True)
     check("and the sync health says \"not synced: skipped: staged changes\"",
           told["synced"] is False
           and "not synced: skipped: staged changes" in told["lines"]
@@ -257,7 +238,7 @@ try:
           pull_state().get("ok") is True and pull_state().get("step") == "merge",
           pull_state())
     check("and the health says synced again",
-          relay.health(mac, state_dir=state, fresh=True)["synced"] is True)
+          sync.health(mac, state_dir=state, fresh=True)["synced"] is True)
     os.remove(os.path.join(mac, "notes", "staged.txt"))
     git(mac, "remote", "set-url", "origin", os.path.join(base, "nowhere.git"))
     got = ear.once()
@@ -285,129 +266,43 @@ try:
     def notices():
         return sync.notices(mac)
 
-    # --- a request filed from the open session -----------------------------------
-    req = {"id": "2026-10-03-knn-sweep", "kind": "recipe", "label": "knn",
-           "recipe": "slurm/sweep.sbatch", "env": {"EMBEDDER": "bge-small"},
-           "produces": ["results/knn/best.json"],
-           "export": ["results/knn/sweep.png"], "filed": 1100.0,
-           "session": s_open}
-    _, ok, said = jobs.file_request(ws, req, push=False)
-    git(mac, "push", "-q")
-    check("the request is committed", ok, said)
-    check("filing records the heard baseline, in an ignored ledger",
-          os.path.isfile(os.path.join(ws, "relay", "state", "reported",
-                                      jobs.HEARD))
-          and git(mac, "status", "--porcelain").strip() == "")
-    lines = jobs.thread_relay(ws, "knn")
-    check("`board brief` lists the request still out",
-          any("Waiting on the cluster" in l for l in lines)
-          and any("2026-10-03-knn-sweep" in l and "requested" in l
-                  for l in lines))
-
-    def cluster_reports(rep):
-        cluster_commit("projects/Proj/relay/reports/%s.json" % rep["id"],
-                       json.dumps(rep), "relay report " + rep["id"])
-
-    cluster_reports({"id": req["id"], "state": "running", "jobid": "88",
-                     "submitted": 1200.0})
-    got = ear.once()
-    check("a running report pulled in wakes nothing", got["pulled"] is True
-          and got["heard"] == [] and inbox(s_open) == [] and notices() == []
-          and runner.woken == [])
-
-    write(os.path.join(cws, "exports", "results", "knn", "sweep.png"),
-          "\x89PNG" + "x" * 2000)
-    cluster_reports({"id": req["id"], "state": "failed", "jobid": "88",
-                     "exit": "1:0", "ended": "2026-10-03T10:00:00",
-                     "submitted": 1200.0, "produced": [],
-                     "exported": ["results/knn/sweep.png"],
-                     "relay": ["RELAY: k=300 best", "RELAY: then it fell over"],
-                     "note": "the sweep ran out of memory at k=500",
-                     "session": s_open})
-    got = ear.once()
+    # --- D16: a machinery line wakes its session, or is a notice ------------------
+    line = "[code] step 1: Step 1 (abc1234) -- read `git diff abc1234~1 abc1234`"
+    sync.wake(ws, s_open, line, signal="code", request="code/one")
     msgs = inbox(s_open)
-    check("the ended report is heard on the pass that pulled it",
-          got["pulled"] is True
-          and [h.get("request") for h in got["heard"]] == [req["id"]])
-    check("a report wakes its open filing session: one [repair] line in its "
-          "inbox, unread, signalled repair, and a turn queued",
-          len(msgs) == 1 and msgs[0]["signal"] == "repair"
-          and msgs[0]["text"].startswith("[repair]") and not msgs[0]["read"]
-          and msgs[0]["request"] == req["id"] and msgs[0]["session"] == s_open
+    check("a line for an open session lands in its inbox, unread, under its "
+          "signal, and queues a turn",
+          len(msgs) == 1 and msgs[0]["signal"] == "code" and not msgs[0]["read"]
+          and msgs[0]["text"] == line and msgs[0]["session"] == s_open
+          and msgs[0]["request"] == "code/one"
           and runner.woken == [s_open] and notices() == [], (msgs, runner.woken))
-    text = msgs[0]["text"] if msgs else ""
-    check("it wakes a turn the way a local ending does, under its own signal",
-          runturn.turn_signal("[2026-10-03 10:00:00] " + text) == "repair")
-    check("it says what ended, the exit, what is missing and what landed",
-          "failed" in text and "1:0" in text
-          and "MISSING results/knn/best.json" in text
-          and "landed   results/knn/sweep.png" in text)
-    check("it carries the RELAY: lines and the note, and no log",
-          "RELAY: k=300 best" in text and "out of memory" in text
-          and "relay/reports/%s.json" % req["id"] in text)
-    check("it tells the turn to repair it here, rerunning through "
-          "`board job --fixes` or asking through `board diagnose`",
-          "board job --label knn --fixes %s" % req["id"] in text
-          and "board diagnose --fixes %s" % req["id"] in text
-          and "board push" in text and "ask-cluster" not in text)
-
-    got = ear.once()
-    check("heard once: the next pass drops nothing",
-          got["heard"] == [] and len(inbox(s_open)) == 1
-          and runner.woken == [s_open])
-    shutil.rmtree(os.path.join(ws, "relay", "state", "reported"))
-    git(mac, "commit", "-q", "--allow-empty", "-m", "elsewhere")
-    jobs.hear(ws)
-    check("a lost ledger is a new baseline, not a second wake",
-          len(inbox(s_open)) == 1 and notices() == [])
-
-    lines = jobs.thread_relay(ws, "knn")
-    check("`board brief` gives the last report, its RELAY lines and note",
-          any(l.startswith("The last cluster report: 2026-10-03-knn-sweep, "
-                           "failed, exit 1:0") for l in lines)
-          and "  RELAY: k=300 best" in lines
-          and any("out of memory" in l for l in lines)
-          and not any("Waiting" in l for l in lines))
-
-    # --- a request from the ended session reopens it ------------------------------
-    req2 = dict(req, id="2026-10-03-knn-again", filed=1700.0, session=s_ended)
-    jobs.file_request(ws, req2, push=False)
-    git(mac, "push", "-q")
-    cluster_reports({"id": req2["id"], "state": "completed", "jobid": "89",
-                     "exit": "0:0", "ended": "2026-10-03T11:00:00",
-                     "produced": ["results/knn/best.json"], "exported": []})
-    ear.once()
+    check("it wakes a turn under its own signal",
+          runturn.turn_signal("[2026-10-03 10:00:00] " + line) == "code")
+    sync.wake(ws, s_open, "[stepped] the tutor's own step", wake=False,
+              signal="stepped")
+    msgs = inbox(s_open)
+    check("a non-waking line lands and queues nothing",
+          len(msgs) == 2 and msgs[1].get("wake") is False
+          and runner.woken == [s_open], (msgs, runner.woken))
+    sync.wake(ws, s_ended, line, signal="code")
     msgs = inbox(s_ended)
-    check("a report for an ended session reopens it, lands in its inbox and "
+    check("a line for an ended session reopens it, lands in its inbox and "
           "queues a turn", sessions.get(s_ended, mac)["ended"] is None
-          and len(msgs) == 1 and msgs[0]["signal"] == "job"
-          and msgs[0]["text"].startswith("[job]")
+          and len(msgs) == 1 and msgs[0]["signal"] == "code"
           and runner.woken == [s_open, s_ended], (msgs, runner.woken))
-
-    # --- a request with no session is a notice, and starts no turn -----------------
-    req3 = dict(req, id="2026-10-03-knn-third", filed=1800.0)
-    del req3["session"]
-    jobs.file_request(ws, req3, push=False)
-    req4 = dict(req, id="2026-10-03-knn-gone", filed=1801.0,
-                session="20200101-000000")
-    jobs.file_request(ws, req4, push=False)
-    git(mac, "push", "-q")
-    cluster_reports({"id": req3["id"], "state": "refused",
-                     "problems": ["env DATA is not declared"]})
-    cluster_reports({"id": req4["id"], "state": "refused",
-                     "problems": ["env DATA is not declared"]})
-    ear.once()
+    sync.wake(ws, None, "[code] a step nobody holds", signal="code",
+              request="code/three")
+    sync.wake(ws, "20200101-000000", "[code] a step for a gone session",
+              signal="code", request="code/gone")
     got = notices()
-    check("a refusal arriving in the first pull after filing is heard, and "
-          "with no session it is a notice", len(got) == 2
-          and set(n.get("request") for n in got) == {req3["id"], req4["id"]}
-          and all("refused" in n["text"] and "env DATA is not declared"
-                  in n["text"] for n in got), got)
+    check("with no session, or a gone one, it is a notice", len(got) == 2
+          and set(n.get("request") for n in got) == {"code/three", "code/gone"},
+          got)
     check("each notice names its subject, the session it named, and an id",
           all(n["subject"] == "projects/Proj" and n.get("id") for n in got)
           and set(n["session"] for n in got) == {None, "20200101-000000"})
     check("a notice starts no turn, and no session's inbox grows",
-          runner.woken == [s_open, s_ended] and len(inbox(s_open)) == 1
+          runner.woken == [s_open, s_ended] and len(inbox(s_open)) == 2
           and len(inbox(s_ended)) == 1)
     check("sessions/.notices.jsonl is the notices' file, and git ignores it",
           os.path.isfile(os.path.join(mac, "sessions", ".notices.jsonl"))
@@ -423,7 +318,7 @@ try:
         httpd.shutdown()
     check("/notices.json serves them, newest first",
           served.get("ok") and sorted(n["request"] for n in served.get("notices", []))
-          == sorted([req4["id"], req3["id"]])
+          == ["code/gone", "code/three"]
           and served["notices"][0]["t"] >= served["notices"][-1]["t"], served)
 
     # --- the pass clones nothing but ai-config ---------------------------------
@@ -477,88 +372,16 @@ try:
     shutil.rmtree(os.path.join(mac, "board"))
     shutil.rmtree(os.path.join(mac, "courses"))
 
-    # --- a nested repository is refused, generically ---------------------------
-    nested = os.path.join(ws, "vendored", "thing")
-    os.makedirs(os.path.join(nested, ".git"))
-    req5 = dict(req, id="2026-10-03-nested-sweep", filed=2300.0)
-    said5 = jobs.file_request(ws, req5, push=False)
-    check("a request filed in a subject holding a nested .git is refused, "
-          "naming where", said5[1] is False and "own .git" in said5[2]
-          and "vendored" in said5[2])
-    check("and nothing is written", not os.path.exists(said5[0]))
-    shutil.rmtree(os.path.join(ws, "vendored"))
-    check("jobs.nested_git finds nothing in a plain subject",
-          jobs.nested_git(ws) == "")
-
     # --- a fresh clone -----------------------------------------------------------
     fresh = os.path.join(base, "fresh")
     git(base, "clone", "-q", origin, fresh)
-    fws = os.path.join(fresh, "projects", "Proj")
-    check("a fresh clone hears nothing of the reports it arrived with",
-          jobs.hear(fws) == [] and jobs.hear(fws) == []
-          and sync.notices(fresh) == []
+    check("a fresh clone has no notices and no session store",
+          sync.notices(fresh) == []
           and not os.path.exists(os.path.join(fresh, "sessions")))
-
-    # --- one path on both machines ---------------------------------------------
-    rel = "results/knn/sweep.png"
-    check("the Mac has no results/, only the export",
-          not os.path.exists(os.path.join(ws, "results")))
-    check("paths.present finds the exported copy",
-          paths.present(ws, rel) == os.path.join(ws, "exports", rel)
-          and paths.present(ws, "results/knn/none.png") == ""
-          and paths.present(ws, "results/../../../etc/passwd") == "")
-    library.forget()
-    figs = library.figures(ws)
-    check("the results library offers it at its results/ path",
-          [f["rel"] for f in figs] == [rel])
-    path, _ = library.find_result(ws, library.result_ident(rel))
-    check("and serves the exported bytes",
-          path == os.path.realpath(os.path.join(ws, "exports", rel)))
-    write(os.path.join(ws, rel), "\x89PNG" + "y" * 2000)
-    library.forget()
-    path, _ = library.find_result(ws, library.result_ident(rel))
-    check("a figure results/ holds is read from there, and offered once",
-          path == os.path.realpath(os.path.join(ws, rel))
-          and len(library.figures(ws)) == 1)
 finally:
     service.install(None)
     os.environ.pop("TUTORBOARD_COURSES", None)
     shutil.rmtree(base, ignore_errors=True)
-
-# --- one malformed request does not stop a reader ---------------------------------
-ORIGIN = "2026-10-02-knn-sweep"
-FIRST = {"id": ORIGIN, "kind": "recipe", "thread": "knn",
-         "recipe": "slurm/sweep.sbatch", "env": {"EMBEDDER": "bge-small"},
-         "produces": ["results/knn/best.json"], "export": [], "filed": 100.0}
-scenes = tempfile.mkdtemp(prefix="tutor-fixing-")
-
-
-def scene(reqs):
-    """A workspace on disk holding these requests. `{id: rec}`."""
-    ws = tempfile.mkdtemp(dir=scenes)
-    for r in reqs:
-        write(os.path.join(ws, "relay", "requests", r["id"] + ".json"),
-              json.dumps(r))
-    return ws, dict((r["request"], r) for r in jobs.relayed(ws))
-
-
-try:
-    ws, recs = scene([dict(FIRST, filed="soon")])
-    check("a malformed `filed` reads as 0 in the registry, and every reader "
-          "still reads it", recs[ORIGIN]["submitted"] == 0.0
-          and jobs.open_fix(ws, "slurm/sweep.sbatch") == ""
-          and jobs.context(ws)["failed"] == set())
-
-    ws, recs = scene([dict(FIRST, env=["EMBEDDER", "x"], produces="out.csv",
-                           export=7)])
-    check("and so do a malformed `env`, `produces` and `export`",
-          recs[ORIGIN]["produces"] == [] and recs[ORIGIN]["export"] == []
-          and recs[ORIGIN]["cmd"].startswith("slurm/sweep.sbatch")
-          and jobs.context(ws)["failed"] == set()
-          and jobs.open_fix(ws, "slurm/sweep.sbatch") == "")
-finally:
-    shutil.rmtree(scenes, ignore_errors=True)
-
 
 # ===========================================================================
 # one LaunchAgent, and the commands it replaces
@@ -594,7 +417,7 @@ check("an absolute interpreter that exists, running this tree's serve.py",
       os.path.isabs(args[0]) and os.access(args[0], os.X_OK)
       and args[1:] == [os.path.join(ROOT, "serve.py")], args)
 check("TUTORBOARD_SYNC=1 and a PATH holding /opt/homebrew/bin",
-      envs.get("TUTORBOARD_SYNC") == "1" and "TUTORBOARD_CLUSTER" not in envs
+      envs.get("TUTORBOARD_SYNC") == "1"
       and envs.get("TUTORBOARD_FRESH") == "1"
       and "/opt/homebrew/bin" in envs.get("PATH", "").split(":"), envs)
 log = os.path.join(home, ".local", "state", "tutor-board", "server.log")
@@ -778,7 +601,7 @@ CPOLICY = ("import re\n\ndef names_phi(text):\n"
 
 
 class Clock(object):
-    """The cluster loop's clock, an hour ahead of every mtime."""
+    """The laptop loop's clock, an hour ahead of every mtime."""
 
     def __init__(self):
         self.t = time.time() + 3600
@@ -812,7 +635,7 @@ try:
     git(cmac, "config", "user.email", "t@example.com")
     git(cmac, "config", "user.name", "t")
     write(os.path.join(cmac, ".gitignore"),
-          "/sessions/\nai-config/\n**/relay/state/\n/relay/.lock*\n")
+          "/sessions/\nai-config/\n")
     csubj = os.path.join(cmac, "projects", "Code")
     write(os.path.join(csubj, "tutorboard.json"),
           json.dumps({"name": "Code", "phi": False}))
@@ -822,7 +645,7 @@ try:
     git(cmac, "commit", "-q", "-m", "start")
     git(cmac, "remote", "add", "origin", corigin)
     git(cmac, "push", "-q", "-u", "origin", "main")
-    ccl = os.path.join(cbox, "cluster")
+    ccl = os.path.join(cbox, "laptop")
     git(cbox, "clone", "-q", corigin, ccl)
     git(ccl, "config", "user.email", "c@example.com")
     git(ccl, "config", "user.name", "c")
@@ -864,15 +687,15 @@ try:
           cport and (port == 0 or cport == 8779)
           and "threads: sync" in "".join(clog), "".join(clog))
 
-    # The cluster: `board code S projects/Code/src`, an edit, one step.
-    os.environ["BOARD_STATE_DIR"] = os.path.join(cbox, "clusterstate")
+    # The laptop: `board code S projects/Code/src`, an edit, one step.
+    os.environ["BOARD_STATE_DIR"] = os.path.join(cbox, "laptopstate")
     reg, probs = coding.start(ccl, S, held)
-    write(os.path.join(ccl, A), "x = 2  # the cluster's edit\n")
+    write(os.path.join(ccl, A), "x = 2  # the laptop's edit\n")
     loop = coding.Loop(ccl, reg, say=lambda m: None, clock=Clock())
     pushed = loop.tick(fetch=False)
     step1 = tip_of()
     t_push = time.time()
-    check("the cluster pushes step 1 to code/S", not probs and pushed and step1,
+    check("the laptop pushes step 1 to code/S", not probs and pushed and step1,
           probs)
     got = until(lambda: [m for m in cinbox() if m.get("signal") == "code"],
                 sync.EVERY + 15, 0.5)
@@ -892,7 +715,7 @@ try:
     check("and a turn is queued for it",
           until(lambda: calls(S, "start"), 60), "".join(clog)[-1500:])
     check("the Mac's held file now holds the step",
-          open(os.path.join(cmac, A)).read() == "x = 2  # the cluster's edit\n")
+          open(os.path.join(cmac, A)).read() == "x = 2  # the laptop's edit\n")
     from tutorboard.runner import turn as tturn  # noqa: E402
     check("the [code] signal gets the prompt that reads the diff",
           runturn.turn_signal("[2026-10-09 10:00:00] " + got[0]["text"]) == "code"
@@ -937,12 +760,12 @@ try:
     check("the session's own push wakes nothing", len(cinbox()) == inbox_before,
           cinbox()[inbox_before:])
     loop.tick(fetch=True)
-    check("and the cluster's loop applies it to its working tree",
+    check("and the laptop's loop applies it to its working tree",
           open(os.path.join(ccl, A)).read() == "x = 3  # the Mac's vibe edit\n")
 
-    # `board code S --end` at the cluster: one commit on main, and no ref.
+    # `board code S --end` on the laptop: one commit on main, and no ref.
     ended = coding.end(ccl, S, title="use three", say=lambda m: None, wait=5)
-    check("the cluster ends it: one main commit, and the ref deleted",
+    check("the laptop ends it: one main commit, and the ref deleted",
           ended == 0 and not tip_of() and tip_of("refs/heads/main") != main_before)
     cleared = until(lambda: ccode() is None and sessions.get(S, cmac) is not None,
                     sync.EVERY + 15, 0.5)
@@ -952,7 +775,7 @@ try:
           len(unheld) == 1 and unheld[0].get("wake") is False
           and unheld[0]["text"].startswith("[unheld]"), unheld)
     check("which names no machine: a laptop's session is released the same way",
-          unheld and "cluster" not in unheld[0]["text"]
+          unheld and "laptop" not in unheld[0]["text"]
           and "ended or was abandoned" in unheld[0]["text"], unheld)
     check("the Mac's held file goes back as HEAD had it, so main's --end "
           "commit pulls cleanly in the same pass",
@@ -996,7 +819,7 @@ else:
         "XDG_CONFIG_HOME": os.environ["XDG_CONFIG_HOME"],
         "BOARD_STATE_DIR": os.environ["BOARD_STATE_DIR"],
         "TUTORBOARD_TRASH": os.environ["TUTORBOARD_TRASH"],
-        "BOARD_NO_TAILNET": "1", "TUTOR_SLURM": "0"})
+        "BOARD_NO_TAILNET": "1"})
     with open(plist, "wb") as fh:
         plistlib.dump(job, fh)
 
@@ -1068,5 +891,5 @@ print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("the server hears the cluster, a report wakes its session or is a notice, "
+print("the server hears origin, a line wakes its session or is a notice, "
       "and committed code restarts the one LaunchAgent")

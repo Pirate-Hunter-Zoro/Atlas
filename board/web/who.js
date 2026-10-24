@@ -21,8 +21,6 @@
                 recipe plus a key, so this is the whole of its setup
                 instructions and they belong on the glass
      exclusive  one sitting at a time, machine-wide, in the recipe's own words
-     private    an in-fence model: only it reads phi, and it never takes a
-                turn here. `unavailable` says so, and `/default-agent` refuses it
      unavailable why it could not take a turn RIGHT NOW, in the launcher's own
                 sentence -- an allowance that has run out, a hostname this
                 machine cannot open. Offered, dimmed, and the tap says so. It is

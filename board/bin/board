@@ -37,35 +37,11 @@ The assistant runs these. The student never does.
                                        --append adds to it. Refuses a file over
                                        800 words. Never writes RULES.md
     board memo --show                  print TUTOR.md
-    board job [--label <slug>] [--session <id>] [--produces <p>]
-              [--export <p>] [--fixes <id>] [--fresh] -- <recipe> [VAR=v ...]
-                                       long work, reporting itself: with
-                                       Slurm it submits, without it files a
-                                       relay request for the cluster. Its
-                                       ending wakes a turn; a failure wakes a
-                                       [repair] turn. --show lists them
-    board job --batch <file.json> [--session <id>] [--fresh]
-                                       without Slurm: many requests, one
-                                       commit, one push. The file is a list of
-                                       {recipe, env, label, produces, export,
-                                       fixes}; one problem files none
-    board diagnose [--label <slug>] --fixes <id> -- <recipe> [VAR=v ...]
-                                       `board job` for a diagnostic: a recipe
-                                       that prints RELAY: lines, no output
-    board code <session> <path>...     on the cluster: hold these paths for a
-                                       coding session; each pause is a step on
+    board code <session> <path>...     hold these paths for a coding
+                                       session; each pause is a step on
                                        code/<session>, checked and pushed.
                                        --end commits them to main, --abandon
                                        drops the ref. `board code --help`
-    board colibri [--label <slug>] "<task>"
-                                       queue a Colibri task: on the cluster it
-                                       starts a generation if none is up; on
-                                       the Mac it files a `colibri` request.
-                                       --show lists the queue
-    board libr-ai [--label <slug>] [--model <m>] "<task>"
-                                       ask IT's model server (gpt-oss), from a
-                                       subject whose phi is false; the answer
-                                       comes back as the request's report
     board round <document> [--print]   the ink on a paper, deck or write-up,
                                        filed as a round of its ledger; prints
                                        the ledger and the ids to answer
@@ -160,13 +136,13 @@ import time
 
 TOOL = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 sys.path.insert(0, TOOL)
-# `board code` runs on the cluster's python3: it is answered before any other
-# import, so it loads code.py and its needs and no server or model module.
+# `board code` is answered before any other import, so it loads code.py and
+# its needs and no server or model module.
 if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
 from tutorboard import (assistants, brief, gitops,
-                        jobs, leaving, limits, machine, memo,
+                        leaving, limits, machine, memo,
                         paths, plain, reasoning, seeing, sense, sessions, tex, worktree)
 from tutorboard import briefs, subjects
 from tutorboard import mode as session_mode
@@ -174,8 +150,6 @@ from tutorboard.net import egress, tailscale
 from tutorboard.course import config, homework, paper
 from tutorboard.lesson import inbox
 from tutorboard.course import repo as course_repo
-from tutorboard.runner import daemon
-from tutorboard.exports import rel as _workspace_path
 # `pending` is the placeholder a doing turn writes first and reports over;
 # `report_owed` in runner/loop.py flags a turn that left it.
 KINDS = ("lesson", "question", "correct", "wrong", "review", "note", "recap",
@@ -1251,48 +1225,10 @@ def cmd_recap(live, args):
 def cmd_brief(live, args):
     """Everything a cold turn is bound by: the method, the subject's RULES.md
     at HEAD and its TUTOR.md (`tutorboard.brief`). Every lesson turn is handed
-    it; this prints it by hand. A `[repair]` turn is briefed as a doing turn.
+    it; this prints it by hand.
     """
-    fixing = _repairing(live)
-    sys.stdout.write(brief.briefing(
-        live, sense, doing=True if fixing is not None else None,
-        repair=jobs.repair_brief(live.root, fixing) if fixing is not None
-        else None))
+    sys.stdout.write(brief.briefing(live, sense))
     return 0
-
-
-def inside_a_turn(live):
-    """The session's agent record while one of its turns runs on this
-    machine, else None."""
-    try:
-        with open(live.path("agent.json"), "r", encoding="utf-8") as fh:
-            st = json.load(fh) or {}
-    except (OSError, ValueError):
-        return None
-    if (st.get("state") or "") != "working":
-        return None
-    if st.get("host") and st["host"] != this_node():
-        return None
-    if not daemon.attached(st, this_node()):
-        return None
-    return st
-
-
-def _repairing(live):
-    """The requests a `[repair]` turn in flight was woken for (`[""]` where no
-    inbox line says), or None when this is no repair turn. A failed job is
-    repaired by a doing turn whatever the mode; `turn_repairs` in agent.json
-    names every one in the batch, else the newest `[repair]` line counts.
-    """
-    st = inside_a_turn(live)
-    if not st:
-        return None
-    rids = st.get("turn_repairs")
-    if isinstance(rids, list) and [r for r in rids if isinstance(r, str) and r]:
-        return [r for r in rids if isinstance(r, str) and r]
-    if st.get("turn_signal") != jobs.REPAIR:
-        return None
-    return [jobs.last_repair(live.root)]
 
 
 def cmd_memo(live, args):
@@ -1532,539 +1468,6 @@ def cmd_meeting(live, args):
         return 1
     print("the meeting deck is being written in session %s: %s" % (
         got.get("session") or "?", os.path.join(base, got["dir"], briefs.STEM + ".tex")))
-    return 0
-
-
-def cmd_job(live, args):
-    """Long work, labelled, so it reports itself.
-
-        board job [--label <slug>] [--session <id>] [--produces <path>]...
-            [--export <path>]... [--fixes <id>] -- <recipe> [VAR=value ...]
-
-    `<recipe>` is a tracked `.sbatch` file in this workspace. `VAR=value` sets
-    a variable its header declares (`#RELAY-VAR NAME PATTERN`); anything
-    undeclared is refused. `--produces` and `--export` are workspace-relative;
-    an `--export` must be approved by the subject's committed `relay.exports`.
-    `--label` is a slug in the request id. `--session` is the Mac session the
-    report wakes, by default `$TUTORBOARD_SESSION`'s. `--fixes <id>` files a
-    repair of a failed request (refused with Slurm); without Slurm a rerun of
-    a recipe whose repair is open must carry it (`jobs.open_fix`), so the cap
-    on automatic attempts counts every one. `--fresh` starts again past the
-    cap, refused inside a turn.
-
-    `board diagnose` is this command for a recipe that prints `RELAY:` lines
-    and produces nothing.
-
-    With Slurm it submits the recipe wrapped so its exit code lands in
-    `relay/state/` (`jobs.submit_recipe`); its end wakes a `[job]` turn.
-    Without Slurm (the Mac) it commits and pushes `relay/requests/<id>.json`,
-    pinned to HEAD, so an uncommitted tracked file under the subject refuses
-    it; the cluster refuses a HEAD lacking that commit. Every problem prints at
-    once and nothing is filed if there is any.
-
-    A turn starts long work through here: a bare `sbatch` is invisible to the
-    board, and on the Mac it is an error.
-
-        board job [--label <slug>] -- sbatch <args>
-                                the raw form, on a machine with Slurm only
-        board job --show        every job and request, folded to its last state
-        board job --batch <file.json> [--session <id>] [--fresh]
-                                many requests in one commit and one push, on a
-                                machine without Slurm (`_job_batch`)
-    """
-    root = live.root
-    args = list(args)
-    if "--batch" in args:
-        return _job_batch(live, args)
-    if args[:1] == ["--show"]:
-        recs = jobs.view(root)
-        if not recs:
-            print("no jobs registered here.")
-            return 0
-        for j in sorted(recs.values(), key=lambda r: r.get("submitted") or 0):
-            print("%-10s %-24s %-11s %s" % (
-                j.get("slurm") or j.get("jobid"),
-                j.get("label") or j.get("thread") or "-",
-                j.get("state") or "PENDING", j.get("cmd", "")))
-        return 0
-    if "--" not in args:
-        print("board job: put the recipe after `--`: board job [--label "
-              "<slug>] [--produces <path>] [--export <path>] -- <recipe> "
-              "[VAR=value]", file=sys.stderr)
-        return 1
-    cut = args.index("--")
-    head, argv = args[:cut], args[cut + 1:]
-    produces, export, words, fixes, i = [], [], [], None, 0
-    fresh = "--fresh" in head
-    head = [h for h in head if h != "--fresh"]
-    while i < len(head):
-        if head[i] in ("--produces", "--export") and i + 1 < len(head):
-            (produces if head[i] == "--produces" else export).append(head[i + 1])
-            i += 2
-            continue
-        if head[i] == "--fixes" and i + 1 < len(head):
-            fixes = head[i + 1]
-            i += 2
-            continue
-        words.append(head[i])
-        i += 1
-    label, session = _job_label(words, "board job")
-    if label is None:
-        return 1
-    rels, bad = _job_paths(root, produces + export)
-    if bad:
-        print("board job: --produces and --export name paths inside this "
-              "workspace, and %s is not. Nothing was submitted."
-              % ", ".join(bad), file=sys.stderr)
-        return 1
-    produces, export = rels[:len(produces)], rels[len(produces):]
-    slurm = jobs.has_slurm()
-    if not argv:
-        print("board job: name the recipe after `--`", file=sys.stderr)
-        return 1
-    if fixes is not None and slurm:
-        print("board job: `--fixes` links a relay request; on the cluster "
-              "`board job` submits directly. Nothing was submitted.",
-              file=sys.stderr)
-        return 1
-    if fresh and fixes is not None:
-        print("board job: `--fresh` starts a new request and `--fixes` "
-              "repairs an old one; name one. Nothing was filed.",
-              file=sys.stderr)
-        return 1
-    if fresh and inside_a_turn(live):
-        print("board job: `--fresh` is the owner's, and this is a turn. A "
-              "repair files its rerun with `--fixes`, inside the cap. Nothing "
-              "was filed.", file=sys.stderr)
-        return 1
-
-    if os.path.basename(argv[0]) == "sbatch":
-        if not slurm:
-            print("board job: this machine has no Slurm, so a bare sbatch is "
-                  "an error here. Name the recipe and its variables instead: "
-                  "board job -- <recipe.sbatch> [VAR=value ...], and the "
-                  "cluster runs it.", file=sys.stderr)
-            return 1
-        if export:
-            print("board job: --export rides a recipe, not a raw sbatch",
-                  file=sys.stderr)
-            return 1
-        return _job_submitted(root, label, jobs.submit(root, label, argv,
-                                                       produces=produces))
-
-    recipe, env, wrong = _recipe_args(root, argv)
-    if wrong:
-        print("board job: %s. Nothing was %s." % (
-            wrong, "submitted" if slurm else "filed"), file=sys.stderr)
-        return 1
-    ok, problems = _recipe_request(root, label, session, recipe, env,
-                                   produces, export, fixes, fresh, slurm)
-    if problems:
-        print("board job: %d problem(s), and nothing was %s:" % (
-            len(problems), "submitted" if slurm else "filed"), file=sys.stderr)
-        for line in problems:
-            print("  " + line, file=sys.stderr)
-        return 1
-    if slurm:
-        # Wrapped, so the exit code lands where the relay reads it: sacct is
-        # refused on this cluster.
-        return _job_submitted(root, label, jobs.submit_recipe(
-            root, label, recipe, env=env, produces=produces, export=export))
-    return _request_filed(root, ok)
-
-
-def _job_paths(root, paths):
-    """`(rels, bad)`: `paths` made workspace-relative; `bad` the ones outside."""
-    rels, bad = [], []
-    for p in paths:
-        rel = _workspace_path(os.path.relpath(p, root)
-                              if os.path.isabs(p) else p)
-        (rels if rel else bad).append(rel or p)
-    return rels, bad
-
-
-def _recipe_request(root, label, session, recipe, env, produces, export,
-                    fixes, fresh, slurm, pending=()):
-    """`(request, problems)`: the recipe request these words make, checked
-    (`jobs.check`). `pending` are requests checked to be filed with it, whose
-    ids it does not take."""
-    taken = set(r["id"] for r in jobs.requests(root))
-    taken |= set(r["id"] for r in pending)
-    req = {"id": jobs.new_id(label,
-                             os.path.splitext(os.path.basename(recipe))[0],
-                             taken),
-           "kind": "recipe", "recipe": recipe, "env": env,
-           "produces": produces, "export": export}
-    if label:
-        req["label"] = label
-    if session:
-        req["session"] = session
-    if not slurm:
-        req["filed"] = round(time.time(), 3)
-    if fixes is not None:
-        req["fixes"] = fixes
-    ok, problems = jobs.check(root, req, pending=pending)
-    origin = "" if slurm or fresh or fixes is not None else jobs.open_fix(
-        root, recipe, env)
-    if origin:
-        problems = list(problems) + [
-            "%s failed and its repair is open, so its rerun names it: add "
-            "`--fixes %s` (the owner starts over with `--fresh`)"
-            % (origin, origin)]
-    return ok, problems
-
-
-# What one entry of a `board job --batch` file may say.
-BATCH_KEYS = ("recipe", "env", "label", "produces", "export", "fixes")
-
-
-def _job_batch(live, args):
-    """`board job --batch <file.json> [--session <id>] [--fresh]`: many
-    recipe requests in one commit and one push.
-
-    The file is a JSON list of objects: `recipe` (required), `env`
-    ({NAME: value}), `label`, `produces`, `export` (lists) and `fixes`.
-    `--session` and `--fresh` apply to every entry. Each entry is checked as
-    `board job` checks one, and one problem anywhere files nothing. Without
-    Slurm only.
-    """
-    root = live.root
-    args = list(args)
-    i = args.index("--batch")
-    if i + 1 >= len(args):
-        print("board job: --batch names a JSON file: board job --batch "
-              "<file.json> [--session <id>] [--fresh]", file=sys.stderr)
-        return 1
-    path, rest = args[i + 1], args[:i] + args[i + 2:]
-    fresh = "--fresh" in rest
-    rest = [w for w in rest if w != "--fresh"]
-    if "--label" in rest:
-        print("board job: in a batch each entry carries its own `label`. "
-              "Nothing was filed.", file=sys.stderr)
-        return 1
-    label, session = _job_label(rest, "board job")
-    if label is None:
-        return 1
-    if jobs.has_slurm():
-        print("board job: --batch files relay requests, and this machine has "
-              "Slurm: submit each with board job -- <recipe> [VAR=value]. "
-              "Nothing was submitted.", file=sys.stderr)
-        return 1
-    if fresh and inside_a_turn(live):
-        print("board job: `--fresh` is the owner's, and this is a turn. "
-              "Nothing was filed.", file=sys.stderr)
-        return 1
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            entries = json.load(fh)
-    except (OSError, ValueError) as exc:
-        print("board job: %s is not a JSON file I can read: %s. Nothing was "
-              "filed." % (path, exc), file=sys.stderr)
-        return 1
-    if not isinstance(entries, list) or not entries:
-        print("board job: %s must hold a non-empty JSON list of requests. "
-              "Nothing was filed." % path, file=sys.stderr)
-        return 1
-    reqs, problems = [], []
-    for n, entry in enumerate(entries, 1):
-        said = []
-        if not isinstance(entry, dict):
-            problems.append("entry %d: is a %s, not an object"
-                            % (n, type(entry).__name__))
-            continue
-        extra = sorted(k for k in entry if k not in BATCH_KEYS)
-        if extra:
-            said.append("has no %s; an entry says %s" % (
-                ", ".join("`%s`" % k for k in extra), ", ".join(BATCH_KEYS)))
-        recipe = entry.get("recipe")
-        env = entry.get("env", {})
-        lab = entry.get("label", "")
-        fixes = entry.get("fixes")
-        lists = []
-        for key in ("produces", "export"):
-            value = entry.get(key, [])
-            if not isinstance(value, list) or not all(
-                    isinstance(v, str) for v in value):
-                said.append("`%s` must be a list of paths" % key)
-                value = []
-            lists.append(value)
-        if not isinstance(recipe, str) or not recipe:
-            said.append("names no `recipe`")
-        if not isinstance(env, dict):
-            said.append("`env` must be an object of NAME: value")
-        if not isinstance(lab, str) or (lab and not jobs.LABEL_RE.match(lab)):
-            said.append("label %r must be 1-40 characters of a-z, 0-9 and "
-                        "hyphen" % (lab,))
-        if fixes is not None and fresh:
-            said.append("`fixes` repairs an old request and --fresh starts "
-                        "new ones; name one")
-        rels, bad = _job_paths(root, lists[0] + lists[1])
-        if bad:
-            said.append("produces and export name paths inside this "
-                        "workspace, and %s is not" % ", ".join(bad))
-        if said:
-            problems.extend("entry %d: %s" % (n, p) for p in said)
-            continue
-        recipe, _, _ = _recipe_args(root, [recipe])
-        produces, export = rels[:len(lists[0])], rels[len(lists[0]):]
-        ok, said = _recipe_request(root, lab, session, recipe, dict(env),
-                                   produces, export, fixes, fresh, False,
-                                   pending=reqs)
-        if said:
-            problems.extend("entry %d: %s" % (n, p) for p in said)
-            continue
-        reqs.append(ok)
-    if problems:
-        print("board job: %d problem(s) in %s, and nothing was filed:"
-              % (len(problems), path), file=sys.stderr)
-        for line in problems:
-            print("  " + line, file=sys.stderr)
-        return 1
-    hidden = jobs.request_visible(root)
-    if hidden:
-        print("board: %s Nothing was filed." % hidden, file=sys.stderr)
-        return 1
-    changed = jobs.dirty(root)
-    if changed:
-        print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
-        return 1
-    paths, ok, said = jobs.file_requests(root, reqs)
-    if not ok:
-        written = all(os.path.exists(p) for p in paths)
-        print("board: the %d requests %s:\n%s" % (
-            len(reqs), "are written in %s but did not reach the cluster"
-            % os.path.relpath(jobs.requests_dir(root), root) if written
-            else "were not filed", said), file=sys.stderr)
-        return 1
-    print("%d requests filed in one commit and pushed: %s. The cluster's "
-          "relay picks them up on its next pass, and each report wakes %s."
-          % (len(reqs), ", ".join(r["id"] for r in reqs),
-             "session " + session if session else "this workspace's inbox"))
-    return 0
-
-
-def _job_label(words, who):
-    """`(label, session)` out of `--label` and `--session` (default
-    `$TUTORBOARD_SESSION`'s). `label` is "" when absent, None after printing
-    why the words are wrong."""
-    label, session, i = "", "", 0
-    while i < len(words):
-        w = words[i]
-        if w in ("--label", "--session") and i + 1 < len(words):
-            if w == "--label":
-                label = words[i + 1].strip()
-            else:
-                session = words[i + 1].strip()
-            i += 2
-            continue
-        print("%s: %r is not an option here. Work is named with --label "
-              "<slug>; no thread is named." % (who, w), file=sys.stderr)
-        return None, None
-    if label and not jobs.LABEL_RE.match(label):
-        print("%s: --label %r must be 1-40 characters of a-z, 0-9 and hyphen"
-              % (who, label), file=sys.stderr)
-        return None, None
-    if not session:
-        session = os.path.basename(
-            os.environ.get("TUTORBOARD_SESSION", "").rstrip("/"))
-    if session and not jobs.SESSION_RE.match(session):
-        print("%s: %r is not a session id" % (who, session), file=sys.stderr)
-        return None, None
-    return label, session
-
-
-def _recipe_args(root, argv):
-    """`(recipe, env, problem)` out of `<recipe> [VAR=value ...]`.
-
-    The recipe is workspace-relative, or relative to where this was typed."""
-    first = argv[0]
-    if os.path.isabs(first):
-        cand = first
-    elif os.path.exists(os.path.join(root, first)):
-        cand = os.path.join(root, first)
-    else:
-        cand = os.path.join(os.getcwd(), first)
-    recipe = _workspace_path(os.path.relpath(cand, root)) or first
-    env, wrong = {}, []
-    for word in argv[1:]:
-        name, eq, value = word.partition("=")
-        if not eq or not name:
-            wrong.append(word)
-            continue
-        env[name] = value
-    if wrong:
-        return recipe, env, ("after the recipe come VAR=value words only, and "
-                             "%s is not one" % ", ".join(repr(w) for w in wrong))
-    return recipe, env, ""
-
-
-def _job_submitted(root, label, got):
-    rec, why = got
-    if not rec:
-        print("board job: %s" % why, file=sys.stderr)
-        return 1
-    where = jobs.registry(root)
-    print("job %s submitted%s, registered in %s%s"
-          % (rec["jobid"], " as `%s`" % label if label else "",
-             os.path.relpath(where, root),
-             "; its log is " + rec["log"] if rec.get("log") else ""))
-    return 0
-
-
-def _request_filed(root, req):
-    """Commit and push a checked request, and say what happened."""
-    hidden = jobs.request_visible(root)
-    if hidden:
-        print("board: %s Nothing was filed." % hidden, file=sys.stderr)
-        return 1
-    # Pinned to HEAD, so uncommitted edits under the subject are refused.
-    changed = jobs.dirty(root)
-    if changed:
-        print("board: %s" % jobs.dirty_said(root, changed), file=sys.stderr)
-        return 1
-    path, ok, said = jobs.file_request(root, req)
-    rel = os.path.relpath(path, root)
-    if not ok:
-        print("board: the request is written at %s but did not reach the "
-              "cluster:\n%s" % (rel, said), file=sys.stderr)
-        return 1
-    print("request %s filed at %s and pushed. The cluster's relay picks it "
-          "up on its next pass, and its report wakes %s."
-          % (req["id"], rel, "session " + req["session"]
-             if req.get("session") else "this workspace's inbox"))
-    return 0
-
-
-def cmd_ask_cluster(live, args):
-    """Retired: no model runs beside the data, so a failure is not diagnosed
-    by a cluster turn. Its recipe prints `RELAY:` lines, the Mac repairs it,
-    and a question the report does not answer is a diagnostic recipe."""
-    print("board ask-cluster is retired: no model runs on the cluster. A "
-          "failed job's report carries its RELAY: lines and wakes a [repair] "
-          "turn here; to ask the cluster more, file a diagnostic recipe, one "
-          "that prints RELAY: lines and produces nothing:\n"
-          "  board diagnose --fixes <failed request> -- "
-          "<diagnose.sbatch> [VAR=value ...]\nNothing was filed.",
-          file=sys.stderr)
-    return 2
-
-
-def cmd_colibri(live, args):
-    """Queue a task for Colibri, the local model that may read PHI.
-
-        board colibri [--label <slug>] [--session <id>] "<task>"
-        board colibri --show            the queue, oldest first (on the cluster)
-
-    On the cluster it queues the task in libr-local-llm's ignored
-    `relay/state/colibri/` and starts an on-demand generation if none is up.
-    A generation works the queue one task at a time and exits after 20 idle
-    minutes; a dead one is replaced by its clone, and three deaths fail the
-    task.
-
-    On the Mac it files a `colibri` relay request (`colibri.ask`, shared with
-    POST /colibri) and says the wait (`colibri.estimate`). The workspace opts
-    in with `relay.colibri: true`.
-
-    A task is read-only analysis: outputs go under the workspace's ignored
-    `phi/`, and any change git can see fails the task, because nothing
-    Colibri writes may leave the cluster. A report carries only state, counts
-    and public `RELAY:` lines.
-    """
-    from tutorboard import colibri
-    root = live.root
-    words = list(args)
-    if words[:1] == ["--show"]:
-        q = colibri.queue_root()
-        recs = colibri.tasks(q) if q else []
-        if not recs:
-            print("the Colibri queue is empty.")
-            return 0
-        for r in recs:
-            print("%-26s %-9s %-24s %-22s attempts %d, deaths %d" % (
-                r.get("id"), r.get("queue"), r.get("workspace"),
-                r.get("label") or r.get("thread") or "-",
-                int(r.get("attempts") or 0),
-                int(r.get("deaths") or 0)))
-        return 0
-    if not words or not words[-1].strip():
-        print("board colibri: say what the task is", file=sys.stderr)
-        return 1
-    brief = words[-1].strip()
-    label, session = _job_label(words[:-1], "board colibri")
-    if label is None:
-        return 1
-    if len(brief) > jobs.MAX_BRIEF:
-        print("board colibri: the task is %d characters and the cap is %d"
-              % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
-        return 1
-    if jobs.has_slurm():
-        rec, said = colibri.file(label, brief, root)
-        if rec is None:
-            print("board colibri: %s. Nothing was queued." % said,
-                  file=sys.stderr)
-            return 1
-        print("task %s%s: %s. `board colibri --show` lists the queue."
-              % (rec["id"], " (`%s`)" % label if label else "", said))
-        return 0
-    got = colibri.ask(root, brief, label, session)
-    if not got["ok"]:
-        print("board colibri: %d problem(s), and nothing was filed:"
-              % len(got["problems"]), file=sys.stderr)
-        for line in got["problems"]:
-            print("  " + line, file=sys.stderr)
-        return 1
-    print("%s. %s." % (got["said"], colibri.estimate(colibri.status())))
-    return 0
-
-
-def cmd_libr_ai(live, args):
-    """Ask IT's model server, from a subject whose phi is false.
-
-        board libr-ai [--label <slug>] [--session <id>] [--model <m>] "<task>"
-
-    Files a `libr-ai` relay request (`libr_ai.ask`). The relay submits it as a
-    Slurm job that runs opencode once, read-only, in the subject on the
-    cluster, against ai.laureateinstitute.org; the model's answer is the job's
-    log, and the report brings it back and wakes the session. The model is
-    `gpt-oss:120b` unless `--model` names another the server lists.
-
-    IT's server keeps every chat, so a subject with PHI is refused; it uses
-    Colibri. On the cluster itself, `coder` is the direct route.
-    """
-    from tutorboard import libr_ai
-    words = list(args)
-    model = ""
-    if "--model" in words:
-        i = words.index("--model")
-        if i + 1 >= len(words) - 1:
-            print("board libr-ai: --model needs a model name before the task",
-                  file=sys.stderr)
-            return 1
-        model = words[i + 1].strip()
-        del words[i:i + 2]
-    if not words or not words[-1].strip():
-        print("board libr-ai: say what the task is", file=sys.stderr)
-        return 1
-    brief = words[-1].strip()
-    label, session = _job_label(words[:-1], "board libr-ai")
-    if label is None:
-        return 1
-    if len(brief) > jobs.MAX_BRIEF:
-        print("board libr-ai: the task is %d characters and the cap is %d"
-              % (len(brief), jobs.MAX_BRIEF), file=sys.stderr)
-        return 1
-    if jobs.has_slurm():
-        print("board libr-ai: this is the cluster, where `coder` reaches IT's "
-              "server directly. Nothing was filed.", file=sys.stderr)
-        return 1
-    got = libr_ai.ask(live.root, brief, label, session, model)
-    if not got["ok"]:
-        print("board libr-ai: %d problem(s), and nothing was filed:"
-              % len(got["problems"]), file=sys.stderr)
-        for line in got["problems"]:
-            print("  " + line, file=sys.stderr)
-        return 1
-    print("%s." % got["said"])
     return 0
 
 
@@ -2611,11 +2014,6 @@ def cmd_see(live, args):
     return 0
 
 
-def machine_shape():
-    """What this machine is for. Platform knowledge, so it lives in boardlib."""
-    return machine.machine_shape()
-
-
 def cmd_limit(live, args):
     """Whether this machine's tutor has any allowance left, and until when.
 
@@ -2707,7 +2105,6 @@ def machine_check():
     env_path = tex.tex_env().get("PATH", "")
     ok = True
     print("system:   %s %s" % (_pl.system(), _pl.machine()))
-    print("shape:    %s" % machine_shape())
     print("python:   %s" % sys.version.split()[0])
     for exe in ("latex", "pdflatex", "dvisvgm"):
         found = _sh.which(exe, path=env_path)
@@ -2794,7 +2191,7 @@ def cmd_pull(live, args):
     relink it if it moved (`gitops.sync_private`), because Atlas's pull never
     moves it. Refused during a rebase, merge or on a detached HEAD. Exit 1 when
     either pull was refused or failed; 0 when they ran or there is no origin
-    to pull from. The board server's cluster thread pulls on its own; this is
+    to pull from. The board server's sync thread pulls on its own; this is
     the by-hand one, and a coding laptop's only one.
 
     --materials pulls no git. It copies the Mac mini's ignored inputs
@@ -2887,7 +2284,7 @@ def cmd_cost(live, args):
 
 
 def cmd_code(live, args):
-    """A coding session at the cluster: `board code --help`. Run as `board
+    """A coding session: `board code --help`. Run as `board
     code ...` it never gets here; this is for a caller holding COMMANDS."""
     from tutorboard import code as coding
     return coding.main(args)
@@ -2905,9 +2302,7 @@ COMMANDS = {
     "writeup": cmd_writeup, "recap": cmd_recap, "mode": cmd_mode,
     "egress": cmd_egress, "limit": cmd_limit,
     "brief": cmd_brief, "memo": cmd_memo,
-    "job": cmd_job, "diagnose": cmd_job,
-    "ask-cluster": cmd_ask_cluster,
-    "colibri": cmd_colibri, "libr-ai": cmd_libr_ai, "code": cmd_code,
+    "code": cmd_code,
     "meeting": cmd_meeting,
     "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
@@ -2927,11 +2322,10 @@ GONE = {
 
 # Commands about a path they are given: no `live/` is made for them.
 NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
-           "pull", "cost", "doctor", "vpn", "egress", "limit", "ask-cluster")
+           "pull", "cost", "doctor", "vpn", "egress", "limit")
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo. Every other command refuses without a session.
-SUBJECT_ONLY = ("check", "init", "see", "job", "diagnose", "colibri", "libr-ai", "meeting",
-                "deckfig", "memo")
+SUBJECT_ONLY = ("check", "init", "see", "meeting", "deckfig", "memo")
 
 
 def help_for(cmd, fn):

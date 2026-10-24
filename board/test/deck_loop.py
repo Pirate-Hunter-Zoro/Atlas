@@ -176,7 +176,7 @@ try:
           rec)
     srepo = sessions.repo(sid, base)
     out, _taken = inbox.take(srepo)
-    signal, _ = turn.woken_for(lab, out, srepo.messages_path)
+    signal = turn.turn_signal(out)
     check("the session's inbox wakes a [rework] turn naming the source",
           signal == "rework" and "docs/fleet.tex" in out, out)
 

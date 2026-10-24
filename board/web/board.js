@@ -1267,9 +1267,9 @@ function render(data) {
   var started = (data.cards || []).length > 0;
   els.empty.hidden = started || linkDead;
 
-  /* THE CLUSTER'S HEALTH, the same for every session: relay looks down, not
-     synced, a skipped pass (`relay.health`). */
-  if (data.relay !== undefined) paintHealth(data.relay);
+  /* THE MAC'S SYNC HEALTH, the same for every session: not synced
+     (`sync.health`). */
+  if (data.sync !== undefined) paintHealth(data.sync);
 
   /* WHAT THIS COURSE WRITES IN. Before anything is typeset below, because a
      card rendered against the wrong vocabulary is the defect this carries:
@@ -1291,7 +1291,7 @@ function render(data) {
   seedTextDrafts(data);
   paintNotesSend();
   paintSent();
-  /* The save count, results and jobs are the subject's, and arrive from
+  /* The save count and results are the subject's, and arrive from
      `/subject.json` rather than on this frame; a frame that still carries
      one (a past lesson, a test) is honoured. */
   if (data.unsaved !== undefined) paintSave(data.unsaved);
@@ -3404,7 +3404,7 @@ els.finishLeave.onclick = goLeave;
 
 /* ------------------------------------------------- one step, written for them */
 /* The health strip under the bar: the worst line first, all of them in its
-   tooltip. Hidden while the cluster is well. */
+   tooltip. Hidden while the sync is well. */
 function paintHealth(h) {
   if (!els.healthbar) return;
   var lines = (h && h.lines) || [];
@@ -5738,30 +5738,6 @@ function paintBusy(data) {
       busyTurn = -1;
       /* The clock keeps running, so `tickBusy` can clear a stuck "sending"
          even when the next payload never arrives. */
-      if (!busyTimer) busyTimer = setInterval(tickBusy, 1000);
-      return;
-    }
-    /* A SLURM JOB REGISTERED HERE IS STILL OUT. No turn is running, and the
-       work is: the strip says so, on the job's own clock, until the daemon's
-       poll sees it end and a turn reports it. */
-    var running = data.jobs || (subjectInfo && subjectInfo.jobs) || [];
-    var job = !data.archived && running[0];
-    if (job) {
-      var more = running.length > 1 ? " (+" + (running.length - 1) + " more)" : "";
-      var asked = String(job.state).toUpperCase() === "REQUESTED";
-      var word = asked
-        ? "waiting for the cluster — " + (job.title || job.thread || "a request")
-          + more
-        : "running — " + (job.title || job.thread || "a job") + ": job "
-          + job.jobid + (String(job.state).toUpperCase() === "PENDING" ? ", pending" : "")
-          + more;
-      els.busy.hidden = false;
-      els.busy.classList.remove("busy-bad");
-      els.busyText.textContent = word;
-      busySince = job.submitted ? job.submitted * 1000 : Date.now();
-      els.busySince.textContent = longAgo(Date.now() - busySince);
-      busyTurn = -1;
-      busyStalled = word;
       if (!busyTimer) busyTimer = setInterval(tickBusy, 1000);
       return;
     }

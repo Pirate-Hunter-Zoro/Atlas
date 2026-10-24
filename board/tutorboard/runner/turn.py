@@ -8,7 +8,7 @@ import re
 import signal
 import subprocess
 
-from tutorboard import jobs, keys
+from tutorboard import keys
 from tutorboard.course import config
 from tutorboard.runner import prompts
 from tutorboard.course import repo as course_repo
@@ -21,7 +21,7 @@ def turn_environment(spec, base=None):
     `{NAME}` values come from `keys.fill`; a value naming a missing key is
     dropped rather than passed with its braces. Every turn carries
     `TUTORBOARD_TURN=1`, which `.githooks/pre-commit` reads to refuse RULES.md
-    and a `phi` or `relay.exports` change.
+    and a `phi` change.
     """
     extra = (spec or {}).get("env") or {}
     env = dict(base if base is not None else os.environ)
@@ -50,9 +50,9 @@ def state_of(where):
 
 def doing_now(where, signal=""):
     """Is this turn's product a change rather than a card? True in do mode,
-    and for a handover, rework, writeup, unfinished or repair turn whatever
-    the mode, because those need the doing clock."""
-    if signal in ("handover", "rework", "writeup", "unfinished", "repair"):
+    and for a handover, rework, writeup or unfinished turn whatever the mode,
+    because those need the doing clock."""
+    if signal in ("handover", "rework", "writeup", "unfinished"):
         return True
     try:
         return config.mode_of(state_of(where)) == "do"
@@ -63,7 +63,7 @@ def doing_now(where, signal=""):
 def turn_timeout(cfg, where, spec=None, signal=""):
     """How long this turn gets, by its kind and its agent.
 
-    A recipe's `timeout` is a floor, because a slow agent (Colibri prefills
+    A recipe's `timeout` is a floor, because a slow agent (a local model prefills
     for hours) would otherwise die at the cap of every turn.
     """
     plain = int(cfg.get("headless_timeout", 900) or 900)
@@ -166,22 +166,3 @@ def turn_signal(out):
             continue
         return m.group(1) if m else ""
     return ""
-
-
-# A batch with a [repair] line anywhere is a repair turn, unless its signal is
-# one whose own machinery the turn needs.
-REPAIR_KEEPS = ("unfinished", "handover", "rework", "revise", "writeup")
-
-
-def woken_for(root, out, inbox=None):
-    """`(signal, repair request ids)` for the batch `out`, read against the
-    session's inbox file `inbox` (else the one `root` resolves to). Never
-    raises."""
-    signal = turn_signal(out)
-    try:
-        repairs = jobs.batch_repairs(root, out, inbox)
-    except Exception:                                        # noqa: BLE001
-        repairs = []
-    if repairs and signal not in REPAIR_KEEPS:
-        signal = jobs.REPAIR
-    return signal, repairs

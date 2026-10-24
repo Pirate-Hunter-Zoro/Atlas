@@ -101,7 +101,7 @@ fi
 # A clone can arrive without the executable bit -- some filesystems and some
 # archive paths drop it -- and then `board` is unrunnable for no visible reason.
 # Put it back rather than making anyone diagnose it.
-chmod +x "$HERE/bin/board" "$HERE/bin/relay" "$HERE/serve.py" "$HERE/install.sh" \
+chmod +x "$HERE/bin/board" "$HERE/serve.py" "$HERE/install.sh" \
         "$HERE/scripts/save-and-push.sh" "$HERE"/../.githooks/* 2>/dev/null || true
 mkdir -p "$BIN"
 ln -sf "$HERE/bin/board" "$BIN/board"
@@ -113,9 +113,8 @@ esac
 
 # --- the Mac's one agent ----------------------------------------------------
 # A Mac runs the board; nothing else does. launchd runs one agent there,
-# `tutor-board`: board/serve.py, kept alive, which pulls and hears the cluster
-# itself and exits for a restart when committed board code changes. The
-# cluster's only schedule is the relay's scrontab entry (`scripts/setup-cluster.sh`).
+# `tutor-board`: board/serve.py, kept alive, which pulls origin itself and
+# exits for a restart when committed board code changes.
 #
 # The agent is RENDERED and COPIED: launchd reads it at bootstrap and expands
 # nothing, so every path in it is absolute, the interpreter included.
@@ -202,8 +201,7 @@ else
   say  "        A small installation is enough:"
   say  "          https://yihui.org/tinytex/   then:"
   say  "          tlmgr install dvisvgm standalone varwidth preview needspace"
-  say  "        It installs under \$HOME, which is the only place a cluster node"
-  say  "        lets you put anything. On a Mac: brew install texlive"
+  say  "        It installs under \$HOME. On a Mac: brew install texlive"
 fi
 
 # --- poppler: the papers' text, and reading a PDF on the board ---------------

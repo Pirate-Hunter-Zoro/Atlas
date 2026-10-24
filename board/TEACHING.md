@@ -409,8 +409,8 @@ lines of report — what changed, which files, what ran, what it said — and th
 
 ### A coding session
 
-The owner may write the code in a terminal on the cluster, a laptop or this
-Mac while you coach. They run `board code <session> <paths>` there; the session
+The owner may write the code in a terminal on a laptop or this Mac while you
+coach. They run `board code <session> <paths>` there; the session
 header shows that command. Every pause is a step on `code/<session>`, with the
 subject's check. The Mac wakes your turn with a `[code] step N` line.
 `board code <session> --end` makes one commit on main and deletes the ref; an
@@ -566,15 +566,12 @@ before the work can only describe an intention.
 **Never hand back a plan of what you would do as though it were the work.** If
 the job is too big for one turn, do the **first part of it** and report that.
 
-### Check, push and run on the cluster
+### Check and push
 
 - **Run the subject's check as `board check`**, from the Atlas root; it runs the
   `tutorboard.json` check from the subject's root. `board check <path>` runs its
   `one` form for that path.
-- **Long work goes to the cluster:** `board check`, `board push`, then
-  `board job -- <recipe.sbatch>`. The request is pinned to the commit it was
-  filed after, so push first. The report wakes this session, and a failed job
-  gets up to three repair turns.
+- **Push what the check passed:** `board check`, then `board push`.
 - **While a coding session is open**, this session's pushes go to
   `code/<session>`, not main.
 - **Never edit `board/` in the main checkout**, which serves the iPad live. Make

@@ -1,12 +1,12 @@
-"""The server's own routes: health, the relay panel, the meeting deck, the
-provider setting, Colibri tasks, `/seen` and a page's error report.
+"""The server's own routes: health, the sync health, the meeting deck, the
+provider setting, `/seen` and a page's error report.
 
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     atlas     unprefixed only, over every subject, by a sessionless Repo over
               the Atlas root; 404 under `/s/<id>/`:
-              GET  /relay.json
-              POST /meeting  /default-agent  /colibri
+              GET  /sync.json
+              POST /meeting  /default-agent
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
@@ -30,18 +30,16 @@ from ... import assistants
 from ... import keys
 from ... import limits
 from ... import subjects
-from ... import colibri
-from ... import relay
+from ... import sync
 from ... import briefs
 from ... import stamp
 from ...lesson import state
 
 
 def get(h, repo, path):
-    if path == "/relay.json":
-        # The cluster's health from relay/status.json and this tree, never
-        # from Slurm (D27).
-        return h.send_json(relay.panel(repo.root))
+    if path == "/sync.json":
+        # The Mac's sync health and the machine's brew and tools lines.
+        return h.send_json(sync.health(repo.root))
 
     if path == "/health":
         # `dir` and `id` name the session's subject; `limited` the machine's
@@ -183,10 +181,9 @@ def post(h, repo, path):
         if not isinstance(spec, dict):
             why = "'%s' is not an assistant on this machine" % want
         else:
-            why = recipes.in_fence(cfg, want)
             gone = recipes.missing_command(spec.get("cmd"))
             need = keys.unkeyed(spec)
-            why = why or (gone and "`%s` is not installed here" % gone) or (
+            why = (gone and "`%s` is not installed here" % gone) or (
                 need and "%s is not in %s" % (need, keys.store()))
         if why:
             return h.send_json({"ok": False, "detail": why}, status=400)
@@ -214,34 +211,5 @@ def post(h, repo, path):
                             "machine": (table or {}).get("machine"),
                             "why": (table or {}).get("why"),
                             "assistants": table})
-
-    if path == "/colibri":
-        # A Colibri task, filed as a relay request (`colibri.ask`); the Mac
-        # starts no server.
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except Exception:                                    # noqa: BLE001
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        if not isinstance(payload, dict):
-            return h.send_json({"ok": False, "error": "bad json"}, status=400)
-        if not str(payload.get("brief") or "").strip():
-            return h.send_json({"ok": False, "error": "say what the task is"},
-                               status=400)
-        found = subjects.find(colibri.WORKSPACE, base=repo.root)
-        if not found:
-            return h.send_json({"ok": False, "error": "no %s here to file in"
-                                % colibri.WORKSPACE}, status=404)
-        got = colibri.ask(found["root"], payload.get("brief"),
-                          label=str(payload.get("label") or "").strip(),
-                          session=str(payload.get("session") or "").strip())
-        now = colibri.status(repo.root)
-        if not got["ok"]:
-            return h.send_json({"ok": False, "id": got.get("id"),
-                                "error": "; ".join(got["problems"]),
-                                "colibri": now}, status=409)
-        relay.forget()
-        h.hub.worker.dirty.set()
-        return h.send_json({"ok": True, "id": got["id"], "detail": got["said"],
-                            "estimate": colibri.estimate(now), "colibri": now})
 
     return NOT_MINE

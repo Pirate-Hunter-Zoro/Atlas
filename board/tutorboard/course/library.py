@@ -1558,17 +1558,14 @@ def result_ident(rel):
 
 
 def _result_tops(root):
-    """`(name, directory)` for each result directory here, in `LOOK_IN` order.
-    `exports/results/` is walked as `results/`: a figure the cluster exported
-    keeps the path and the id it has there, and is not offered twice."""
+    """`(name, directory)` for each result directory here, in `LOOK_IN` order."""
     out = []
     for name in LOOK_IN:
         if fenced.refused(name):
             continue
-        tops = [os.path.join(root, name)]
-        if name == "results":
-            tops.append(os.path.join(root, paths.EXPORTS, name))
-        out.extend((name, t) for t in tops if os.path.isdir(t))
+        top = os.path.join(root, name)
+        if os.path.isdir(top):
+            out.append((name, top))
     return out
 
 
@@ -1740,8 +1737,7 @@ def _result_path(root, ident_wanted, kind):
         return None, None
     if fenced.refused(rec["rel"]):
         return None, None
-    target = os.path.realpath(paths.present(root, rec["rel"]) or
-                              os.path.join(root, rec["rel"]))
+    target = os.path.realpath(os.path.join(root, rec["rel"]))
     if not target.startswith(root + os.sep) or not os.path.isfile(target):
         return None, None
     label = rec["name"]

@@ -3,7 +3,7 @@
 A live tutoring board. A tutor turn writes lesson cards as files, and `serve.py` pushes them to
 every browser holding the session open, typeset. Handwriting, typed answers and uploads come
 back into an inbox that wakes the next turn. It runs on the owner's Mac mini, the only machine
-where a model is called. The cluster runs Slurm and talks to the Mac only through git.
+where a model is called.
 
 [TEACHING.md](TEACHING.md) is the method every turn follows. The repository's own
 [README](../README.md) has the hard constraints and machine setup.
@@ -16,7 +16,7 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   by `install.sh`. KeepAlive, an absolute interpreter path, ThrottleInterval 10. It runs one
   `serve.py` on port 8778, loopback only. `tailscale serve` publishes it over HTTPS once.
   `atlas.brew-upgrade` is setup's machine job, not the board's; its `brew:` lines, and the
-  `tools:` lines from `tools.json` (`brewcare.py`), appear in `/relay.json` and `board doctor`.
+  `tools:` lines from `tools.json` (`brewcare.py`), appear in `/sync.json` and `board doctor`.
   The LaunchAgent's PATH is `install.sh`'s `AGENT_PATH`, which ends in mise's shims.
 - **`serve.py`** serves every session at `/s/<id>/`, plus the unprefixed home, library and
   subject routes. `tutorboard/server/app.py` is the start. A session's Repo and Hub are made on
@@ -35,7 +35,7 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   `git ls-remote origin` asks for `main` and `refs/heads/code/*`. When main moved: a
   fast-forward pull, or, where HEAD (main tracking origin/main) is ahead too, a merge and a push
   of the sha checked (`gitops.merge_in`), then
-  a vendor checkout, then every subject's reports are heard. The merge is tested with `git
+  a vendor checkout. The merge is tested with `git
   merge-tree --write-tree` and lands as a fast-forward, so git refuses any overlap with
   uncommitted, untracked or ignored work and no merge is ever left standing. While anything is
   staged it waits, and `pull.json` and the health say `skipped: staged changes`. It merges and
@@ -43,20 +43,15 @@ where a model is called. The cluster runs Slurm and talks to the Mac only throug
   common directory): origin is public, so an unpushed commit of the owner's stops it with
   `skipped: unpushed commits of your own`. Every 5 min
   it also fast-forwards `ai-config`, which Atlas's pull never moves, and reruns its
-  `scripts/install.sh` when that moved it (`gitops.sync_private`).
+  `scripts/install.sh` when that moved it (`gitops.sync_private`). `sync.health` reads
+  `pull.json`: a failed or skipped pull is a "not synced" line, served with the `brew:` and
+  `tools:` lines at `GET /sync.json` (home's health) and alone in the payload's `sync` (the
+  board's health strip).
 - **The freshness thread** (only with `TUTORBOARD_FRESH=1`). Once committed board code differs
   from what the process loaded (`stamp.py`), or a brew upgrade moved its python, and no turn
   runs or waits, the server exits 0 and launchd starts it on the new code.
 
 A server started by hand or by a test sets neither variable, so it never pulls the real origin.
-`serve.py` refuses to start where Slurm exists.
-
-### On the cluster
-
-No board server and no model, ever. scrontab runs `scripts/relay-pass.sh` every 2 minutes:
-`flock`, a bash fast-forward pull, a re-exec when the pull changed `board/`, then
-`python3 board/bin/relay --once --quiet`. Bash pulls so that a pushed fix lands even when the
-Python it fixes cannot import. The owner runs `board code` by hand to code with the tutor.
 
 ## Layout
 
@@ -64,17 +59,15 @@ Python it fixes cannot import. The owner runs `board code` by hand to code with 
 | --- | --- |
 | `serve.py` | the server entry |
 | `bin/board` | the CLI a tutor turn and the owner use; `board help` lists every command |
-| `bin/relay` | the cluster's scheduled entry; imports only the relay path |
 | `tutorboard/server/` | app, handler, hub, registry, TikZ worker, `routes/` by family |
 | `tutorboard/runner/` | the runner, one turn, its prompts (`prompts/*.md`) |
 | `tutorboard/lesson/` | cards, inbox, slate, turns, uploads, the save |
 | `tutorboard/course/` | a subject on disk: config, Repo, homework, library, reader pages, ledger, burn, book (the textbook index) |
 | `tutorboard/agents/` | provider recipes, usage and cost, `board doctor` |
-| `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, briefs (the meeting deck), relay, jobs, exports, colibri, cluster, code, gitops, audit, fenced, leaving |
+| `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, briefs (the meeting deck), sync, code, gitops, audit, fenced, leaving |
 | `web/` | home, board, slate and library pages; reader; ink; `sw.js`; vendored KaTeX and math.js |
-| `cluster/lib/` | the failure fingerprint every relayed recipe sources |
 | `tex/` | `board-macros.tex` (generated from `web/macros.js` by `tools/sync-macros.py`) and the write-up template |
-| `scripts/` | install, ship, save-and-push, the relay pass, cluster setup |
+| `scripts/` | install, ship, save-and-push |
 | `test/` | one suite per file, run by `test/run.py` |
 
 ## Sessions
@@ -83,7 +76,7 @@ A session is `sessions/<YYYYMMDD-HHMMSS>/` under the Atlas root. It is Mac-only 
 and the audit refuses any path under it.
 
 `session.json` holds `id`, `title`, `subject` (a subject id or null), `mode` (teach or do),
-`opened`, `ended`, `writeup`, `seen`, `code` (a cluster coding session, or null) and `view`
+`opened`, `ended`, `writeup`, `seen`, `code` (a coding session, or null) and `view`
 (`board`, or `slate` for a canvas). A canvas also keeps `canvas` (where its pages are filed),
 `given` and `transcribe`. Beside it: `cards/`, `slate/`, `answers/`,
 `turns.jsonl`, `inbox/messages.jsonl`, `uploads/`, `annotations/`, `agent.json`,
@@ -114,7 +107,7 @@ and the audit refuses any path under it.
 - **Who teaches.** The tutor's chip in the header opens the machine's provider setting
   (`POST /default-agent`, drawn by `who.js` as on the home screen). It takes every session's
   next turn; there is no per-session provider.
-- **Reopen.** A cluster report for an ended session reopens it.
+- **Reopen.** A coding step for an ended session reopens it.
 - **Delete.** A second tap moves the directory to `~/.local/share/tutor-board/trash/<stamp>/`,
   kept 30 days.
 
@@ -124,8 +117,8 @@ takes it with the rest.
 
 **Every turn is cold.** The prompt carries the brief and the recap (`brief.py`); the global
 CLAUDE.md still loads. The brief is the method from `sense.py`, the subject's `RULES.md` at
-HEAD, its `TUTOR.md`, what the owner did away from the board, and work out on the cluster. A
-subject's `README.md` never enters it. `board brief` and `board recap` print the same text.
+HEAD, its `TUTOR.md`, and what the owner did away from the board. A subject's `README.md` never
+enters it. `board brief` and `board recap` print the same text.
 
 **Uploads** land in the session's `uploads/` with a non-waking line. The tutor files them into
 the bound subject with `board file`, `materials/` by default, and their ink follows.
@@ -138,8 +131,7 @@ session bound to the target subject, else to a new session bound to it.
 A subject is a directory directly under `courses/` or `projects/` (`subjects.py`). No registry,
 no marker file.
 
-- **`tutorboard.json`** holds `name`, `phi`, `check` and `relay`. `relay` holds `exports`
-  (the owner's approved export globs), `colibri` and `fingerprint`. `board init` writes one.
+- **`tutorboard.json`** holds `name`, `phi` and `check`. `board init` writes one.
 - **Create.** "+ course", "+ project" or `board bind <id> --create`. A project needs
   `--phi yes|no`; yes also writes the PHI ignore stanza. One commit makes the directory,
   `tutorboard.json` and a `TUTOR.md` skeleton.
@@ -152,10 +144,10 @@ no marker file.
   real work. A save with no message says `save: <changed files>`; `gitops.is_save` reads
   a save back only bare or under the subject's own prefix, so `board: ...` is work.
 - **Delete** from the iPad needs the name typed. It is refused unless `tutorboard.json` at HEAD
-  sets `phi` to `false` literally, no open session is bound to it, no coding session holds it,
-  and no request waits for a report. A PHI subject is removed only through a cluster runbook.
+  sets `phi` to `false` literally, no open session is bound to it and no coding session holds
+  it. The board never removes a PHI subject.
   `GET /subject/delete?subject=<id>` answers the same question read-only: `phi` at HEAD, `why`
-  (`phi`, `open-session`, `coding`, `request` or empty), one `blocker` sentence naming every
+  (`phi`, `open-session`, `coding` or empty), one `blocker` sentence naming every
   reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit; the
   directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
@@ -239,7 +231,7 @@ tree gets a `doc.json` written in place, so its ids hold.
   Tutor chooser, notices, a search, courses and projects most recently used first (each row
   can make a deck or paper, or be deleted), the newest ten past sessions (an unbound one can be
   sent to a subject, a canvas given to the tutor), the Annotate a PDF and Meeting deck actions,
-  relay and Colibri health, settings. A script that did not load shows a Retry line, and what
+  the sync health, settings. A script that did not load shows a Retry line, and what
   breaks is posted to `/client-error`.
 - **Board** (`/s/<id>/board`): the session header (subject chip, mode, End), the cards, the
   answer box, the slate. **Slate** (`/s/<id>/slate`) is the full-page writing surface.
@@ -255,66 +247,11 @@ tree gets a `doc.json` written in place, so its ids hold.
   the server's log, each field cut to 300 characters and at most 20 a minute. A request the
   proxy dropped never shows as a request line, so the page reports it.
 
-## The relay
-
-The cluster half is `relay.py`; the Mac half is `jobs.py` and `sync.py`. GitHub is the only
-channel.
-
-1. **File.** In do mode the tutor runs `board check`, `board push`, then
-   `board job -- <recipe.sbatch> [VAR=v ...]`. Without Slurm, that commits
-   `<subject>/relay/requests/<id>.json`, pinned to the pushed commit, and pushes.
-   `board job --batch <file.json>` files many in one commit; one problem files none.
-2. **Validate**, on both machines (`jobs.validate`). The recipe is tracked and unchanged at
-   HEAD, HEAD contains the pinned commit, every variable matches its `#RELAY-VAR` pattern, and
-   a `turn` request is refused, because the system never runs a hosted model at the cluster.
-3. **Submit** through the exit-file wrapper, which sources `cluster/lib/`'s fingerprint. A
-   job's end is read from `squeue` plus its exit file, because `sacct` is refused there.
-4. **Report.** `relay/reports/<id>.json` carries state, Slurm id, times, exit code, `RELAY:`
-   lines, which `produces` paths exist and which exports landed. A sanitized log excerpt rides
-   along only where `phi` is literally `false`. Exports land under `exports/` only when
-   `relay.exports` approves them: png, pdf and svg by any matching glob, csv and json only
-   with `"aggregate": true`, 5 MB at most.
-5. **Hear.** The Mac's sync thread reads new reports and wakes the session that filed the
-   request, reopening it if ended. A report with no session becomes a home notice and starts
-   no turn.
-6. **Repair.** A failed job wakes a `[repair]` turn. Up to 3 automatic attempts per failure,
-   counting `board diagnose` runs; then the owner decides, and `board job --fresh` starts
-   again.
-
-`relay/status.json` at the Atlas root carries the relay's errors and Colibri's state,
-committed only on change. A request unsubmitted 15 minutes after its commit shows "relay looks
-down" on home.
-
-The relay commits only what its pass wrote under `relay/reports/` and `exports/`, and
-`relay/status.json`. It rebases under the owner's edits, never commits them, and never
-force-pushes. Its runtime state lives in ignored `<subject>/relay/state/`.
-
-### Colibri runs on demand
-
-Colibri is the local model, served from a Slurm job on the cluster. `board colibri "<task>"`
-files a `colibri` request from the Mac, or queues the task directly on the cluster. A
-generation starts when a task is queued and none is up, works the queue, and exits once idle.
-A task writes only under the subject's ignored `phi/`, so any change git can see fails it and
-nothing it wrote is committed. Its `RELAY:` lines are what come back. The Mac reads Colibri's
-state only from `relay/status.json`, and has no start control.
-
-### IT's model server
-
-`board libr-ai [--model <m>] "<task>"` files a `libr-ai` request (`libr_ai.py`) for IT's Open
-WebUI server at ai.laureateinstitute.org, which only the compute nodes resolve. The model is
-`gpt-oss:120b` unless `--model` names another the server lists. The relay submits the request
-as a Slurm job running `scripts/libr-ai-task.sh`: opencode once, in the subject, under
-`scripts/libr-ai-task.json`, which denies the shell, edits, the web and every path outside the
-subject. The job's log is the model's answer, and the report carries it back and wakes the
-session. IT's server keeps every chat, so the Mac, the relay and the task script each refuse a
-subject whose tutorboard.json does not say `"phi": false`; a PHI subject uses Colibri. The key
-is `~/.config/libr-ai/key` on the cluster.
-
 ## Coding sessions
 
 One git ref per coding session, `code/<session-id>` (`code.py`).
 
-- `board code <session> <path>...`, run by the owner in a terminal on the cluster or a laptop,
+- `board code <session> <path>...`, run by the owner in a terminal on a laptop or this Mac,
   holds those paths. A new hold there fast-forwards main first; a refused pull is said and the
   hold goes on. After 10 s of quiet it snapshots them through a temporary index, so HEAD,
   the index and main never move. The commit-time gate and the subject's check run over the
@@ -324,10 +261,10 @@ One git ref per coding session, `code/<session-id>` (`code.py`).
   tutor answers on the iPad.
 - A vibe push from the Mac while the session is open goes to the same ref, and the loop applies
   it when its held paths are unchanged. Otherwise it prints "both sides changed".
-- `--end` takes `board-code.lock` in the git common directory, which a relay pass takes too,
+- `--end` takes `board-code.lock` in the git common directory, so two never overlap,
   makes one commit of the held paths on main, pushes it, then deletes the ref. `--abandon` deletes the ref only.
-- While a session is held, the relay tolerates edits to its paths, and the Mac and the
-  pre-commit hook refuse commits to them on main. `--end` alone lifts that, for its own session
+- While a session is held, the Mac and the pre-commit hook refuse commits to its paths on
+  main. `--end` alone lifts that, for its own session
   (`BOARD_CODE_END`).
 - **Mac-local**, where `sessions/<session>/session.json` exists (the board's own checkout): steps
   go to the local `refs/heads/code/<session>`, never pushed. The sync thread lists local refs
@@ -340,8 +277,8 @@ One git ref per coding session, `code/<session-id>` (`code.py`).
   pushes, deletes the local ref and clears `code`. A linked worktree of that checkout, or a
   branch other than main, is refused.
 
-`board code` answers before anything else in `bin/board` is imported, so the cluster loads no
-server, runner or model module.
+`board code` answers before anything else in `bin/board` is imported, so it loads no server,
+runner or model module.
 
 ## Providers
 
@@ -368,34 +305,25 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 
 ## Invariants
 
-- **Standard library only; add no runtime dependency.** The relay runs on a compute node with
-  no `sudo`, and every dependency is one more thing to install there.
-- **Relay-path code runs on Python 3.7**: `bin/relay`, `board code`, and the modules relay,
-  jobs, colibri, libr_ai, exports, cluster, code, fenced, leaving, paths, worktree, gitops, audit and what
-  they import. No walrus, no `match`, no `removeprefix`, no `functools.cache`, no `dict | dict`,
-  no runtime builtin generics. `test/py37.py` enforces it, because the cluster's python3 may be
-  3.7. Cluster bash stays bash 3.2 safe, and guards `flock` and `timeout` with `command -v`.
-- **The system never runs a hosted model at the cluster.** `jobs.NO_TURN` refuses a `turn`
-  request; the relay runs no model itself. Colibri, which is local, may read beside the data.
-  IT's model server (`libr_ai.py`) takes work only from a subject whose phi is false.
+- **Standard library only; add no runtime dependency.** Every dependency is one more thing to
+  install on every machine.
 - **Never read, list or copy anything under `phi/`, `results/`, or a directory named in
   `tutorboard/fenced.py` `NEVER`.** They hold identifiable patient data; existence checks only.
 - **Never weaken the PHI guards:** `test/tracked.py`, `ai-config/policy/phi.py` fencing by
-  name, the anchored `/phi/` ignores, `.githooks/commit-msg`, `jobs.NO_TURN`, and the rule that
-  a Colibri task changing a tracked file fails. Each is the only thing between one mistake and
-  a public commit.
+  name, the anchored `/phi/` ignores and `.githooks/commit-msg`. Each is the only thing
+  between one mistake and a public commit.
 - **Every commit is public.** Never commit a session, ink, an upload, a material, a third-party
   file, a log tail, a participant id or a lab storage path, because git keeps it forever.
   `.githooks/pre-commit` runs `audit.py` over the staged paths and refuses these.
-- **A turn may not commit `RULES.md`, change a `tutorboard.json`'s `phi` or `relay.exports`,
-  or commit `board/` in the main worktree.** The pre-commit hook refuses each while
+- **A turn may not commit `RULES.md`, change a `tutorboard.json`'s `phi`, or commit `board/`
+  in the main worktree.** The pre-commit hook refuses each while
   `TUTORBOARD_TURN` is set, because those are the owner's decisions.
 - **Commit named paths only, through `gitops.commit`.** A commit carries the index, and a
   terminal in the same checkout may have staged something else.
 - **Edit `board/` only in a worktree under `~/Developer/Atlas-wt/`.** The main checkout serves
   the iPad live, so a half-finished edit there is a broken lesson now.
 - **Never `git stash`, never force-push.** A stash hides the owner's uncommitted work where
-  nobody looks, and a force-push rewrites what the cluster already pulled.
+  nobody looks, and a force-push rewrites what another clone already pulled.
 - **A name from a browser never reaches a filesystem.** Routes take ids and look them up in what
   discovery found; a session id is matched against `sessions.ID_RE` before any path is built.
 - **Nothing on the home page may throw while painting**, because that page is the way into
@@ -405,8 +333,8 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
 
 ```
 python3 board/test/run.py              every suite, four at a time
-python3 board/test/run.py --guards     the PHI and relay guards only
-python3 board/test/run.py relay code   the suites named
+python3 board/test/run.py --guards     the PHI guards only
+python3 board/test/run.py sync code    the suites named
 ```
 
 A suite is any `*.py` or `*.js` file in `test/` that `run.py` does not list as a helper:
@@ -416,14 +344,13 @@ it installs jsdom into `board/node_modules` on first run, for development only.
 
 - `tracked.py` audits every tracked path in Atlas for PHI, size, credentials and third-party
   work. It runs early, because a public commit cannot be taken back.
-- `py37.py` parses the relay path as Python 3.7.
 - `teaching.py` checks that `TEACHING.md` stays under 600 lines and that every command and
   section it names exists.
 - `truthful.py` checks the documents against the tree: no moved address, no dropped config
   key, every relative link and anchor resolving, every `board` command named existing.
 
-Prove behaviour with fixtures: temp repositories, bare remotes, fake `squeue` and `sbatch`, a
-fake provider script that writes a card. A test server never binds 8778 and never sets
+Prove behaviour with fixtures: temp repositories, bare remotes, a fake provider script that
+writes a card. A test server never binds 8778 and never sets
 `TUTORBOARD_SYNC=1`. A failing suite means the change is wrong, not the test. Suites can
 collide on ports when worktrees test at once, so re-run a failure alone before believing it.
 

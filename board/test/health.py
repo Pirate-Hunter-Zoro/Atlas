@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
-"""The cluster's health on the Mac, and Colibri from relay/status.json only.
+"""The Mac's sync health: GET /sync.json, home's #health and the board's
+#healthbar.
 
 What the checks are about:
 
-  * RELAY DOWN. A request whose commit origin has, with no report 15 minutes
-    later, makes the payload read down; one filed a minute ago, one with a
-    report, and one never pushed do not.
-  * COLIBRI ON THE MAC reads only relay/status.json (D27): loading there is
-    loading in /relay.json and /subject.json, never off, and no squeue is
-    asked.
-  * THE PANEL. POST /colibri files a `colibri` request in libr-local-llm,
-    committed and pushed, and answers with a cold-start estimate from the
-    load the relay timed. No brief is a 400. The filed task then shows
-    queued, working and done as the relay's reports and status.json say.
-  * THE BRIEF names a relay that looks down.
-  * BREW. brew.json's failures, and tools.json's, join /relay.json's lines; relay.health and the
-    brief never carry them.
+  * NOT SYNCED. With no pull.json, or one whose last step went through, there
+    is nothing to say. A failed or skipped pull, merge or ls-remote is one
+    "not synced: <git's words>" line, and the payload reads down.
+  * ONE SOURCE. `sync.health` reads pull.json, which the sync thread writes.
+    The session's payload carries it as `sync`, and GET /sync.json serves it.
+  * BREW. brew.json's failures, and tools.json's, join /sync.json's lines, so
+    home shows them; the session's payload never carries them.
+  * NOTHING OF THE CLUSTER. GET /relay.json and POST /colibri are gone, and
+    neither the payload nor /subject.json carries jobs or Colibri.
 
-Synthetic repositories only: a bare origin and a "Mac" clone.
+Synthetic repositories only.
 """
 import json
 import os
@@ -26,24 +23,22 @@ import subprocess
 import sys
 import tempfile
 import threading
-import time
 import urllib.error
 import urllib.request
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 box = tempfile.mkdtemp(prefix="tutor-health-box-")
-os.environ["TUTOR_SLURM"] = "0"
-os.environ["BOARD_STATE_DIR"] = os.path.join(box, "state")
+STATE = os.path.join(box, "state")
+os.environ["BOARD_STATE_DIR"] = STATE
 os.environ["XDG_CONFIG_HOME"] = os.path.join(box, "config")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["BOARD_NO_TAILNET"] = "1"
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-             "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH",
-             "COLI_QUEUE_ROOT"):
+             "TUTORBOARD_SYNC", "TUTORBOARD_FRESH"):
     os.environ.pop(name, None)
 
-from tutorboard import brief, colibri, relay, sessions               # noqa: E402
+from tutorboard import brief, sense, sessions, sync                   # noqa: E402
 from tutorboard.server import app, hub                                # noqa: E402
 
 fails = []
@@ -63,10 +58,9 @@ def write(path, text):
         fh.write(text)
 
 
-def git(cwd, *args, **env):
+def git(cwd, *args):
     p = subprocess.run(["git"] + list(args), cwd=cwd, stdout=subprocess.PIPE,
-                       stderr=subprocess.STDOUT, check=False,
-                       env=dict(os.environ, **env))
+                       stderr=subprocess.STDOUT, check=False)
     return p.stdout.decode("utf-8", "replace").strip()
 
 
@@ -77,93 +71,58 @@ class Worker(object):
         pass
 
 
+PULL = os.path.join(STATE, sync.PULL_STATE)
 base = tempfile.mkdtemp(prefix="tutor-health-")
 httpd = None
 try:
-    origin = os.path.join(base, "origin.git")
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin],
-                   check=True)
     mac = os.path.join(base, "mac")
     os.makedirs(mac)
     git(mac, "init", "-q", "-b", "main")
     git(mac, "config", "user.email", "t@example.com")
     git(mac, "config", "user.name", "t")
     ws = os.path.join(mac, "projects", "Proj")
-    llm = os.path.join(mac, "projects", "libr-local-llm")
-    write(os.path.join(mac, ".gitignore"), "/sessions/\n**/relay/state/\n")
+    write(os.path.join(mac, ".gitignore"), "/sessions/\n")
     write(os.path.join(ws, "tutorboard.json"), json.dumps({"name": "Proj"}))
-    write(os.path.join(llm, "tutorboard.json"), json.dumps(
-        {"name": "libr-local-llm", "phi": True, "relay": {"colibri": True}}))
     git(mac, "add", "-A")
     git(mac, "commit", "-q", "-m", "start")
-    git(mac, "remote", "add", "origin", origin)
-    git(mac, "push", "-q", "-u", "origin", "main")
     os.environ["TUTORBOARD_COURSES"] = mac
 
-    def request(rid, ago, push=True, report=None):
-        """A request committed `ago` seconds back, pushed or not."""
-        path = os.path.join(ws, "relay", "requests", rid + ".json")
-        write(path, json.dumps({"id": rid, "kind": "recipe",
-                                "recipe": "slurm/x.sbatch"}))
-        when = "@%d +0000" % int(time.time() - ago)
-        git(mac, "add", "-A")
-        git(mac, "commit", "-q", "-m", "relay request " + rid,
-            GIT_COMMITTER_DATE=when, GIT_AUTHOR_DATE=when)
-        if report:
-            write(os.path.join(ws, "relay", "reports", rid + ".json"),
-                  json.dumps(dict(report, id=rid)))
-            git(mac, "add", "-A")
-            git(mac, "commit", "-q", "-m", "relay report " + rid)
-        if push:
-            git(mac, "push", "-q")
+    # --- not synced ---------------------------------------------------------
+    got = sync.health(mac, fresh=True)
+    check("with no pull.json there is nothing to say",
+          got["synced"] is True and got["down"] is False and got["lines"] == []
+          and got["pull"] is None, got)
+    write(PULL, json.dumps({"ok": True, "step": "pull", "said": ""}))
+    got = sync.health(mac, fresh=True)
+    check("nor after a pull that went through",
+          got["synced"] is True and got["lines"] == [], got)
+    write(PULL, json.dumps({"ok": False, "step": "pull",
+                            "said": "fatal: Not possible to fast-forward, aborting.",
+                            "at": "2026-10-23 09:00:00"}))
+    got = sync.health(mac, fresh=True)
+    check("a failed pull is one not-synced line, in git's words, and reads down",
+          got["synced"] is False and got["down"] is True
+          and got["lines"] == ["not synced: fatal: Not possible to fast-forward, "
+                               "aborting."], got)
+    write(PULL, json.dumps({"ok": False, "step": "merge",
+                            "said": "skipped: staged changes"}))
+    check("a skipped merge says so the same way",
+          sync.health(mac, fresh=True)["lines"]
+          == ["not synced: skipped: staged changes"])
+    check("and the answer is cached until a pass forgets it",
+          sync.health(mac)["lines"] == ["not synced: skipped: staged changes"])
 
-    # --- relay down ---------------------------------------------------------
-    request("2026-10-09-fresh", 60)
-    request("2026-10-09-heard", 3600, report={"state": "submitted"})
-    got = relay.health(mac, fresh=True)
-    check("a request filed a minute ago, and one with a report, are not down",
-          got["down"] is False and got["lines"] == [], got)
-    request("2026-10-09-stale", 20 * 60)
-    got = relay.health(mac, fresh=True)
-    check("a pushed request with no report 15 minutes after its commit reads "
-          "down", got["down"] is True
-          and [r["id"] for r in got["stale"]] == ["2026-10-09-stale"]
-          and got["lines"][0].startswith("relay looks down: projects/Proj "
-                                         "2026-10-09-stale"), got)
     sid = sessions.new("one", base=mac)["id"]
     sessions.bind(sid, "projects/Proj", base=mac)
-    relay.forget()
+    sync.forget()
     data = hub.Hub(sessions.repo(sid, mac), Worker()).build()
-    check("and the session's payload reads down",
-          (data.get("relay") or {}).get("down") is True
-          and "relay looks down" in data["relay"]["lines"][0], data.get("relay"))
-    said = brief.relay_sense(ws)
-    check("the brief says so too", "HEALTH: relay looks down" in said, said)
-
-    # A stale request the Mac never pushed is not the relay's to have seen.
-    git(mac, "rm", "-q", os.path.join(ws, "relay", "requests",
-                                      "2026-10-09-stale.json"))
-    git(mac, "commit", "-q", "-m", "withdrawn")
-    git(mac, "push", "-q")
-    request("2026-10-09-unpushed", 30 * 60, push=False)
-    got = relay.health(mac, fresh=True)
-    check("a request committed and not pushed does not read down",
-          got["down"] is False, got)
-    git(mac, "push", "-q")
-
-    # --- Colibri from status.json only ----------------------------------------
-    asked = []
-    colibri._run = lambda args, timeout=10: asked.append(args) or ""
-    write(os.path.join(mac, "relay", "status.json"), json.dumps({
-        "skipped": "", "last_error": "", "push_pending": False,
-        "outstanding": {}, "at": 1,
-        "colibri": {"state": "loading", "ends": int(time.time()) + 7200,
-                    "queue": 1, "task": "coli-20261009-120000-abcd",
-                    "load_s": 4080, "reason": ""}}))
-    git(mac, "add", "-A")
-    git(mac, "commit", "-q", "-m", "relay: status")
-    git(mac, "push", "-q")
-    relay.forget()
+    check("the session's payload carries it as `sync`, and no `relay`",
+          (data.get("sync") or {}).get("down") is True
+          and "not synced" in data["sync"]["lines"][0] and "relay" not in data,
+          data.get("sync"))
+    said = brief.briefing(sessions.repo(sid, mac), sense)
+    check("the brief carries no health or cluster section",
+          "HEALTH:" not in said and "out on the cluster" not in said)
 
     httpd = app.make_server(mac, 0, start=False)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
@@ -177,132 +136,53 @@ try:
             with urllib.request.urlopen(req, timeout=60) as r:
                 return r.status, json.loads(r.read().decode())
         except urllib.error.HTTPError as e:
-            return e.code, json.loads(e.read().decode() or "{}")
+            try:
+                return e.code, json.loads(e.read().decode() or "{}")
+            except ValueError:
+                return e.code, {}
 
-    # --- brew upkeep: the panel only -------------------------------------------
-    write(os.path.join(os.environ["BOARD_STATE_DIR"], "brew.json"), json.dumps({
+    sync.forget()
+    code, got = ask("GET", "/sync.json")
+    check("GET /sync.json serves it",
+          code == 200 and got["ok"] and got["synced"] is False
+          and got["lines"] == ["not synced: skipped: staged changes"], got)
+
+    # --- brew upkeep: /sync.json only -----------------------------------------
+    write(os.path.join(STATE, "brew.json"), json.dumps({
         "mode": "own", "last_attempt": "2026-10-12T03:30:00",
         "last_success": "2026-10-11T03:30:00", "last_result": "partial",
         "failed": {"ffmpeg": "Error: a download failed"}, "held": {},
         "problems": []}))
-    code, got = ask("GET", "/relay.json")
-    check("a brew failure joins /relay.json's lines",
-          code == 200 and "brew: ffmpeg did not upgrade: Error: a download failed"
+    sync.forget()
+    code, got = ask("GET", "/sync.json")
+    check("a brew failure joins /sync.json's lines, after the not-synced one",
+          code == 200 and got["lines"][0].startswith("not synced")
+          and "brew: ffmpeg did not upgrade: Error: a download failed"
           in got["lines"], got.get("lines"))
-    plain = relay.health(mac, fresh=True)
-    check("and relay.health and the brief stay without it",
-          not any(l.startswith("brew:") for l in plain["lines"])
-          and "brew" not in brief.relay_sense(ws)
-          and not any("brew" in l for l in brief._health(ws)), plain["lines"])
-    os.remove(os.path.join(os.environ["BOARD_STATE_DIR"], "brew.json"))
-    write(os.path.join(os.environ["BOARD_STATE_DIR"], "tools.json"), json.dumps({
+    sync.forget()
+    data = hub.Hub(sessions.repo(sid, mac), Worker()).build()
+    check("and the session's payload stays without it",
+          not any(l.startswith("brew:") for l in data["sync"]["lines"]),
+          data["sync"])
+    os.remove(os.path.join(STATE, "brew.json"))
+    write(os.path.join(STATE, "tools.json"), json.dumps({
         "tools": {"widget": {"failed": "T_UPDATE exited 3"}},
         "pins": [{"subject": "projects/S", "tool": "node", "pinned": "20.0.0",
                   "latest": "22.1.0"}]}))
-    code, got = ask("GET", "/relay.json")
+    sync.forget()
+    code, got = ask("GET", "/sync.json")
     check("tools.json's failures and pins behind join them too, so home shows them",
           code == 200 and "tools: widget failed: T_UPDATE exited 3" in got["lines"]
           and "tools: pin behind: projects/S node 20.0.0 -> 22.1.0" in got["lines"],
           got.get("lines"))
-    os.remove(os.path.join(os.environ["BOARD_STATE_DIR"], "tools.json"))
+    os.remove(os.path.join(STATE, "tools.json"))
 
-    code, got = ask("GET", "/relay.json")
-    check("/relay.json carries Colibri loading from status.json",
-          code == 200 and got["colibri"]["state"] == "loading"
-          and got["colibri"]["queue"] == 1 and "68 min" in got["colibri"]["detail"]
-          and got["colibri_subject"] == "projects/libr-local-llm", got)
+    # --- nothing of the cluster ---------------------------------------------
+    check("GET /relay.json is gone", ask("GET", "/relay.json")[0] == 404)
+    check("and POST /colibri", ask("POST", "/colibri", {"brief": "x"})[0] == 404)
     code, sub = ask("GET", "/s/%s/subject.json" % sid)
-    check("and /subject.json the same, and \"off\" never shows while status "
-          "says loading", code == 200 and sub["colibri"]["state"] == "loading"
-          and "off" != sub["colibri"]["state"], sub.get("colibri"))
-    check("no squeue was asked on the Mac", asked == [], asked)
-
-    # --- the panel: POST /colibri ---------------------------------------------
-    code, got = ask("POST", "/colibri", {})
-    check("no brief is a 400", code == 400 and not got["ok"])
-    write(os.path.join(mac, "relay", "status.json"), json.dumps({
-        "skipped": "", "last_error": "", "push_pending": False,
-        "outstanding": {}, "at": 2,
-        "colibri": {"state": "off", "ends": None, "queue": 0, "task": None,
-                    "load_s": 4080, "reason": ""}}))
-    git(mac, "add", "-A")
-    git(mac, "commit", "-q", "-m", "relay: status")
-    git(mac, "push", "-q")
-    code, got = ask("POST", "/colibri", {"brief": "count the rows per site",
-                                         "label": "rows"})
-    filed = [n for n in os.listdir(os.path.join(llm, "relay", "requests"))]
-    check("a task is filed as a colibri request in libr-local-llm, committed "
-          "and pushed", code == 200 and got["ok"] and len(filed) == 1
-          and json.load(open(os.path.join(llm, "relay", "requests",
-                                          filed[0])))["kind"] == "colibri"
-          and git(mac, "rev-parse", "HEAD") == git(origin, "rev-parse", "main"),
-          got)
-    check("and the answer carries the cold-start estimate the relay timed",
-          "cold start" in got.get("estimate", "")
-          and "68 min" in got["estimate"], got)
-    code, got = ask("GET", "/relay.json")
-    check("and the panel lists it, filed and waiting for the relay",
-          [t["state"] for t in got["colibri_tasks"]] == ["filed"]
-          and got["colibri_tasks"][0]["label"] == "rows", got)
-
-    # --- the filed task through the relay: queued, working, done ---------------
-    # The cluster's side, by its own functions: `colibri.relay_report` turns
-    # the task record into the report the relay commits, and status.json's
-    # Colibri block names the task a generation is running. The Mac hears
-    # both by a pull and the panel words each as queued, working and done.
-    rid = filed[0][:-len(".json")]
-    tid = "coli-20261009-130000-beef"
-    cluster = os.path.join(base, "cluster")
-    git(base, "clone", "-q", origin, cluster)
-    git(cluster, "config", "user.email", "t@example.com")
-    git(cluster, "config", "user.name", "t")
-    cllm = os.path.join(cluster, "projects", "libr-local-llm")
-
-    def relay_says(queue, colibri_block, n, **rec):
-        """One relay pass on the cluster: the task's report and status.json,
-        committed and pushed; then the Mac pulls."""
-        task = dict({"id": tid, "request": rid, "queue": queue,
-                     "attempts": 1 if queue != "queued" else 0,
-                     "at": time.time()}, **rec)
-        relay.write_report(cllm, rid, colibri.relay_report(task))
-        write(os.path.join(cluster, "relay", "status.json"), json.dumps({
-            "skipped": "", "last_error": "", "push_pending": False,
-            "outstanding": {}, "at": 10 + n,
-            "colibri": relay._colibri_status(colibri_block)}))
-        git(cluster, "add", "-A")
-        git(cluster, "commit", "-q", "-m", "relay: pass %d" % n)
-        git(cluster, "push", "-q")
-        git(mac, "pull", "-q", "--ff-only")
-        relay.forget()
-        code, got = ask("GET", "/relay.json")
-        return got
-
-    def mine(got):
-        return [t for t in got["colibri_tasks"] if t["id"] == rid]
-
-    got = relay_says("queued", {"state": "queued", "ends": None, "queue": 1,
-                                "task": None, "load_s": 4080,
-                                "reason": "Priority"}, 1)
-    check("a filed task the relay queued shows queued in the panel, with "
-          "status.json's queue", [t["phase"] for t in mine(got)] == ["queued"]
-          and got["colibri"]["queue"] == 1
-          and "queued (Priority)" in got["colibri"]["detail"], got)
-    got = relay_says("running", {"state": "warm",
-                                 "ends": int(time.time()) + 3600, "queue": 0,
-                                 "task": tid, "load_s": 4080, "reason": ""}, 2)
-    check("once a generation claims it, working, with status.json naming it",
-          [t["phase"] for t in mine(got)] == ["working"]
-          and got["colibri"]["task"] == tid
-          and got["colibri"]["state"] == "warm", got)
-    got = relay_says("done", {"state": "warm",
-                              "ends": int(time.time()) + 3000, "queue": 0,
-                              "task": None, "load_s": 4080, "reason": ""}, 3,
-                     checked=time.time(), changed=0,
-                     relay=["rows per site: 12"], ended_at=time.time())
-    check("and done once its report says completed, with its RELAY lines",
-          [t["phase"] for t in mine(got)] == ["done"]
-          and mine(got)[0]["relay"] == ["rows per site: 12"]
-          and got["colibri"]["task"] is None, got)
+    check("/subject.json carries no jobs or Colibri",
+          code == 200 and "jobs" not in sub and "colibri" not in sub, sub)
 finally:
     if httpd is not None:
         httpd.shutdown()
@@ -313,4 +193,4 @@ print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("the Mac says when the relay looks down, and reads Colibri from status.json")
+print("the Mac says when it is not synced, and home adds the machine's brew lines")

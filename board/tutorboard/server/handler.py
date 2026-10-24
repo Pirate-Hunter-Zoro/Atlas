@@ -81,10 +81,9 @@ UNPREFIXED = (
     ("GET", "/result/*", "subject"),
     ("GET", "/source/*", "subject?"),
     # machines
-    ("GET", "/relay.json", "atlas"),
+    ("GET", "/sync.json", "atlas"),
     ("POST", "/meeting", "atlas"),
     ("POST", "/default-agent", "atlas"),
-    ("POST", "/colibri", "atlas"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),
     # writing
@@ -94,7 +93,7 @@ UNPREFIXED = (
 # An ended session is read-only: anything that would talk to its tutor or
 # change it is 409; End (a retried commit), /send (sending a lecture ended
 # unbound to its subject, which is filing), /poke, /seen and reads still
-# answer. A cluster report reopens it (`sessions.reopen`).
+# answer. A coding step reopens it (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
                  "/mode", "/bind", "/problem", "/upload", "/fetch", "/file",
                  "/annotate/save", "/annotate/burn", "/artifact", "/textbook")
@@ -488,7 +487,7 @@ class Handler(BaseHTTPRequestHandler):
         if how == "session-delete":
             return self.delete_session(registry)
         if how == "notices":
-            # Cluster lines no session took (D16), newest first; no turn ran.
+            # Machinery lines no session took (D16), newest first; no turn ran.
             return self.send_json({"ok": True,
                                    "notices": sync.notices(registry.atlas)})
         if how == "assistants":

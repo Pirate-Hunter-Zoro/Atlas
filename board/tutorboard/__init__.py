@@ -9,10 +9,9 @@ is about.
     lesson/                     what is on the board: cards, turns, the slate
     server/                     the HTTP board and its routes
     runner/                     the turns: one fresh provider process each
-    relay, jobs, colibri, code  the cluster channel
+    sync, code                  the Mac's git sync and coding sessions
 
-Standard library only, everywhere, because the relay path runs on the
-cluster's python3 with nothing installable.
+Standard library only, everywhere.
 """
 
 __all__ = []

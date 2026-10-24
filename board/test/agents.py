@@ -5,7 +5,7 @@ The machine's config names `provider` (unset, the first recipe in the table
 that can take a turn here), `fallback` (unset, every other recipe) and
 `vision_agent`. The provider takes every turn; the fallback takes one the
 provider cannot (missing binary, missing key, usage limit); nothing else
-chooses. An in-fence recipe never takes a turn here.
+chooses.
 
 Also guards the shared-filesystem rule. `live/agent.json` is visible from every
 node, so a record left by a node whose allocation has ended will otherwise look
@@ -64,7 +64,6 @@ limits.LIMIT_RECORD = os.path.join(os.environ["BOARD_STATE_DIR"], "limited.json"
 limits.clear_limited()
 ONE = {"provider": "one", "fallback": "two", "agents": {
     "one": dict(SH), "two": dict(SH), "three": dict(SH),
-    "fenced": dict(SH, private="it reads phi"),
     "ghost": {"cmd": ["a-command-no-machine-has"],
               "headless_first": ["a-command-no-machine-has"]},
     "unkeyed": dict(SH, needs_key="A-KEY-NO-MACHINE-HAS")}}
@@ -72,11 +71,10 @@ ONE = {"provider": "one", "fallback": "two", "agents": {
 check("the provider takes the turn when nothing is wrong",
       recipes.resolve(ONE) == ("one", None))
 UNSET = dict(ONE, provider=None, fallback=None, agents=dict(
-    [("ghost", ONE["agents"]["ghost"]), ("fenced", ONE["agents"]["fenced"]),
+    [("ghost", ONE["agents"]["ghost"]),
      ("unkeyed", ONE["agents"]["unkeyed"]), ("two", dict(SH)), ("one", dict(SH))]))
 check("an unset provider is the first recipe in table order that can take a "
-      "turn here, passing over a missing binary, an in-fence model and a "
-      "missing key", recipes.provider(UNSET) == "two"
+      "turn here, passing over a missing binary and a missing key", recipes.provider(UNSET) == "two"
       and recipes.resolve(UNSET) == ("two", None))
 limits.mark_limited(time.time() + 900, agent="two")
 check("and a spent allowance too",
@@ -135,8 +133,7 @@ check("a list of fallbacks is walked in order, past the ones that cannot",
 _all = dict((k, v) for k, v in ONE.items() if k != "fallback")
 check("with no fallback set, every other recipe is walked in the table's "
       "order, so any one provider can die",
-      recipes.chain(_all) == ["one", "two", "three", "fenced", "ghost",
-                              "unkeyed"]
+      recipes.chain(_all) == ["one", "two", "three", "ghost", "unkeyed"]
       and recipes.resolve(dict(_all, provider="ghost"))[0] == "one")
 limits.mark_limited(time.time() + 900, agent="one")
 limits.mark_limited(time.time() + 900, agent="two")
@@ -147,22 +144,10 @@ limits.clear_limited()
 check("a fallback that is the provider is no fallback",
       recipes.resolve(dict(ONE, provider="ghost", fallback="ghost"))[0] is None)
 
-# ONLY AN IN-FENCE MODEL READS PHI, and it never takes a turn here: an explicit
-# refusal, whichever slot the config puts it in.
-check("an in-fence provider is refused, in words, and the fallback takes it",
-      "in-fence" in (recipes.in_fence(ONE, "fenced") or "")
-      and recipes.resolve(dict(ONE, provider="fenced"))[0] == "two"
-      and "phi" in recipes.resolve(dict(ONE, provider="fenced"))[1])
-check("and an in-fence fallback is never fallen into",
-      recipes.resolve(dict(ONE, provider="ghost", fallback="fenced"))[0] is None
-      and recipes.resolve(dict(_all, provider="ghost",
-                               fallback=["fenced", "two"]))[0] == "two")
-check("a hosted recipe is not in the fence", recipes.in_fence(ONE, "one") is None)
-
 import inspect                                                 # noqa: E402
 _resolver = sum(len(inspect.getsourcelines(f)[0]) for f in (
     recipes.provider, recipes.fallbacks, recipes.fallback, recipes.chain,
-    recipes.in_fence, recipes.unavailable, recipes.resolve))
+    recipes.unavailable, recipes.resolve))
 check("the resolver is under 80 lines (%d)" % _resolver, _resolver < 80)
 check("and the old choosers are gone",
       not any(hasattr(recipes, n) for n in (
@@ -302,14 +287,6 @@ check("and carries no switch", "only" not in _table
       and not any("barred" in a for a in _table.get("agents") or []))
 check("and the old launcher, which printed it as --agents, is gone",
       not os.path.exists(os.path.join(ROOT, "bin", "tutor")))
-
-# An in-fence recipe is no vision route either: an image is a hosted call.
-from tutorboard import seeing                                 # noqa: E402
-_got, _no = seeing.route("colibri", {"vision_agent": "colibri", "agents": [
-    {"name": "colibri", "private": "it reads phi",
-     "vision": {"cmd": ["coli"], "sighted": True}}]})
-check("an in-fence recipe's vision route is refused, in words",
-      _got is None and "in-fence" in (_no or ""))
 
 # --- AND IT IS ASKED EVERY TURN ----------------------------------------------
 src = open(os.path.join(ROOT, "tutorboard", "runner", "loop.py"),
@@ -511,8 +488,7 @@ check("a turn that goes through is what clears it, and the daemon still does tha
 check("and the turn that merely STARTS does not, which is what the docstring "
       "above says happens",
       'agent_state(live, state="working", turns=ctx.turns,\n'
-      '                       turn_started=time.time(), turn_signal=this_signal,\n'
-      '                       turn_repairs=turn_repairs)'
+      '                       turn_started=time.time(), turn_signal=this_signal)'
       in tool_src)
 check("what stops the board painting last time's failure over a turn in flight "
       "is the reader, which does not report one older than the running turn",

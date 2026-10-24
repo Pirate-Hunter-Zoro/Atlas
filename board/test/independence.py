@@ -37,7 +37,7 @@ with tempfile.TemporaryDirectory(prefix="subject-discovery-") as tmp:
         "node_modules", "__pycache__", "*.pyc", ".venv", "data"))
     (root / "courses").mkdir()
     (root / "projects").mkdir()
-    (root / ".gitignore").write_text("**/relay/state/\n/sessions/\n")
+    (root / ".gitignore").write_text("/sessions/\n")
     subprocess.run(["git", "init", "-q", str(root)], check=True)
     subprocess.run(["git", "-C", str(root), "add", "."], check=True)
     subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t",
@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix="subject-discovery-") as tmp:
     env.pop("TUTORBOARD_COURSES", None)
     env.pop("TUTORBOARD_SESSION", None)
     env.pop("TUTORBOARD_TURN", None)
-    for name in ("rules_fence", "writing_up", "exporting", "repair", "jobs", "requests", "relayhook"):
+    for name in ("rules_fence", "writing_up", "subjects"):
         result = subprocess.run([sys.executable, str(root / "board/test" / (name + ".py"))],
                                 cwd=root / "board", env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, name + "\n" + result.stdout + result.stderr

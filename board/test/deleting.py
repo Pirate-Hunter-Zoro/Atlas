@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Delete from the iPad, against a real server: a subject (its name typed,
-D23's `"phi": false` at HEAD, no open session, coding session or outstanding
-request), a material and a session (each after a second tap on the page,
+D23's `"phi": false` at HEAD, no open session or coding session), a material and a session (each after a second tap on the page,
 which is `test/uploads.js`'s and `test/home.js`'s), and the trash pruned
 after 30 days.
 
@@ -71,7 +70,7 @@ def commits():
 
 
 put(".gitignore", "/sessions/\nmaterials/\n.ink/\n")
-for slug in ("Gone", "Open", "Pending", "Coded", "Keep", "Many"):
+for slug in ("Gone", "Open", "Coded", "Keep", "Many"):
     put("courses/%s/tutorboard.json" % slug, json.dumps({"name": slug, "phi": False}))
     put("courses/%s/TUTOR.md" % slug, "# %s\n" % slug)
 put("courses/Gone/hw/set1.tex", "\\documentclass{article}\n")
@@ -80,8 +79,6 @@ put("projects/Secret/tutorboard.json", json.dumps({"name": "Secret", "phi": True
 put("projects/NoKey/tutorboard.json", json.dumps({"name": "NoKey"}))
 put("projects/Worded/tutorboard.json", json.dumps({"name": "Worded", "phi": "no"}))
 put("projects/Flipped/tutorboard.json", json.dumps({"name": "Flipped", "phi": True}))
-put("courses/Pending/relay/requests/r1.json", json.dumps({"id": "r1", "kind": "job"}))
-put("courses/Many/relay/requests/m1.json", json.dumps({"id": "m1", "kind": "job"}))
 subprocess.run(["git", "init", "-q", atlas], check=True)
 git("add", "-A")
 git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "fixture")
@@ -154,13 +151,10 @@ check("an open session on it gets 409, naming the session",
 status, got = gone("courses/Coded", "Coded")
 check("a session holding a coding session on it gets 409",
       status == 409 and "coding" in got.get("error", ""))
-status, got = gone("courses/Pending", "Pending")
-check("a request with no terminal report gets 409, naming it",
-      status == 409 and "r1" in got.get("error", ""))
 check("nothing refused moved or committed",
       commits() == n and all(os.path.isdir(os.path.join(atlas, s)) for s in (
-          "projects/Secret", "projects/NoKey", "courses/Open", "courses/Coded",
-          "courses/Pending")) and not os.path.isdir(TRASH))
+          "projects/Secret", "projects/NoKey", "courses/Open", "courses/Coded"))
+      and not os.path.isdir(TRASH))
 
 # /subjects.json carries each subject's phi, from the working tree, and the
 # Meetings id, which this tree does not have.
@@ -181,9 +175,9 @@ def asked(subject):
 
 n = commits()
 status, got = asked("projects/Secret")
-check('the check: "phi": true is why "phi", and the sentence names the cluster runbook',
+check('the check: "phi": true is why "phi", and the sentence says the board does not remove it',
       status == 200 and got.get("ok") and got.get("phi") is True
-      and got.get("why") == "phi" and "cluster runbook" in got.get("blocker", "")
+      and got.get("why") == "phi" and "does not remove it" in got.get("blocker", "")
       and got.get("subject") == "projects/Secret" and got.get("slug") == "Secret"
       and got.get("kind") == "project" and got.get("name") == "Secret")
 status, got = asked("projects/NoKey")
@@ -206,15 +200,12 @@ status, got = asked("courses/Coded")
 check("a coding session is why coding",
       status == 200 and got.get("why") == "coding" and got.get("sessions") == []
       and "board code --end" in got.get("blocker", ""))
-status, got = asked("courses/Pending")
-check("an outstanding request is why request, naming it",
-      status == 200 and got.get("why") == "request" and "r1" in got.get("blocker", ""))
 status, got = asked("courses/Many")
 said = got.get("blocker", "")
-check("every blocker is listed in one sentence: both open sessions and the request",
+check("every blocker is listed in one sentence: both open sessions",
       status == 200 and got.get("why") == "open-session"
       and sorted(got.get("sessions") or []) == sorted(m["id"] for m in many)
-      and all(m["id"] in said for m in many) and "m1" in said
+      and all(m["id"] in said for m in many)
       and said.count("courses/Many") == 1 and "\n" not in said)
 status, got = gone("courses/Many", "Many")
 check("and the delete refuses with that same sentence",
@@ -229,11 +220,6 @@ check("an unknown id, ../x or a bare slug is 404",
 check("the check moved nothing and committed nothing",
       commits() == n and not os.path.isdir(TRASH)
       and os.path.isdir(os.path.join(atlas, "courses", "Gone")))
-
-put("courses/Pending/relay/reports/r1.json",
-    json.dumps({"id": "r1", "state": "completed"}))
-status, _ = gone("courses/Pending", "Pending")
-check("once the report is terminal, it goes", status == 200)
 
 n = commits()
 status, got = gone("courses/Gone", "Gone")

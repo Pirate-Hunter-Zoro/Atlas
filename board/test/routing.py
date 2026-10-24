@@ -363,8 +363,7 @@ DRIVE = {
     ("POST", "/meeting", "machines"): ("atlas", [("/meeting", {"since": "nope"}, (400,))]),
     ("POST", "/default-agent", "machines"): ("atlas", [
         ("/default-agent", {"agent": "nobody-here"}, (400,))]),
-    ("POST", "/colibri", "machines"): ("atlas", [("/colibri", {}, (400,))]),
-    ("GET", "/relay.json", "machines"): ("atlas", [("/relay.json", None, OK)]),
+    ("GET", "/sync.json", "machines"): ("atlas", [("/sync.json", None, OK)]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
     ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),
     ("POST", "/client-error", "machines"): ("both", [

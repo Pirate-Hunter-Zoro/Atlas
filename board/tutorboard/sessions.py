@@ -10,7 +10,7 @@
     send(id, subject) bind, then file every upload left into `materials/`
     held(id)          the lock that serialises sending and ending one session
     wrote_late(id)    clear `sent_late` once the wrap-up has written it up
-    set_code(id, code) record or clear the session's cluster coding session
+    set_code(id, code) record or clear the session's coding session
     coding()          {id: code} for every session with `code` set
     file(id, upload)  move an upload into the bound subject, ink and all
     file_canvas(id)   a canvas's inked pages into the bound subject's
@@ -27,7 +27,7 @@ root or null, `problem` the label of the write-up's problem on their screen
 or null,
 times local `YYYY-MM-DD HH:MM:SS`. `sent_late`, the subject id, is set when
 a session taught bound to nothing is sent at or after its End, and cleared
-once its wrap-up has written it up there. `code` is the cluster coding session as the Mac last
+once its wrap-up has written it up there. `code` is the coding session as the Mac last
 heard it ({ref, sha, paths, step, subject, prev, seen, at}); while set,
 `gitops.commit` refuses the held paths on main and `board push` goes to the
 ref. A canvas (`view: slate`) records where its pages are filed as `canvas`
@@ -280,7 +280,7 @@ def end(sid, base=None, now=None):
 
 
 def reopen(sid, base=None):
-    """Clear `ended`. A cluster report for an ended session reopens it."""
+    """Clear `ended`. A coding step for an ended session reopens it."""
     where = _need(sid, base)
     rec = get(sid, base)
     if rec.get("ended"):
@@ -534,7 +534,7 @@ def set_code(sid, code, base=None):
 
 def coding(base=None):
     """`{id: code}` for every session in the store with `code` set, ended or
-    not: a coding session at the cluster outlives the Mac session's End."""
+    not: a coding session on a laptop outlives the Mac session's End."""
     out = {}
     for rec in all(base):
         code = rec.get("code")

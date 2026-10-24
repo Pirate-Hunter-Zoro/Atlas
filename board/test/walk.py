@@ -317,7 +317,7 @@ try:
           "def grade(a, b):\n" + BODY + "\n")
     write(home, "projects/PSYCH-ASR/phi/a.py", "def a():\n" + BODY + "\n")
     write(home, "projects/PSYCH-ASR/results/r.py", "def r():\n" + BODY + "\n")
-    write(home, "board/tutorboard/relay.py",
+    write(home, "board/tutorboard/sync.py",
           "def run_once(base):\n" + BODY + "\n")
     write(home, "board/data/x.py", "def x():\n" + BODY + "\n")
     write(home, "board/node_modules/katex/index.js",
@@ -342,10 +342,10 @@ try:
     check("and the vendor-tree machinery is gone",
           not hasattr(walk, "resolve_any") and not hasattr(walk, "ELSEWHERE"))
 
-    chosen, unknown = walk.resolve(ws, ["board/tutorboard/relay.py"])
-    check("board/tutorboard/relay.py resolves from a course, read-only",
+    chosen, unknown = walk.resolve(ws, ["board/tutorboard/sync.py"])
+    check("board/tutorboard/sync.py resolves from a course, read-only",
           not unknown and len(chosen) == 1
-          and chosen[0]["path"] == "board/tutorboard/relay.py"
+          and chosen[0]["path"] == "board/tutorboard/sync.py"
           and chosen[0]["readonly"] is True
           and os.path.realpath(chosen[0]["root"]) == os.path.realpath(home))
     chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up"])
@@ -353,19 +353,19 @@ try:
           not unknown and [u["name"] for u in chosen]
           == ["vendor/colibri/bin/coli-up"] and chosen[0]["readonly"] is True)
     chosen, unknown = walk.resolve(ws, ["vendor/colibri/bin/coli-up::warm",
-                                        "board.tutorboard.relay.run_once"])
+                                        "board.tutorboard.sync.run_once"])
     check("a symbol in Atlas is carried once the file really defines it",
           not unknown and sorted(u["name"] for u in chosen)
-          == ["board/tutorboard/relay.py::run_once",
+          == ["board/tutorboard/sync.py::run_once",
               "vendor/colibri/bin/coli-up::warm"])
     check("and one it does not define is unknown",
-          walk.resolve(ws, ["board/tutorboard/relay.py::missing"])[1]
-          == ["board/tutorboard/relay.py::missing"])
+          walk.resolve(ws, ["board/tutorboard/sync.py::missing"])[1]
+          == ["board/tutorboard/sync.py::missing"])
 
-    chosen, unknown = walk.resolve(ws, ["topo/space.py", "board/tutorboard/relay.py"])
+    chosen, unknown = walk.resolve(ws, ["topo/space.py", "board/tutorboard/sync.py"])
     check("the subject's own source comes first, and is not read-only",
           not unknown and [u["path"] for u in chosen]
-          == ["topo/space.py", "board/tutorboard/relay.py"]
+          == ["topo/space.py", "board/tutorboard/sync.py"]
           and chosen[0]["readonly"] is False
           and os.path.realpath(chosen[0]["root"]) == os.path.realpath(ws))
     chosen, unknown = walk.resolve(
@@ -374,8 +374,8 @@ try:
           not unknown and chosen[0]["readonly"] is False
           and chosen[0]["name"] == "projects/PSYCH-ASR/psych_asr/grade.py::grade")
     check("the bare-filename shortcut stays subject-local",
-          walk.resolve(ws, ["relay.py", "coli-up", "grade.py"])[1]
-          == ["relay.py", "coli-up", "grade.py"]
+          walk.resolve(ws, ["sync.py", "coli-up", "grade.py"])[1]
+          == ["sync.py", "coli-up", "grade.py"]
           and [u["path"] for u in walk.resolve(ws, ["space.py"])[0]]
           == ["topo/space.py"])
 
@@ -392,7 +392,7 @@ try:
                "courses/Topology/../../etc/passwd", "board/tutorboard/nope.py"]
     for name in refused:
         check("refused: %s" % name, walk.resolve(ws, [name])[1] == [name])
-    chosen, _ = walk.resolve(ws, ["Board/tutorboard/relay.py"])
+    chosen, _ = walk.resolve(ws, ["Board/tutorboard/sync.py"])
     check("a differently-cased board/ path is still read-only",
           all(u["readonly"] for u in chosen))
 
@@ -410,13 +410,13 @@ finally:
     shutil.rmtree(home, ignore_errors=True)
     shutil.rmtree(outside, ignore_errors=True)
 
-# The real Atlas root: the board's own relay module, from a temp subject.
+# The real Atlas root: the board's own sync module, from a temp subject.
 atlas_root = os.path.dirname(ROOT)
 somewhere = tempfile.mkdtemp(prefix="tutor-walk-real-")
 try:
-    chosen, unknown = walk.resolve(somewhere, ["board/tutorboard/relay.py"],
+    chosen, unknown = walk.resolve(somewhere, ["board/tutorboard/sync.py"],
                                    base=atlas_root)
-    check("the real board/tutorboard/relay.py resolves read-only",
+    check("the real board/tutorboard/sync.py resolves read-only",
           not unknown and chosen[0]["readonly"] is True)
 finally:
     walk._cache.clear()

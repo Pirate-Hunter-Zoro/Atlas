@@ -56,10 +56,10 @@
   </div>
 </header>
 
-<!-- The cluster's health (`relay.health`, the payload's `relay`): relay looks
-     down, not synced, a skipped pass. Drawn only when there is something. -->
+<!-- The Mac's sync health (`sync.health`, the payload's `sync`): not synced.
+     Drawn only when there is something. -->
 <div id="healthbar" class="healthbar" hidden>
-  <span class="health-lead">cluster</span>
+  <span class="health-lead">sync</span>
   <span id="health-text"></span>
 </div>
 
@@ -125,8 +125,8 @@
 </div>
 
 <!-- A CODING SESSION. The exact command that starts or resumes this
-     session's coding session, to copy into a terminal on the owner's laptop
-     (the cluster runs the same one): shown while it is coding (with its held
+     session's coding session, to copy into a terminal on the owner's laptop:
+     shown while it is coding (with its held
      paths and last step), and from the overflow menu before it starts. -->
 <div id="codebar" class="codebar" hidden>
   <span class="codebar-lead">on your laptop</span>
@@ -285,7 +285,7 @@
   <button id="btn-annot-pdf" title="upload a PDF into this session and write on it">✎  annotate a PDF</button>
   <button id="btn-history" title="past lessons" hidden>◷  past lessons</button>
   <button id="btn-print" title="print or save as PDF">⎙  print</button>
-  <button id="btn-code" title="the command that codes this session from a terminal on your laptop (the cluster runs the same one)">⌨  code on your laptop</button>
+  <button id="btn-code" title="the command that codes this session from a terminal on your laptop">⌨  code on your laptop</button>
   <!-- The lesson AS IT WAS READ -- the board's own pixels, photographed by the
        device that drew them: "I want it as if it were a screenshot of the
        entire iPad screen scrolled down over the whole tutoring session." -->
@@ -385,8 +385,6 @@
     <p><strong>Not connected to the board.</strong></p>
     <p class="muted">This is the link, not the lesson — nothing you have written is lost.
       The board's own process is not answering.</p>
-    <p class="muted">On a cluster node that usually means its allocation ended and the
-      board has to be started again.</p>
     <button id="offline-retry" type="button">try again</button>
   </div>
 </main>

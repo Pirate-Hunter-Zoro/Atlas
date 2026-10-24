@@ -5,8 +5,8 @@ The payload is the session's and nothing else's: session.json, the newest
 WINDOW cards and their ink, the turns, the unread count, the slate, the
 drafts, the agent, the write-up's status, the problem on their screen and
 the subject's macros; and one
-shared key, `relay`, the cluster's health. What the subject holds -- its
-problem sets, results, jobs and Colibri -- is `GET /subject.json`
+shared key, `sync`, the Mac's sync health. What the subject holds -- its
+problem sets and results -- is `GET /subject.json`
 (`subject_info`), fetched when the board opens and when the drawer does. Older cards are `GET /cards?before=<n>` (`older_cards`).
 
 A push after the first payload is a delta:
@@ -24,9 +24,8 @@ import stat
 import threading
 import time
 
-from .. import assistants, colibri, coursemacros, fenced, paths
-from .. import relay, sync, writeups
-from .. import jobs as slurm_jobs
+from .. import assistants, coursemacros, fenced, paths
+from .. import sync, writeups
 from ..course import config, homework, library
 from ..lesson import cards, git, notes, slate, state, turns, uploads
 
@@ -162,8 +161,8 @@ class Hub:
             "writeups": _safe(writeups.waiting, repo),
             # The subject's macros, so KaTeX matches LaTeX.
             "macros": coursemacros.for_workspace(repo.root),
-            # The cluster's health, the same for every session.
-            "relay": _safe(relay.health, sync.atlas_of(repo.root)),
+            # The Mac's sync health, the same for every session.
+            "sync": _safe(sync.health, sync.atlas_of(repo.root), None, False),
         }
         for key in GONE:
             data[key] = None
@@ -250,8 +249,8 @@ def older_cards(repo, worker, before, limit=WINDOW):
 
 def subject_info(repo):
     """`GET /subject.json`: what the subject holds that a board shows, read
-    when asked rather than on every tick. Problem sets, results, running
-    jobs and Colibri; and the subject's uncommitted count, the providers
+    when asked rather than on every tick. Problem sets and results; and the
+    subject's uncommitted count, the providers
     and the fences, which the save badge and the tutor chooser paint."""
     root = repo.root
     try:
@@ -262,8 +261,6 @@ def subject_info(repo):
         "ok": True,
         "sets": sets,
         "results": _safe(library.figures_status, repo),
-        "jobs": _safe(slurm_jobs.running, root) or [],
-        "colibri": _safe(colibri.status, sync.atlas_of(root)),
         "unsaved": _safe(git.repo_dirty, repo),
         "assistants": _safe(assistants.listing),
         "fenced": list(_safe(fenced.holds, root) or []),

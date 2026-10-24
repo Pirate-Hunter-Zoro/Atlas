@@ -3,9 +3,10 @@
     wake(subject, session, line)   the one door for a machinery line
     notices(atlas)                 the lines no session took, newest first
     atlas_of(subject)              the Atlas root holding a subject
+    health(atlas)                  the not-synced and brew lines, GET /sync.json
     Sync(atlas)                    the server's sync thread
 
-`wake` is how a job's ending or a coding step reaches the Mac (D16): with a
+`wake` is how a coding step reaches the Mac (D16): with a
 stored session, reopen it if ended, append to its inbox and queue a turn;
 with none, or a gone one, append to `sessions/.notices.jsonl` and start
 nothing. `wake=False` writes a non-waking line.
@@ -18,8 +19,7 @@ and pushed, so the two never diverge. The merge waits while anything is
 staged (`skipped: staged changes`), and while HEAD holds unpushed commits the
 board did not make (`skipped: unpushed commits of your own`): origin is
 public, and those are the owner's to push. Every outcome is recorded in
-`<state>/pull.json`, which the health reads. Then `jobs.hear` for every
-subject, while jobs.py exists. ai-config, its own repository, is
+`<state>/pull.json`, which `health` reads. ai-config, its own repository, is
 fast-forwarded every few minutes and relinked when it moved
 (`gitops.sync_private`). A moved code ref is
 fetched and recorded in session.json `code`; a step wakes the session with
@@ -34,9 +34,7 @@ gone is dropped and nothing moves). Only a ref whose registration here says
 tutor's own turn made (`by: tutor`) is recorded with a non-waking
 `[stepped]` line, so an edit in do mode never wakes a turn of its own.
 
-The constraint: this runs on the cluster's python3 too (jobs imports it), so
-no walrus or `match`, and the runner is reached through `sys.modules`, never
-imported.
+The runner is reached through `sys.modules`, never imported.
 """
 
 import hashlib
@@ -123,7 +121,7 @@ def _notice(atlas, subject, session, line, signal, request, now):
 
 def _queue(atlas, sid):
     """Queue a turn for `sid` on this process's runner, where one runs over
-    `atlas`. False where none does (a CLI, the cluster, a test)."""
+    `atlas`. False where none does (a CLI, a test)."""
     service = sys.modules.get("tutorboard.runner.service")
     runner = getattr(service, "RUNNER", None)
     if runner is None:
@@ -133,11 +131,11 @@ def _queue(atlas, sid):
     return runner.wake(sid)
 
 
-def wake(subject, session, line, wake=True, signal="job", request=None,
+def wake(subject, session, line, wake=True, signal="code", request=None,
          now=None):
     """Deliver one machinery line about `subject` (its root); returns the
     line with `session` or `notice` set. `signal` is how `turn_signal` reads
-    it; `request` a relay request id for `board brief`."""
+    it; `request` an id the line is about."""
     from . import sessions
     from .lesson import turns
     now = float(now or time.time())
@@ -164,6 +162,64 @@ def wake(subject, session, line, wake=True, signal="job", request=None,
     if wake:
         _queue(atlas, sid)
     return msg
+
+
+# ---------------------------------------------------------------------------
+# the health: GET /sync.json, home's #health and the board's #healthbar
+# ---------------------------------------------------------------------------
+HEALTH_TTL = 20.0
+_HEALTH = {}
+
+
+def forget():
+    """Drop the cached health, so the next ask reads pull.json again."""
+    _HEALTH.clear()
+
+
+def pull_health(state_dir=None):
+    """pull.json as the Mac's health: `{ok, said, step, at}`, `said` being
+    "not synced: <git's words>" when the last pull, merge or ls-remote
+    failed or was skipped; None where the sync thread has written none."""
+    from . import paths
+    path = os.path.join(state_dir or paths.STATE_DIR, PULL_STATE)
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(rec, dict):
+        return None
+    if rec.get("ok") is not False:
+        return {"ok": True, "said": "", "step": rec.get("step"),
+                "at": rec.get("at")}
+    said = str(rec.get("said") or "the %s failed" % (rec.get("step") or "pull"))
+    if not said.startswith("not synced"):
+        said = "not synced: " + said
+    return {"ok": False, "said": said[:400], "step": rec.get("step"),
+            "at": rec.get("at")}
+
+
+def health(atlas, state_dir=None, brew=True, fresh=False):
+    """The Mac's sync health: `{ok, synced, down, pull, lines}`. `lines` are
+    the sentences to show, worst first, `[]` when all is well: the not-synced
+    line, then (with `brew`) the machine's `brew:` and `tools:` lines
+    (`brewcare.lines`). The board's payload asks without `brew`, so a lesson
+    shows only what stops its work reaching origin."""
+    from . import brewcare
+    key = (os.path.realpath(atlas), state_dir, bool(brew))
+    t = time.time()
+    hit = _HEALTH.get(key)
+    if not fresh and hit and t - hit[0] < HEALTH_TTL:
+        return json.loads(hit[1])
+    pull = pull_health(state_dir)
+    synced = not (pull and not pull["ok"])
+    lines = [] if synced else [pull["said"]]
+    if brew:
+        lines += brewcare.lines(state_dir)
+    out = {"ok": True, "synced": synced, "down": not synced, "pull": pull,
+           "lines": lines}
+    _HEALTH[key] = (t, json.dumps(out))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -269,7 +325,7 @@ class Sync(object):
     # -- one pass ------------------------------------------------------------
     def once(self):
         """Ask origin; when its main is new here, pull it, or merge it and
-        push where HEAD is ahead too; then hear every subject.
+        push where HEAD is ahead too; the code refs are heard first.
         `{"pulled": True|False|None, "heard": [...]}`; `pulled` is None when
         the ls-remote failed, False when nothing came in or it failed."""
         from . import gitops
@@ -323,7 +379,8 @@ class Sync(object):
             elif self._last is not None and not self._last[0][0]:
                 # The remote answers again after a failure.
                 self._record(True, "ls-remote", "", remote=main)
-        return {"pulled": pulled, "heard": heard_code + self.hear()}
+        forget()
+        return {"pulled": pulled, "heard": heard_code}
 
     def _ahead_of(self, main):
         """Is HEAD, on main tracking origin's main (all a board push
@@ -561,18 +618,6 @@ class Sync(object):
             sessions._line(where, text, "unheld", ref=old.get("ref"))
         return {"session": sid, "id": old.get("ref"), "state": "unheld",
                 "text": text}
-
-    def hear(self):
-        """Every subject's ended reports, each woken through `wake`. The
-        records heard; none once jobs.py is gone."""
-        import importlib.util
-        if importlib.util.find_spec(__package__ + ".jobs") is None:
-            return []
-        from . import jobs
-        out = []
-        for _parent, _kind, _slug, root in subjects.walk(self.atlas):
-            out.extend(jobs.hear(root))
-        return out
 
     # -- the thread --------------------------------------------------------
     def run(self):

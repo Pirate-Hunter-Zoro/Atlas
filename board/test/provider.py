@@ -15,8 +15,7 @@ out of allowance does. Nothing here spends a cent or touches a real session.
   - `/default-agent` CHANGES THE PROVIDER FOR THE NEXT TURN WITHOUT A RESTART:
     it writes `provider` into the machine's config and nothing else, and the
     same server process answers the next message with the new one.
-  - It refuses an unknown name, a recipe this machine cannot run, and an
-    in-fence model: only it reads phi, and it never takes a turn here.
+  - It refuses an unknown name and a recipe this machine cannot run.
 """
 
 import json
@@ -104,8 +103,7 @@ write(CONFIG, json.dumps({
     "agents": {"claude": fake("claude"), "codex": fake("codex"),
                "deepseek": fake("deepseek"),
                "gone": fake("gone", cmd=["a-command-no-machine-has"]),
-               "nokey": fake("nokey", needs_key="A_KEY_NOBODY_HAS"),
-               "colibri": fake("colibri", private="it reads phi")}}))
+               "nokey": fake("nokey", needs_key="A_KEY_NOBODY_HAS")}}))
 
 
 def on_disk():
@@ -242,7 +240,7 @@ try:
           cfg.get("provider") == "deepseek" and cfg.get("fallback") == "codex"
           and cfg.get("quota_tokens") == 28000000 and "default_agent" not in cfg
           and set(cfg["agents"]) == {"claude", "codex", "deepseek", "gone",
-                                     "nokey", "colibri"}, cfg)
+                                     "nokey"}, cfg)
     check("and the answer carries who takes the next turn",
           got.get("machine") == "deepseek" and (got.get("assistants") or {})
           .get("default") == "deepseek", got)
@@ -260,8 +258,7 @@ try:
                             ("gone", "a recipe whose binary is missing",
                              "not installed"),
                             ("nokey", "a recipe whose key is missing",
-                             "A_KEY_NOBODY_HAS"),
-                            ("colibri", "an in-fence model", "in-fence")):
+                             "A_KEY_NOBODY_HAS")):
         status, got = server.post("/default-agent", {"agent": name})
         check("%s is refused, in words" % why,
               status == 400 and not got.get("ok") and word in (got.get("detail") or ""),

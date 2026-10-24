@@ -8,8 +8,7 @@ of the whole index and asks `held` which directories git must be blind to.
 Third-party material inside a course is `other_peoples_work`. Messages say
 what a path is, so the reader can judge the refusal.
 
-The constraint: the hook runs on the cluster's python3 (maybe 3.7), so
-relay-path rules apply. Standard library only.
+The constraint: standard library only.
 """
 
 import json
@@ -184,7 +183,7 @@ def _dirs(path):
 def held(root):
     """Every directory git must be blind to, as sorted `(rel, what)` pairs:
     each `phi` or `results` up to HELD_DEPTH below a subject. Held and fenced
-    directories are never entered, nor `exports/`, whose `results/` the relay
+    directories are never entered, nor `exports/`, whose `results/` were
     exported on purpose.
     """
     from . import fenced
@@ -357,7 +356,7 @@ def participant_codes(top, paths):
 
 def turn_refusals(top, entries):
     """What a tutor turn may not commit: RULES.md, and an existing
-    tutorboard.json's `phi` or `relay.exports`."""
+    tutorboard.json's `phi`."""
     out = []
     missing = object()
     for status, mode, sha, rel in entries:
@@ -374,15 +373,11 @@ def turn_refusals(top, entries):
         new = _json(_git(["show", ":" + rel], top)) if status != "D" else {}
         if old is None or new is None:
             out.append("%s will not parse, so a tutor turn cannot show it "
-                       "leaves `phi` and `relay.exports` alone." % rel)
+                       "leaves `phi` alone." % rel)
             continue
         if old.get("phi", missing) != new.get("phi", missing):
             out.append("%s: a tutor turn may not change `phi`. That is the "
                        "owner's decision." % rel)
-        if ((old.get("relay") or {}).get("exports", missing)
-                != (new.get("relay") or {}).get("exports", missing)):
-            out.append("%s: a tutor turn may not change `relay.exports`, "
-                       "which decides what leaves the cluster." % rel)
     return out
 
 

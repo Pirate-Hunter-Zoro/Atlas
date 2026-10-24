@@ -16,8 +16,6 @@ the same flags, the same reference .docx, the same resource path.
 Pandoc reports a figure it could not find as a warning and exits 0, so every
 built .docx is opened and its images counted. A lost figure always fails the
 build. A figure that will not sit on the page warns, and fails with `strict`.
-
-Cluster-safe Python (3.7): `board` imports this.
 """
 
 import os
@@ -349,7 +347,6 @@ def _format_timeout(fmt):
 # `![alt](target)`, bare or in angle brackets. Reference-style images are not
 # matched: a check that guesses is a check nobody can act on.
 _IMAGE_RE = re.compile(r"!\[[^\]]*\]\(\s*(<[^>]*>|[^)\s]+)")
-_IMAGE_SRC_RE = re.compile(r"(!\[[^\]]*\]\(\s*)(<[^>]*>|[^)\s]+)")
 _REMOTE_RE = re.compile(r"^(?:[a-z][a-z0-9+.-]*:)?//|^data:", re.IGNORECASE)
 
 
@@ -423,54 +420,6 @@ def figure_layout_problems(source, reference_docx=None):
     return _figure_check(text, source.name, text_width_in(reference_docx))
 
 
-def exported_figures(text, resource_dirs):
-    """`{target: path}` for each figure named under a `results/` that lacks it,
-    where the copy under `exports/results/` has it. A machine without the
-    cluster's `results/` holds only what the relay exported."""
-    out = {}
-    for target in _image_targets(text):
-        named = [target] if os.path.isabs(target) else [
-            os.path.join(d, target) for d in resource_dirs if d]
-        if any(os.path.exists(p) for p in named):
-            continue
-        for p in named:
-            parts = os.path.normpath(p).split(os.sep)
-            twins = [os.sep.join(parts[:i] + ["exports"] + parts[i:])
-                     for i in range(len(parts) - 1, -1, -1)
-                     if parts[i] == "results"]
-            hit = next((t for t in twins if os.path.isfile(t)), None)
-            if hit:
-                out[target] = hit
-                break
-    return out
-
-
-def _pandoc_input(source, resource):
-    """`(argv, stdin)`: the source as pandoc's argument, or its text with each
-    exported figure's path put in, on stdin. Nothing is written beside it."""
-    try:
-        text = source.read_text(encoding="utf-8")
-    except OSError:
-        return [str(source)], None
-    found = exported_figures(text, resource.split(os.pathsep))
-    if not found:
-        return [str(source)], None
-
-    # Relative to the document, which is first on the resource path: an
-    # absolute path would go into the .docx as the image's description, and
-    # every built document is public.
-    def put(m):
-        target = m.group(2).strip("<>").strip()
-        path = found.get(target)
-        if not path:
-            return m.group(0)
-        if os.path.isabs(path):
-            path = os.path.relpath(path, str(source.parent))
-        return m.group(1) + ("<%s>" % path if " " in path else path)
-
-    return [], _IMAGE_SRC_RE.sub(put, text)
-
-
 def _resource_path(source, extra_roots):
     """Where pandoc looks for a figure, nearest first: the document's own
     directory, then the caller's roots."""
@@ -491,8 +440,7 @@ def convert_one(source, fmt, reference_docx=None, resource_roots=(), log_fn=None
         return None
     out_path = source.with_suffix("." + fmt)
     resource = _resource_path(source, tuple(resource_roots))
-    given, text = _pandoc_input(source, resource)
-    command = [pandoc_bin()] + given + ["-o", str(out_path),
+    command = [pandoc_bin(), str(source), "-o", str(out_path),
                                         "--from", "markdown", "--standalone",
                                         "--resource-path", resource]
     command += _format_flags(fmt, reference_docx)
@@ -500,7 +448,7 @@ def convert_one(source, fmt, reference_docx=None, resource_roots=(), log_fn=None
     try:
         result = subprocess.run(command, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, universal_newlines=True,
-                                input=text, env=tex.tex_env(),
+                                env=tex.tex_env(),
                                 timeout=_format_timeout(fmt))
     except (OSError, subprocess.SubprocessError) as exc:
         if log_fn:

@@ -7,7 +7,7 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
     GET  /events              session   the payload stream
     GET  /board.json          session   the payload, once
     GET  /cards?before=<n>    session   the 40 cards below card n, and their ink
-    GET  /subject.json        session   the subject's sets, results, jobs, Colibri
+    GET  /subject.json        session   the subject's sets and results
     GET  /archive             session   the session's filed lessons
     GET  /archive/<name>[/answers/<file>]
                               session   one of them, read only

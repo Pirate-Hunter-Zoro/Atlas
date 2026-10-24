@@ -11,8 +11,8 @@ page, a pinned write-up, a slate page, a draft and the course's macros.
     builds, and none of them was called.
   * The payload carries the newest 40 cards, how many are older, the ink of
     the cards it carries and no other, the pinned write-up's progress and the
-    macros. Map, plan, reading and direction are null; sets,
-    results, jobs and Colibri are not on it. Its size stays under SIZE_CAP.
+    macros. Map, plan, reading and direction are null; sets and results are
+    not on it. Its size stays under SIZE_CAP.
   * The first tick pushes; an unchanged tick pushes nothing. A new card is
     one delta naming that card and the keys that moved and no others. An
     edit is a changed card, a deleted file a removed one, and a card that
@@ -20,7 +20,7 @@ page, a pinned write-up, a slate page, a draft and the course's macros.
     whole payload still carries it, and the next delta does too.
   * `/cards?before=<n>` (`older_cards`) serves the 40 below n, with their ink
     and the count still older. `/subject.json` (`subject_info`) carries the
-    subject's problem sets, results, jobs and Colibri.
+    subject's problem sets and results.
   * A document's ink comes with its pages (`notes.doc_ink`).
   * The brief of an unbound session tells the tutor to ask what it is for; a
     bound one does not.
@@ -252,8 +252,9 @@ try:
     info = hub.subject_info(repo)
     check("/subject.json carries the subject's problem sets",
           [s["name"] for s in info["sets"]] == ["hw01", "hw02"], info["sets"])
-    check("and results, jobs and Colibri",
-          all(k in info for k in ("results", "jobs", "colibri")) and info["ok"])
+    check("and results, and no jobs or Colibri",
+          "results" in info and info["ok"]
+          and not any(k in info for k in ("jobs", "colibri")))
 
     marks, sent = notes.doc_ink(repo, "notes")
     check("a document's ink comes with its pages",

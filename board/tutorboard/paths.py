@@ -140,27 +140,3 @@ def within(target, *roots):
             return True
     return False
 
-
-# A `results/` path missing locally is read from `exports/results/`, so one
-# path works on both machines. Nothing else falls back.
-EXPORTS = "exports"
-
-
-def exported(rel):
-    """The `exports/` twin of a workspace-relative `results/` path, or ""."""
-    rel = (rel or "").replace("\\", "/").lstrip("/")
-    return EXPORTS + "/" + rel if rel.startswith("results/") else ""
-
-
-def present(root, rel):
-    """Where `rel` really is in this workspace: itself or its exported copy,
-    absolute; "" where neither exists or either would leave the workspace."""
-    if not rel:
-        return ""
-    for cand in (rel, exported(rel)):
-        if not cand:
-            continue
-        target = os.path.join(root, cand)
-        if within(target, root) and os.path.exists(target):
-            return target
-    return ""

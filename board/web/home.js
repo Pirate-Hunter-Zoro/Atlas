@@ -7,12 +7,12 @@
 
    Everything it reads is unprefixed and one of these: GET /sessions.json,
    /subjects.json (which also names the Meetings subject, or null),
-   /notices.json, /relay.json (the cluster's health and Colibri),
+   /notices.json, /sync.json (the sync health),
    /assistants.json, /subject/delete?subject=<id> (whether a subject can be
    deleted, and why not) and, for the meeting deck, /library.json?subject=
    <the Meetings subject>. Everything it writes is one of: POST
    /sessions/new, /subjects/new, /subject/delete, /session/delete, /meeting,
-   /default-agent, /colibri (a task, from the Colibri panel),
+   /default-agent,
    /artifact?subject=<id> (a deck or a paper from a subject's row),
    /client-error (what broke on this page, for the board's log), a past
    session's /s/<id>/send (an unbound one, sent to a course or project), and
@@ -106,15 +106,6 @@ var els = {
   artmakerClose: $("artmaker-close"),
   artmakerOpen: $("artmaker-open"),
   health: $("health"),
-  coli: $("colibri"),
-  coliSubject: $("colibri-subject"),
-  coliState: $("colibri-state"),
-  coliTasks: $("colibri-tasks"),
-  coliNone: $("colibri-none"),
-  coliBrief: $("colibri-brief"),
-  coliFile: $("colibri-file"),
-  coliFileSub: $("colibri-file-sub"),
-  coliSaid: $("colibri-said"),
   dropper: $("dropper"),
   dropperKind: $("dropper-kind"),
   dropperTitle: $("dropper-title"),
@@ -1128,7 +1119,7 @@ function makeSubject() {
 }
 
 /* ---------------------------------------------------------------- notices */
-/* A cluster report with no session to wake (D16). Dismissing one is this
+/* A machinery line with no session to wake (D16). Dismissing one is this
    device's own record, kept in localStorage by the notice's key. */
 var DISMISSED = "board.notices.dismissed";
 
@@ -1180,11 +1171,9 @@ function paintNotices(data) {
   els.notices.hidden = show.length === 0;
 }
 
-/* ---------------------------------------------------- the cluster's health */
-/* GET /relay.json: `lines` are the sentences, worst first (`relay.health`):
-   relay looks down, not synced, a skipped pass, the relay's last error. */
-var lastRelay = null;
-
+/* ------------------------------------------------------- the sync health */
+/* GET /sync.json: `lines` are the sentences, worst first (`sync.health`):
+   not synced, then the machine's brew and tools lines. */
 function paintHealth(data) {
   var lines = (data && data.lines) || [];
   els.health.innerHTML = "";
@@ -1192,108 +1181,9 @@ function paintHealth(data) {
   els.health.hidden = lines.length === 0;
 }
 
-/* --------------------------------------------------------------- Colibri */
-/* The Colibri project's panel, its link named from /subjects.json (the id
-   when the list does not have it). The state is relay/status.json's (D27),
-   the tasks are that project's colibri requests with their reports, and
-   filing one is POST /colibri, which commits and pushes the request as
-   `board colibri` does. The button's second line is what the wait will be. */
-var coliFiling = false;
-
-function minutes(secs) {
-  var m = Math.max(1, Math.round(secs / 60));
-  return m < 90 ? m + " min" : Math.floor(m / 60) + " h " + (m % 60) + " min";
-}
-
-function coliStateLine(st) {
-  if (!st) return "";
-  var bits = ["Colibri: " + (st.detail || st.state)];
-  if (st.queue) bits.push(plural(st.queue, "task waiting", "tasks waiting"));
-  if (st.task) bits.push("running " + st.task);
-  return bits.join("  ·  ");
-}
-
-function coliRow(t, running) {
-  var row = el("div", "row coli");
-  var top = el("span", "row-top");
-  top.appendChild(el("span", "row-name", t.label || t.brief || t.id));
-  /* `phase` is colibri.phase: queued, working, done (or filed, failed,
-     refused), from the report and status.json's running task. */
-  var phase = t.phase || t.state;
-  if (running && t.task && t.task === running && phase !== "done"
-      && phase !== "failed") phase = "working";
-  var state = phase === "filed" ? "filed, waiting for the relay" : phase;
-  top.appendChild(el("span", "row-sub", state));
-  row.appendChild(top);
-  var sub = [t.id];
-  if (t.attempts) sub.push("attempt " + t.attempts);
-  if (t.deaths) sub.push(plural(t.deaths, "death", "deaths"));
-  row.appendChild(el("span", "row-sub", sub.join("  ·  ")));
-  if (t.note) row.appendChild(el("span", "row-last", t.note));
-  (t.relay || []).forEach(function (l) {
-    row.appendChild(el("span", "coli-relay", "RELAY: " + l));
-  });
-  return row;
-}
-
-function paintColibri(data) {
-  if (!data || !data.colibri_subject) { els.coli.hidden = true; return; }
-  els.coli.hidden = false;
-  els.coliSubject.href = "/library?subject=" + enc(data.colibri_subject) + "&from=home";
-  var named = ((subjectsData && subjectsData.subjects) || []).filter(function (s) {
-    return s.id === data.colibri_subject;
-  })[0];
-  els.coliSubject.textContent = named ? subjectName(named) : data.colibri_subject;
-  els.coliState.textContent = coliStateLine(data.colibri);
-  var tasks = data.colibri_tasks || [];
-  els.coliTasks.innerHTML = "";
-  tasks.forEach(function (t) {
-    els.coliTasks.appendChild(coliRow(t, data.colibri && data.colibri.task));
-  });
-  els.coliNone.hidden = tasks.length > 0;
-  paintColiFile();
-}
-
-function paintColiFile() {
-  var brief = (els.coliBrief.value || "").trim();
-  els.coliFile.disabled = coliFiling || !brief;
-  els.coliFileSub.textContent = coliFiling ? "filing\u2026"
-    : (lastRelay && lastRelay.estimate) || "say what the task is first";
-}
-
-function coliSay(text) {
-  els.coliSaid.hidden = !text;
-  els.coliSaid.textContent = text || "";
-}
-
-function fileColibri() {
-  var brief = (els.coliBrief.value || "").trim();
-  if (!brief || coliFiling) return;
-  coliFiling = true;
-  coliSay("");
-  paintColiFile();
-  postJSON("/colibri", { brief: brief }).then(function (got) {
-    coliFiling = false;
-    if (got && got.ok) {
-      els.coliBrief.value = "";
-      coliSay((got.detail || "filed") + ". " + (got.estimate || ""));
-    } else {
-      coliSay((got && got.error) || "that did not take");
-    }
-    paintColiFile();
-    loadRelay();
-  }).catch(function () {
-    coliFiling = false;
-    coliSay("the board did not answer");
-    paintColiFile();
-  });
-}
-
-function loadRelay() {
-  return getJSON("/relay.json").then(function (got) {
-    lastRelay = got || null;
-    paintHealth(lastRelay);
-    paintColibri(lastRelay);
+function loadHealth() {
+  return getJSON("/sync.json").then(function (got) {
+    paintHealth(got || null);
   }).catch(function () { /* the next refresh asks again */ });
 }
 
@@ -1599,7 +1489,7 @@ function refresh() {
     els.actMeeting.hidden = !meetings();
     if (all[2]) paintNotices(all[2]);
     route();
-    loadRelay();
+    loadHealth();
     loadAssistants();
   }).catch(function (e) {
     /* A paint that threw is this page's bug, and the board hears it too. */
@@ -1621,8 +1511,6 @@ function repaint() {
 }
 
 els.newSession.onclick = newSession;
-els.coliBrief.addEventListener("input", function () { coliSay(""); paintColiFile(); });
-els.coliFile.onclick = fileColibri;
 els.newCourse.onclick = function () { openMaker("course"); };
 els.newProject.onclick = function () { openMaker("project"); };
 els.makerName.addEventListener("input", function () { makerSay(""); paintMaker(); });

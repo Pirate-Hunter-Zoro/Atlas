@@ -14,7 +14,7 @@ any `.env*` never cross, nor `phi/` and `results/`, nor a build or a checkout.
 Nothing here is ever deleted. SSH runs in batch mode, so a missing key is a
 refusal, not a password prompt.
 
-The constraint: standard library only, python 3.7 syntax.
+The constraint: standard library only.
 """
 
 import os

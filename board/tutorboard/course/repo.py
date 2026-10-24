@@ -5,9 +5,6 @@ layout change happens here only. A Repo is always handed its session
 directory; a stored session (`sessions/<id>/` with session.json) has its
 state in session.json and its root at the bound subject, or the Atlas root
 while unbound.
-
-The constraint: this runs on the cluster's python3 (3.7) through jobs.py,
-so no walrus and no `match`.
 """
 
 import json

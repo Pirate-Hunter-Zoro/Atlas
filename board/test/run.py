@@ -3,8 +3,8 @@
 
     python3 board/test/run.py              every suite, four at a time
     python3 board/test/run.py -j 1         one at a time
-    python3 board/test/run.py --guards     the PHI and relay guards only
-    python3 board/test/run.py relay code   only the suites named
+    python3 board/test/run.py --guards     the PHI guards only
+    python3 board/test/run.py sync code    only the suites named
 
 A suite is any `*.py` or `*.js` file in this directory except those in
 HELPERS. Discovery, not a list: a suite added here runs without anyone
@@ -37,7 +37,7 @@ AI_CONFIG_TESTS = os.path.join(ROOT, "ai-config", "scripts", "test.sh")
 # Files in this directory that are not suites. A helper other than this file
 # is a shared case some suite requires; the run names the suites it runs in,
 # and fails when none does.
-HELPERS = ["run.py", "inkzoom.js", "sessionpage.js", "relay_fixture.py"]
+HELPERS = ["run.py", "inkzoom.js", "sessionpage.js"]
 
 # Suites that must not run beside one another: each binds a fixed port or
 # writes shared state under ~/.config. Found by comparing a -j 1 run with a
@@ -45,13 +45,11 @@ HELPERS = ["run.py", "inkzoom.js", "sessionpage.js", "relay_fixture.py"]
 # dir, and a -j 4 run fails nothing a -j 1 run passes.
 SERIAL = []
 
-# The guards: what keeps PHI out of git and the relay honest, and the relay
-# path runnable on the cluster's python 3.7.
-GUARDS = ["tracked.py", "precommit.py", "requests.py", "relay.py", "code.py",
-          "py37.py", "exporting.py", "phi_probe.py"]
+# The guards: what keeps PHI, keys and other people's work out of git.
+GUARDS = ["tracked.py", "precommit.py", "code.py"]
 
 # Started first, because they are the longest; the rest follow by name.
-FIRST = ["link.js", "plane.js", "seam.js", "relay.py"]
+FIRST = ["link.js", "plane.js", "seam.js", "hearing.py"]
 
 
 class Suite(object):

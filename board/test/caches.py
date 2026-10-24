@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The two caches every session shares, and serve.py on a Slurm host.
+"""The two caches every session shares.
 
   1. TikZ: one compiler, one cache at `sessions/.tikz/`, keyed by the source
      and the subject's macros. Two sessions in different subjects whose macros
@@ -7,8 +7,6 @@
      reuses the first one's figure.
   2. PDF pages: one cache at `paths.PAGES`, one `<digest>/` per build, served
      at `/paper/` with or without a session prefix.
-  3. serve.py exits non-zero on a Slurm host: `TUTOR_SLURM=1`, or `sbatch` on
-     PATH even with `TUTOR_SLURM=0`.
 """
 
 import http.client
@@ -16,7 +14,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -207,40 +204,10 @@ check("an unprefixed /paper/ name that is not a page is 404",
       ask("/paper/state.json")[0] == 404 and ask("/paper/..%2fx-1.png")[0] == 404)
 
 
-# ---------------------------------------------------------------------------
-# 3. serve.py refuses a Slurm host
-# ---------------------------------------------------------------------------
-print("\n-- serve.py on a Slurm host --")
-SERVE = os.path.join(ROOT, "serve.py")
-
-
-def serve(env):
-    try:
-        p = subprocess.run([sys.executable, SERVE, "--port", "0", "--atlas", atlas],
-                           env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, timeout=30)
-    except subprocess.TimeoutExpired:
-        return None, "still serving after 30 s"
-    return p.returncode, p.stdout.decode("utf-8", "replace")
-
-
-code, out = serve(dict(os.environ, TUTOR_SLURM="1"))
-check("TUTOR_SLURM=1 serve.py --port 0 exits non-zero, saying why",
-      code not in (None, 0) and "Slurm" in out)
-
-fake = os.path.join(tmp, "bin")
-write(os.path.join(fake, "sbatch"), "#!/bin/sh\nexit 0\n")
-os.chmod(os.path.join(fake, "sbatch"), 0o755)
-code, out = serve(dict(os.environ, TUTOR_SLURM="0",
-                       PATH=fake + os.pathsep + os.environ.get("PATH", "")))
-check("sbatch on PATH refuses too, whatever TUTOR_SLURM says",
-      code not in (None, 0) and "Slurm" in out)
-
 httpd.shutdown()
 shutil.rmtree(tmp, ignore_errors=True)
 print()
 if fails:
     print("%d failed" % len(fails))
     sys.exit(1)
-print("one TikZ cache and one page cache serve every session, and no board runs "
-      "on a Slurm host")
+print("one TikZ cache and one page cache serve every session")

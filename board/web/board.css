@@ -396,7 +396,7 @@ body { background: var(--paper); min-height: 100vh; min-height: 100dvh; }
   border-bottom: 1px solid var(--rule);
   max-width: 22rem; overflow-x: auto; font-size: .95rem;
 }
-/* The cluster's health: one line, the worst first, the rest in its tooltip. */
+/* The sync health: one line, the worst first, the rest in its tooltip. */
 .healthbar {
   display: flex; align-items: center; gap: .8rem;
   padding: .5rem max(1rem, env(safe-area-inset-left)) .5rem max(1rem, env(safe-area-inset-right));

@@ -3,9 +3,8 @@
 Every turn is a cold turn, so the brief is what a turn costs before it teaches.
 It carries the method as `tutorboard.sense` states it, the subject's RULES.md
 as committed at HEAD (flagging a working-tree edit), the subject's TUTOR.md,
-a mise pin behind in the subject (to propose its bump), what the owner did
-away from the board, and the work out on the cluster. It
-points at board/TEACHING.md for a rule's detail. A subject's README.md is the
+a mise pin behind in the subject (to propose its bump), and what the owner
+did away from the board. It points at board/TEACHING.md for a rule's detail. A subject's README.md is the
 owner's and never enters the brief.
 
 `recap` is the lesson so far: one line per card, the newest in full, the
@@ -19,7 +18,7 @@ text for manual use.
 import json
 import os
 
-from . import jobs, memo, reasoning, subjects
+from . import memo, reasoning, subjects
 from .course import config
 from .course import homework
 from .lesson import git as lesson_git
@@ -240,40 +239,6 @@ def _book_index(root):
     return ""
 
 
-def relay_sense(root):
-    """The requests here the cluster has not ended, and the cluster's health
-    where the relay looks down or this checkout is not synced; or ""."""
-    try:
-        waiting = jobs.outstanding(root)
-    except Exception:                                        # noqa: BLE001
-        waiting = []
-    health = _health(root)
-    if not waiting and not health:
-        return ""
-    out = ["\n--- out on the cluster ---"]
-    out.extend(health)
-    if waiting:
-        out.append("Waiting on the cluster (the pull hears each ending as a "
-                   "[job] line):")
-        out.extend("  %s  %s  %s" % (r["request"],
-                                     str(r.get("state") or "").lower(),
-                                     r.get("cmd") or "")
-                   for r in waiting[:10])
-    return "\n".join(out)
-
-
-def _health(root):
-    """`relay.health`'s "relay looks down" and "not synced" lines: a request
-    filed now would wait on either."""
-    from . import relay, sync
-    try:
-        got = relay.health(sync.atlas_of(root))
-    except Exception:                                        # noqa: BLE001
-        return []
-    return ["HEALTH: " + l for l in got.get("lines") or []
-            if l.startswith(("relay looks down", "not synced"))]
-
-
 def beside_sense(repo):
     """What somebody did to this workspace that you have not been told about.
     The wording says three times that it is the owner's work done elsewhere,
@@ -324,12 +289,10 @@ def beside_sense(repo):
     return "\n".join(out)
 
 
-def briefing(repo, sense, chapter=None, doing=None, repair=None):
+def briefing(repo, sense, chapter=None, doing=None):
     """The whole cold briefing as one string. `sense` is passed in, not
     imported (it reaches into the course package). `doing` goes to
-    `sense.session_sense` (a repair is a doing turn); `repair` is the
-    `[repair]` section (`jobs.repair_brief`), placed under the mode it
-    overrides.
+    `sense.session_sense`.
     """
     root = repo.root
     st = repo.state()
@@ -405,8 +368,6 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
         out.append("check: `board check` (runs `%s` from the subject's root; "
                    "before a push that changed code, and the report says "
                    "whether it passed)" % cfg["check_line"])
-    if repair:
-        out.append("\n" + "\n".join(repair))
 
     out.append("\n--- the method, and what this sitting is ---\n"
                + sense.session_sense(repo, doing=doing))
@@ -424,10 +385,6 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
     beside = beside_sense(repo)
     if beside:
         out.append(beside)
-
-    waiting = relay_sense(root)
-    if waiting:
-        out.append(waiting)
 
     out.append("\n--- how a turn works here ---\n" + TURN_SENSE)
 
@@ -582,29 +539,20 @@ def guarded_recap(repo, limit=RECAP_LIMIT):
 # ---------------------------------------------------------------------------
 # what a turn is handed
 # ---------------------------------------------------------------------------
-def turn_brief(repo, signal="", repairs=None):
-    """The brief a turn woken for `signal` reads, from what the runner knows;
-    a `[repair]` batch briefs a doing turn."""
+def turn_brief(repo, signal=""):
+    """The brief a turn woken for `signal` reads, from what the runner knows."""
     from . import sense            # reaches into the course package; see briefing
-    fixing = None
-    rids = [r for r in (repairs or []) if isinstance(r, str) and r]
-    if rids:
-        fixing = rids
-    elif signal == jobs.REPAIR:
-        fixing = [jobs.last_repair(repo.root)]
-    return briefing(
-        repo, sense, doing=True if fixing is not None else None,
-        repair=jobs.repair_brief(repo.root, fixing) if fixing is not None else None)
+    return briefing(repo, sense)
 
 
-def turn_context(repo, signal="", repairs=None, brief=True):
+def turn_context(repo, signal="", brief=True):
     """The brief and the recap, as one block above the prompt. `brief=False`
     gives the recap alone. A part that fails says so and names the command
     that prints it."""
     parts = []
     if brief:
         try:
-            text = turn_brief(repo, signal, repairs)
+            text = turn_brief(repo, signal)
         except Exception as exc:                             # noqa: BLE001
             text = ("(the brief could not be rendered here: %s. Run `board "
                     "brief` for it.)\n" % exc)

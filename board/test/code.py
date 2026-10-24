@@ -1,18 +1,16 @@
 #!/usr/bin/env python3
 """`board code`: a coding session, on code/<session>.
 
-A two-clone fixture: a bare origin standing in for GitHub, a `cluster` clone
+A two-clone fixture: a bare origin standing in for GitHub, a `laptop` clone
 where the owner writes and the loop runs, and a `mac` clone that pushes a vibe
 commit to the same ref. Two subjects, one `"phi": false` and one `"phi":
 true`, each with a check that prints a plain line and a `RELAY:` line.
 
 Proved here: an edit is one snapshot on code/S and nothing on main; check
 output is in the message only where phi is literally false; a commit pushed to
-code/S elsewhere lands in the cluster's working tree; --end is one commit on
-main and no ref; --abandon drops the ref; a relay pass with a dirty held file
-does not skip, and an upstream change to one is reported, not pulled; a
-request pinned to code/S is accepted; `board code --help` imports no server
-or runner module. A new hold on a checkout that is not the board's pulls main
+code/S elsewhere lands in the laptop's working tree; --end is one commit on
+main and no ref, and refuses a held file main changed too; --abandon drops
+the ref; `board code --help` imports no server or runner module. A new hold on a checkout that is not the board's pulls main
 first, and a refused pull is said while the hold goes on.
 
 A local branch made from origin's code/S (`git checkout code/S`) does not
@@ -117,11 +115,8 @@ work = tempfile.mkdtemp(prefix="board-code-")
 saved = dict(os.environ)
 try:
     os.environ["BOARD_STATE_DIR"] = os.path.join(work, "state")
-    os.environ["TUTORBOARD_COURSES"] = os.path.join(work, "cluster")
-    os.environ["SLURM_JOB_ID"] = "999"
-    os.environ["COLI_QUEUE_ROOT"] = os.path.join(work, "queue")
-    os.makedirs(os.environ["COLI_QUEUE_ROOT"])
-    from tutorboard import code, jobs, relay  # noqa: E402
+    os.environ["TUTORBOARD_COURSES"] = os.path.join(work, "laptop")
+    from tutorboard import code  # noqa: E402
 
     origin = os.path.join(work, "origin.git")
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin],
@@ -130,7 +125,7 @@ try:
     os.makedirs(seed)
     git(seed, "init", "-q", "-b", "main")
     write(os.path.join(seed, ".gitignore"),
-          "ai-config/\n**/relay/state/\n/relay/state.json\n/relay/.lock*\n")
+          "ai-config/\n")
     for name, phi in (("Open", False), ("Shut", True)):
         subj = os.path.join(seed, "projects", name)
         write(os.path.join(subj, "tutorboard.json"), json.dumps(
@@ -151,10 +146,10 @@ try:
         git(where, "config", "user.name", name)
         return where
 
-    cluster, mac = clone("cluster"), clone("mac")
+    laptop, mac = clone("laptop"), clone("mac")
     # The real hook, so --end's commit goes through it.
-    git(cluster, "config", "core.hooksPath", HOOKS)
-    write(os.path.join(cluster, "ai-config", "policy", "phi.py"), POLICY)
+    git(laptop, "config", "core.hooksPath", HOOKS)
+    write(os.path.join(laptop, "ai-config", "policy", "phi.py"), POLICY)
     said = []
     say = said.append
 
@@ -164,26 +159,23 @@ try:
         return out
 
     # --- what may be held ---------------------------------------------------
-    _, _, probs = code.resolve(cluster, [])
+    _, _, probs = code.resolve(laptop, [])
     check("no paths is refused", probs and "no paths" in probs[0])
-    os.makedirs(os.path.join(cluster, "projects", "Open", "phi"))
-    _, _, probs = code.resolve(cluster, ["projects/Open/phi"])
+    os.makedirs(os.path.join(laptop, "projects", "Open", "phi"))
+    _, _, probs = code.resolve(laptop, ["projects/Open/phi"])
     check("a fenced path is refused", probs and "fenced" in probs[0])
-    _, _, probs = code.resolve(cluster, ["projects/Open/data/x.csv"])
+    _, _, probs = code.resolve(laptop, ["projects/Open/data/x.csv"])
     check("a fenced path is refused even where it is not there",
           probs and "fenced" in probs[0])
-    os.rmdir(os.path.join(cluster, "projects", "Open", "phi"))
-    _, _, probs = code.resolve(cluster, ["projects/Open/src",
+    os.rmdir(os.path.join(laptop, "projects", "Open", "phi"))
+    _, _, probs = code.resolve(laptop, ["projects/Open/src",
                                          "projects/Shut/src"])
     check("paths in two subjects are refused",
           any("2 subjects" in p for p in probs))
-    _, _, probs = code.resolve(cluster, ["projects/Open"])
+    _, _, probs = code.resolve(laptop, ["projects/Open"])
     check("the whole subject is refused", probs and "whole subject" in probs[0])
-    _, _, probs = code.resolve(cluster, ["projects/Open/relay"])
-    check("the relay's channel is refused",
-          probs and ("channel" in probs[0] or "not there" in probs[0]))
 
-    rec, probs = code.start(cluster, SID, ["projects/Open/src"], cwd=cluster)
+    rec, probs = code.start(laptop, SID, ["projects/Open/src"], cwd=laptop)
     check("a session registers", not probs and rec is not None)
     reg = os.path.join(os.environ["BOARD_STATE_DIR"], "code", SID + ".json")
     got = json.loads(read(reg))
@@ -192,21 +184,19 @@ try:
                                  "step"))
           and got["subject"] == "projects/Open"
           and got["paths"] == ["projects/Open/src"] and got["step"] == 0
-          and got["base"] == git(cluster, "rev-parse", "HEAD"))
-    check("and the relay sees its paths held",
-          relay.coding(cluster) == ["projects/Open/src"])
-    _, probs = code.start(cluster, "other", ["projects/Open/src/a.py"],
-                          cwd=cluster)
+          and got["base"] == git(laptop, "rev-parse", "HEAD"))
+    _, probs = code.start(laptop, "other", ["projects/Open/src/a.py"],
+                          cwd=laptop)
     check("a path another session holds is refused",
           any("already held" in p for p in probs))
 
     # --- an edit is one snapshot on code/S, and nothing on main --------------
     clock = Clock()
-    loop = code.Loop(cluster, rec, say=say, clock=clock)
+    loop = code.Loop(laptop, rec, say=say, clock=clock)
     main_before = git(origin, "rev-parse", "main")
     loop.tick()
     check("no edit, no snapshot", tip() == "")
-    write(os.path.join(cluster, "projects", "Open", "src", "a.py"), "x = 2\n")
+    write(os.path.join(laptop, "projects", "Open", "src", "a.py"), "x = 2\n")
     pushed = []
     for _ in range(int(code.QUIET / code.POLL) + 1):
         clock.t += code.POLL
@@ -215,18 +205,18 @@ try:
           pushed.count(True) == 1 and pushed[-1] is True)
     first = tip()
     check("it is on code/S at origin", first != ""
-          and git(cluster, "rev-list", "--count", "%s..%s" % (main_before, first))
+          and git(laptop, "rev-list", "--count", "%s..%s" % (main_before, first))
           == "1")
     check("and main did not move, here or at origin",
           git(origin, "rev-parse", "main") == main_before
-          and git(cluster, "rev-parse", "HEAD") == main_before)
+          and git(laptop, "rev-parse", "HEAD") == main_before)
     check("the real index did not move",
-          git(cluster, "diff", "--cached", "--name-only") == "")
+          git(laptop, "diff", "--cached", "--name-only") == "")
     msg = git(origin, "log", "-1", "--format=%B", first)
     check("the message says Step 1 and check: pass",
           "Step 1" in msg and "check: pass" in msg)
-    check("and carries ran_at, the cluster's HEAD",
-          "ran_at: %s" % git(cluster, "rev-parse", "--short", "HEAD") in msg)
+    check("and carries ran_at, the laptop's HEAD",
+          "ran_at: %s" % git(laptop, "rev-parse", "--short", "HEAD") in msg)
     check("an open subject's check output is in the message",
           "plain output: 3 tests ran" in msg and "RELAY: tests 3" in msg)
     check("the snapshot carries only the held change",
@@ -236,18 +226,6 @@ try:
         clock.t += code.QUIET
         loop.tick()
     check("no further edit, no further step", tip() == first)
-
-    # --- a relay pass with a dirty held file does not skip --------------------
-    class Slurm(object):
-        def __call__(self, argv, **kw):
-            return subprocess.CompletedProcess(argv, 0, "", "")
-
-    got = relay.run_pass(cluster, run=Slurm())
-    check("a relay pass with a dirty held file does not skip",
-          not got.get("skipped") and "held" not in (got.get("error") or ""))
-    check("and leaves the held file as it was",
-          read(os.path.join(cluster, "projects", "Open", "src", "a.py"))
-          == "x = 2\n")
 
     # --- a commit pushed to code/S from the other clone lands here -------------
     git(mac, "fetch", "-q", "origin", "code/%s" % SID)
@@ -262,9 +240,9 @@ try:
     loop.tick(fetch=True)
     check("a commit pushed to code/S from the other clone lands in the "
           "working tree",
-          read(os.path.join(cluster, "projects", "Open", "src", "a.py"))
+          read(os.path.join(laptop, "projects", "Open", "src", "a.py"))
           == "x = 3\n"
-          and read(os.path.join(cluster, "projects", "Open", "src", "b.py"))
+          and read(os.path.join(laptop, "projects", "Open", "src", "b.py"))
           == "y = 1\n")
     check("and is the session's last commit",
           code.read(SID)["last"] == vibe)
@@ -274,7 +252,7 @@ try:
     check("applying it makes no step of its own", tip() == vibe)
 
     # Both sides change: the loop says so and waits.
-    write(os.path.join(cluster, "projects", "Open", "src", "a.py"), "x = 4\n")
+    write(os.path.join(laptop, "projects", "Open", "src", "a.py"), "x = 4\n")
     write(os.path.join(mac, "projects", "Open", "src", "a.py"), "x = 5\n")
     git(mac, "commit", "-qam", "vibe: a.py again")
     git(mac, "push", "-q", "origin", "HEAD:refs/heads/code/%s" % SID)
@@ -283,41 +261,22 @@ try:
     check("both sides changed: it says so and waits",
           any("both sides changed" in s and "projects/Open/src/a.py" in s
               for s in said)
-          and read(os.path.join(cluster, "projects", "Open", "src", "a.py"))
+          and read(os.path.join(laptop, "projects", "Open", "src", "a.py"))
           == "x = 4\n")
     # The owner takes the Mac's version by hand; the loop then moves on.
-    write(os.path.join(cluster, "projects", "Open", "src", "a.py"), "x = 5\n")
+    write(os.path.join(laptop, "projects", "Open", "src", "a.py"), "x = 5\n")
     loop.tick(fetch=True)
     check("matching it settles it", code.read(SID)["last"] == tip()
           and loop.waiting is None)
 
-    # --- a request pinned to code/S is accepted ---------------------------------
-    cws = os.path.join(cluster, "projects", "Open")
-    req = {"id": "r1", "kind": "recipe", "session": SID, "commit": tip()}
-    check("a request pinned to code/S, with the held paths as the commit has "
-          "them, passes the pin", jobs.pin_problems(cws, req) == [])
-    check("from another session it is refused",
-          jobs.pin_problems(cws, dict(req, session="20261008-130000")) != [])
-    write(os.path.join(cluster, "projects", "Open", "src", "a.py"), "x = 6\n")
-    check("and with the held paths changed since, it is refused",
-          jobs.pin_problems(cws, req) != [])
-    write(os.path.join(cluster, "projects", "Open", "src", "a.py"), "x = 5\n")
-
-    # --- an upstream change to a held path is reported, not pulled -------------
+    # --- an upstream change to a held path stops --end -----------------------
     git(mac, "checkout", "-q", "main")
     git(mac, "pull", "-q", "--ff-only", "origin", "main")
     write(os.path.join(mac, "projects", "Open", "src", "a.py"), "x = 99\n")
     write(os.path.join(mac, "projects", "Open", "notes.md"), "more notes\n")
     git(mac, "commit", "-qam", "main moves a held file")
     git(mac, "push", "-q", "origin", "main")
-    got = relay.run_pass(cluster, run=Slurm())
-    check("an upstream change to a held path is reported",
-          relay.HELD_UPSTREAM in (got.get("error") or "")
-          and not got.get("skipped"))
-    check("and not pulled over the owner's file",
-          read(os.path.join(cluster, "projects", "Open", "src", "a.py"))
-          == "x = 5\n")
-    rc = code.end(cluster, SID, say=say, wait=1)
+    rc = code.end(laptop, SID, say=say, wait=1)
     check("--end refuses a held file main changed too, naming it",
           rc == 1 and any("projects/Open/src/a.py" in s for s in said[-3:])
           and code.read(SID) is not None)
@@ -328,7 +287,7 @@ try:
     # --- --end: one new commit on main, and no code/S ----------------------------
     before = git(origin, "rev-parse", "main")
     del said[:]
-    rc = code.end(cluster, SID, title="the a.py rewrite", say=say, wait=1)
+    rc = code.end(laptop, SID, title="the a.py rewrite", say=say, wait=1)
     after = git(origin, "rev-parse", "main")
     check("--end succeeds", rc == 0)
     check("--end leaves exactly one new main commit",
@@ -341,16 +300,15 @@ try:
                      after).splitlines())
           == ["projects/Open/src/a.py", "projects/Open/src/b.py"])
     check("and no code/S ref", tip() == "")
-    check("and no registration", code.read(SID) is None
-          and relay.coding(cluster) == [])
+    check("and no registration", code.read(SID) is None)
 
     # --- the closed subject: RELAY lines only ----------------------------------
     S2 = "20261008-140000"
-    rec2, probs = code.start(cluster, S2, ["projects/Shut/src"], cwd=cluster)
+    rec2, probs = code.start(laptop, S2, ["projects/Shut/src"], cwd=laptop)
     check("a session in the phi: true subject registers", not probs)
-    loop2 = code.Loop(cluster, rec2, say=say, clock=clock)
+    loop2 = code.Loop(laptop, rec2, say=say, clock=clock)
     loop2.tick()
-    write(os.path.join(cluster, "projects", "Shut", "src", "a.py"), "z = 1\n")
+    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 1\n")
     for _ in range(int(code.QUIET / code.POLL) + 1):
         clock.t += code.POLL
         loop2.tick()
@@ -360,39 +318,39 @@ try:
           "plain output" not in msg and "RELAY: tests 3" in msg)
 
     # --- --abandon ---------------------------------------------------------------
-    rc = code.abandon(cluster, S2, say=say)
+    rc = code.abandon(laptop, S2, say=say)
     check("--abandon drops the ref and the registration",
           rc == 0 and tip(S2) == "" and code.read(S2) is None
-          and read(os.path.join(cluster, "projects", "Shut", "src", "a.py"))
+          and read(os.path.join(laptop, "projects", "Shut", "src", "a.py"))
           == "z = 1\n")
 
     # --- a branch made from origin's code/S is not a local session -------------
     from tutorboard import sync as ear_mod  # noqa: E402
     S6 = "20261008-145000"
-    rec6, probs = code.start(cluster, S6, ["projects/Shut/src"], cwd=cluster)
-    loop6 = code.Loop(cluster, rec6, say=say, clock=clock)
+    rec6, probs = code.start(laptop, S6, ["projects/Shut/src"], cwd=laptop)
+    loop6 = code.Loop(laptop, rec6, say=say, clock=clock)
     loop6.tick()
-    write(os.path.join(cluster, "projects", "Shut", "src", "a.py"), "z = 3\n")
+    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 3\n")
     for _ in range(int(code.QUIET / code.POLL) + 1):
         clock.t += code.POLL
         loop6.tick()
     pushed6 = tip(S6)
     # What `git checkout code/S` leaves behind: a local branch tracking origin.
-    git(cluster, "branch", "-q", "--track", "code/%s" % S6,
+    git(laptop, "branch", "-q", "--track", "code/%s" % S6,
         "origin/code/%s" % S6)
     check("a local branch of origin's code/S does not make the session local",
-          pushed6 != "" and code.keeps_local(cluster, S6) is False)
-    sha, what = code.vibe(cluster, S6, ["projects/Shut/src"], pushed6, "a vibe")
+          pushed6 != "" and code.keeps_local(laptop, S6) is False)
+    sha, what = code.vibe(laptop, S6, ["projects/Shut/src"], pushed6, "a vibe")
     check("so `board push` still asks origin",
           sha == "" and "codes in this checkout" not in what
           and "as code/%s has them" % S6 in what, what)
-    write(os.path.join(cluster, "projects", "Shut", "src", "a.py"), "z = 4\n")
-    sha, what = code.vibe(cluster, S6, ["projects/Shut/src"], pushed6, None)
+    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 4\n")
+    sha, what = code.vibe(laptop, S6, ["projects/Shut/src"], pushed6, None)
     check("a `board push` with no message says `save: <changed files>`, "
           "not the held directory",
-          sha != "" and git(cluster, "log", "-1", "--format=%s", sha)
+          sha != "" and git(laptop, "log", "-1", "--format=%s", sha)
           == "save: projects/Shut/src/a.py", (what, sha and git(
-              cluster, "log", "-1", "--format=%s", sha)))
+              laptop, "log", "-1", "--format=%s", sha)))
     git(mac, "fetch", "-q", "origin",
         "refs/heads/code/%s:refs/heads/code/%s" % (S6, S6))
     ear6 = ear_mod.Sync(mac, state_dir=os.path.join(work, "ear6"),
@@ -400,53 +358,53 @@ try:
     check("and the ear does not hear such a branch as a local ref",
           ear6.local_refs() == {}, ear6.local_refs())
     git(mac, "branch", "-q", "-D", "code/%s" % S6)
-    rc = code.abandon(cluster, S6, say=say)
+    rc = code.abandon(laptop, S6, say=say)
     check("--abandon drops origin's ref, not only the local branch",
           rc == 0 and tip(S6) == "" and code.read(S6) is None)
-    git(cluster, "branch", "-q", "-D", "code/%s" % S6)
-    git(cluster, "checkout", "-q", "--", "projects/Shut/src/a.py")
+    git(laptop, "branch", "-q", "-D", "code/%s" % S6)
+    git(laptop, "checkout", "-q", "--", "projects/Shut/src/a.py")
 
     # --- the gate refuses a step --------------------------------------------------
     S3 = "20261008-150000"
-    rec3, probs = code.start(cluster, S3, ["projects/Open/src"], cwd=cluster)
-    loop3 = code.Loop(cluster, rec3, say=say, clock=clock)
+    rec3, probs = code.start(laptop, S3, ["projects/Open/src"], cwd=laptop)
+    loop3 = code.Loop(laptop, rec3, say=say, clock=clock)
     loop3.tick()
-    write(os.path.join(cluster, "projects", "Open", "src", "model.pkl"), "x")
+    write(os.path.join(laptop, "projects", "Open", "src", "model.pkl"), "x")
     del said[:]
     for _ in range(int(code.QUIET / code.POLL) + 1):
         clock.t += code.POLL
         loop3.tick()
     check("a step the commit-time gate refuses is not pushed",
           tip(S3) == "" and any("gate refuses" in s for s in said))
-    code.abandon(cluster, S3, say=say)
+    code.abandon(laptop, S3, say=say)
 
     # --- the pre-commit hook: a registration's held files ----------------------
     S4 = "20261008-155000"
-    rec4, probs = code.start(cluster, S4, ["projects/Shut/src"], cwd=cluster)
-    write(os.path.join(cluster, "projects", "Shut", "src", "a.py"), "z = 2\n")
-    ok_, out = commit_by_hand(cluster, "projects/Shut/src/a.py")
+    rec4, probs = code.start(laptop, S4, ["projects/Shut/src"], cwd=laptop)
+    write(os.path.join(laptop, "projects", "Shut", "src", "a.py"), "z = 2\n")
+    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py")
     check("the pre-commit hook refuses a file a registration holds, on main",
           not ok_ and "held by coding session %s" % S4 in out
           and "board code %s --end" % S4 in out, out)
-    ok_, out = commit_by_hand(cluster, "projects/Shut/src/a.py", end="other")
+    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py", end="other")
     check("BOARD_CODE_END for another session lifts nothing",
           not ok_ and "held by coding session %s" % S4 in out, out)
-    ok_, out = commit_by_hand(cluster, "projects/Shut/src/a.py", end=S4)
+    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py", end=S4)
     check("BOARD_CODE_END=<its session> lets it through", ok_, out)
-    ok_, out = commit_by_hand(cluster, "projects/Shut/notes.md")
+    ok_, out = commit_by_hand(laptop, "projects/Shut/notes.md")
     check("and a file nobody holds commits on main",
           ok_ or "nothing to commit" in out or "no changes" in out, out)
-    write(os.path.join(cluster, "projects", "Shut", "notes.md"), "shut notes\n")
-    ok_, out = commit_by_hand(cluster, "projects/Shut/notes.md")
+    write(os.path.join(laptop, "projects", "Shut", "notes.md"), "shut notes\n")
+    ok_, out = commit_by_hand(laptop, "projects/Shut/notes.md")
     check("(a changed one too)", ok_, out)
-    git(cluster, "checkout", "-q", "--", "projects/Shut/notes.md")
-    git(cluster, "checkout", "-q", "-b", "side")
-    ok_, out = commit_by_hand(cluster, "projects/Shut/src/a.py")
+    git(laptop, "checkout", "-q", "--", "projects/Shut/notes.md")
+    git(laptop, "checkout", "-q", "-b", "side")
+    ok_, out = commit_by_hand(laptop, "projects/Shut/src/a.py")
     check("off main the hold is not the hook's business", ok_, out)
-    git(cluster, "checkout", "-q", "main")
-    git(cluster, "branch", "-q", "-D", "side")
-    code.abandon(cluster, S4, say=say)
-    git(cluster, "checkout", "-q", "--", "projects/Shut/src/a.py")
+    git(laptop, "checkout", "-q", "main")
+    git(laptop, "branch", "-q", "-D", "side")
+    code.abandon(laptop, S4, say=say)
+    git(laptop, "checkout", "-q", "--", "projects/Shut/src/a.py")
 
     # --- Mac-local mode: the board's own checkout --------------------------------
     from tutorboard import gitops, sessions, sync as ear_mod  # noqa: E402
@@ -474,7 +432,7 @@ try:
 
     check("a session of this board's checkout is Mac-local",
           code.mode(mac, SL) == (True, "")
-          and code.mode(cluster, SL) == (False, ""))
+          and code.mode(laptop, SL) == (False, ""))
 
     linked = os.path.join(work, "linked")
     git(mac, "worktree", "add", "-q", "-b", "wt", linked)
@@ -755,26 +713,23 @@ try:
           == "mine\n")
     git(mac, "checkout", "-q", "--", "projects/Open/notes.md")
 
-    # --- --end's lock: board-code.lock in the git common dir, the relay's too ---
+    # --- --end's lock: board-code.lock in the git common dir ------------------
     import fcntl  # noqa: E402
-    lock = code.lock_path(cluster)
+    lock = code.lock_path(laptop)
     check("--end's lock is board-code.lock in `git rev-parse --git-common-dir`",
           lock is not None and os.path.realpath(lock) == os.path.join(
-              os.path.realpath(cluster), ".git", "board-code.lock"), lock)
+              os.path.realpath(laptop), ".git", "board-code.lock"), lock)
     held_fh = open(lock, "a+")
     fcntl.flock(held_fh.fileno(), fcntl.LOCK_EX)
-    got = relay.run_pass(cluster, run=Slurm())
-    check("a relay pass takes the same lock: while --end holds it, it skips",
-          "board code --end" in str(got.get("skipped") or ""), got)
     S9 = "20261008-175000"
-    rec9, _ = code.start(cluster, S9, ["projects/Open/notes.md"], cwd=cluster)
+    rec9, _ = code.start(laptop, S9, ["projects/Open/notes.md"], cwd=laptop)
     del said[:]
-    rc = code.end(cluster, S9, say=say, wait=1)
-    check("and --end waits on it, ending nothing",
+    rc = code.end(laptop, S9, say=say, wait=1)
+    check("while another holds it, --end waits on it, ending nothing",
           rc == 1 and code.read(S9) is not None
           and any("board-code.lock" in s for s in said), said)
     held_fh.close()
-    code.abandon(cluster, S9, say=say)
+    code.abandon(laptop, S9, say=say)
 
     # --- a new hold off the board's checkout pulls main first ---------------
     real_watch = code.watch
@@ -816,20 +771,6 @@ try:
               asked == [])
     finally:
         code.watch = real_watch
-
-    # --- code.py imports neither relay nor exports ---------------------------
-    import ast  # noqa: E402
-    tree = ast.parse(read(os.path.join(ROOT, "tutorboard", "code.py")))
-    names = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom):
-            names.update(a.name for a in node.names)
-            names.add(node.module or "")
-        elif isinstance(node, ast.Import):
-            names.update(a.name for a in node.names)
-    check("code.py imports neither relay nor exports",
-          not names & {"relay", "exports", "tutorboard.relay",
-                       "tutorboard.exports"}, sorted(names))
 
     # --- `board code --help` imports no server or runner module ---------------
     p = subprocess.run([sys.executable, "-X", "importtime",

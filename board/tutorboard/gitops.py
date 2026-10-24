@@ -12,7 +12,7 @@
     adopt_private(base)                         clone ai-config where it is missing
 
 The Mac's timed pull is `sync.Sync`; `save-and-push.sh` wraps `save`;
-relay.py and code.py keep their own cluster-side git. While a session has
+code.py keeps its own git for a coding session's ref. While a session has
 `code` set, `commit` on main refuses its held paths (`held_refusal`), and so
 does the pre-commit hook (`audit.coding_refusals`): they reach main only through
 `board code <id> --end`, the one caller of `commit(exempt=<id>)`, which sets
@@ -20,8 +20,7 @@ does the pre-commit hook (`audit.coding_refusals`): they reach main only through
 
 The constraint: nothing here commits into an operation somebody started in
 a terminal (rebase, merge, cherry-pick, revert, bisect, detached HEAD;
-`worktree.busy_reason`). Runs on the cluster's python3: no walrus, no
-`match`.
+`worktree.busy_reason`).
 """
 
 import json
@@ -139,7 +138,7 @@ MAIN = "main"
 def held_paths(root):
     """`{session id: [held paths]}` for every session under `root` whose
     session.json has `code` set. Empty where `root` has no session store
-    (the cluster, any other repository)."""
+    (any other repository)."""
     store = os.path.join(root, SESSIONS)
     try:
         names = sorted(os.listdir(store))
@@ -616,7 +615,7 @@ def pull(root, quiet=False, timeout=60, say=None):
     Refused, changing nothing, during a rebase, merge, cherry-pick, revert or
     bisect and on a detached HEAD. A pull that moved a gitlink under `vendor/`
     then runs `git submodule update --init -- vendor`, so this machine's vendor
-    checkouts stay clean; only the cluster relay bumps vendor pointers.
+    checkouts stay clean; nothing here bumps a vendor pointer.
 
     `timeout` bounds the pull. `say`, where given, hears every line `quiet`
     would otherwise drop.

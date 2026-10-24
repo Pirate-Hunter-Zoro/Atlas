@@ -25,7 +25,7 @@ def mode_of(state):
 
 
 def read_config(root):
-    """What a subject's `tutorboard.json` says: `name`, `phi`, `check`, `relay`.
+    """What a subject's `tutorboard.json` says: `name`, `phi`, `check`.
 
     All optional; other keys (`stance`, `aim`, `subtitle`, `mode`, `agent`)
     are ignored. `name` defaults to the directory with dashes as spaces.
@@ -41,12 +41,10 @@ def read_config(root):
     if not isinstance(said, dict):
         said = {}
     phi = said.get("phi")
-    relay = said.get("relay")
     cfg = {
         "name": said.get("name")
         or os.path.basename(os.path.abspath(root)).replace("-", " "),
         "phi": phi if isinstance(phi, bool) else None,
-        "relay": relay if isinstance(relay, dict) else {},
     }
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
     cfg["check_line"] = check_line(cfg["check"])

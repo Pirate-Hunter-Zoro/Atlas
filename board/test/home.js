@@ -10,7 +10,7 @@
 //      the most-recently-used order and the newest ten past sessions; a
 //      subject deleted from its row (and the ones that cannot be, saying
 //      why); an unbound past session sent to a course or project; and the
-//      Meetings subject and the Colibri link read from the server.
+//      Meetings subject read from the server.
 //   2. Against a real server on a temp Atlas holding a Galois session with
 //      45 cards, so card 0003 is older than the board's window of 40: `/`
 //      asks nothing of the old switch route or /atlas.json, New session opens an unbound
@@ -104,7 +104,7 @@ async function stubbed() {
   const CHECKS = {
     'courses/Probability': { why: '', blocker: '', phi: false, sessions: [] },
     'projects/Meetings': { why: 'phi', phi: true, sessions: [],
-      blocker: 'projects/Meetings may hold patient data, so it is removed only through a cluster runbook' },
+      blocker: 'projects/Meetings may hold patient data, so the board does not remove it' },
     'courses/Galois-Theory': { why: 'open-session', phi: false, sessions: [SID, GAL],
       blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it; end them first; '
         + 'request 2026-10-09-gal has no terminal report yet' },
@@ -145,23 +145,10 @@ async function stubbed() {
       meeting: { state: 'ready', ready: true, deck: '2026-10-08T09:00:00', pages: 4,
                  period: 'the last week', subjects: ['TRD-EHR'],
                  check: { numbers: [{ value: '0.7', frame: 2 }], figures: [], internal: [] } } },
-    // The cluster's health and Colibri (`relay.panel`).
-    '/relay.json': { ok: true, down: true,
-      lines: ['relay looks down: projects/TRD-EHR 2026-10-09-knn had no report 15 minutes after its commit',
-              'not synced: fatal: Not possible to fast-forward, aborting.'],
-      colibri: { state: 'loading', left: 7000, queue: 1, task: 'coli-20261009-120000-abcd',
-                 load_s: 4080, detail: 'loading, a cold load takes about 68 min' },
-      colibri_subject: 'projects/libr-local-llm',
-      colibri_tasks: [
-        { id: '2026-10-09-rows-colibri', label: 'rows', brief: 'count rows', state: 'submitted',
-          phase: 'working', task: 'coli-20261009-120000-abcd', attempts: 1, deaths: 0,
-          note: '', relay: [] },
-        { id: '2026-10-08-colibri', label: '', brief: 'smoke test', state: 'completed',
-          phase: 'done', task: 'coli-x', attempts: 1, deaths: 0, note: 'Colibri finished.',
-          relay: ['python 3.12.3'] },
-        { id: '2026-10-09-sites-colibri', label: 'sites', brief: 'count sites', state: 'submitted',
-          phase: 'queued', task: 'coli-y', attempts: 0, deaths: 0, note: '', relay: [] }],
-      estimate: 'a generation is coming up: the relay\'s next pass (every 5 min) queues it' },
+    // The sync health (`sync.health`).
+    '/sync.json': { ok: true, synced: false, down: true,
+      lines: ['not synced: fatal: Not possible to fast-forward, aborting.',
+              'brew: node did not upgrade: it is pinned'] },
     '/assistants.json': { ok: true, assistants: { default: 'claude', machine: 'claude',
                                                   why: null, agents: AGENTS } },
   };
@@ -219,10 +206,6 @@ async function stubbed() {
                 source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
       }
       if (method === 'POST' && url === '/session/delete') got = { ok: true, id: body.id };
-      if (method === 'POST' && url === '/colibri') {
-        got = { ok: true, id: '2026-10-09-colibri', detail: 'request 2026-10-09-colibri filed and pushed',
-                estimate: 'a cold start: about 68 min' };
-      }
       if (method === 'POST' && url === '/subjects/new') {
         got = { ok: true, subject: { id: 'projects/' + body.name, kind: 'project',
                                      slug: body.name, name: body.name } };
@@ -388,42 +371,15 @@ async function stubbed() {
   d.querySelector('#notice-list .dismiss').click();
   check('with none left, the section hides', d.getElementById('notices').hidden);
 
-  // The cluster's health and the Colibri panel, both from /relay.json.
+  // The sync health, from /sync.json.
   const health = d.getElementById('health');
-  check('the health lines from /relay.json are drawn, relay down first',
+  check('the health lines from /sync.json are drawn, not synced first',
         !health.hidden && health.children.length === 2
-        && /relay looks down/.test(health.children[0].textContent)
-        && /not synced/.test(health.children[1].textContent));
-  const coli = d.getElementById('colibri');
-  check('libr-local-llm\'s Colibri panel shows its state, queue and tasks',
-        !coli.hidden && /loading/.test(d.getElementById('colibri-state').textContent)
-        && /1 task waiting/.test(d.getElementById('colibri-state').textContent)
-        && d.querySelectorAll('#colibri-tasks .row').length === 3
-        && /working/.test(d.querySelectorAll('#colibri-tasks .row')[0].textContent)
-        && /done/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent)
-        && /RELAY: python 3.12.3/.test(d.querySelectorAll('#colibri-tasks .row')[1].textContent)
-        && /queued/.test(d.querySelectorAll('#colibri-tasks .row')[2].textContent));
-  const coliLink = d.getElementById('colibri-subject');
-  check('its link reads the project\'s own name and opens its library',
-        coliLink.textContent === 'Local LLM'
-        && coliLink.getAttribute('href') === '/library?subject=projects%2Flibr-local-llm&from=home');
-  check('and home.html names no project of its own there',
-        !/libr-local-llm/.test(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8')));
-  const brief = d.getElementById('colibri-brief');
-  const fileBtn = d.getElementById('colibri-file');
-  check('filing waits for a brief', fileBtn.disabled);
-  brief.value = 'grade the diarization';
-  brief.dispatchEvent(new w.Event('input'));
-  check('and shows what the wait will be before the tap',
-        !fileBtn.disabled && /coming up/.test(d.getElementById('colibri-file-sub').textContent));
-  fileBtn.click();
-  await sleep(60);
-  const coliAsk = w.asked.filter((r) => r.url === '/colibri' && r.method === 'POST');
-  check('a task is filed with POST /colibri and its brief, and the reply\'s '
-        + 'cold-start estimate is shown',
-        coliAsk.length === 1 && coliAsk[0].body.brief === 'grade the diarization'
-        && /68 min/.test(d.getElementById('colibri-said').textContent)
-        && brief.value === '');
+        && /not synced/.test(health.children[0].textContent)
+        && /brew/.test(health.children[1].textContent));
+  check('and home.html has no Colibri panel',
+        !d.getElementById('colibri')
+        && !/colibri/i.test(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8')));
 
   // + new project: it asks "patient data?" before it can be made.
   d.getElementById('new-project').click();
@@ -603,7 +559,7 @@ async function stubbed() {
   const saidPhi = CHECKS['projects/Meetings'];
   CHECKS['projects/Meetings'] = { why: 'phi', phi: null, sessions: [],
     blocker: 'projects/Meetings: tutorboard.json at HEAD does not say "phi": false '
-      + '(no tutorboard.json at HEAD), so it is removed only through a cluster runbook' };
+      + '(no tutorboard.json at HEAD), so the board does not remove it' };
   await openDrop('projects/Meetings');
   check('one whose HEAD says nothing of patient data shows the board\'s sentence, '
         + 'naming what is missing, not the patient-data one',
@@ -708,15 +664,13 @@ async function stubbed() {
         + 'stayed in the session: a file of that name is already in its materials.');
   w.sendReply = null;
 
-  // NO MEETINGS SUBJECT, and a Colibri project the list does not name.
+  // NO MEETINGS SUBJECT.
   {
     const mw = load('', { over: { '/subjects.json': { ok: true, meetings: null,
                                                       subjects: SUBJECTS.slice(0, 4) } } });
     await sleep(80);
     check('with no Meetings subject the Meeting deck is not offered',
           mw.document.getElementById('act-meeting').hidden);
-    check('and a Colibri project the list does not have is named by its id',
-          mw.document.getElementById('colibri-subject').textContent === 'projects/libr-local-llm');
   }
 
   // THE BOOT CHECK, at the end of home.html.

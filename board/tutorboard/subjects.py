@@ -6,8 +6,7 @@ patient-data project) in one gitops commit; `delete` moves one to the trash.
 
 The constraint: no registry and no marker file, so `mkdir projects/X` is a
 project; a file that must be edited when a directory is made is the registry
-this system refuses. Runs on the cluster's python3 (3.7): no walrus, no
-`match`, no builtin generics at runtime.
+this system refuses.
 """
 
 import json
@@ -301,9 +300,7 @@ def delete_check(found, base=None):
 
     `phi` is `head_phi`'s answer when it is true or false, else None. `why` names the
     first thing in the way: "phi" (D23: tutorboard.json at HEAD must say
-    `"phi": false` literally), "open-session", "coding" or "request" (one
-    under it waits for a terminal report, or its requests cannot be read),
-    else "". `blocker` is one sentence naming every one of them, else "".
+    `"phi": false` literally), "open-session" or "coding", else "". `blocker` is one sentence naming every one of them, else "".
     `sessions` the open sessions bound to it.
     """
     from . import sessions                                   # local: a cycle
@@ -314,7 +311,7 @@ def delete_check(found, base=None):
     if phi is not False:
         kinds.append("phi")
         parts.append("tutorboard.json at HEAD does not say \"phi\": false (%s), "
-                     "so it is removed only through a cluster runbook"
+                     "so the board does not remove it"
                      % ("no tutorboard.json at HEAD" if phi == ""
                         else "no phi key" if phi is None
                         else "phi is %s" % json.dumps(phi)))
@@ -336,18 +333,6 @@ def delete_check(found, base=None):
                              "it; end that first (board code --end)",
                              "sessions %s hold coding sessions on it; end "
                              "those first (board code --end)"))
-    from . import jobs                                       # local: heavy
-    try:
-        waiting = jobs.outstanding(found["root"])
-    except Exception as exc:                                 # noqa: BLE001
-        kinds.append("request")
-        parts.append("its requests could not be read (%s)" % exc)
-    else:
-        if waiting:
-            kinds.append("request")
-            parts.append(_plural([w.get("request") or "?" for w in waiting],
-                                 "request %s has no terminal report yet",
-                                 "requests %s have no terminal report yet"))
     return {"phi": phi if isinstance(phi, bool) else None,
             "why": kinds[0] if kinds else "",
             "blocker": "%s: %s" % (ident, "; ".join(parts)) if parts else "",

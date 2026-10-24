@@ -3,10 +3,9 @@
 `scripts/brew-upgrade.py` (the `atlas.brew-upgrade` LaunchAgent, setup's job,
 not the board's) writes `brew.json` in the state directory, and
 `scripts/tools.sh` and brew-upgrade.py write `tools.json` beside it
-(`toolplan`). `lines` are the `brew:` and `tools:` sentences `/relay.json`
+(`toolplan`). `lines` are the `brew:` and `tools:` sentences `/sync.json`
 shows on home; `summary` and `tools_summary` are `board doctor`'s lines.
-Neither reaches a tutor's brief. Runs on the cluster's python3 (3.7) and under
-/usr/bin/python3: stdlib only.
+Neither reaches a tutor's brief. Runs under /usr/bin/python3: stdlib only.
 """
 
 import json

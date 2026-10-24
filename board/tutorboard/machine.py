@@ -1,35 +1,10 @@
-"""What this machine calls itself, and what it is for.
+"""What this machine calls itself.
 
 Every record that crosses live/ carries this name and every liveness check
 compares it, so if it moves, a machine stops recognising its own work.
 """
 
 import os
-
-
-def slurm_nodes():
-    """Nodes where this user holds an allocation, or None where there is no
-    `squeue`: unknown is not empty, and the two lead to opposite decisions."""
-    import re
-    import subprocess
-    try:
-        p = subprocess.run(["squeue", "-h", "-u", os.environ.get("USER", ""), "-o", "%N"],
-                           stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=10)
-        if p.returncode != 0:
-            return None
-        out = p.stdout.decode("utf-8", "replace")
-        nodes = set()
-        for tok in re.findall(r"compute\[?([0-9,\-]+)\]?", out):
-            for part in tok.split(","):
-                if "-" in part:
-                    a, b = part.split("-", 1)
-                    for n in range(int(a), int(b) + 1):
-                        nodes.add("compute%d" % n)
-                else:
-                    nodes.add("compute" + part)
-        return nodes
-    except (OSError, subprocess.TimeoutExpired, ValueError):
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -55,11 +30,3 @@ def node_name():
     if env and env.strip():
         return _normal_node(env)
     return system_node_name()
-
-
-def machine_shape():
-    """A compute node (Slurm answers) or a standalone machine, decided from
-    what is true rather than the hostname."""
-    if slurm_nodes() is not None:
-        return "compute node"
-    return "standalone"

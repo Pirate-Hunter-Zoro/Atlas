@@ -13,8 +13,8 @@ def tex_bin_dirs():
 
     TinyTeX puts its binaries under an architecture-named directory whose name
     nobody should have to know: `x86_64-linux`, `aarch64-linux`, and so on. Glob
-    for it rather than guessing. A cluster node has no administrator, so a TeX
-    under `$HOME` comes first and a system one is a bonus.
+    for it rather than guessing. A TeX under `$HOME` comes first and a system
+    one is a bonus.
     """
     candidates = []
     for root in (os.path.join(paths.HOME, ".TinyTeX"),

@@ -651,8 +651,7 @@ def session_sense(repo, doing=None):
 
     How it reads comes first, because it governs every card. The work order
     comes last, because it overrides TEACHING.md's card-first rule. `doing`
-    is the caller's override (`board brief` for a `[repair]`); pass True or
-    nothing.
+    is the caller's override; pass True or nothing.
     """
     st = repo.state()
     said = PLAIN_SENSE + MEASURE_SENSE + _session_sense(repo)

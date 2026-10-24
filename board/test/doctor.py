@@ -105,8 +105,7 @@ BLIND = {"cmd": ["sh", "-c", "echo 'I see no image'"], "sighted": True}
 CFG = {"provider": "good", "fallback": "mute", "agents": {
     "good": fake("good", vision=EYES), "mute": fake("mute"), "limited": fake("limited"),
     "hang": fake("hang"),
-    "gone": fake("good", cmd=["a-command-no-machine-has"]),
-    "colibri": fake("good", private="it reads phi")}}
+    "gone": fake("good", cmd=["a-command-no-machine-has"])}}
 
 
 def seen():
@@ -172,12 +171,10 @@ try:
           not limits.limited_until("limited"))
 
     before = len(seen())
-    code, out = run(["gone", "colibri"])
+    code, out = run(["gone"])
     check("a recipe whose binary is missing is named, with the reason",
           "FAIL gone" in out and "not on the path" in out, out)
-    check("and an in-fence model is refused, in words",
-          "FAIL colibri" in out and "in-fence" in out, out)
-    check("and no process is started for either", len(seen()) == before)
+    check("and no process is started for it", len(seen()) == before)
 
     real_timeout = doctor.DOCTOR_TURN_SECONDS
     ok, line = doctor.smoke(CFG, "hang", timeout=2)

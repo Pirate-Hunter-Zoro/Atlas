@@ -212,11 +212,10 @@ def is_pending(meta):
     return ((meta or {}).get("kind") or "").lower() == PENDING
 
 
-def stopped_body(changed, jobs=None, thread="", elsewhere=0):
+def stopped_body(changed, thread="", elsewhere=0):
     """The card that replaces a placeholder whose turn never reported.
     `changed` is `git status` under the work's paths; `elsewhere` counts other
-    uncommitted paths in the workspace; `jobs` is one line per job registered
-    during the turn."""
+    uncommitted paths in the workspace."""
     lines = ["The turn stopped without reporting. Here is what changed on disk.", ""]
     under = (" on `%s`" % thread) if thread else ""
     if changed:
@@ -231,13 +230,10 @@ def stopped_body(changed, jobs=None, thread="", elsewhere=0):
     if elsewhere:
         lines += ["", "And %d more path%s uncommitted elsewhere in this workspace."
                   % (elsewhere, "" if elsewhere == 1 else "s")]
-    if jobs:
-        lines += ["", "Jobs registered since:", ""]
-        lines += ["- %s" % job for job in jobs]
     return "\n".join(lines)
 
 
-def write_stopped(path, changed, jobs=None, thread="", elsewhere=0):
+def write_stopped(path, changed, thread="", elsewhere=0):
     """Replace the placeholder at `path` with a `stopped` card (naming
     `thread` as `stopped_thread`), via `os.replace` so a poll never sees an
     empty file. True if written."""
@@ -247,7 +243,7 @@ def write_stopped(path, changed, jobs=None, thread="", elsewhere=0):
                        ".%s.%d.part" % (os.path.basename(path), os.getpid()))
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
-            fh.write(head + stopped_body(changed, jobs, thread,
+            fh.write(head + stopped_body(changed, thread,
                                          elsewhere).rstrip() + "\n")
             fh.flush()
             os.fsync(fh.fileno())

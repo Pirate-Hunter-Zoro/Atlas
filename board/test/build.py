@@ -234,19 +234,6 @@ try:
               rec["ok"] and len(media(os.path.splitext(sec)[0] + ".docx")) == 1,
               rec["detail"])
 
-        png(os.path.join(proj, "exports", "results", "c.png"), 120)
-        exp = os.path.join(proj, "paper", "exported.md")
-        write(exp, "![](../results/c.png){width=3in}\n")
-        rec = build.build(exp, formats=["docx"])
-        out = os.path.splitext(exp)[0] + ".docx"
-        with zipfile.ZipFile(out) as z:
-            body = z.read("word/document.xml").decode("utf-8")
-        check("a figure under results/ is found at its exports/ copy",
-              rec["ok"] and len(media(out)) == 1, rec["detail"])
-        check("and the .docx names it relative to the document, never by an "
-              "absolute path", tmp not in body
-              and "../exports/results/c.png" in body)
-
         lost = os.path.join(proj, "paper", "lost.md")
         write(lost, "![](../figs/missing.png){width=3in}\n")
         rec = build.build(lost, formats=["docx"])

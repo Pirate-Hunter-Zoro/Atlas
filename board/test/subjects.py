@@ -3,11 +3,12 @@
 
 A fixture tree, never the real one: `all`, `find` (a qualified id under a
 merged-away parent finds nothing), `kind_of`, `identify`, `roots`, `root`,
-`read_config` and lookups by slug (`colibri.WORKSPACE`, a project by its
-bare name). atlas.py is gone. On the real tree, a subject holding a toolchain
-marker (mise.toml, Cargo.toml, pubspec.yaml, build.zig.zon, at its root or
-one directory down) names its check and keeps the marker's lockfile beside it;
-build.zig.zon is its own lockfile.
+`read_config` and lookups by slug (a project by its bare name). atlas.py is
+gone. On the real tree, a subject holding a toolchain marker (mise.toml,
+Cargo.toml, pubspec.yaml, build.zig.zon, at its root or one directory down;
+pyproject.toml, lean-toolchain or go.mod at its root) names its check, and
+keeps the marker's lockfile beside it; build.zig.zon is its own lockfile, and
+a pyproject.toml has a uv.lock.
 """
 
 import json
@@ -21,7 +22,7 @@ sys.path.insert(0, ROOT)
 
 os.environ.pop("TUTORBOARD_COURSES", None)
 
-from tutorboard import colibri, subjects  # noqa: E402
+from tutorboard import subjects  # noqa: E402
 from tutorboard.course import config                         # noqa: E402
 
 fails = []
@@ -51,11 +52,6 @@ check("there is no atlas.json, and the subjects' parents come from code",
       and [d for d, _ in subjects.DIRS] == ["courses", "projects"])
 check("and atlas.py is gone",
       not os.path.exists(os.path.join(ROOT, "tutorboard", "atlas.py")))
-from tutorboard import relay                                  # noqa: E402
-_spaces = [ws for _, ws in relay.spaces(subjects.root())]
-check("relay.spaces holds every subject, both courses included",
-      "courses/Galois-Theory" in _spaces and "courses/Probability" in _spaces
-      and len(_spaces) == len(subjects.walk(subjects.root())))
 
 tmp = os.path.realpath(tempfile.mkdtemp(prefix="subjects-"))
 try:
@@ -148,12 +144,6 @@ try:
           subjects.identify(os.path.join(tmp, "courses", "Gone")) == "courses/Gone")
 
     # --- lookups by slug ----------------------------------------------------
-    for key in ("COLI_QUEUE_ROOT", "LLM_REPO", "COLI_LOG_DIR"):
-        os.environ.pop(key, None)
-    llm = os.path.join(tmp, "projects", "libr-local-llm")
-    check("colibri.WORKSPACE resolves by slug",
-          colibri.queue_root() == llm
-          and colibri.log_dir() == os.path.join(llm, "slurm_jobs", "logs"))
     check("a project resolves by its bare slug",
           (subjects.find("Paper-Writer") or {}).get("root")
           == os.path.join(tmp, "projects", "Paper-Writer"))
@@ -161,20 +151,20 @@ try:
     # --- read_config --------------------------------------------------------
     one = mk(tmp, "projects/Conf", {
         "name": "Conf", "phi": False, "check": "make test",
-        "relay": {"colibri": True}, "stance": "do", "aim": "build",
+        "stance": "do", "aim": "build",
         "subtitle": "x", "mode": "code"})
     cfg = config.read_config(one)
-    check("read_config returns name, phi, check and relay",
+    check("read_config returns name, phi and check",
           cfg["name"] == "Conf" and cfg["phi"] is False
           and cfg["check"] == {"all": ["bash", "-c", "make test"],
                                "line": "make test"}
-          and cfg["relay"] == {"colibri": True})
+          and "relay" not in cfg)
     check("and ignores stance, aim, subtitle and mode",
           not any(k in cfg for k in ("stance", "aim", "subtitle", "mode",
                                      "said_stance")))
     bare = config.read_config(mk(tmp, "projects/Bare-One"))
-    check("absent phi is None, absent relay is {}, name from the directory",
-          bare["phi"] is None and bare["relay"] == {}
+    check("absent phi is None, name from the directory",
+          bare["phi"] is None
           and bare["name"] == "Bare One" and bare["check"] is None)
     check("phi stays literal: a string is not an answer",
           config.read_config(mk(tmp, "projects/Str", {"phi": "false"}))["phi"]
@@ -252,14 +242,16 @@ check("on this tree, all() is exactly the directories under the subject parents"
       set(s["id"] for s in subjects.all()) == listed)
 
 # The catch-all is a course on this tree, named for what it is, and its name
-# collides with neither a fence nor the board's uploads drawer (Scratch).
+# collides with neither a fence nor the board's uploads drawer (Scratch). A
+# tree with no subjects at all (test/independence.py) has no catch-all to check.
 from tutorboard import fenced                                   # noqa: E402
-_scratch = subjects.find(subjects.SCRATCH)
-check("this tree's catch-all is courses/Random, \"Random lessons\", a course with "
-      "phi false",
-      subjects.scratch() == subjects.SCRATCH and _scratch
-      and _scratch["name"] == "Random lessons" and _scratch["kind"] == "course"
-      and subjects.phi(_scratch["root"]) is False)
+if listed:
+    _scratch = subjects.find(subjects.SCRATCH)
+    check("this tree's catch-all is courses/Random, \"Random lessons\", a course with "
+          "phi false",
+          subjects.scratch() == subjects.SCRATCH and _scratch
+          and _scratch["name"] == "Random lessons" and _scratch["kind"] == "course"
+          and subjects.phi(_scratch["root"]) is False)
 check("and its name is no fenced directory and not Scratch",
       not fenced.in_fence(subjects.SCRATCH)
       and subjects.SCRATCH.split("/")[1].lower() != "scratch")
@@ -289,9 +281,16 @@ try:
           == [("build.zig.zon", "build.zig.zon")])
 finally:
     shutil.rmtree(box, ignore_errors=True)
+# The root-only markers: a pyproject.toml, a lean-toolchain or a go.mod.
+ROOT_MARKERS = ("pyproject.toml", "lean-toolchain", "go.mod")
 for subject in subjects.all():
     found = toolplan.markers(subject["root"])
-    if not found:
+    at_root = [m for m in ROOT_MARKERS
+               if os.path.isfile(os.path.join(subject["root"], m))]
+    if "pyproject.toml" in at_root:
+        check("%s: its pyproject.toml has a uv.lock beside it" % subject["id"],
+              os.path.isfile(os.path.join(subject["root"], "uv.lock")))
+    if not found and not at_root:
         continue
     try:
         with open(os.path.join(subject["root"], "tutorboard.json"), encoding="utf-8") as fh:
@@ -299,7 +298,7 @@ for subject in subjects.all():
     except (OSError, ValueError):
         named = None
     check("%s: it holds %s, and its tutorboard.json names its check"
-          % (subject["id"], found[0][0]), bool(named))
+          % (subject["id"], (found[0][0] if found else at_root[0])), bool(named))
     for marker, lock, where in found:
         check("%s: %s has %s beside it" % (
             subject["id"], os.path.relpath(os.path.join(where, marker), subject["root"]),

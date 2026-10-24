@@ -1,7 +1,7 @@
 """code.py -- a coding session: `board code`.
 
-The owner writes code in a terminal (on the cluster beside the data, on a
-laptop, or on the Mac itself) and the tutor coaches from the Mac. One git ref
+The owner writes code in a terminal (on a laptop, or on the Mac itself) and
+the tutor coaches from the Mac. One git ref
 carries it, `code/<session>`:
 
     board code <session> <path>...    hold these paths and watch them
@@ -11,8 +11,8 @@ carries it, `code/<session>`:
     board code <session> --abandon    drop the ref and the registration
     board code --list                 the sessions held on this machine
 
-A new hold on a checkout that is not the board's own (a laptop, the cluster)
-fast-forwards it first (`pull_first`), so the steps start from current main; a
+A new hold on a checkout that is not the board's own (a laptop) fast-forwards
+it first (`pull_first`), so the steps start from current main; a
 refused pull is said and the hold goes on.
 
 A registration, `~/.local/state/tutor-board/code/<session>.json`, is the
@@ -26,8 +26,8 @@ and the step is pushed fast-forward to `refs/heads/code/<session>`. A
 commit the loop did not make (a vibe push) is applied when the held paths
 are unchanged since the last snapshot, else "both sides changed" waits.
 `--end` takes `board-code.lock` in the git common directory (`lock_path`),
-which a relay pass takes too, and commits the held paths to main as one
-commit, then pushes. The Mac's side of the ref (`vibe`, `step_of`, `edited`) and
+so two never overlap, and commits the held paths to main as one commit, then
+pushes. The Mac's side of the ref (`vibe`, `step_of`, `edited`) and
 the check and its output rules live here too.
 
 Mac-local mode, where `<top>/sessions/<session>/session.json` exists (the
@@ -45,9 +45,8 @@ the pre-commit hook's `END_ENV`), pushes, deletes the local ref and clears
 session.json `code`. A linked worktree of that checkout, or a branch other
 than main, is refused.
 
-The constraint: relay-path code on the cluster's python3 (maybe 3.7): no
-walrus, no `match`, standard library only. A check's output leaves only
-where `output_open` holds.
+The constraint: standard library only. A check's output leaves only where
+`output_open` holds.
 """
 
 import fcntl
@@ -65,21 +64,19 @@ POLL = 2.0
 QUIET = 10.0
 # How often the loop asks origin for a commit it did not make.
 FETCH_EVERY = 10.0
-# How long `--end` waits for a relay pass to let go of `LOCK`, which lives in
+# How long `--end` waits for another `--end` to let go of `LOCK`, which lives in
 # `git rev-parse --git-common-dir`: one per repository, its worktrees too.
 LOCK_WAIT = 300
 LOCK = "board-code.lock"
 
 SESSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")
-# Under a subject: the cluster channel, which the relay writes.
-CHANNEL = ("relay", "exports")
 # Never walked by the mtime poll.
 SKIP_DIRS = (".git", "node_modules", "__pycache__", ".lake")
 
 # The Mac's session store under the Atlas root: Mac-local mode.
 SESSIONS = "sessions"
 
-# Longer work goes through `board job`.
+# A check's cap.
 CHECK_SECONDS = 30 * 60
 
 MAX_LINES = 40
@@ -387,7 +384,7 @@ def subject_of(rel):
 def resolve(top, words, cwd=None, others=None):
     """`(paths, subject, problems)` for `board code`'s path words, relative to
     `cwd` else `top`, inside one subject. Refused: no words, fenced, the
-    subject itself, its `relay/` or `exports/`, ignored or audit-refused, two
+    subject itself, ignored or audit-refused, two
     subjects, or held by another session here (`others`). All problems at
     once."""
     from . import audit
@@ -429,10 +426,6 @@ def resolve(top, words, cwd=None, others=None):
         if rel == subject:
             problems.append("%s is the whole subject; name the directories or "
                             "files you will write inside it" % rel)
-            continue
-        if any(_under(rel, subject + "/" + c) for c in CHANNEL):
-            problems.append("%s is the relay's channel, which the cluster "
-                            "writes itself" % rel)
             continue
         if _git(top, "check-ignore", "-q", "--", rel)[0] == 0:
             problems.append("git ignores %s, so a step could never carry it"
@@ -664,7 +657,7 @@ def vibe(top, sid, held_paths, since, message):
              and _blob(top, here, f) != _blob(top, tip, f)]
     if clash:
         return "", ("both sides changed: %s, here and on code/%s since %s. "
-                    "Nothing was pushed. Bring the cluster's version in first "
+                    "Nothing was pushed. Bring the ref's version in first "
                     "(`git restore --source=%s --worktree -- <file>`), redo the "
                     "edit, and push again." % (", ".join(clash), sid,
                                                since[:12], tip[:12]))
@@ -1349,7 +1342,7 @@ def watch(top, rec, say=print, sleep=time.sleep, clock=time.time,
 # ---------------------------------------------------------------------------
 def lock_path(top):
     """`board-code.lock` in `top`'s git common directory, or None where git
-    cannot say. `--end` and a relay pass both take it."""
+    cannot say. Every `--end` takes it."""
     code, out = _git(top, "rev-parse", "--git-common-dir")
     if code != 0 or not out.strip():
         return None
@@ -1416,7 +1409,7 @@ def end(top, sid, title=None, say=print, wait=LOCK_WAIT):
         return 1
     fh = _lock(top, wait)
     if fh is None:
-        say("board code: a relay pass or another --end held %s for %d s; "
+        say("board code: another --end held %s for %d s; "
             "nothing was ended. Try again." % (LOCK, wait))
         return 1
     try:
@@ -1524,28 +1517,12 @@ def abandon(top, sid, say=print):
 # ---------------------------------------------------------------------------
 # a request pinned to the session's ref
 # ---------------------------------------------------------------------------
-def pin_ok(root, sid, commit):
-    """May a request filed from session `sid` run at `commit` here, though HEAD
-    lacks it? Yes when a coding session `sid` is registered for this checkout,
-    `commit` is an ancestor of `origin/code/<sid>`, and the held paths at
-    `commit` are the working tree's."""
-    top = top_of(root)
-    rec = read(sid, top) if top else None
-    if not rec or not isinstance(commit, str):
-        return False
-    tip, err = remote_tip(top, sid)
-    if err or not tip or not _ancestor(top, commit, tip):
-        return False
-    here, err = tree(top, commit, rec["paths"])
-    return not err and here == _tree_of(top, commit)
-
-
 # ---------------------------------------------------------------------------
 # the command
 # ---------------------------------------------------------------------------
 def pull_first(top, sid, say=print, pull=None):
-    """Before a new hold on a checkout that is not the board's own (a laptop,
-    the cluster), fast-forward it (`gitops.pull`), so the steps start from
+    """Before a new hold on a checkout that is not the board's own (a laptop),
+    fast-forward it (`gitops.pull`), so the steps start from
     current main. A refused or failed pull is said and the hold goes on, on
     what is here. The board's own checkout is not pulled here; its server
     pulls it. True when it pulled, False when refused, None when skipped."""

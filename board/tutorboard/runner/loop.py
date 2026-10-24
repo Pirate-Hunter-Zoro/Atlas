@@ -11,7 +11,7 @@ import os
 import threading
 import time
 
-from tutorboard import brief, jobs, limits, seeing, subjects
+from tutorboard import brief, limits, seeing, subjects
 from tutorboard.agents import recipes, usage
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress
@@ -28,30 +28,10 @@ def unfinished_line(out, card):
             % (time.strftime("%Y-%m-%d %H:%M:%S"), card, (out or "").strip()))
 
 
-def jobs_since(root, since):
-    """One line per job registered at or after `since`, oldest first."""
-    out = []
-    recs = sorted(jobs.records(root).values(),
-                  key=lambda r: float(r.get("submitted") or 0))
-    for r in recs:
-        try:
-            when = float(r.get("submitted") or 0)
-        except (TypeError, ValueError):
-            continue
-        if when < since:
-            continue
-        out.append("`%s` on `%s`, %s: %s" % (
-            r.get("jobid"), r.get("thread") or "no thread",
-            str(r.get("state") or "PENDING").lower(),
-            str(r.get("cmd") or "")[:160]))
-    return out
-
-
 def report_owed(where, this_signal, out, log=None):
     """What a turn owes once it exits with its newest card `pending`, or None:
     first an `[unfinished]` line waking it once more; after that, a `stopped`
-    card listing what is uncommitted, so no placeholder outlives its turn.
-    Either names the jobs registered since the placeholder."""
+    card listing what is uncommitted, so no placeholder outlives its turn."""
     repo = turn.as_repo(where)
     root = repo.root
     path, meta = lesson_cards.newest(repo.cards)
@@ -64,11 +44,7 @@ def report_owed(where, this_signal, out, log=None):
                       "more to report\n" % rel)
         return unfinished_line(out, rel)
     changed = lesson_git.uncommitted(root, session=repo.session) or []
-    try:
-        since = os.path.getmtime(path)
-    except OSError:
-        since = 0.0
-    wrote = lesson_cards.write_stopped(path, changed, jobs_since(root, since))
+    wrote = lesson_cards.write_stopped(path, changed)
     if log:
         log.write("-- %s is still pending after [unfinished]; %s\n"
                   % (rel, "replaced it with what is on disk" if wrote
@@ -127,20 +103,18 @@ def owe(ctx, msg):
 def take_turn(ctx, message):
     """Run one turn on `message`. `{"owed": message or None, "error": ...}`.
     `owed` is what the next turn must answer: this message after a failure
-    the runner repairs, or the `[unfinished]` line."""
+    the runner retries, or the `[unfinished]` line."""
     out = message
     root, live, log, logpath = ctx.root, ctx.live, ctx.log, ctx.logpath
     pending = None
     owe(ctx, out)
     ctx.turns += 1
-    this_signal, turn_repairs = turn.woken_for(
-        root, out, ctx.repo.messages_path if getattr(ctx, "repo", None) else None)
+    this_signal = turn.turn_signal(out)
     # `turn_started` is the runner's clock, which the board needs on reload.
     # The last failure stays recorded; `lesson.state._failure` ignores one
     # older than the turn in flight.
     daemon.agent_state(live, state="working", turns=ctx.turns,
-                       turn_started=time.time(), turn_signal=this_signal,
-                       turn_repairs=turn_repairs)
+                       turn_started=time.time(), turn_signal=this_signal)
     log.write("\n=== %s turn %d ===\n%s\n" % (time.strftime("%H:%M:%S"), ctx.turns, out))
 
     # Heartbeat: a turn routinely outlasts the board's two-minute window.
@@ -176,8 +150,7 @@ def take_turn(ctx, message):
     wants_brief, wants_recap = turn.context_plan(this_signal)
     context = ""
     if wants_recap and not ctx.spec.get("raw_prompt"):
-        context = brief.turn_context(ctx.repo, this_signal, turn_repairs,
-                                     brief=wants_brief)
+        context = brief.turn_context(ctx.repo, this_signal, brief=wants_brief)
         log.write("-- handed %s, %d characters, %s\n" % (
             "the brief and the recap" if wants_brief else "the recap",
             len(context), "as system prompt" if ctx.spec.get("system_args")
@@ -193,8 +166,7 @@ def take_turn(ctx, message):
     if moved:
         turn_env["TUTORBOARD_FALLBACK"] = ctx.agent_name
     timed_out = False
-    cap = turn.turn_timeout(ctx.cfg, ctx.repo, ctx.spec,
-                            jobs.REPAIR if turn_repairs else this_signal)
+    cap = turn.turn_timeout(ctx.cfg, ctx.repo, ctx.spec, this_signal)
     try:
         if not use:
             raise OSError("'%s' has no headless recipe" % ctx.agent_name)

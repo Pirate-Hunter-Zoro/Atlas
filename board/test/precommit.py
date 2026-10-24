@@ -82,7 +82,7 @@ try:
                     ignore=shutil.ignore_patterns("__pycache__"))
     put("projects/S/tutorboard.json", json.dumps({"name": "S", "phi": True}))
     put("projects/O/tutorboard.json",
-        json.dumps({"name": "O", "phi": False, "relay": {"exports": ["a"]}}))
+        json.dumps({"name": "O", "phi": False}))
     put("projects/O/RULES.md", "the owner's rules\n")
     git("init", "-q")
     git("config", "core.hooksPath", os.path.join(box, ".githooks"))
@@ -130,16 +130,11 @@ try:
     done, err = commit(["projects/O/RULES.md"], turn=True)
     check("a turn's RULES.md change is refused", not done and "RULES.md" in err, err)
     put("projects/O/tutorboard.json",
-        json.dumps({"name": "O", "phi": True, "relay": {"exports": ["a"]}}))
+        json.dumps({"name": "O", "phi": True}))
     done, err = commit(["projects/O/tutorboard.json"], turn=True)
     check("a turn's `phi` change is refused", not done and "`phi`" in err, err)
     put("projects/O/tutorboard.json",
-        json.dumps({"name": "O", "phi": False, "relay": {"exports": ["b"]}}))
-    done, err = commit(["projects/O/tutorboard.json"], turn=True)
-    check("a turn's `relay.exports` change is refused",
-          not done and "relay.exports" in err, err)
-    put("projects/O/tutorboard.json",
-        json.dumps({"name": "O renamed", "phi": False, "relay": {"exports": ["a"]}}))
+        json.dumps({"name": "O renamed", "phi": False}))
     done, err = commit(["projects/O/tutorboard.json"], turn=True)
     check("a turn may change the rest of tutorboard.json", done, err)
     put("projects/N/tutorboard.json", json.dumps({"name": "N", "phi": False}))

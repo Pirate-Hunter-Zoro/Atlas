@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The Mac hears laptops without the cluster, and nothing diverges.
+"""The Mac hears laptops, and nothing diverges.
 
 What the checks are about:
 
@@ -21,14 +21,13 @@ What the checks are about:
     intact, on the merge and the fast-forward alike. Passes refused the same
     way reuse one merge commit. `gitops.push` merges with a dirty tree under
     the same rules.
-  * THE MOVE. `sync` holds what `cluster` re-exports, `cluster.Ear` is
-    `sync.Sync`, and `Sync.hear` asks jobs only while jobs.py exists.
+  * ONE VARIABLE. app.py starts the thread on TUTORBOARD_SYNC alone, and a
+    pass hears only the code refs.
 
 Synthetic repositories only: a bare origin per case, a "mac" clone (a board
 checkout: `sessions/` is there) and a "laptop" clone. Stdlib only.
 """
 
-import importlib.util
 import json
 import os
 import shutil
@@ -43,7 +42,6 @@ sys.path.insert(0, ROOT)
 
 box = tempfile.mkdtemp(prefix="tutor-sync-box-")
 saved = dict(os.environ)
-os.environ["TUTOR_SLURM"] = "0"
 os.environ["BOARD_STATE_DIR"] = os.path.join(box, "state")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(box, "config")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
@@ -55,11 +53,11 @@ with open(_gitconfig, "w") as _fh:
 os.environ["GIT_CONFIG_GLOBAL"] = _gitconfig
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 for name in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_PORT",
-             "TUTORBOARD_SYNC", "TUTORBOARD_CLUSTER", "TUTORBOARD_FRESH",
+             "TUTORBOARD_SYNC", "TUTORBOARD_FRESH",
              "BOARD_CODE_END"):
     os.environ.pop(name, None)
 
-from tutorboard import cluster, code, gitops, relay, sessions, sync  # noqa: E402
+from tutorboard import code, gitops, sessions, sync  # noqa: E402
 
 fails = []
 
@@ -222,19 +220,18 @@ def laptop_end(w, laptop, sid, rel, text):
 
 try:
     # ======================================================================
-    # the move: sync holds it, cluster re-exports it
+    # one variable
     # ======================================================================
-    check("cluster re-exports sync until the exit deletes it, Ear an alias",
-          cluster.Ear is sync.Sync and cluster.Sync is sync.Sync
-          and cluster.wake is sync.wake and cluster.notices is sync.notices
-          and cluster.notices_path is sync.notices_path
-          and cluster.atlas_of is sync.atlas_of
-          and cluster.PULL_STATE == sync.PULL_STATE == "pull.json")
+    check("the cluster modules are gone",
+          not any(os.path.exists(os.path.join(ROOT, "tutorboard", n + ".py"))
+                  for n in ("cluster", "relay", "jobs", "colibri", "libr_ai",
+                            "exports")))
     app_src = read(os.path.join(ROOT, "tutorboard", "server", "app.py"))
     plist = read(os.path.join(ROOT, "scripts", "launchd", "tutor-board.plist"))
-    check("app.py starts the thread on TUTORBOARD_SYNC, or the old name until "
-          "the plist is re-rendered; the plist says TUTORBOARD_SYNC",
-          "TUTORBOARD_SYNC" in app_src and "TUTORBOARD_CLUSTER" in app_src
+    check("app.py starts the thread on TUTORBOARD_SYNC alone, and the plist "
+          "says TUTORBOARD_SYNC",
+          'os.environ.get("TUTORBOARD_SYNC") == "1"' in app_src
+          and "TUTORBOARD_CLUSTER" not in app_src
           and "sync.Sync(atlas).start()" in app_src
           and "<key>TUTORBOARD_SYNC</key>" in plist
           and "TUTORBOARD_CLUSTER" not in plist)
@@ -334,7 +331,7 @@ try:
           == "staged\n" and not merging(mac)
           and read(os.path.join(mac, "projects", "P", "notes.md"))
           == "notes, being edited\n")
-    told = relay.health(mac, state_dir=w.state, fresh=True)
+    told = sync.health(mac, state_dir=w.state, fresh=True)
     check("and the sync health says so",
           told["synced"] is False
           and "not synced: skipped: staged changes" in told["lines"], told)
@@ -343,7 +340,7 @@ try:
     check("committed, the next pass merges and pushes",
           got["pulled"] is True and head(mac) == w.main()
           and os.path.isfile(os.path.join(mac, "projects", "P", "laptop.md"))
-          and relay.health(mac, state_dir=w.state, fresh=True)["synced"])
+          and sync.health(mac, state_dir=w.state, fresh=True)["synced"])
 
     # ======================================================================
     # a dirty file the merge would overwrite: git refuses, nothing moves
@@ -582,46 +579,10 @@ try:
                            "restore", "read-tree", "--force", "-f")))
 
     # ======================================================================
-    # Sync.hear asks jobs only while jobs.py exists
+    # a pass hears only the code refs
     # ======================================================================
-    import types
-    import tutorboard
-    real = importlib.util.find_spec
-    asked = []
-    fake = types.ModuleType("tutorboard.jobs")
-    fake.__spec__ = importlib.util.spec_from_loader("tutorboard.jobs", None)
-    fake.hear = lambda root: asked.append(root) or [{"heard": root}]
-    had = (sys.modules.get("tutorboard.jobs"),
-           getattr(tutorboard, "jobs", None))
-
-    def no_jobs(name, *a, **kw):
-        if name == "tutorboard.jobs":
-            return None
-        return real(name, *a, **kw)
-
-    sys.modules["tutorboard.jobs"] = fake
-    tutorboard.jobs = fake
-    try:
-        with_jobs = s.hear()
-        asked_with = list(asked)
-        del asked[:]
-        importlib.util.find_spec = no_jobs
-        try:
-            without = s.hear()
-        finally:
-            importlib.util.find_spec = real
-    finally:
-        sys.modules.pop("tutorboard.jobs", None)
-        tutorboard.__dict__.pop("jobs", None)
-        if had[0] is not None:
-            sys.modules["tutorboard.jobs"] = had[0]
-        if had[1] is not None:
-            tutorboard.jobs = had[1]
-    check("with jobs.py, Sync.hear asks jobs.hear for every subject",
-          len(asked_with) == 1 and with_jobs == [{"heard": asked_with[0]}],
-          (asked_with, with_jobs))
-    check("without jobs.py, Sync.hear never asks it and hears nothing",
-          without == [] and asked == [], (asked, without))
+    check("Sync has no hear: a pass asks nothing of any subject's reports",
+          not hasattr(sync.Sync, "hear"))
 finally:
     os.environ.clear()
     os.environ.update(saved)
@@ -631,5 +592,5 @@ print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("the Mac hears laptops without the cluster: one main after one pass, "
+print("the Mac hears laptops: one main after one pass, "
       "and nothing staged or uncommitted is lost")

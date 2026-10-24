@@ -149,23 +149,15 @@ try:
     check("no part file is left behind",
           not [n for n in os.listdir(room) if n.startswith(".")])
 
-    # -- a stopped card names the jobs registered since the work began -------
-    print("\n-- a stopped card lists the jobs the work registered --")
+    # -- a second placeholder is replaced the same way ----------------------
+    print("\n-- a second stopped card --")
     code, path3 = board_write(ws, "Fitting again.\n", "pending", "again")
-    began = os.path.getmtime(path3)
-    with open(os.path.join(ws, "live", "jobs.jsonl"), "w") as fh:
-        fh.write(json.dumps({"thread": "fit", "jobid": "11", "cmd": "sbatch old.sbatch",
-                             "submitted": began - 3600}) + "\n")
-        fh.write(json.dumps({"thread": "fit", "jobid": "12", "cmd": "sbatch sweep.sbatch",
-                             "submitted": began + 1}) + "\n")
     runloop.report_owed(ws, "unfinished", line)
     tmeta, tbody = cards.parse_front_matter(open(path3, encoding="utf-8").read())
     check("the placeholder is replaced by a stopped card naming no thread",
           tmeta.get("kind") == cards.STOPPED and not tmeta.get("thread"))
     check("which lists what is uncommitted in the workspace",
           "`fit.py`" in tbody and "`kept.py`" in tbody)
-    check("and names the job registered since the work began, not an older one",
-          "`12`" in tbody and "sweep.sbatch" in tbody and "`11`" not in tbody)
 finally:
     shutil.rmtree(base, ignore_errors=True)
 

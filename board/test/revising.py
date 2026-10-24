@@ -222,7 +222,7 @@ check("the board takes the revision itself", asked.get("revise") == "board"
 
 from tutorboard.lesson import inbox                            # noqa: E402
 out, _taken = inbox.take(repo)
-signal, _ = runturn.woken_for(work, out)
+signal = runturn.turn_signal(out)
 check("the inbox hands the turn a [revise] line", out and signal == "revise")
 
 seen = os.path.join(tmp, "prompt.txt")

@@ -231,27 +231,13 @@ def chain(cfg):
     return [n for n in [provider(cfg)] if n] + fallbacks(cfg)
 
 
-def in_fence(cfg, name):
-    """The refusal for an in-fence recipe (`private`), else None: only it
-    reads phi and it runs only as a cluster relay task, never as a hosted
-    turn, fallback or vision route here."""
-    spec = ((cfg or {}).get("agents") or {}).get(name)
-    if isinstance(spec, dict) and spec.get("private"):
-        return ("'%s' is an in-fence model: only it reads phi, and it never "
-                "takes a turn here" % name)
-    return None
-
-
 def unavailable(cfg, name, now=None):
     """Why `name` cannot take a turn on this machine now, or None, from disk
-    alone: no recipe, in-fence, no headless recipe, missing binary or key, or
+    alone: no recipe, no headless recipe, missing binary or key, or
     a spent allowance (`limits.mark_limited`)."""
     spec = ((cfg or {}).get("agents") or {}).get(name)
     if not isinstance(spec, dict):
         return "there is no recipe called '%s'" % name
-    fenced = in_fence(cfg, name)
-    if fenced:
-        return fenced
     if not (spec.get("headless_first") or spec.get("headless")):
         return "'%s' has no headless recipe" % name
     gone = missing_command(spec.get("cmd"))
@@ -317,7 +303,6 @@ def listing(cfg=None):
              "unkeyed": keys.unkeyed(spec),
              "keys": keys.store(),
              "exclusive": spec.get("exclusive") or None,
-             "private": spec.get("private") or None,
              "vision": spec.get("vision") or None,
              "unavailable": unavailable(cfg, n),
              "headless": bool(spec.get("headless_first") or spec.get("headless"))}

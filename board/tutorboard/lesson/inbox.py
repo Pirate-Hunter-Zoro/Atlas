@@ -11,7 +11,7 @@ takes it with the rest, so the tutor still reads it.
     render(msgs, repo)    lines as a turn reads them
 
 Marking read rewrites each taken line IN PLACE, padded to its old length, so a
-line another writer appends meanwhile (the server, `board job`, a route) is
+line another writer appends meanwhile (the server, `sync.wake`, a route) is
 never lost: appends only ever land past what was read.
 """
 
