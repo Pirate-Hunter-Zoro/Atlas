@@ -2195,10 +2195,13 @@ def cmd_textbook(live, args):
     A run resumes where it stopped.
 
     `find` resolves "Exercise 3.4", "3.4", "Ch 4 #34", "Section 2.1", "§2.1",
-    "p. 295" or "Ch 7" to PDF and printed pages, the reading excerpt and its
-    page, and the text. `--sheet <pdf>` resolves every reference on an
-    assignment sheet. What the index does not hold is "not indexed", never
-    guessed.
+    "p. 295", "pp. 12-15" or "Ch 7" to PDF and printed pages, the reading
+    excerpt and its page, and the text; the reference needs no quotes. A
+    first word that names no course is part of the reference, in the
+    session's course. `--sheet <pdf>` resolves every reference on an
+    assignment sheet, and a line on it that names a problem but cannot be
+    read is "not indexed" too. What the index does not hold is "not
+    indexed", never guessed.
 
     `split` cuts the one PDF in textbook/ into chapters/chNN-slug/reading/
     chNN.pdf by chapters.tsv; `scaffold` writes the chapter and homework .tex
@@ -2239,14 +2242,19 @@ def cmd_textbook(live, args):
         if sub == "find":
             as_json = flag("--json")
             sheet = value("--sheet")
+            # The first word is the course only where it names one: an
+            # unquoted `find p. 295` is a reference in the session's course.
             where = None
             if rest and (len(rest) >= 2 or sheet):
                 where = _course_root(rest[0])
                 if where:
                     rest = rest[1:]
-                elif len(rest) >= 2:
-                    return nowhere(rest[0])
             where = where or _here_course()
+            if not where and len(rest) >= 2:
+                print("board textbook find: no course called %r, and no "
+                      "session bound to one: name the course first" % rest[0],
+                      file=sys.stderr)
+                return 1
             if not where:
                 print("board textbook find: name the course, or run it in a "
                       "session bound to one", file=sys.stderr)

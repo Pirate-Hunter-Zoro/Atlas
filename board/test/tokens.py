@@ -272,6 +272,26 @@ try:
           % (brief_mod.BUDGET, len(out)),
           brief_mod.BUDGET == 14000 and len(out) <= brief_mod.BUDGET)
 
+    # The book line, measured on its own: the fixture above has no slack for
+    # it. A 20-chapter book with an index costs the chapter list (at most
+    # BOOK_CHARS) and the one `board textbook find` line.
+    rows = ["%02d\t%d\t%d\tchapter-%d\t%s" % (n, 10 * n, 10 * n + 9, n,
+                                             "The calculation of Galois groups")
+            for n in range(1, 21)]
+    with open(os.path.join(tmp, "chapters.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("# num first last slug title\n" + "\n".join(rows) + "\n")
+    os.makedirs(os.path.join(tmp, "textbook"))
+    with open(os.path.join(tmp, "textbook", "index.json"), "w", encoding="utf-8") as fh:
+        json.dump({"pages": 210, "chapters": [], "exercises": []}, fh)
+    booked = board("brief").stdout.decode("utf-8", "replace")
+    os.remove(os.path.join(tmp, "chapters.tsv"))
+    shutil.rmtree(os.path.join(tmp, "textbook"))
+    cost = len(booked) - len(out)
+    check("a 20-chapter indexed book costs the brief at most %d characters more "
+          "(%d, the brief %d)" % (brief_mod.BOOK_CHARS + 120, cost, len(booked)),
+          "board textbook find <ref>" in booked
+          and 0 < cost <= brief_mod.BOOK_CHARS + 120)
+
     # --- the handoff is gone: TUTOR.md carries the subject ------------------
     p = board("handoff", input=b"# HANDOFF\n\nthey got quotient groups.\n")
     check("`board handoff` refuses by name, pointing at `board memo`, and writes "

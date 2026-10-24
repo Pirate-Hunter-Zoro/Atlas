@@ -27,6 +27,8 @@ Everything it writes is ignored, under `<course>/textbook/`:
 diffed, and rewritten only with `write`.
 """
 
+import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -34,6 +36,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import xml.etree.ElementTree as ET
 
@@ -158,39 +161,62 @@ def _need(tool):
 
 
 def _run(argv, timeout=600):
-    return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                          timeout=timeout)
+    """`argv`'s run; Refused where it outlasts `timeout` seconds."""
+    try:
+        return subprocess.run(argv, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        on = [a for a in argv if a.lower().endswith(".pdf")] or argv[-1:]
+        raise Refused("%s gave up after %d seconds on %s" % (
+            argv[0], timeout, os.path.basename(on[0])))
 
 
 # ---------------------------------------------------------------------------
 # filing an upload
 # ---------------------------------------------------------------------------
+_FILING = threading.Lock()
+
+
+@contextlib.contextmanager
+def _filing(root):
+    """One filing at a time into `root`'s textbook/: a lock for this
+    process's threads, and a flock on textbook/.lock for other processes."""
+    os.makedirs(textbook_dir(root), exist_ok=True)
+    with _FILING:
+        with open(os.path.join(textbook_dir(root), ".lock"), "a") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def file_upload(root, path, move=True):
     """Move the PDF at `path` into `<root>/textbook/` (copy it, with `move`
     false); its new path. The same book again (by sha256) is not a second
     one: a moved upload is dropped and the filed copy kept. A different book
-    is Refused."""
+    is Refused. Two filings into one course never both land."""
     if not os.path.isfile(path):
         raise Refused("no such upload: %s" % os.path.basename(path))
     if not path.lower().endswith(".pdf"):
         raise Refused("a textbook is a PDF: %s" % os.path.basename(path))
-    have = pdfs(root)
-    if have:
-        mine = sha256(path)
-        for one in have:
-            if sha256(one) == mine:
-                if move and os.path.realpath(one) != os.path.realpath(path):
-                    os.remove(path)
-                return one
-        raise Refused("this course already has a textbook, %s; a second, "
-                      "different PDF is refused" % os.path.basename(have[0]))
-    os.makedirs(textbook_dir(root), exist_ok=True)
-    dest = os.path.join(textbook_dir(root), os.path.basename(path))
-    if move:
-        shutil.move(path, dest)
-    else:
-        shutil.copyfile(path, dest)
-    return dest
+    with _filing(root):
+        have = pdfs(root)
+        if have:
+            mine = sha256(path)
+            for one in have:
+                if sha256(one) == mine:
+                    if move and os.path.realpath(one) != os.path.realpath(path):
+                        os.remove(path)
+                    return one
+            raise Refused("this course already has a textbook, %s; a second, "
+                          "different PDF is refused" % os.path.basename(have[0]))
+        dest = os.path.join(textbook_dir(root), os.path.basename(path))
+        if move:
+            shutil.move(path, dest)
+        else:
+            shutil.copyfile(path, dest)
+        return dest
 
 
 # ---------------------------------------------------------------------------
@@ -423,7 +449,7 @@ def ocr_page(pdf, n):
             return None
         with open(out, "r", encoding="utf-8", errors="replace") as fh:
             return fh.read()
-    except (OSError, subprocess.SubprocessError):
+    except (OSError, subprocess.SubprocessError, Refused):
         return None
     finally:
         try:
@@ -498,7 +524,9 @@ def printed_of(labels, pdf_page):
 
 
 def pdf_of(labels, printed):
-    """Every PDF page printed `printed`, in order."""
+    """Every PDF page printed `printed`, in order; none for a page 0."""
+    if printed < 1:
+        return []
     return [printed + r["offset"] for r in labels or []
             if r["first"] <= printed + r["offset"] <= r["last"]]
 
@@ -563,44 +591,113 @@ def _is_heading(line, known):
     return bool(said and want and said[0].lower() == want[0].lower())
 
 
-def exercises(c, pages, sections):
+# A page's running header: the title beside the page number, far apart.
+RUNNING_HEAD = re.compile(r"^\s*\d{1,4}\s{3,}\S|\S\s{3,}\d{1,4}\s*$")
+
+
+def _running_heads(lines):
+    """The indices of `lines` that are the page's running header: among its
+    first two non-blank lines, a title with the page number far beside it."""
+    out, seen = set(), 0
+    for i, line in enumerate(lines):
+        if not line.strip():
+            continue
+        if RUNNING_HEAD.search(line):
+            out.add(i)
+        seen += 1
+        if seen == 2:
+            break
+    return out
+
+
+def _back_matter(line):
+    """Is `line` a back-matter heading ("Index", "Appendix A"), and not a
+    sentence that happens to start with one of their words?"""
+    said = line.strip()
+    return bool(said and len(said) < 20 and said[0].isupper()
+                and said[-1] not in ".,;:)" and STOP.match(said))
+
+
+def _longest_run(cands):
+    """The longest run through `cands` (each with `n`, in page order) that
+    starts within GAP of 1 and rises by at most GAP each step. Among equal
+    runs, the one taking earlier candidates."""
+    best, prev = [], []
+    for i, c in enumerate(cands):
+        best.append(1 if c["n"] <= GAP else 0)
+        prev.append(None)
+        for j in range(i):
+            if best[j] and cands[j]["n"] < c["n"] <= cands[j]["n"] + GAP \
+                    and best[j] + 1 > best[i]:
+                best[i], prev[i] = best[j] + 1, j
+    if not best or not max(best):
+        return []
+    i = best.index(max(best))
+    run = []
+    while i is not None:
+        run.append(cands[i])
+        i = prev[i]
+    return run[::-1]
+
+
+def exercises(c, pages, sections, doubts=None):
     """Chapter `c`'s exercises: the numbered lines after a line reading
     "Exercises" or "Problems", until the next section heading, keeping the
-    increasing run. `7.6` or `6.` styles, whichever the chapter's first
-    exercise uses."""
+    longest increasing run. `7.6` or `6.` styles, whichever the chapter's
+    first exercise uses. A running header is neither a heading nor an
+    exercise. A number the run skips is a doubt, naming any number read
+    out of sequence where it should be."""
     num = int(c["num"])
     known = dict(((int(s["num"].split(".")[0]), int(s["num"].split(".")[1])), s["title"])
                  for s in sections if s["chapter"] == c["num"])
-    style, last, on, out = None, 0, False, []
+    on, cands = False, []
     for n, lines in _chapter_pages(c, pages):
+        heads = _running_heads(lines)
         for i, line in enumerate(lines):
+            if i in heads:
+                continue
             if EXERCISES_HEAD.match(line):
                 on = True
                 continue
             if not on:
                 continue
-            if _is_heading(line, known) or STOP.match(line.strip()) and len(line.strip()) < 20:
+            if _is_heading(line, known) or _back_matter(line):
                 on = False
                 continue
-            got = None
-            if style in (None, "dotted"):
-                m = DOTTED.match(line)
-                if m and int(m.group(2)) == num:
-                    got = ("dotted", int(m.group(3)), m.group(1))
-            if got is None and style in (None, "plain"):
-                m = PLAIN.match(line)
-                if m:
-                    got = ("plain", int(m.group(2)), m.group(1))
-            if got is None:
+            m = DOTTED.match(line)
+            if m and int(m.group(2)) == num:
+                cands.append({"kind": "dotted", "n": int(m.group(3)), "star": m.group(1),
+                              "page": n, "line": i})
                 continue
-            kind, k, star = got
-            if not (last < k <= last + GAP):
+            m = PLAIN.match(line)
+            if m:
+                cands.append({"kind": "plain", "n": int(m.group(2)), "star": m.group(1),
+                              "page": n, "line": i})
+    first = [x for x in cands if x["n"] <= GAP]
+    if not first:
+        return []
+    style = first[0]["kind"]
+    cands = [x for x in cands if x["kind"] == style]
+    run = _longest_run(cands)
+    label = (lambda k: "%d.%d" % (num, k)) if style == "dotted" else str
+    if doubts is not None:
+        taken = set(id(x) for x in run)
+        for a, b in zip(run, run[1:]):
+            if b["n"] <= a["n"] + 1:
                 continue
-            style, last = kind, k
-            out.append({"chapter": c["num"], "n": k,
-                        "label": ("%d.%d" % (num, k)) if kind == "dotted" else str(k),
-                        "page": n, "line": i, "starred": bool(star)})
-    return out
+            gone = [label(k) for k in range(a["n"] + 1, b["n"])]
+            odd = [x for x in cands if id(x) not in taken
+                   and (a["page"], a["line"]) < (x["page"], x["line"]) < (b["page"], b["line"])]
+            doubts.append("chapter %s: exercise%s %s not read, between PDF pages %d "
+                          "and %d%s" % (
+                              c["num"], "s" if len(gone) > 1 else "", ", ".join(gone),
+                              a["page"], b["page"],
+                              "; %s read there out of sequence is not indexed"
+                              % ", ".join("%s (page %d)" % (label(x["n"]), x["page"])
+                                          for x in odd) if odd else ""))
+    return [{"chapter": c["num"], "n": x["n"], "label": label(x["n"]),
+             "page": x["page"], "line": x["line"], "starred": bool(x["star"])}
+            for x in run]
 
 
 # ---------------------------------------------------------------------------
@@ -632,7 +729,7 @@ def build_index(pdf, items, pages, ocr=(), failed=(), sha=""):
                       "reference is not indexed")
     found = []
     for c in chapters:
-        found.extend(exercises(c, pages, sections))
+        found.extend(exercises(c, pages, sections, doubts))
     for n in failed:
         doubts.append("PDF page %d has no text and OCR could not read it" % n)
     for c in chapters:
@@ -852,6 +949,8 @@ def summary(index):
 # finding
 # ---------------------------------------------------------------------------
 RE_PAGE = re.compile(r"^\s*(?:pp?\.?|pages?)\s*(\d{1,4})\s*$", re.I)
+RE_PAGES = re.compile(r"^\s*(?:pp?\.?|pages?)\s*(\d{1,4})\s*[-\u2013\u2014]+\s*(\d{1,4})\s*$",
+                      re.I)
 RE_SECTION = re.compile(r"^\s*(?:§|sections?|sec\.?)\s*(\d{1,3})\.(\d{1,3})\s*$", re.I)
 RE_CH_EX = re.compile(r"^\s*ch(?:apter)?\.?\s*(\d{1,3})\s*[,:]?\s*(?:#|no\.?|"
                       r"exercises?|ex\.?|problems?|prob\.?)\s*\*?(\d{1,3})\s*$", re.I)
@@ -947,8 +1046,8 @@ def find(root, ref):
     """One reference resolved, or `{ok: False, error: "not indexed: ..."}`.
 
     "Exercise 3.4", "3.4", "Ch 4 #34", "Section 2.1", "§2.1", "p. 295",
-    "Ch 7". A bare "3.4" is the exercise; where a section 3.4 exists too it
-    is named in `also`.
+    "pp. 12-15", "Ch 7". A bare "3.4" is the exercise, never the section:
+    where a section 3.4 exists too it is named in `also`, or in the error.
     """
     ref = str(ref or "").strip()
     index = read(root)
@@ -965,6 +1064,20 @@ def find(root, ref):
                       _clip(page_text(root, got[0]).splitlines()), label="p. %d" % printed)
         if len(got) > 1:
             out["also"] = ["PDF page %d" % p for p in got[1:]]
+        return out
+    m = RE_PAGES.match(ref)
+    if m:
+        a, b = int(m.group(1)), int(m.group(2))
+        if b < a:
+            return _not(ref, "printed pages %d-%d run backwards" % (a, b))
+        first, last = pdf_of(index.get("labels"), a), pdf_of(index.get("labels"), b)
+        if not first or not last:
+            return _not(ref, "no PDF page carries printed page %d" % (a if not first else b))
+        out = _answer(root, index, ref, "pages", first[0],
+                      _clip(page_text(root, first[0]).splitlines()),
+                      label="pp. %d-%d" % (a, b))
+        out["pdf_last"] = last[0]
+        out["also"] = ["through PDF page %d (printed %d)" % (last[0], b)]
         return out
     m = RE_SECTION.match(ref)
     if m:
@@ -985,12 +1098,12 @@ def find(root, ref):
         ex = exercise(index, *pair)
         s = section(index, *pair) if bare else None
         if not ex:
-            if s:
-                return _answer(root, index, ref, "section", s["page"],
-                               _section_text(root, s),
-                               label="Section %s %s" % (s["num"], s["title"]))
-            return _not(ref, "the index has no exercise %d in chapter %d"
-                        % (pair[1], pair[0]))
+            # A bare 3.4 is the exercise: a section of that number is named,
+            # never answered in its place.
+            return _not(ref, "the index has no exercise %d in chapter %d%s"
+                        % (pair[1], pair[0],
+                           "; Section %s %s is PDF page %d: ask for \"Section %s\""
+                           % (s["num"], s["title"], s["page"], s["num"]) if s else ""))
         also = ["Section %s %s, PDF page %d" % (s["num"], s["title"], s["page"])] if s else None
         return _answer(root, index, ref, "exercise", ex["page"],
                        _exercise_text(root, index, ex),
@@ -1015,36 +1128,58 @@ def find(root, ref):
 # ---------------------------------------------------------------------------
 # an assignment sheet
 # ---------------------------------------------------------------------------
+# One number in a list: never the 4 of a dotted 4.1.
+_ITEM = r"#?[ \t]*\*?\d{1,3}(?![.\d]\d)"
+_AND = r"(?:[ \t]*[,;]\s*|[ \t]+(?:and|or|&)[ \t]+|[ \t]*&[ \t]*|[ \t]*,[ \t]*(?:and|or)[ \t]+)"
+_DOTTED_ITEM = r"\*?\d{1,3}\.\d{1,3}"
 SHEET_REFS = re.compile(
-    r"(?:\bch(?:apter)?\.?\s*\d{1,3}\s*[,:]?\s*(?:#|no\.?\s*|exercises?\s*|problems?\s*)\*?\d{1,3}"
-    r"|\b(?:exercises?|problems?|ex\.)\s*\*?\d{1,3}\.\d{1,3}(?:\s*(?:,|and|or|&)\s*\*?\d{1,3}\.\d{1,3})*"
-    r"|(?:§|\bsections?\s*)\s*\d{1,3}\.\d{1,3}"
-    r"|\bpp?\.\s*\d{1,4})", re.I)
+    # "Ch 4 #34", "Chapter 1, problems 4, 5 and 17", "Ch. 1 exercises 8, 10",
+    # "Chapter 4: 1, 7, 9 or 10"
+    r"(?P<chlist>\bch(?:apter)?\.?\s*(?P<ch>\d{1,3})"
+    r"(?:\s*[,:]?\s*(?:#|no\.?|exercises?|problems?|ex\.|prob\.)|[ \t]*:)[ \t]*"
+    r"(?P<items>" + _ITEM + r"(?:" + _AND + _ITEM + r")*))"
+    # "Exercises 1.2 and 2.1"
+    r"|(?P<dotted>\b(?:exercises?|problems?|ex\.)\s*" + _DOTTED_ITEM
+    + r"(?:" + _AND + _DOTTED_ITEM + r")*)"
+    r"|(?P<section>(?:§|\bsections?\s*)\s*\d{1,3}\.\d{1,3})"
+    r"|(?P<pages>\bpp?\.\s*\d{1,4}(?:\s*[-–—]+\s*\d{1,4})?)", re.I)
 SHEET_CHAPTER = re.compile(r"\bch(?:apter)?\.?\s*(\d{1,3})\b(?!\s*[#.]\s*\d)", re.I)
 LIST_LINE = re.compile(r"^(?:\s|,|;|\.|\*|\d{1,3}|\bor\b|\band\b|&|\balong\s+with\b)+$", re.I)
+# A line that names an exercise, a section or a page by number.
+SHEET_NAMES = re.compile(r"(?:\b(?:problems?|exercises?|ex\.|prob\.|sections?|pp?\.)"
+                         r"|§|#)\s*\*?\d", re.I)
 
 
 def sheet_refs(text):
-    """`(explicit references, bare exercise numbers, chapters named)` read
-    off a sheet's text."""
-    refs = []
+    """`(explicit references, bare exercise numbers, chapters named, lines
+    unread)` off a sheet's text. A bare list is a line of numbers alone, a
+    parenthesis beside each allowed ("8. (Bonferroni's inequality), 10,
+    12"). A line naming a problem, a section or a page that yields nothing
+    is unread."""
+    refs, hit = [], set()
     for m in SHEET_REFS.finditer(text):
-        got = " ".join(m.group(0).split())
-        head = re.match(r"(?i)(exercises?|problems?|ex\.)\s*", got)
-        if head and re.search(r"\d\.\d.*\d\.\d", got):
-            for one in re.findall(r"\*?\d{1,3}\.\d{1,3}", got):
+        lo = text.count("\n", 0, m.start())
+        hit.update(range(lo, lo + m.group(0).count("\n") + 1))
+        if m.group("chlist"):
+            for one in re.findall(r"\d{1,3}", m.group("items")):
+                refs.append("Ch %s #%s" % (m.group("ch"), one))
+        elif m.group("dotted"):
+            for one in re.findall(_DOTTED_ITEM, m.group("dotted")):
                 refs.append("Exercise " + one.lstrip("*"))
         else:
-            refs.append(got)
-    bare = []
-    for line in text.splitlines():
-        if not line.strip() or not LIST_LINE.match(line):
-            continue
-        nums = re.findall(r"\*?(\d{1,3})(?!\.\d)", line)
-        if len(nums) >= 2:
-            bare.extend(int(n) for n in nums)
+            refs.append(" ".join(m.group(0).split()))
+    bare, unread = [], []
+    for k, line in enumerate(text.splitlines()):
+        plain = re.sub(r"\([^()]*\)", " ", line)
+        if k not in hit and plain.strip() and LIST_LINE.match(plain):
+            nums = re.findall(r"\*?(\d{1,3})(?!\.\d)", plain)
+            if len(nums) >= 2:
+                bare.extend(int(n) for n in nums)
+                continue
+        if k not in hit and SHEET_NAMES.search(line):
+            unread.append(" ".join(line.split()))
     chapters = sorted(set(int(n) for n in SHEET_CHAPTER.findall(text)))
-    return refs, bare, chapters
+    return refs, bare, chapters, unread
 
 
 def sheet(root, pdf, chapter=None):
@@ -1055,8 +1190,12 @@ def sheet(root, pdf, chapter=None):
     if not os.path.isfile(pdf):
         raise Refused("no such sheet: %s" % pdf)
     text = _run(["pdftotext", "-layout", pdf, "-"]).stdout.decode("utf-8", "replace")
-    refs, bare, named = sheet_refs(text)
+    refs, bare, named, unread = sheet_refs(text)
     out = [find(root, r) for r in refs]
+    for line in unread:
+        out.append(_not(line, "this line names a problem, a section or a page "
+                              "that the sheet reader could not read; resolve it "
+                              "by hand with board textbook find"))
     ch = chapter if chapter is not None else (named[0] if len(named) == 1 else None)
     for n in bare:
         ref = "Ch %d #%d" % (ch, n) if ch is not None else "#%d" % n

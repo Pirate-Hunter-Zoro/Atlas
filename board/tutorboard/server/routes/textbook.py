@@ -62,17 +62,24 @@ def start(h, repo):
                             "course: bind this session to one first"}, status=400)
     root = found["root"]
     work = ingester()
-    if work.running(root):
+    # The course is claimed before anything is filed, so a second request
+    # racing this one is refused rather than filing a second PDF.
+    if not work.claim(root):
         return h.send_json({"ok": False, "error": "this course's textbook is "
                             "already being indexed"}, status=409)
     try:
         src = sessions._upload(sessions.path(sid, base), payload.get("upload"))
         pdf = book.file_upload(root, src)
     except sessions.Refused as exc:
+        work.release(root)
         return h.send_json({"ok": False, "error": str(exc)}, status=400)
     except book.Refused as exc:
+        work.release(root)
         return h.send_json({"ok": False, "error": str(exc)}, status=409)
-    work.submit(root, sid)
+    except Exception:
+        work.release(root)
+        raise
+    work.enqueue(root, sid)
     h.note("textbook %s -> %s, indexing" % (os.path.basename(pdf), found["id"]))
     h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "subject": found["id"],
@@ -101,15 +108,32 @@ class Ingester(threading.Thread):
         with self.cv:
             return os.path.realpath(root) in self.busy
 
-    def submit(self, root, sid):
+    def claim(self, root):
+        """Mark `root` busy; False where it already is."""
         with self.cv:
             real = os.path.realpath(root)
             if real in self.busy:
                 return False
             self.busy.add(real)
-            self.queue.append((real, sid))
-            self.cv.notify()
             return True
+
+    def release(self, root):
+        """Give up a claim that will not be queued."""
+        with self.cv:
+            self.busy.discard(os.path.realpath(root))
+
+    def enqueue(self, root, sid):
+        """Queue a claimed `root`."""
+        with self.cv:
+            self.queue.append((os.path.realpath(root), sid))
+            self.cv.notify()
+
+    def submit(self, root, sid):
+        """Claim and queue `root`; False where it is already going."""
+        if not self.claim(root):
+            return False
+        self.enqueue(root, sid)
+        return True
 
     def run(self):
         while True:

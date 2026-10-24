@@ -350,6 +350,33 @@ def index_suite(base):
     else:
         fail("the sheet's references: %r" % labels)
 
+    hw = os.path.join(made, "hw.pdf")
+    put(os.path.join(made, "hw.ps"), "%!PS\n" + ps_page(
+        ["Homework 2", "Chapter 1, problems 1, 2 and 3.",
+         "Ch. 2 exercises 1, 2", "Problem 7 from the notes."]))
+    gs("pdfwrite", hw, os.path.join(made, "hw.ps"))
+    p = board(["textbook", "find", "courses/Booked", "--sheet", hw, "--json"], base)
+    try:
+        said = json.loads(p.stdout)
+    except ValueError:
+        said = []
+    labels = [g.get("label") for g in said if g.get("ok")]
+    if p.returncode == 1 and labels == ["Exercise 1.1", "Exercise 1.2", "Exercise 1.3",
+                                        "Exercise 2.1", "Exercise 2.2"] \
+            and [g["ref"] for g in said if not g.get("ok")] == ["Problem 7 from the notes."]:
+        ok("--sheet resolves every number of a chapter's list, and exits 1 on "
+           "the line it could not read")
+    else:
+        fail("--sheet on a list: %d %s" % (p.returncode, p.stdout))
+    env = dict(os.environ, TUTORBOARD_COURSES=base)
+    p = subprocess.run([sys.executable, CLI, "textbook", "find", "Section", "1.2"],
+                       cwd=course, env=env, stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, universal_newlines=True)
+    if p.returncode == 0 and p.stdout.startswith("Section 1.2 Second things: PDF page 3"):
+        ok("an unquoted reference is a reference, in the course it runs in")
+    else:
+        fail("find Section 1.2, unquoted: %d %s" % (p.returncode, p.stdout))
+
     # ---- the brief and the homework sense ---------------------------------
     line = brief_mod.book_sense(course)
     if "board textbook find <ref>" in line:
@@ -456,6 +483,130 @@ def index_suite(base):
         ok("a failed run wakes it too, saying why")
     else:
         fail("a failed run: %r" % (got,))
+
+
+def rules_suite(base):
+    """The reading rules on text alone: running headers, a misread number,
+    a sentence starting "index", a bare N.M, page 0 and ranges, the
+    phrasings assignment sheets use, a timeout, and two filings at once."""
+    import threading
+    from tutorboard.course import book
+    from tutorboard.server.routes import textbook as route
+
+    c = {"num": "12", "first": 1, "last": 3, "title": "Finite fields"}
+    secs = [{"num": "12.4", "chapter": "12", "title": "The multiplicative group",
+             "page": 1}]
+    text = [
+        "12.4 The multiplicative group\n\n   Exercises\n   12.1 One.\n"
+        "   12.2 Two, and the index of H in G.)\n",
+        "          12.4. The multiplicative group of a finite field          105\n"
+        "\n   12.3 Three.\n   12.4 Four.\n   12.5 Five.\n   12.9 Six, misread.\n",
+        "106        Finite fields\n   12.7 Seven.\n   12.8 Eight.\n   12.9 Nine.\n",
+    ]
+    doubts = []
+    got = [(e["label"], e["page"]) for e in book.exercises(c, text, secs, doubts)]
+    if got == [("12.1", 1), ("12.2", 1), ("12.3", 2), ("12.4", 2), ("12.5", 2),
+               ("12.7", 3), ("12.8", 3), ("12.9", 3)]:
+        ok("exercises run on past a page's running header, past a sentence "
+           "about an index, and past a misread number")
+    else:
+        fail("the exercises across a page turn: %r" % got)
+    if len(doubts) == 1 and "12.6 not read" in doubts[0] \
+            and "12.9 (page 2)" in doubts[0]:
+        ok("and the number skipped is a doubt, naming the one read out of "
+           "sequence there")
+    else:
+        fail("the doubts of a misread number: %r" % doubts)
+
+    root = os.path.join(base, "rules")
+    put(os.path.join(root, "textbook", "index.json"), json.dumps({
+        "pages": 6, "labels": [{"first": 1, "last": 6, "offset": 1}],
+        "chapters": [{"num": "08", "first": 1, "last": 6, "title": "Closures"}],
+        "sections": [{"num": "8.2", "chapter": "08", "title": "Existence",
+                      "page": 3, "source": "outline"}],
+        "exercises": [{"chapter": "08", "n": 1, "label": "8.1", "page": 4,
+                       "line": 0, "starred": False}]}))
+    got = book.find(root, "8.2")
+    if not got.get("ok") and "not indexed" in got["error"] \
+            and "Section 8.2" in got["error"]:
+        ok('a bare "8.2" with no exercise 8.2 is not indexed, naming the '
+           "section rather than answering with it")
+    else:
+        fail('"8.2" with only a section 8.2: %r' % got)
+    got = book.find(root, "p. 0")
+    if not got.get("ok") and "not indexed" in got["error"]:
+        ok('"p. 0" is not indexed')
+    else:
+        fail('"p. 0": %r' % got)
+    got = book.find(root, "pp. 2-4")
+    if got.get("ok") and got["pdf_page"] == 3 and got["pdf_last"] == 5:
+        ok('"pp. 2-4" is PDF pages 3 to 5')
+    else:
+        fail('"pp. 2-4": %r' % got)
+
+    sheet = ("Practice.\nChapter 1, problems 4, 5, 6, 7 and 17. (Do not hand in "
+             "practice problems.)\n\n1. Let E and F be events.\n"
+             "And work the following problems from the text:\n"
+             "8. (Bonferroni\u2019s inequality), 10. (Boole\u2019s inequality), "
+             "12, 39 and 41.\n"
+             "Ch. 1 exercises 8, 10, 12, 39, 41\nChapter 4: 1, 7, 9 or 10\n"
+             "Read pp. 12-15.\nProblem 7 from the notes.\n")
+    refs, bare, named, unread = book.sheet_refs(sheet)
+    want = (["Ch 1 #%d" % n for n in (4, 5, 6, 7, 17, 8, 10, 12, 39, 41)]
+            + ["Ch 4 #%d" % n for n in (1, 7, 9, 10)] + ["pp. 12-15"])
+    if refs == want and bare == [8, 10, 12, 39, 41] and named == [1, 4] \
+            and unread == ["Problem 7 from the notes."]:
+        ok("a sheet's lists are read whole: \"problems 4, 5 and 17\", "
+           "\"Chapter 4: 1, 7, 9 or 10\", a bare list with notes beside it, "
+           "\"pp. 12-15\"; a line naming a problem it cannot read is kept")
+    else:
+        fail("the sheet's references: %r %r %r %r" % (refs, bare, named, unread))
+
+    try:
+        book._run([sys.executable, "-c", "import time; time.sleep(5)"], timeout=1)
+        timed = False
+    except book.Refused as exc:
+        timed = "gave up after 1 seconds" in str(exc)
+    if timed:
+        ok("a tool that hangs is Refused, in words, not a traceback")
+    else:
+        fail("a hung tool was not Refused")
+
+    twice = 0
+    for k in range(10):
+        course = os.path.join(base, "race", str(k))
+        ups = []
+        for name in ("a.pdf", "b.pdf"):
+            put(os.path.join(base, "race-up", str(k), name), "%PDF " + name)
+            ups.append(os.path.join(base, "race-up", str(k), name))
+        gate = threading.Barrier(2)
+
+        def one(path):
+            gate.wait()
+            try:
+                book.file_upload(course, path)
+            except book.Refused:
+                pass
+        runs = [threading.Thread(target=one, args=(u,)) for u in ups]
+        for t in runs:
+            t.start()
+        for t in runs:
+            t.join()
+        twice += len(book.pdfs(course)) != 1
+    if not twice:
+        ok("two filings at once into one course land one PDF, every time")
+    else:
+        fail("two filings at once left two PDFs %d time(s) in 10" % twice)
+    work = route.Ingester(run=lambda root: None, wake=lambda *a: None)
+    if work.claim(root) and not work.claim(root) and work.running(root):
+        work.release(root)
+        if work.claim(root):
+            ok("the Ingester claims a course before filing, and a second "
+               "claim is refused")
+        else:
+            fail("a released claim could not be made again")
+    else:
+        fail("the Ingester's claim is not exclusive")
 
 
 def server_suite(base):
@@ -676,6 +827,7 @@ try:
     else:
         fail("an unknown course was not refused: %s" % p.stdout)
 
+    rules_suite(base)
     if shutil.which("pdftohtml") and shutil.which("pdftotext"):
         index_suite(base)
         server_suite(base)
