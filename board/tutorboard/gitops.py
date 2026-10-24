@@ -499,12 +499,8 @@ def merge_in(root, theirs, label=None, timeout=NET_TIMEOUT):
         return False, ("git refused to bring %s in, so nothing here changed: %s"
                        % (label, " ".join(l.strip() for l in last[:8])
                           or "merge refused"))
-    said = ["merged %s" % label + ("; kept this machine's build output"
-                                   if kept else "")]
-    moved = _vendor_follow(root, head, target, timeout)
-    if moved:
-        said.append(moved)
-    return True, "\n".join(said)
+    return True, "merged %s" % label + ("; kept this machine's build output"
+                                       if kept else "")
 
 
 # The last merge commit `merge_in` made, by what it was made of: while git
@@ -560,19 +556,6 @@ def save(root, paths, message, refuse=None):
     return ok, "%s\n%s" % (said, pushed)
 
 
-def _vendor_moved(root, before, after):
-    """True when a gitlink under `vendor/` differs between two commits."""
-    code, out = _git(root, "diff", "--raw", "--no-renames", before, after,
-                     "--", "vendor")
-    if code != 0:
-        return False
-    for line in out.splitlines():
-        modes = line.split()[:2]
-        if any(m.lstrip(":") == "160000" for m in modes):
-            return True
-    return False
-
-
 # What `scripts/setup.sh` builds a subject's environment from, at the
 # subject's root; the NESTED ones count one directory down too, where setup
 # finds their markers (`toolplan.marker_dirs`). One a pull moved leaves that
@@ -613,9 +596,7 @@ def pull(root, quiet=False, timeout=60, say=None):
     origin). Never raises.
 
     Refused, changing nothing, during a rebase, merge, cherry-pick, revert or
-    bisect and on a detached HEAD. A pull that moved a gitlink under `vendor/`
-    then runs `git submodule update --init -- vendor`, so this machine's vendor
-    checkouts stay clean; nothing here bumps a vendor pointer.
+    bisect and on a detached HEAD.
 
     `timeout` bounds the pull. `say`, where given, hears every line `quiet`
     would otherwise drop.
@@ -660,25 +641,7 @@ def pull(root, quiet=False, timeout=60, say=None):
     if before != after:
         _, n = _git(root, "rev-list", "--count", "%s..%s" % (before, after))
         tell("  pulled %s commit(s) from another machine" % n)
-        moved = _vendor_follow(root, before, after, timeout)
-        if moved:
-            tell("  " + moved)
     return True
-
-
-def _vendor_follow(root, before, after, timeout):
-    """Where a gitlink under `vendor/` moved between two commits, run `git
-    submodule update --init -- vendor`, so the vendor checkouts stay clean.
-    The sentence to say, or ""."""
-    if not _vendor_moved(root, before, after):
-        return ""
-    code, out = _git(root, "submodule", "update", "--init", "--", "vendor",
-                     timeout=max(timeout, NET_TIMEOUT))
-    if code != 0:
-        last = out.splitlines()
-        return "vendor checkouts not updated: %s" % (
-            last[-1] if last else "submodule update failed")
-    return "vendor checkouts moved to the pulled pointers"
 
 
 # ai-config is the one private repository nested inside Atlas and ignored by

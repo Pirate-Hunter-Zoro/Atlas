@@ -3,9 +3,8 @@
 
     python3 test/commands.py
 
-PULL. A bare origin stands in for GitHub, with a vendor submodule. The cluster
-moves the vendor pointer and pushes; `board pull --atlas <mac clone>`
-fast-forwards the Mac and brings its vendor checkout along, leaving the tree
+PULL. A bare origin stands in for GitHub. A laptop pushes a course file;
+`board pull --atlas <mac clone>` fast-forwards the Mac, leaving the tree
 clean. A diverged clone is refused with exit 1 and its work kept. An Atlas
 or an ai-config with no origin has nothing to pull, exit 0.
 
@@ -32,13 +31,9 @@ sys.path.insert(0, ROOT)
 
 work = tempfile.mkdtemp(prefix="commands-")
 ENV = dict(os.environ, XDG_CONFIG_HOME=os.path.join(work, "xdg"),
-           BOARD_STATE_DIR=os.path.join(work, "state"),
-           GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="protocol.file.allow",
-           GIT_CONFIG_VALUE_0="always")
+           BOARD_STATE_DIR=os.path.join(work, "state"))
 for k in ("TUTORBOARD_SESSION", "TUTORBOARD_TURN", "TUTORBOARD_COURSES"):
     ENV.pop(k, None)
-os.environ.update({k: ENV[k] for k in ("GIT_CONFIG_COUNT", "GIT_CONFIG_KEY_0",
-                                       "GIT_CONFIG_VALUE_0")})
 
 from tutorboard import sessions                               # noqa: E402
 
@@ -81,62 +76,43 @@ try:
     # =======================================================================
     # board pull
     # =======================================================================
-    vorigin = os.path.join(work, "lib.git")
-    subprocess.run(["git", "init", "-q", "--bare", "-b", "main", vorigin], check=True)
-    vseed = os.path.join(work, "lib-seed")
-    subprocess.run(["git", "init", "-q", "-b", "main", vseed], check=True)
-    ident(vseed)
-    write(os.path.join(vseed, "README.md"), "one\n")
-    git(vseed, "add", "-A")
-    git(vseed, "commit", "-qm", "v1")
-    git(vseed, "remote", "add", "origin", vorigin)
-    git(vseed, "push", "-q", "origin", "main")
-
     origin = os.path.join(work, "atlas.git")
     subprocess.run(["git", "init", "-q", "--bare", "-b", "main", origin], check=True)
     seed = os.path.join(work, "atlas-seed")
     subprocess.run(["git", "init", "-q", "-b", "main", seed], check=True)
     ident(seed)
     write(os.path.join(seed, "README.md"), "atlas\n")
-    git(seed, "submodule", "add", "-q", vorigin, "vendor/lib")
     git(seed, "add", "-A")
     git(seed, "commit", "-qm", "seed")
     git(seed, "remote", "add", "origin", origin)
     git(seed, "push", "-q", "-u", "origin", "main")
 
     mac = os.path.join(work, "mac")
-    cluster = os.path.join(work, "cluster")
-    for dest in (mac, cluster):
+    laptop = os.path.join(work, "laptop")
+    for dest in (mac, laptop):
         subprocess.run(["git", "clone", "-q", origin, dest], check=True, env=ENV)
         ident(dest)
-        git(dest, "submodule", "update", "--init", "-q")
 
-    # The cluster moves the vendor pointer and a course file, and pushes.
-    write(os.path.join(vseed, "README.md"), "two\n")
-    git(vseed, "commit", "-qam", "v2")
-    git(vseed, "push", "-q", "origin", "main")
-    v2 = git(vseed, "rev-parse", "HEAD")
-    git(os.path.join(cluster, "vendor", "lib"), "pull", "-q", "origin", "main")
-    write(os.path.join(cluster, "courses", "Topology", "notes.md"), "a proof\n")
-    git(cluster, "add", "-A")
-    git(cluster, "commit", "-qm", "cluster: vendor/lib to v2, and a proof")
-    git(cluster, "push", "-q")
+    # The laptop commits a course file, and pushes.
+    write(os.path.join(laptop, "courses", "Topology", "notes.md"), "a proof\n")
+    git(laptop, "add", "-A")
+    git(laptop, "commit", "-qm", "laptop: a proof")
+    git(laptop, "push", "-q")
 
     code, out = board("pull", "--atlas", mac)
     check("`board pull` fast-forwards Atlas to origin",
-          code == 0 and git(mac, "rev-parse", "HEAD") == git(cluster, "rev-parse", "HEAD")
+          code == 0 and git(mac, "rev-parse", "HEAD") == git(laptop, "rev-parse", "HEAD")
           and os.path.isfile(os.path.join(mac, "courses", "Topology", "notes.md")), out)
-    check("and brings the vendor checkout along, leaving the tree clean",
-          git(os.path.join(mac, "vendor", "lib"), "rev-parse", "HEAD") == v2
-          and git(mac, "status", "--porcelain") == "",
+    check("and leaves the tree clean",
+          git(mac, "status", "--porcelain") == "",
           git(mac, "status", "--porcelain"))
 
     code, out = board("pull", "--quiet", "--atlas", mac)
     check("a pull with nothing new is exit 0", code == 0, out)
 
-    write(os.path.join(cluster, "README.md"), "elsewhere\n")
-    git(cluster, "commit", "-qam", "elsewhere")
-    git(cluster, "push", "-q")
+    write(os.path.join(laptop, "README.md"), "elsewhere\n")
+    git(laptop, "commit", "-qam", "elsewhere")
+    git(laptop, "push", "-q")
     write(os.path.join(mac, "README.md"), "here, at the same time\n")
     git(mac, "commit", "-qam", "here")
     code, out = board("pull", "--atlas", mac)

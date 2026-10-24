@@ -16,8 +16,9 @@
 # A fresh clone or an old checkout, it does the same thing, and a second run
 # changes nothing:
 #
-#   1  main, fast-forward only
-#   2  bootstrap: `board` on the PATH, the vendored submodules, ai-config,
+#   1  main, fast-forward only; once, the checkouts of the retired vendor
+#      submodules go
+#   2  bootstrap: `board` on the PATH, ai-config,
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
 #   3  the Brewfile and every subject's environment (scripts/setup.sh)
 #   4  the assistant CLIs: ai-config linked, and every CLI its descriptors know
@@ -68,6 +69,34 @@ if GIT_TERMINAL_PROMPT=0 git pull -q --ff-only origin main 2>"$LOGS/pull.log"; t
   good "main at $(git log -1 --oneline)"
 else
   warn "git pull --ff-only refused (local commits or edits); see $LOGS/pull.log and git status"
+fi
+# Atlas vendors nothing. A clone that once had the vendor submodules keeps
+# their checkouts and git dirs after the pull drops them, and they show as
+# `?? vendor/`. Once, where .gitmodules is gone and .git/modules/vendor is
+# still there: drop the submodule config, then each checkout and its git dir.
+# A checkout with uncommitted edits or unpushed commits is kept and named.
+GIT_COMMON="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"
+if [ ! -f .gitmodules ] && [ -n "$GIT_COMMON" ] && [ -d "$GIT_COMMON/modules/vendor" ] \
+   && [ -z "$(git ls-files -- vendor)" ]; then
+  for name in $(git config --local --name-only --get-regexp '^submodule\.vendor/' 2>/dev/null \
+                | sed -E 's/^submodule\.(vendor\/.*)\.[^.]+$/\1/' | sort -u); do
+    git config --local --remove-section "submodule.$name" 2>/dev/null
+  done
+  kept=0
+  for mod in "$GIT_COMMON"/modules/vendor/*; do
+    [ -d "$mod" ] || continue
+    path="vendor/$(basename "$mod")"
+    if [ -e "$path/.git" ] && { [ -n "$(git -C "$path" status --porcelain 2>/dev/null)" ] \
+         || [ -n "$(git -C "$path" log --oneline --branches --not --remotes 2>/dev/null)" ]; }; then
+      warn "$path has uncommitted edits or unpushed commits, so it was kept; delete it and $mod by hand"
+      kept=1
+      continue
+    fi
+    rm -rf "$path" "$mod" && good "deleted the retired submodule $path and its git dir"
+  done
+  if [ "$kept" = 0 ]; then
+    rmdir "$GIT_COMMON/modules/vendor" "$GIT_COMMON/modules" vendor 2>/dev/null
+  fi
 fi
 
 echo "== 2. bootstrap"

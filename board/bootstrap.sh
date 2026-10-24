@@ -6,9 +6,8 @@
 #   bash board/bootstrap.sh --private-only
 #
 # Run it once on each machine: the Mac, which runs the board, and each laptop.
-# It puts `board` on the path, fills in the vendored
-# submodules, brings in ai-config, reports what is missing, and
-# tells you what remains. Run it again whenever you are not sure: every step is
+# It puts `board` on the path, brings in ai-config, reports what is missing,
+# and tells you what remains. Run it again whenever you are not sure: every step is
 # idempotent.
 #
 # It does not use sudo, does not install anything system-wide, and does not
@@ -16,11 +15,10 @@
 #
 # Setting a machine up is:
 #
-#     git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+#     git clone https://github.com/Pirate-Hunter-Zoro/Atlas.git
 #     bash Atlas/board/bootstrap.sh
 #
-# Atlas is public and arrives with its vendored submodules and every course and
-# project. ai-config, the one private repository nested inside it and ignored
+# Atlas is public and arrives with every course and project. ai-config, the one private repository nested inside it and ignored
 # by it, cannot arrive with it, so this clones it from AI_CONFIG_URL with the
 # owner's credentials (git, then `gh repo clone`). An ai-config directory that
 # is already there with files in it and no .git is ADOPTED in place: its
@@ -32,7 +30,7 @@
 # Atlas itself gets core.hooksPath set to its .githooks/ by ABSOLUTE path, so
 # every worktree runs the same commit-msg and pre-commit hooks.
 #
-# `--no-clone` skips the submodules and the cloning; hooks are still set on
+# `--no-clone` skips cloning ai-config; hooks are still set on
 # Atlas and on ai-config if it is already there.
 # `--private-only` runs the hook and ai-config steps and nothing else --
 # the board server's sync thread (`gitops.adopt_private`) calls it, so there
@@ -157,33 +155,6 @@ say
 # --- the tool itself --------------------------------------------------------
 bash "$HERE/install.sh" | sed 's/^/  /'
 say
-
-# --- the vendored submodules ------------------------------------------------
-# Somebody else's repositories, tracked by pointer. A clone made without
-# `--recurse-submodules` arrives with an EMPTY vendor/, which is the first thing
-# a new machine gets wrong and gives no error when it happens -- the directory is
-# simply there and has nothing in it.
-if [ "$CLONE" -eq 1 ]; then
-  if [ -f "$ROOT/.gitmodules" ]; then
-    say "Filling in the vendored submodules"
-    if git -C "$ROOT" submodule update --init --recursive >/dev/null 2>&1; then
-      while read -r _ path _; do
-        [ -n "$path" ] || continue
-        if [ -n "$(ls -A "$ROOT/$path" 2>/dev/null)" ]; then
-          good "$path at $(git -C "$ROOT/$path" rev-parse --short HEAD 2>/dev/null)"
-        else
-          warn "$path is still empty"
-        fi
-      done < <(git -C "$ROOT" submodule status | awk '{print $1, $2, $3}')
-    else
-      warn "could not fetch the submodules; vendor/ will be empty until there is a network"
-      say  "        git -C $ROOT submodule update --init --recursive"
-    fi
-  else
-    warn "no .gitmodules at $ROOT -- is the board inside its repository?"
-  fi
-  say
-fi
 
 say "The commit hooks"
 atlas_hooks

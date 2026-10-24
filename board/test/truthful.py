@@ -72,8 +72,6 @@ def tracked_markdown():
 # nobody has to go and look it up.
 RETIRED = {
     "~/Tutor-Board": "board/",
-    "~/colibri-build": "vendor/colibri-build",
-    "~/colibri": "vendor/colibri",
     "~/PSYCH-ASR": "projects/PSYCH-ASR",
     "~/TRD-EHR": "projects/TRD-EHR",
     "~/libr-local-llm": "projects/libr-local-llm",

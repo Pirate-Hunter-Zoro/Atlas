@@ -34,8 +34,7 @@ where a model is called.
 - **The sync thread** (`sync.Sync`, only with `TUTORBOARD_SYNC=1`). Every 20 s one
   `git ls-remote origin` asks for `main` and `refs/heads/code/*`. When main moved: a
   fast-forward pull, or, where HEAD (main tracking origin/main) is ahead too, a merge and a push
-  of the sha checked (`gitops.merge_in`), then
-  a vendor checkout. The merge is tested with `git
+  of the sha checked (`gitops.merge_in`). The merge is tested with `git
   merge-tree --write-tree` and lands as a fast-forward, so git refuses any overlap with
   uncommitted, untracked or ignored work and no merge is ever left standing. While anything is
   staged it waits, and `pull.json` and the health say `skipped: staged changes`. It merges and

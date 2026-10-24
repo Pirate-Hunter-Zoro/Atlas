@@ -6,8 +6,8 @@ The assistant runs these. The student never does.
 
     board status                       is the one board server up, and this
                                        session's subject, mode and cards
-    board pull [--quiet]               fast-forward Atlas, vendor checkouts along,
-                                       and ai-config; name stale lockfiles
+    board pull [--quiet]               fast-forward Atlas and ai-config; name
+                                       stale lockfiles
     board pull --materials [<subject>...]
                                        a laptop copies the Mac mini's ignored
                                        inputs over SSH (config.json `host`)
@@ -2184,9 +2184,8 @@ def cmd_pull(live, args):
     """board pull [--quiet] [--atlas <dir>]
     board pull --materials [<subject>...] [--atlas <dir>]
 
-    Fast-forward Atlas (`gitops.pull`), and the vendor checkouts with it when
-    the pull moved a vendor pointer, then name every subject whose lockfile it
-    moved (`gitops.lockfiles_moved`), even with --quiet, since
+    Fast-forward Atlas (`gitops.pull`), then name every subject whose lockfile
+    it moved (`gitops.lockfiles_moved`), even with --quiet, since
     `scripts/setup.sh` must rebuild those. Then fast-forward ai-config now and
     relink it if it moved (`gitops.sync_private`), because Atlas's pull never
     moves it. Refused during a rebase, merge or on a detached HEAD. Exit 1 when

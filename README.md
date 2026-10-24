@@ -31,7 +31,6 @@ Atlas/
   scripts/brew-upgrade.py  the daily brew and toolchain upkeep, `atlas-brew`
   .githooks/             pre-commit (the public-repo gate) and commit-msg
   board/                 the tutoring board: server, CLI, web client, tests
-  vendor/                other people's repositories, as submodules
   ai-config/             the AI assistant configuration; a private repository, ignored here
   sessions/<id>/         tutoring sessions; Mac only, ignored
   courses/<Name>/        one directory per course
@@ -59,8 +58,6 @@ Inside a subject:
 `phi` gates check output: a coding session's check output reaches the tutor only when
 `tutorboard.json` sets `phi` to `false` literally, on disk and at HEAD.
 
-`projects/Meetings/` is a PHI subject and holds the meeting deck at `docs/meeting/`.
-
 Textbooks, lecture slides, assignment handouts, `materials/` and session uploads are ignored.
 Worked solutions, write-ups and the owner's handwritten answers are tracked.
 
@@ -74,7 +71,7 @@ on the iPad. The iPad reaches the Mac over the owner's tailnet.
 ## Setting up the Mac
 
 ```
-git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+git clone https://github.com/Pirate-Hunter-Zoro/Atlas.git
 cd Atlas && bash scripts/setup-mac.sh
 ```
 
@@ -82,7 +79,7 @@ cd Atlas && bash scripts/setup-mac.sh
 It pulls main, runs `board/bootstrap.sh`, runs `scripts/setup.sh`, has tailscale serve the
 board, and checks that the board answers. Its header lists each step.
 
-- `bootstrap.sh` fills `vendor/`, clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
+- `bootstrap.sh` clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
   absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs
   the board's LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
 - `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile joined with every
@@ -140,7 +137,7 @@ On the iPad, open the tailnet address in Safari and use Share, then Add to Home 
 ## Setting up a laptop
 
 ```
-git clone --recurse-submodules https://github.com/Pirate-Hunter-Zoro/Atlas.git
+git clone https://github.com/Pirate-Hunter-Zoro/Atlas.git
 cd Atlas && bash scripts/setup-mac.sh --coding
 ```
 
@@ -152,7 +149,7 @@ host.
 
 - `ai-config/policy/phi.py` must be there. Without it, `board code` withholds every check's
   output from the tutor. Setup says when it is missing.
-- `board pull` brings the laptop up to date: Atlas, its vendor checkouts and ai-config. It names
+- `board pull` brings the laptop up to date: Atlas and ai-config. It names
   each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those. `board code
   <session> <paths>` pulls main first too.
 - `board pull --materials [<subject>...]` copies the Mac mini's ignored inputs over SSH:
@@ -191,12 +188,11 @@ runs these two, which a second run leaves unchanged:
 - Edit `board/` only in a git worktree under `~/Developer/Atlas-wt/`. The main checkout serves
   the iPad live, so a half-finished edit there breaks a lesson in progress.
 - Run `python3 board/test/run.py` before shipping board code.
-- `vendor/colibri` and `vendor/colibri-build` are pinned and moved only by hand.
 - `HANDOFF.md` holds only the work still to do.
 
 Python standard library only; plain browser JavaScript; no package manager at run time.
 
 ## Licence
 
-MIT, in `LICENSE`. Coursework and manuscripts are mine; `vendor/` and the files `NOTICE.md`
-lists carry their own licences.
+MIT, in `LICENSE`. Coursework and manuscripts are mine; the files `NOTICE.md` lists carry
+their own licences.
