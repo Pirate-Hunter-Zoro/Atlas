@@ -716,6 +716,9 @@ check("/subjects.json lists every subject",
       == sorted(list(SUBJECT.values()) + [LONE, "projects/Meetings"]))
 check("/subjects.json names the Meetings subject's id",
       json.loads(reply.decode("utf-8")).get("meetings") == "projects/Meetings")
+check("and names no catch-all where the tree has no courses/Random",
+      "scratch" in json.loads(reply.decode("utf-8"))
+      and json.loads(reply.decode("utf-8"))["scratch"] is None)
 check("a library route without ?subject= is refused",
       ask("GET", "/library.json")[0] == 400)
 check("a library route naming no subject is 404",

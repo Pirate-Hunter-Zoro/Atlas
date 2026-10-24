@@ -467,13 +467,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.new_session(registry)
         if how == "subjects":
             # `meetings`: the Meetings subject's id when this tree has it,
-            # else null. `phi` per subject is the working tree's, for display.
+            # else null; `scratch` the same for the catch-all every picker
+            # offers first (`subjects.SCRATCH`). `phi` per subject is the
+            # working tree's, for display.
             from .. import briefs
             every = subjects.all(registry.atlas)
             return self.send_json({
                 "ok": True,
                 "meetings": briefs.MEETINGS if any(
                     one["id"] == briefs.MEETINGS for one in every) else None,
+                "scratch": subjects.scratch(registry.atlas),
                 "subjects": [dict({k: one[k] for k in ("id", "kind", "slug", "name")},
                                   phi=subjects.phi(one["root"])) for one in every]})
         if how == "subject-new":

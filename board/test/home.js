@@ -640,10 +640,13 @@ async function stubbed() {
   openSend();
   const sendIds = () => Array.from(d.querySelectorAll('#sender-list button'))
     .map((b) => b.getAttribute('data-id'));
-  check('it opens a sheet over every course and project, the most recently used first',
+  check('it opens a sheet over every course and project in the one picker order: '
+        + 'Recent, then Courses, then Projects',
         !sender.hidden && d.getElementById('sender-title').textContent === 'Lecture 4'
         && sendIds().join('|') === ['courses/Galois-Theory', 'projects/TRD-EHR',
-          'projects/libr-local-llm', 'projects/Meetings', 'courses/Probability'].join('|'));
+          'courses/Probability', 'projects/libr-local-llm', 'projects/Meetings'].join('|')
+        && Array.from(d.querySelectorAll('#sender-list .sender-group'))
+          .map((e) => e.textContent).join('|') === 'Recent|Courses|Projects');
   typeIn(d.getElementById('sender-find'), 'prob');
   check('its search narrows them', sendIds().join('|') === 'courses/Probability');
   const sendsBefore = w.asked.filter((r) => r.url === '/sessions.json').length;
@@ -878,8 +881,9 @@ async function stubbed() {
   }
   {
     const r1 = await annotated('');
-    check('Annotate a PDF opens its sheet, offering every subject or none',
-          !r1.sheet.hidden && r1.opts[0] === '' && r1.opts.length === 6);
+    check('Annotate a PDF opens its sheet, offering every subject, and "not yet" last',
+          !r1.sheet.hidden && r1.opts[r1.opts.length - 1] === '' && r1.opts.length === 6
+          && r1.opts.slice(0, 2).join('|') === 'courses/Galois-Theory|projects/TRD-EHR');
     check('a chosen PDF can be sent', r1.ready);
     const made = r1.aw.asked.filter((r) => r.url === '/sessions/new')[0];
     check('it makes a session titled for the file, and uploads into that session',
@@ -898,6 +902,36 @@ async function stubbed() {
           && filed && filed.body.upload === 'slides.pdf');
     check('and the reader opens the material, by the id it was filed under',
           r2.aw.__went[0] === '/s/' + r2.NEW + '/board#/s/' + r2.NEW + '/doc/materials-slides');
+  }
+
+  // RANDOM LESSONS FIRST: with the catch-all on the tree (/subjects.json
+  // `scratch`), the send sheet offers it first, under no heading, and Annotate
+  // preselects it.
+  {
+    const withRandom = { ok: true, meetings: 'projects/Meetings', scratch: 'courses/Random',
+      subjects: SUBJECTS.concat([{ id: 'courses/Random', kind: 'course', slug: 'Random',
+                                   name: 'Random lessons' }]) };
+    const rw = load('', { over: { '/subjects.json': withRandom } });
+    await sleep(80);
+    const rd = rw.document;
+    rd.querySelector('[data-send-for="' + LECT + '"]').click();
+    const ids = Array.from(rd.querySelectorAll('#sender-list button')).map((b) => b.getAttribute('data-id'));
+    const first = rd.getElementById('sender-list').firstElementChild;
+    check('the send sheet offers Random lessons first, then Recent, Courses, Projects',
+          ids.join('|') === ['courses/Random', 'courses/Galois-Theory', 'projects/TRD-EHR',
+            'courses/Probability', 'projects/libr-local-llm', 'projects/Meetings'].join('|')
+          && first && first.getAttribute('data-id') === 'courses/Random'
+          && /Random lessons/.test(first.textContent));
+    rd.getElementById('sender-close').click();
+    rd.getElementById('act-annotate').click();
+    const sel = rd.getElementById('annot-subject');
+    const vals = Array.from(sel.querySelectorAll('option')).map((o) => o.value);
+    check('Annotate a PDF preselects Random lessons, first, with "not yet" still last',
+          sel.value === 'courses/Random' && vals[0] === 'courses/Random'
+          && vals[vals.length - 1] === ''
+          && Array.from(sel.querySelectorAll('optgroup')).map((g) => g.label).join('|')
+            === 'Recent|Courses|Projects');
+    rw.close();
   }
 
   // + NEW COURSE WITH ITS TEXTBOOK: the course made, then a session bound to

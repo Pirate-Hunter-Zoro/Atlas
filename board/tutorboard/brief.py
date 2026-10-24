@@ -325,7 +325,9 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
                    "`board bind projects/<Name>`, `--create` only when no "
                    "subject below fits (a project also needs `--phi yes|no`). "
                    "Otherwise the owner sends it to one at End, and the "
-                   "wrap-up writes it up there.")
+                   "wrap-up writes it up there. A lesson that belongs to no "
+                   "subject goes to Random lessons, the catch-all: `board bind "
+                   "%s`." % subjects.SCRATCH)
         names = subjects_sense(repo)
         if names:
             out.append(names)

@@ -1376,9 +1376,13 @@ const heelSwipe = (id, x, y, dx, dy) => {
           return reply({ ok: false });
         }
         if (url === '/subjects.json') {
-          return reply({ ok: true, subjects: [
+          return reply({ ok: true, scratch: 'courses/Random', subjects: [
             { id: 'courses/Galois-Theory', kind: 'course', slug: 'Galois-Theory', name: 'Galois Theory' },
+            { id: 'courses/Random', kind: 'course', slug: 'Random', name: 'Random lessons' },
             { id: 'projects/Meetings', kind: 'project', slug: 'Meetings', name: 'Meetings' }] });
+        }
+        if (url === '/sessions.json') {
+          return reply({ ok: true, sessions: [{ id: '20261001-090000', subject: 'projects/Meetings' }] });
         }
         if (url === urlState) {
           return reply({ pages: Object.keys(saved).sort().map((k) => saved[k]) });
@@ -1469,13 +1473,19 @@ const heelSwipe = (id, x, y, dx, dy) => {
     await tapEnd(d4);
     const panel = d4.getElementById('notes-send');
     const rows4 = Array.from(d4.querySelectorAll('#notes-send-list button'));
-    check('an unbound canvas\'s End offers every course and project before it ends',
+    check('an unbound canvas\'s End offers every course and project before it ends, '
+          + 'in the one order: Random lessons, Recent, Courses, Projects',
           !panel.hidden && !posts.some((p) => p.url === B + '/end')
-          && rows4.map((b) => b.textContent).join(',') === 'Galois Theory,Meetings',
+          && rows4.map((b) => b.textContent).join(',') === 'Random lessons,Meetings,Galois Theory'
+          && Array.from(d4.querySelectorAll('.notes-send-group')).map((g) => g.textContent)
+            .join(',') === 'Recent,Courses'
+          && d4.getElementById('notes-send-list').firstElementChild === rows4[0],
           rows4.map((b) => b.textContent).join(','));
+    check('and ends on "keep it unfiled"',
+          /keep it unfiled/.test(d4.getElementById('notes-send-skip').textContent));
+    rows4[2].click();
+    rows4[2].click();
     rows4[0].click();
-    rows4[0].click();
-    rows4[1].click();
     await sleep(200);
     const sentEnd = posts.filter((p) => p.url === B + '/end');
     check('a tap ends it into that subject, and taps while it is asked post nothing',
@@ -1516,8 +1526,9 @@ const heelSwipe = (id, x, y, dx, dy) => {
     d6.getElementById('notes-send-skip').click();
     await sleep(200);
     const end6 = posts.filter((p) => p.url === B + '/end');
-    check('"let the tutor choose" ends it bound to nothing',
-          end6.length === 1 && !end6[0].body.subject, JSON.stringify(end6));
+    check('"keep it unfiled" ends it bound to nothing, asking for no transcript',
+          end6.length === 1 && !end6[0].body.subject && end6[0].body.transcribe === false,
+          JSON.stringify(end6));
     w6.close();
   }
 

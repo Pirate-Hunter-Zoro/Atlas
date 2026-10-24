@@ -11,7 +11,7 @@ import os
 import threading
 import time
 
-from tutorboard import brief, jobs, limits, seeing
+from tutorboard import brief, jobs, limits, seeing, subjects
 from tutorboard.agents import recipes, usage
 from tutorboard.lesson import cards as lesson_cards, git as lesson_git
 from tutorboard.net import egress
@@ -374,7 +374,8 @@ def wrap_up(ctx, sent=None):
 
 
 def notes_up(ctx, pages, title, subject):
-    """The End turn of a notes canvas: bind if unbound, transcribe `pages`
+    """The End turn of a notes canvas: bind if unbound (to Random lessons,
+    `subjects.SCRATCH`, unless the pages plainly belong elsewhere), transcribe `pages`
     into `docs/<slug>/notes.md` (`board writeup new --md`), `board build` it.
     `(ok, why)`. No brief or recap: the pages are the whole session."""
     log, logpath = ctx.log, ctx.logpath
@@ -391,7 +392,8 @@ def notes_up(ctx, pages, title, subject):
         "pages": "\n".join("- page %d: %s" % (i, p)
                            for i, p in enumerate(pages, start=1)),
         "title": str(title or "Notes").replace('"', "'"),
-        "subject": subject or "no course or project yet"}
+        "subject": subject or "no course or project yet",
+        "scratch": subjects.SCRATCH}
     cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt)
                                       for a in turn.fresh_recipe(ctx.spec) or []])
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0

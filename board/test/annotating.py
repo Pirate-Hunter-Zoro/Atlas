@@ -126,6 +126,9 @@ atlas = os.path.join(box, "atlas")
 write(os.path.join(atlas, "courses", "Demo", "tutorboard.json"),
       json.dumps({"name": "Demo", "phi": False}))
 write(os.path.join(atlas, "courses", "Demo", "TUTOR.md"), "# Demo\n")
+write(os.path.join(atlas, "courses", "Random", "tutorboard.json"),
+      json.dumps({"name": "Random lessons", "phi": False}))
+write(os.path.join(atlas, "courses", "Random", "TUTOR.md"), "# Random\n")
 shutil.copyfile(os.path.join(ROOT, ".gitignore"), os.path.join(atlas, ".gitignore"))
 git("init", "-q", "-b", "main")
 git("add", "-A")
@@ -262,6 +265,11 @@ try:
           status == 200 and got.get("url") == "/s/%s/slate" % sid
           and got["session"].get("view") == "slate"
           and got["session"].get("subject") is None, got)
+    status, subs = server.js("/subjects.json")
+    check("/subjects.json names the catch-all, Random lessons",
+          subs.get("scratch") == "courses/Random"
+          and [x["name"] for x in subs.get("subjects", [])
+               if x["id"] == "courses/Random"] == ["Random lessons"], subs)
     status, _ = server.js("/sessions/new", {"view": "map"})
     check("a view that is not one is refused", status == 400)
     status, page, _h = server.call("/s/%s/slate" % sid)
@@ -302,6 +310,8 @@ try:
           and prompt.find("page-01.png") < prompt.find("page-02.png"), prompt)
     check("and says the session is bound to nothing yet, so the tutor binds it",
           "no course or project yet" in prompt and "board bind" in prompt)
+    check("to Random lessons unless its pages plainly belong elsewhere",
+          "board bind courses/Random" in prompt and "plainly belong" in prompt, prompt)
     check("the turn ran in the Atlas root",
           os.path.realpath(one.get("cwd", "")) == os.path.realpath(atlas))
     src = one.get("src") or ""

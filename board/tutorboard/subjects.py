@@ -28,6 +28,12 @@ KINDS = ("course", "project")
 # Where `create` makes a subject.
 CREATE = DIRS
 
+# The catch-all, "Random lessons": where a free lesson, a canvas or a PDF goes
+# when it belongs to no other subject. Every picker offers it first. Never
+# named for a fenced directory (`fenced.NEVER`) or for the board's uploads
+# drawer, which `board.js` calls Scratch.
+SCRATCH = "courses/Random"
+
 # TUTOR.md's sections, in order. `board memo <section>` writes one of them.
 TUTOR_SECTIONS = ("Where things are", "Now", "Open decisions", "Done recently")
 
@@ -120,6 +126,15 @@ def find(ident, base=None):
     for one in every:
         if one[2] == ident or paths.same_dir(one[3], ident):
             return _record(*one)
+    return None
+
+
+def scratch(base=None):
+    """`SCRATCH` when this tree has it, else None."""
+    parent, slug = SCRATCH.split("/")
+    for one in walk(base):
+        if one[0] == parent and one[2] == slug:
+            return SCRATCH
     return None
 
 

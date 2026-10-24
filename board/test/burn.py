@@ -505,6 +505,25 @@ try:
     check("the marks are read back off the key the viewer wrote",
           list(marks) == [2] and len(marks[2]) == 1)
 
+    # ---- after a bind: the page's ink is in two places, and a copy holds both
+    # Ink drawn before the bind stays in the session; ink drawn after goes to
+    # the subject's `.ink/`. A marked copy made then reads every ink dir.
+    repo.doc_ink = os.path.join(tmp, "subject", ".ink")
+    os.makedirs(repo.doc_ink, exist_ok=True)
+    later = os.path.join(repo.doc_ink, writing.ann_file(key) + ".json")
+    with open(later, "w", encoding="utf-8") as fh:
+        json.dump({"card": key, "strokes": [stroke(0.60)]}, fh)
+    marks = burn.strokes_by_page(repo, "homework", 3)
+    check("a marked copy made after a bind holds the ink drawn before it",
+          list(marks) == [2] and len(marks[2]) == 2
+          and marks[2][0] == stroke(0.40) and marks[2][1] == stroke(0.60))
+    with open(later, "w", encoding="utf-8") as fh:
+        json.dump({"card": key, "strokes": [stroke(0.40), stroke(0.60)]}, fh)
+    check("and a stroke kept in both is drawn once",
+          [len(v) for v in burn.strokes_by_page(repo, "homework", 3).values()] == [2])
+    os.remove(later)
+    del repo.doc_ink
+
     # ---- not saving is a real answer, and costs nothing ---------------------
     before = sorted(os.listdir(os.path.dirname(pdf)))
     got = burn.burn(repo, "homework", "none")

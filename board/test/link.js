@@ -2330,9 +2330,10 @@ async function headerFlow() {
     const url = String(u);
     const body = init && init.body ? JSON.parse(init.body) : null;
     asked.push({ url: url, method: (init && init.method) || 'GET', body: body });
-    if (url === '/subjects.json') return reply({ ok: true, subjects: [
+    if (url === '/subjects.json') return reply({ ok: true, scratch: 'courses/Random', subjects: [
       { id: 'courses/Linear-Algebra', kind: 'course', slug: 'Linear-Algebra',
         name: 'Linear Algebra' },
+      { id: 'courses/Random', kind: 'course', slug: 'Random', name: 'Random lessons' },
       { id: 'projects/TRD-EHR', kind: 'project', slug: 'TRD-EHR', name: 'TRD-EHR' }] });
     if (url === '/bind') return reply({ ok: true, changed: true, subject: {
       id: body.subject, name: names[body.subject] || body.subject, kind: '' } });
@@ -2567,9 +2568,12 @@ async function headerFlow() {
     : fail('End on an unbound session: picker hidden=' + pick.hidden + ' head=' + head.textContent);
   const groups = Array.prototype.map.call(pick.querySelectorAll('.subjpick-group'),
                                           (g) => g.textContent);
-  groups[0] === 'Recent' && rows()[0].textContent === 'TRD-EHR'
+  groups[0] === 'Recent' && rows()[0].textContent === 'Random lessons'
+    && pick.querySelector('#subjpick-list').firstElementChild === rows()[0]
+    && rows()[1].textContent === 'TRD-EHR'
     && rows().filter((b) => b.textContent === 'TRD-EHR').length === 1
-    ? ok('the recently used subjects come first, once each')
+    && rows().filter((b) => b.textContent === 'Random lessons').length === 1
+    ? ok('Random lessons comes first, under no heading, then the recently used subjects, once each')
     : fail('the picker lists ' + JSON.stringify(groups) + ' ' + rows().map((b) => b.textContent));
   filter.value = 'linear';
   filter.dispatchEvent(new window.Event('input'));

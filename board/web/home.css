@@ -411,8 +411,9 @@ button.action { font: inherit; cursor: pointer; }
 .notes-which .tick { width: 1.1rem; flex: 0 0 auto; }
 
 /* ---------- where a past session is sent ----------
-   Every course and project, the most recently used first, scrolling inside
-   the sheet so + new stays in reach however many there are. */
+   Every course and project in the one picker order (Random lessons, Recent,
+   Courses, Projects), scrolling inside the sheet so + new stays in reach
+   however many there are. */
 .sender-list { display: grid; gap: .3rem; margin-top: .7rem;
   max-height: 40vh; overflow: auto; }
 .sender-list button {
@@ -423,6 +424,8 @@ button.action { font: inherit; cursor: pointer; }
   border: 1px solid var(--rule); border-radius: .45rem;
 }
 .sender-list button:hover:not(:disabled) { border-color: var(--accent); }
+.sender-group { margin: .5rem 0 0; font-family: var(--ui); font-size: .74rem;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
 .sender-kind { width: 3.6rem; flex: none; font-size: .74rem; color: var(--ink-3); }
 #dropper-why a { color: var(--accent); }
 

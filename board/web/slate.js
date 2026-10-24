@@ -103,10 +103,12 @@ function finishEnd(body) {
 }
 if (endBtn) endBtn.onclick = endNotes;
 
-/* WHERE THE NOTES GO, for a canvas bound to nothing: every course and
-   project from /subjects.json, and a new one (a project says whether it holds
-   patient data). A tap ends the canvas into it; "let the tutor choose" ends
-   it as it is, and the transcribing turn picks one (`prompts/notes.md`). */
+/* WHERE THE NOTES GO, for a canvas bound to nothing: the one picker order
+   (Random lessons, the catch-all, first; then Recent; then every course, then
+   every project, from /subjects.json and /sessions.json), and a new one (a
+   project says whether it holds patient data). A tap ends the canvas into
+   it; "keep it unfiled", last, ends it with no turn and leaves the pages in
+   the session. */
 var sendPanel = document.getElementById("notes-send");
 var sendList = document.getElementById("notes-send-list");
 var sendForm = document.getElementById("notes-send-form");
@@ -114,8 +116,60 @@ var sendName = document.getElementById("notes-send-name");
 var sendPhi = document.getElementById("notes-send-phi");
 var sendMaking = null;
 var sendMakingPhi = null;
+var RECENT = 4;
 
 function sendSaid(text) { document.getElementById("notes-send-said").textContent = text || ""; }
+
+function getJson(url) {
+  return fetch(url, { credentials: "same-origin" }).then(function (r) { return r.json(); });
+}
+
+/* `[[heading, [subject...]]]` in the one order; the catch-all under none. */
+function pickGroups(list, scratch, recentIds) {
+  var byId = {};
+  list.forEach(function (one) { byId[one.id] = one; });
+  var top = scratch && byId[scratch] ? [byId[scratch]] : [];
+  var recent = [];
+  recentIds.forEach(function (id) {
+    var one = byId[id];
+    if (one && top.indexOf(one) < 0 && recent.indexOf(one) < 0 && recent.length < RECENT) {
+      recent.push(one);
+    }
+  });
+  var rest = list.filter(function (one) { return top.indexOf(one) < 0 && recent.indexOf(one) < 0; });
+  return [["", top], ["Recent", recent],
+          ["Courses", rest.filter(function (one) { return one.kind !== "project"; })],
+          ["Projects", rest.filter(function (one) { return one.kind === "project"; })]]
+    .filter(function (g) { return g[1].length; });
+}
+
+/* The list is painted once /subjects.json comes, and again when
+   /sessions.json says what was used recently; that second may come later, or
+   never. */
+var sendSubjects = null;
+var sendRecent = [];
+
+function paintSend() {
+  sendList.textContent = "";
+  if (!sendSubjects) return;
+  pickGroups(sendSubjects.subjects || [], sendSubjects.scratch, sendRecent).forEach(function (g) {
+    if (g[0]) {
+      var head = document.createElement("div");
+      head.className = "notes-send-group";
+      head.textContent = g[0];
+      sendList.appendChild(head);
+    }
+    g[1].forEach(function (one) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.textContent = one.name || one.slug || one.id;
+      b.dataset.subject = one.id;
+      b.onclick = function () { sendSaid("sending…"); finishEnd({ subject: one.id }); };
+      sendList.appendChild(b);
+    });
+  });
+  if (!sendList.firstChild) sendSaid("No courses or projects yet: make one below.");
+}
 
 function openSend() {
   sendMaking = null;
@@ -123,29 +177,17 @@ function openSend() {
   sendForm.hidden = true;
   sendSaid("");
   sendList.textContent = "";
+  sendSubjects = null;
   sendPanel.hidden = false;
-  fetch("/subjects.json", { credentials: "same-origin" }).then(function (r) {
-    return r.json();
-  }).then(function (got) {
-    var list = (got && got.subjects) || [];
-    [["course", "Courses"], ["project", "Projects"]].forEach(function (g) {
-      var some = list.filter(function (one) { return one.kind === g[0]; });
-      if (!some.length) return;
-      var head = document.createElement("div");
-      head.className = "notes-send-group";
-      head.textContent = g[1];
-      sendList.appendChild(head);
-      some.forEach(function (one) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.textContent = one.name || one.slug || one.id;
-        b.dataset.subject = one.id;
-        b.onclick = function () { sendSaid("sending…"); finishEnd({ subject: one.id }); };
-        sendList.appendChild(b);
-      });
-    });
-    if (!sendList.firstChild) sendSaid("No courses or projects yet: make one below.");
+  getJson("/subjects.json").then(function (got) {
+    sendSubjects = got || {};
+    paintSend();
   }, function () { sendSaid("The list of courses and projects did not come."); });
+  getJson("/sessions.json").then(function (got) {
+    sendRecent = ((got && got.sessions) || []).map(function (one) { return one.subject; })
+      .filter(Boolean);
+    if (sendSubjects && !sendPanel.hidden && !ending) paintSend();
+  }, function () { /* the list stands without them */ });
 }
 
 function startSendMaking(kind) {
@@ -189,7 +231,9 @@ if (sendPanel) {
       finishEnd({ subject: got.subject.id });
     }, function () { sendSaid("Not made: the board did not answer."); });
   };
-  document.getElementById("notes-send-skip").onclick = function () { finishEnd({}); };
+  document.getElementById("notes-send-skip").onclick = function () {
+    finishEnd({ transcribe: false });
+  };
   document.getElementById("notes-send-back").onclick = function () { sendPanel.hidden = true; };
 }
 

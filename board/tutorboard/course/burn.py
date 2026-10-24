@@ -103,27 +103,42 @@ def ann_ident(kind):
 
 def strokes_by_page(repo, kind, pages_n, idents=None):
     """Every page's marks, `{page number: [stroke, ...]}`, empty pages absent.
-    Filenames come from the save route's own derivation, never rebuilt here:
-    security rests on that one rule."""
+    Read from every directory ink of the page can be in
+    (`course_repo.ink_dirs`), the session's first: ink drawn before a bind
+    stays in the session while later ink goes to the subject's `.ink/`, and a
+    marked copy holds both. A stroke kept in both is drawn once. Filenames
+    come from the save route's own derivation, never rebuilt here: security
+    rests on that one rule."""
     from ..server.routes import writing          # local: avoids an import cycle
+    from ..lesson import notes                   # local: light, but lesson-side
+    from . import repo as course_repo
 
     import json
 
     out = {}
+    seen = {}
     for ident in (idents or [ann_ident(kind)]):
         for n in range(1, int(pages_n or 0) + 1):
             key = "doc/%s/p%d" % (ident, n)
             if not writing.ann_ok(key):
                 continue
-            rec_path = writing.ann_path(repo, key)
-            try:
-                with open(rec_path, "r", encoding="utf-8") as fh:
-                    rec = json.load(fh)
-            except (OSError, ValueError):
-                continue
-            strokes = [s for s in (rec.get("strokes") or []) if (s or {}).get("p")]
-            if strokes:
-                out.setdefault(n, []).extend(strokes)
+            for where in course_repo.ink_dirs(repo):
+                rec_path = os.path.join(where, writing.ann_file(key) + ".json")
+                try:
+                    with open(rec_path, "r", encoding="utf-8") as fh:
+                        rec = json.load(fh)
+                except (OSError, ValueError):
+                    continue
+                if not isinstance(rec, dict):
+                    continue
+                for s in rec.get("strokes") or []:
+                    if not isinstance(s, dict) or not s.get("p"):
+                        continue
+                    sig = notes.stroke_sig(s)
+                    if sig in seen.setdefault(n, set()):
+                        continue
+                    seen[n].add(sig)
+                    out.setdefault(n, []).append(s)
     return out
 
 

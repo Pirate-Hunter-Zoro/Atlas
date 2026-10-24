@@ -4153,6 +4153,7 @@ var PICK_GO = { bind: "make it and bind", make: "make it and bind",
    first, from /sessions.json; the second may come later, or never. */
 var pickList = [];
 var pickRecent = [];
+var pickScratch = null;      /* /subjects.json `scratch`: Random lessons, or null */
 var RECENT = 4;
 
 els.subjectBtn.onclick = function (e) {
@@ -4186,6 +4187,7 @@ function openPicker(mode, then) {
   hangMenu(els.subjpick);
   fetch("/subjects.json").then(function (r) { return r.json(); }).then(function (got) {
     pickList = (got && got.subjects) || [];
+    pickScratch = (got && got.scratch) || null;
     paintSubjects();
   }, function () { pickSaid("The list of courses and projects did not come."); });
   fetch("/sessions.json").then(function (r) { return r.json(); }).then(function (got) {
@@ -4220,18 +4222,26 @@ function subjectRow(one) {
   return b;
 }
 
-/* The bound subject and the recently used ones under "Recent", then every
-   other course and every other project. */
+/* THE ONE PICKER ORDER, as home and the canvas offer it too: Random lessons
+   (the catch-all, `scratch`) first and under no heading; then the bound
+   subject and the recently used ones under "Recent"; then every other course
+   and every other project. */
 function paintSubjects() {
   var host = els.subjpickList;
   host.textContent = "";
   var byId = {};
   pickList.forEach(function (one) { byId[one.id] = one; });
+  var top = pickScratch && byId[pickScratch] ? [byId[pickScratch]] : [];
   var first = [];
   [headerState.subject].concat(pickRecent).forEach(function (id) {
-    if (id && byId[id] && first.indexOf(byId[id]) < 0) first.push(byId[id]);
+    if (id && byId[id] && first.indexOf(byId[id]) < 0 && top.indexOf(byId[id]) < 0) {
+      first.push(byId[id]);
+    }
   });
-  var rest = pickList.filter(function (one) { return first.indexOf(one) < 0; });
+  top.forEach(function (one) { host.appendChild(subjectRow(one)); });
+  var rest = pickList.filter(function (one) {
+    return first.indexOf(one) < 0 && top.indexOf(one) < 0;
+  });
   [["Recent", first],
    ["Courses", rest.filter(function (one) { return one.kind === "course"; })],
    ["Projects", rest.filter(function (one) { return one.kind === "project"; })]

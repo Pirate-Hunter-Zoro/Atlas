@@ -500,12 +500,14 @@ def _send(h, repo):
 
 
 def _end(h, repo):
-    """`POST /end {subject?}`: End this session. With `subject`, it is sent
-    there first (`_sent`): a refused send is 400 and the session stays open.
-    `sessions.end` sets `ended` and commits the subject's TUTOR.md and the
-    session's artifacts; then the wrap-up turn is queued, the only thing that
-    ever runs it. A second End changes nothing but retries the commit; one
-    naming another subject than an ended session's is 409."""
+    """`POST /end {subject?, transcribe?}`: End this session. With `subject`,
+    it is sent there first (`_sent`): a refused send is 400 and the session
+    stays open. `sessions.end` sets `ended` and commits the subject's
+    TUTOR.md and the session's artifacts; then the wrap-up turn is queued, the
+    only thing that ever runs it. A canvas (`view: slate`) queues it only when
+    `transcribe` is not false: "keep it unfiled" ends with no turn. A second
+    End changes nothing but retries the commit; one naming another subject
+    than an ended session's is 409."""
     if not repo.stored:
         return h.send_json({"ok": False, "error": "not a session"}, status=404)
     payload = _body(h)
@@ -514,6 +516,7 @@ def _end(h, repo):
     sid = os.path.basename(repo.live)
     base = os.path.dirname(os.path.dirname(repo.live))
     subject = str(payload.get("subject") or "")
+    transcribe = payload.get("transcribe") is not False
     sent = {}
     with sessions.held(sid, base):
         if subject:
@@ -528,7 +531,9 @@ def _end(h, repo):
         except sessions.NoSession:
             return h.send_json({"ok": False, "error": "no such session"},
                                status=404)
-        queued = bool(runner.RUNNER and runner.RUNNER.end(sid))
+        canvas = rec.get("view") == "slate"
+        queued = bool((transcribe or not canvas)
+                      and runner.RUNNER and runner.RUNNER.end(sid))
     h.note("session %s ended (%s)" % (sid, said))
     h.hub.worker.dirty.set()
     out = {"ok": True, "session": rec, "committed": bool(committed),

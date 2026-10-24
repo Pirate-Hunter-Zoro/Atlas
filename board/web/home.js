@@ -413,24 +413,32 @@ function paintAnnot() {
     : "choose a PDF";
 }
 
+/* The subjects in the one picker order (`pickGroups`), Random lessons
+   preselected, and "not yet: it stays in the session" last. */
 function openAnnot() {
   annotBusy = false;
   annotSay("");
   els.annotBar.hidden = true;
   els.annotFile.value = "";
-  var keep = els.annotSubject.value;
   els.annotSubject.innerHTML = "";
+  pickGroups((subjectsData && subjectsData.subjects) || []).forEach(function (g) {
+    var host = els.annotSubject;
+    if (g[0]) {
+      host = el("optgroup");
+      host.label = g[0];
+      els.annotSubject.appendChild(host);
+    }
+    g[1].forEach(function (s) {
+      var o = el("option", "", subjectName(s));
+      o.value = s.id;
+      host.appendChild(o);
+    });
+  });
   var none = el("option", "", "not yet: it stays in the session");
   none.value = "";
   els.annotSubject.appendChild(none);
-  ((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
-    var o = el("option", "", (s.kind === "course" ? "course: " : "project: ")
-                              + (s.name || s.id));
-    o.value = s.id;
-    els.annotSubject.appendChild(o);
-  });
-  els.annotSubject.value = keep;
-  if (els.annotSubject.value !== keep) els.annotSubject.value = "";
+  els.annotSubject.value = scratchId() || "";
+  if (els.annotSubject.value !== (scratchId() || "")) els.annotSubject.value = "";
   paintAnnot();
   els.annot.hidden = false;
 }
@@ -549,6 +557,28 @@ function subjectLink(s, last) {
 }
 
 function subjectName(s) { return s.name || s.slug || s.id; }
+
+/* THE ONE ORDER every picker offers subjects in, here and on the board and
+   the canvas: Random lessons, the catch-all (/subjects.json `scratch`), first
+   and under no heading; then Recent, the RECENT most recently used; then
+   every other course, then every other project, each most recently used
+   first. `[[heading, [subject...]]]`, empty groups left out. */
+var RECENT = 4;
+
+function scratchId() { return (subjectsData && subjectsData.scratch) || null; }
+
+function pickGroups(list) {
+  var last = activity();
+  var sorted = byUse(list);
+  var top = sorted.filter(function (s) { return s.id === scratchId(); });
+  var rest = sorted.filter(function (s) { return s.id !== scratchId(); });
+  var recent = rest.filter(function (s) { return !!last[s.id]; }).slice(0, RECENT);
+  rest = rest.filter(function (s) { return recent.indexOf(s) < 0; });
+  return [["", top], ["Recent", recent],
+          ["Courses", rest.filter(function (s) { return s.kind !== "project"; })],
+          ["Projects", rest.filter(function (s) { return s.kind === "project"; })]]
+    .filter(function (g) { return g[1].length; });
+}
 
 /* THE MOST RECENT SESSION ON EACH SUBJECT, by subject id: the later of when
    it opened and when it ended, as session.json writes them, which compare as
@@ -762,16 +792,21 @@ function senderSay(text, bad) {
 function paintSender() {
   var q = String(els.senderFind.value || "").trim().toLowerCase();
   els.senderList.innerHTML = "";
-  byUse((subjectsData && subjectsData.subjects) || []).forEach(function (s) {
-    if (!subjectFound(s, q)) return;
-    var b = el("button");
-    b.type = "button";
-    b.disabled = sending;
-    b.setAttribute("data-id", s.id);
-    b.appendChild(el("span", "sender-kind", s.kind === "project" ? "project" : "course"));
-    b.appendChild(el("span", "", subjectName(s)));
-    b.onclick = function () { sendTo(s.id, subjectName(s)); };
-    els.senderList.appendChild(b);
+  var found = ((subjectsData && subjectsData.subjects) || []).filter(function (s) {
+    return subjectFound(s, q);
+  });
+  pickGroups(found).forEach(function (g) {
+    if (g[0]) els.senderList.appendChild(el("p", "sender-group", g[0]));
+    g[1].forEach(function (s) {
+      var b = el("button");
+      b.type = "button";
+      b.disabled = sending;
+      b.setAttribute("data-id", s.id);
+      b.appendChild(el("span", "sender-kind", s.kind === "project" ? "project" : "course"));
+      b.appendChild(el("span", "", subjectName(s)));
+      b.onclick = function () { sendTo(s.id, subjectName(s)); };
+      els.senderList.appendChild(b);
+    });
   });
   if (!els.senderList.children.length) {
     els.senderList.appendChild(el("p", "hint", q ? "None matches." : "No course or project yet."));

@@ -102,6 +102,14 @@ try:
     check("vendor/ and dot directories are not subjects",
           not any("colibri" in i or ".trash" in i for i in ids))
 
+    # --- the catch-all ------------------------------------------------------
+    check("with no courses/Random, scratch() is None", subjects.scratch() is None)
+    mk(tmp, "courses/Random", {"name": "Random lessons", "phi": False})
+    check("scratch() names courses/Random once it exists",
+          subjects.SCRATCH == "courses/Random" and subjects.scratch() == "courses/Random"
+          and subjects.find(subjects.scratch())["name"] == "Random lessons")
+    shutil.rmtree(os.path.join(tmp, "courses", "Random"))
+
     # --- find ---------------------------------------------------------------
     check("find by qualified id", subjects.find("courses/Topology")["root"] == topo)
     check("find by slug", subjects.find("Topology")["id"] == "courses/Topology")
@@ -242,6 +250,19 @@ for parent, _kind in subjects.DIRS:
         pass
 check("on this tree, all() is exactly the directories under the subject parents",
       set(s["id"] for s in subjects.all()) == listed)
+
+# The catch-all is a course on this tree, named for what it is, and its name
+# collides with neither a fence nor the board's uploads drawer (Scratch).
+from tutorboard import fenced                                   # noqa: E402
+_scratch = subjects.find(subjects.SCRATCH)
+check("this tree's catch-all is courses/Random, \"Random lessons\", a course with "
+      "phi false",
+      subjects.scratch() == subjects.SCRATCH and _scratch
+      and _scratch["name"] == "Random lessons" and _scratch["kind"] == "course"
+      and subjects.phi(_scratch["root"]) is False)
+check("and its name is no fenced directory and not Scratch",
+      not fenced.in_fence(subjects.SCRATCH)
+      and subjects.SCRATCH.split("/")[1].lower() != "scratch")
 
 # --- markers: a pinned toolchain has its lockfile and its check ---------------
 from tutorboard import toolplan                               # noqa: E402

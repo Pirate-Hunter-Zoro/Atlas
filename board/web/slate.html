@@ -29,9 +29,10 @@
   <button id="notes-end" type="button" hidden
           title="end the notes: the tutor transcribes these pages into notes.md">End</button>
 </div>
-<!-- A NOTES CANVAS BOUND TO NOTHING asks at End where its notes go: every
-     course and project, and a new one. A tap ends it into that subject (POST
-     /end {subject}); "let the tutor choose" ends it as it is. -->
+<!-- A NOTES CANVAS BOUND TO NOTHING asks at End where its notes go, in the
+     one picker order: Random lessons, Recent, Courses, Projects, and a new
+     one. A tap ends it into that subject (POST /end {subject}); "keep it
+     unfiled" ends it with no turn, the pages left in the session. -->
 <div id="notes-send" class="notes-send" hidden>
   <p class="notes-send-head">Send these notes to a course or project, then end</p>
   <div id="notes-send-list"></div>
@@ -49,7 +50,8 @@
     <button id="notes-send-go" type="button">make it, send them there and end</button>
   </div>
   <div class="notes-send-acts">
-    <button id="notes-send-skip" type="button">end, and let the tutor choose</button>
+    <button id="notes-send-skip" type="button"
+            title="end with no turn; the pages stay in the session">keep it unfiled</button>
     <button id="notes-send-back" type="button">not yet</button>
   </div>
   <p id="notes-send-said" class="notes-send-said"></p>

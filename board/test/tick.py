@@ -269,6 +269,8 @@ try:
           and "Teach it now" in said and "board bind" in said
           and "sends it to one at End" in said
           and "ask the owner what this session is for" not in said)
+    check("and names the catch-all, Random lessons, for a lesson that belongs to no subject",
+          "Random lessons" in said and "board bind courses/Random" in said)
     check("and names the subjects there are, so a bind does not make a near-duplicate",
           "subjects there are: courses/Topology" in said)
     bound = brief.briefing(repo, sense)
