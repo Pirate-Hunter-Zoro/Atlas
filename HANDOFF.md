@@ -171,11 +171,11 @@ These are built but not yet used for real. Strike each one after an evening on t
 - **Answers:**
   - A response typing out, and the typed half of the answer panel.
   - Whether the verdict band and streak chip feel like information or like a scoreboard.
-
 - **Speech,** on a subject whose `speech.lang` is zh-CN:
   - A zh-CN `say` phrase plays.
   - A take on the speak tab shows "heard: ..." within about 5 s, with a tone chip per syllable.
   - `board doctor --dry` names a working local TTS, STT and assessment.
+
 ## The work it is for
 
 Each item's open tasks live in its subject's TUTOR.md.
