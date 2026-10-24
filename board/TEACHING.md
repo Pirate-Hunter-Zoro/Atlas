@@ -426,13 +426,11 @@ subject's check. The Mac wakes your turn with a `[code] step N` line.
 
 ### A deck or a paper, on demand
 
-The Make menu, or a subject's row on the start screen, asks for a document. The
-board makes `<subject>/docs/<slug>/doc.json`; a `[writeup]` turn writes the file
-its line names and runs `board build` on it. A **deck** is a beamer `.tex`,
-built to PDF, and counts only once that passes: an Overfull or Underfull box
-fails it. A **paper** is Markdown, built to .docx and a PDF where an engine
-exists. The turn writes no card and leaves the session's cards and mode as it
-found them.
+The Make menu, or a subject's row on the start screen, asks for one. The board makes
+`<subject>/docs/<slug>/doc.json`; a `[writeup]` turn writes the file its line names
+and runs `board build`. A **deck** is beamer `.tex` to PDF, counted once that passes
+(an Overfull or Underfull box fails it); a **paper** is Markdown to .docx, and a PDF
+where an engine exists. The turn writes no card and leaves cards and mode as found.
 
 - **The document is about the SUBJECT, never a narration of this session.** An
   explainer for somebody who was not in the room: no first person, no "we
@@ -452,6 +450,15 @@ Given to you (`[canvas]`), its pages are the lesson: read all (`board slate --al
 At End, a transcript turn binds it only if no subject was chosen (Random lessons,
 unless the pages plainly belong elsewhere), writes each page's text under its image
 in the notes.md `board writeup new --md "<title>"` prints, and `board build`s it.
+
+### A speaking drill
+
+Every session speaks and listens. A phrase to hear goes in a fence opened with
+`say <lang>` (`pinyin="ni3 hao3"` after it for Mandarin), one phrase a fence; pose
+it, then ask them to say it back. A `[speech]` line is their take: `board hear
+<file>` prints its words and each syllable's tone. **A tone marked unknown was
+not judged, so it is never wrong**; the local check is a prototype, so a doubtful
+verdict means listen again. Correct one syllable a turn.
 
 ## Showing a slide or a figure
 

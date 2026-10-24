@@ -25,11 +25,11 @@ def mode_of(state):
 
 
 def read_config(root):
-    """What a subject's `tutorboard.json` says: `name`, `check`.
+    """What a subject's `tutorboard.json` says: `name`, `check`, `speech`.
 
     All optional; other keys (`stance`, `aim`, `subtitle`, `mode`, `agent`)
     are ignored. `name` defaults to the directory with dashes as spaces.
-    `check` goes through `clean_check`.
+    `check` goes through `clean_check`, `speech` through `clean_speech`.
     """
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
@@ -44,7 +44,41 @@ def read_config(root):
     }
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
     cfg["check_line"] = check_line(cfg["check"])
+    cfg["speech"] = clean_speech(said.get("speech"))
     return cfg
+
+
+# ---------------------------------------------------------------------------
+# a subject's SPEECH: the language it drills, spoken and heard
+# ---------------------------------------------------------------------------
+#
+#     "speech": {"lang": "zh-CN", "native": "en-US", "voice": "Tingting",
+#                "auto": true}
+#
+# `lang` is what a `say` phrase and a take are in unless they say otherwise;
+# `native` is what a card read aloud is in (en-US when unset); `voice` names
+# a voice for `lang`; `auto` is whether new cards are spoken unasked, on by
+# default once a language is set. Every session can speak and listen; this
+# only sets the defaults.
+SPEECH_LANG = re.compile(r"\A[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2}\Z")
+
+
+def clean_speech(raw):
+    """`{lang, native, voice, auto}` from `tutorboard.json`'s `speech`, or
+    None when it is absent or names no language. Never raises."""
+    if not isinstance(raw, dict):
+        return None
+    lang = str(raw.get("lang") or "").strip()
+    if not SPEECH_LANG.match(lang):
+        return None
+    native = str(raw.get("native") or "").strip()
+    voice = raw.get("voice")
+    return {"lang": lang.replace("_", "-"),
+            "native": native.replace("_", "-") if SPEECH_LANG.match(native)
+            else "en-US",
+            "voice": str(voice).strip()[:80] if isinstance(voice, str)
+            and voice.strip() else None,
+            "auto": bool(raw.get("auto", True))}
 
 
 # ---------------------------------------------------------------------------

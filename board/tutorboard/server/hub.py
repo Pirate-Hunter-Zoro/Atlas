@@ -122,7 +122,8 @@ class Hub:
             self.worker.submit(jobs)
         self.ids = set(ids)
         board_state = repo.state()
-        board_state.setdefault("course", config.read_config(repo.root)["name"])
+        subject_cfg = config.read_config(repo.root)
+        board_state.setdefault("course", subject_cfg["name"])
             # The session's mode; `stance_now` repeats it for the old busy
             # strip.
         board_state["mode"] = config.mode_of(board_state)
@@ -159,6 +160,9 @@ class Hub:
             # givens, from the pinned set (`state.load_problem`).
             "problem": problem,
             "writeups": _safe(writeups.waiting, repo),
+            # The subject's speech defaults (`config.clean_speech`): the
+            # language a take is heard in and whether cards speak unasked.
+            "speech": subject_cfg.get("speech"),
             # The subject's macros, so KaTeX matches LaTeX.
             "macros": coursemacros.for_workspace(repo.root),
             # The Mac's sync health, the same for every session.

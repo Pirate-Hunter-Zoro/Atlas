@@ -332,6 +332,35 @@ def reading_sense(repo):
         "read yourself. " % (found[0]["id"], named))
 
 
+# A subject with a `speech` block, or a session holding a heard take.
+SPEECH_SENSE = (
+    "THIS SESSION SPEAKS AND LISTENS. A phrase they should hear goes in a "
+    "fence opened with `say <lang>`, with `pinyin=\"ni3 hao3\"` after it for "
+    "Mandarin, and gets a play button. A `[speech]` line is a take they "
+    "recorded: what was heard, the target and the verdict; its `file:` is the "
+    "heard record, which `board hear <file>` prints with each syllable's tone. "
+    "A tone marked unknown was not judged, so never call it wrong. Run the "
+    "drill as TEACHING.md says under `A speaking drill`. "
+)
+
+
+def speech_sense(repo):
+    """`SPEECH_SENSE` when the subject sets `speech` or the session holds a
+    heard take, else ""."""
+    if (config.read_config(repo.root).get("speech")
+            or _holds_heard(getattr(repo, "live", None))):
+        return SPEECH_SENSE
+    return ""
+
+
+def _holds_heard(live):
+    try:
+        return bool(live) and any(n.endswith(".heard.json") for n in
+                                  os.listdir(os.path.join(live, "speech")))
+    except OSError:
+        return False
+
+
 def results_sense(repo):
     """The figures this workspace made, named, with how to put one on a card."""
     try:
@@ -617,6 +646,7 @@ def _session_sense(repo):
     how += TRACE_SENSE
     how += reading_sense(repo)
     how += results_sense(repo)
+    how += speech_sense(repo)
 
     if hw_set:
         st_hw = homework.status(repo.root, st)
