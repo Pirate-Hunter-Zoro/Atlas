@@ -1,7 +1,7 @@
 // The problem stays on screen, and its givens go anywhere in one tap.
 //
 // The real board in a real DOM, painted from the payload `problem` that
-// `state.load_problem` builds off the tracked hw04 write-up: the strip in the
+// `state.load_problem` builds off hw04 as committed at 0a591419: the strip in the
 // chrome, the statement opening and closing in one tap, a given's chip into
 // the calculator (p*P^3 then reads in fractions), into the typed answer and
 // onto the clipboard, and the picker switching problems with POST /problem.
@@ -60,7 +60,15 @@ import json, os, sys, tempfile
 sys.path.insert(0, ${JSON.stringify(BOARD)})
 from tutorboard.course import repo as course_repo
 from tutorboard.lesson import state
-root = os.path.join(${JSON.stringify(path.dirname(BOARD))}, "courses", "Probability")
+import subprocess
+root = tempfile.mkdtemp(prefix="tutor-problem-js-course-")
+os.makedirs(os.path.join(root, "homework", "hw04"))
+with open(os.path.join(root, "homework", "hw04", "hw04.tex"), "wb") as fh:
+    fh.write(subprocess.run(["git", "-C", ${JSON.stringify(path.dirname(BOARD))}, "show",
+                             "0a591419:courses/Probability/homework/hw04/hw04.tex"],
+                            capture_output=True, check=True).stdout)
+with open(os.path.join(root, "tutorboard.json"), "w") as fh:
+    json.dump({"name": "Probability"}, fh)
 r = course_repo.Repo(root, tempfile.mkdtemp(prefix="tutor-problem-js-"))
 print(json.dumps(state.load_problem(r, {"hw": "homework/hw04/hw04.tex", "problem": "5"})))
 `;

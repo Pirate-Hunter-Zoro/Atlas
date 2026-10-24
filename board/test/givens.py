@@ -3,8 +3,9 @@
 
     python3 test/givens.py
 
-The fixtures are the tracked write-ups themselves: Probability's hw04 and
-Galois Theory's ch07 homework.
+The fixtures are tracked write-ups: Probability's hw04 as committed at
+0a591419, so the owner adding a problem does not move it, and Galois Theory's
+ch07 homework.
 
   * hw04 problem 5 gives P and p, each with math.js text the calculator
     defines; problem 14 gives its four matrices.
@@ -21,6 +22,7 @@ Galois Theory's ch07 homework.
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -44,7 +46,11 @@ def check(name, cond, detail=""):
         print("FAIL " + name + (("\n       " + str(detail)) if detail else ""))
 
 
-HW04 = os.path.join(ATLAS, "courses", "Probability", "homework", "hw04", "hw04.tex")
+HW04_AT = "0a591419:courses/Probability/homework/hw04/hw04.tex"
+HW04 = os.path.join(tempfile.mkdtemp(prefix="tutor-hw04-"), "hw04.tex")
+with open(HW04, "wb") as fh:
+    fh.write(subprocess.run(["git", "-C", ATLAS, "show", HW04_AT],
+                            capture_output=True, check=True).stdout)
 CH07 = os.path.join(ATLAS, "courses", "Galois-Theory", "chapters",
                     "ch07-splitting-fields", "homework", "ch07-homework.tex")
 
