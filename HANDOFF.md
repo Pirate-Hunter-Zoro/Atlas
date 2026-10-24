@@ -157,8 +157,6 @@ existing vision route on the slate PNG.
 
 ## The owner's
 
-- **Backups.** MEGA backs up `~/Developer`, which holds materials, sessions and `.ink/`. Outside
-  it: `~/.config/tutor-board/` (keys.env, config.json) and `~/Archive/`.
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
@@ -188,14 +186,6 @@ existing vision route on the slate PNG.
 - **`~/.claude/CLAUDE.md`'s "AI Providers: None Is Load-Bearing" section** names the cluster,
   PHI, Colibri and a deleted egress document. Rewrite it for the Mac, and the same section in
   `~/.config/opencode/AGENTS.md`.
-- **Memory notes** in `~/.claude/projects/-Users-mikeyferguson-Developer-Atlas/memory/`:
-  `colibri-read-only.md` (and its `MEMORY.md` line) describes Colibri reading the cluster's
-  data; delete it. `no-pattern-deletes-in-dotfiles.md` names the cluster in its example.
-- **Leftover config and files:**
-  - the dead `serve_partition`, `serve_time`, `serve_cpus` and `serve_mem` keys in
-    `~/.config/tutor-board/config.json`;
-  - `~/.local/state/tutor-board/scrontab.*`;
-  - `~/Archive/atlas-migration/`.
 
 ## Loose ends in the code
 
