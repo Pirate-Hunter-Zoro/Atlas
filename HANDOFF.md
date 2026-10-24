@@ -160,9 +160,7 @@ existing vision route on the slate PNG.
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
-- **For item 14:** create an Azure Speech resource and put `AZURE_SPEECH_KEY` and
-  `AZURE_SPEECH_REGION` in `~/.config/tutor-board/keys.env`. Download the premium Tingting, Kyoko
-  and Amélie voices in System Settings.
+- **For item 14:** download the premium Tingting, Kyoko and Amélie voices in System Settings.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
   `setup-mac.sh --coding` the Mac mini's tailnet name.
 - **Read `board/TEACHING.md` once.** Every turn is told to follow it.
