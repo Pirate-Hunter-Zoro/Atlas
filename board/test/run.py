@@ -13,7 +13,8 @@ registering it. The full set also discovers subjects' tests/board/*.py entry poi
 tests also run with --guards. Where ai-config is absent the run says SKIPPED, loudly.
 
 Each suite runs with board/ as its working directory and this process's
-environment, plus a page cache of its own (TUTORBOARD_PAGES). Suites in SERIAL never run beside each other.
+environment less git's repository-local variables (GIT_DIR and the rest), plus
+a page cache of its own (TUTORBOARD_PAGES). Suites in SERIAL never run beside each other.
 
 Stdlib only.
 """
@@ -255,7 +256,19 @@ def order(suites):
                                          s.name not in SERIAL, s.name))
 
 
+def scrub_git_env():
+    """Drop the repository-local GIT_* variables a hook or `rebase --exec`
+    sets. A suite's git in a temp sandbox would otherwise act on this
+    repository, and push to its origin."""
+    names = subprocess.run(["git", "rev-parse", "--local-env-vars"],
+                           capture_output=True, text=True).stdout.split()
+    for name in names or ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE",
+                          "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY"]:
+        os.environ.pop(name, None)
+
+
 def main(argv):
+    scrub_git_env()
     ap = argparse.ArgumentParser(description="Run board/test's suites.")
     ap.add_argument("-j", type=int, default=4, metavar="N",
                     help="suites run at once (default 4)")
