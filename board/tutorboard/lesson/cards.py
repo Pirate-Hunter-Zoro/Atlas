@@ -69,7 +69,63 @@ def extract_tikz(body, jobs, repo):
             jobs.append((digest, kind, src))
         return "\n\n@@FIGURE:%s:%s@@\n\n" % (digest, status)
 
-    return TIKZ_BLOCK.sub(sub, body)
+    return extract_say(TIKZ_BLOCK.sub(sub, body), jobs, repo)
+
+
+# A phrase to hear: ```say zh-CN pinyin="ni3 hao3"``` around the words.
+SAY_BLOCK = re.compile(
+    r"^[ \t]*```[ \t]*say[ \t]+([A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2})"
+    r"((?:[ \t]+[a-z]+=\"[^\"\n]*\")*)[ \t]*\n(.*?)^[ \t]*```[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
+
+
+def say_attrs(raw):
+    """`{name: value}` of a say fence's `name="value"` words."""
+    return dict(re.findall(r'([a-z]+)="([^"\n]*)"', raw or ""))
+
+
+def extract_say(body, jobs, repo):
+    """Replace each `say` fence with `@@SAY:<sha>:<status>:<lang>@@` and the
+    words (and pinyin) after it, which the client makes a play button
+    fetching `/speech/<sha>.m4a`. A phrase not yet cached is queued, as a
+    figure is, as a `say` job (`server/tikz.py` hands it to `speech/synth.py`)."""
+    if "```" not in body:
+        return body
+    found = []
+
+    def sub(match):
+        from ..agents import speech
+        from ..speech import synth
+        lang = speech.clean_lang(match.group(1))
+        text = " ".join(match.group(3).split())
+        if not lang or not text:
+            return match.group(0)
+        attrs = say_attrs(match.group(2))
+        pinyin = attrs.get("pinyin") or None
+        voice = attrs.get("voice") or _subject_voice(repo, lang, found)
+        name, src = synth.job(lang, text, pinyin, voice,
+                              None if getattr(repo, "sessionless", False)
+                              else getattr(repo, "live", None))
+        status = synth.status(name)
+        if status == "pending":
+            jobs.append((name, "say", src))
+        return "\n\n@@SAY:%s:%s:%s@@ %s%s\n\n" % (
+            name, status, lang, text, " (%s)" % pinyin if pinyin else "")
+
+    return SAY_BLOCK.sub(sub, body)
+
+
+def _subject_voice(repo, lang, memo):
+    """The subject's `speech.voice` when the fence is in its language; read
+    once per body."""
+    if not memo:
+        from ..course import config
+        root = getattr(repo, "root", None)
+        memo.append((config.read_config(root).get("speech") or {}) if root else {})
+    mine = memo[0]
+    from ..agents import speech
+    return mine.get("voice") if speech.clean_lang(mine.get("lang")) == lang else None
 
 
 # Parsed cards keyed by path, valid while (mtime, size) hold: the poll is

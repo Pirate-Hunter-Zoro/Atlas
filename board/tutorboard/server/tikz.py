@@ -11,6 +11,9 @@ files, and the same figure in two sessions on one subject is compiled once.
     TikzWorker(repo)        one session's handle: submit, dirty, start, stop
     digest(kind, src, root) a figure's name in the cache
 
+A card's `say` phrase rides the same thread into the speech cache
+(`speech/synth.py`), so a slow voice never holds a request either.
+
 A kind-`latex` figure (a card's ```latex fence, a given placed on the slate)
 is also written as `<name>.png` by dvipng where it is installed: the slate
 draws that instead when an SVG would taint its canvas (`web/slate-core.js`).
@@ -138,14 +141,20 @@ class Compiler(threading.Thread):
                 while not self.queue:
                     self.cv.wait()
                 cache, root, name, kind, src = self.queue.pop(0)
+            made = ".m4a" if kind == "say" else ".svg"
             try:
-                compile_figure(cache, root, name, kind, src)
+                if kind == "say":
+                    from ..speech import synth
+                    synth.make(cache, name, src)
+                else:
+                    compile_figure(cache, root, name, kind, src)
             except Exception as exc:  # never let the worker die      # noqa: BLE001
                 try:
+                    os.makedirs(cache, exist_ok=True)
                     _fail(cache, name, str(exc))
                 except OSError:
                     pass
-            done = (os.path.exists(os.path.join(cache, name + ".svg"))
+            done = (os.path.exists(os.path.join(cache, name + made))
                     or os.path.exists(os.path.join(cache, name + ".err")))
             with self.cv:
                 handles = self.waiting.pop((cache, name), set())
@@ -202,8 +211,14 @@ class TikzWorker(object):
                 self.held.extend(j for j in jobs if j[0] not in have)
                 return
             repo = self.repo
-        if jobs:
-            compiler().submit(self, repo.tikz, repo.root, jobs)
+        # A card's `say` phrase is made by the same thread, into the speech
+        # cache every session shares (`speech/synth.py`).
+        said = [j for j in jobs if j[1] == "say"]
+        drawn = [j for j in jobs if j[1] != "say"]
+        if drawn:
+            compiler().submit(self, repo.tikz, repo.root, drawn)
+        if said:
+            compiler().submit(self, paths.SPEECH, repo.root, said)
 
 
 # ---------------------------------------------------------------------------

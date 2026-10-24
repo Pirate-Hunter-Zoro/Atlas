@@ -87,6 +87,8 @@ UNPREFIXED = (
     ("GET", "/paper/*", "paper"),
     # writing
     ("POST", "/annotate/save", "subject?"),
+    # A synthesised phrase: one cache for every session (`speech/synth.py`).
+    ("GET", "/speech/*", "speech"),
 )
 
 # An ended session is read-only: anything that would talk to its tutor or
@@ -446,6 +448,11 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(WEB, os.path.basename(path)), cache=True)
         if how == "pages":
             return routes.pages.get(self, None, path)
+        if how == "speech":
+            got = routes.speaking.get(self, None, path)
+            if got is routes.NOT_MINE:
+                return self.send_json({"ok": False, "error": "not found"}, status=404)
+            return got
         if how == "paper":
             target = paper.page_file(os.path.basename(path))
             if not target:
