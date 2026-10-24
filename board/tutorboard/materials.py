@@ -29,7 +29,7 @@ SSH = "ssh -o BatchMode=yes -o ConnectTimeout=15"
 # Excluded wherever they are, first, so no include below can reach them.
 NEVER = (".ink/", "sessions/", ".env*", "results/", ".git/",
          ".venv/", ".lake/", "node_modules/", "__pycache__/",
-         "/vendor/", "/ai-config/")
+         "/ai-config/")
 # The ignored inputs, as rsync include patterns (`dir/***` is the directory
 # and everything under it). rsync's `/**/` needs at least one directory, unlike
 # git's, so an assignment directly under a course needs its own line.

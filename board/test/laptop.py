@@ -422,7 +422,7 @@ try:
         "projects/A/results/materials/r.csv",
         "courses/C/chapters/ch1/notes.md", "courses/C/notes.md",
         "courses/C/chapters/ch1/reading.md", "projects/A/notes.md",
-        "README.md", "vendor/v/materials/v.pdf",
+        "README.md",
         "projects/A/node_modules/materials/n.js"}
     for rel in SENT | KEPT:
         write(os.path.join(mac, rel), "mac\n")

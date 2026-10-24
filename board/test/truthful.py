@@ -51,7 +51,7 @@ def ls_files(pattern):
 
 def tracked_markdown():
     for rel in ls_files("*.md"):
-        if not rel or rel.startswith("vendor/"):
+        if not rel:
             continue
         # A lesson card is a transcript of something somebody said at the time.
         # It is a record, not a description of the code, so it is not audited.

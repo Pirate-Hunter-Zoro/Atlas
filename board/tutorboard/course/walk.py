@@ -213,9 +213,8 @@ def _candidates(name):
 
 
 # The Atlas root is the fallback, so the tutor can trace any path in Atlas.
-# A unit under `board/` or `vendor/` is `readonly`: the board is edited only
-# in a worktree, and vendor trees are pulled at a commit.
-READ_ONLY = ("board", "vendor")
+# A unit under `board/` is `readonly`: the board is edited only in a worktree.
+READ_ONLY = ("board",)
 
 # Top-level directories of the Atlas root a name is never resolved into: the
 # owner's private configuration repository and the Mac-only sessions.
@@ -223,7 +222,7 @@ PRIVATE = ("ai-config", "sessions")
 
 
 def readonly(rel):
-    """Is this Atlas-relative path under `board/` or `vendor/`?"""
+    """Is this Atlas-relative path under `board/`?"""
     head = str(rel or "").replace("\\", "/").strip("/").split("/", 1)[0]
     # Lower-cased: on a case-insensitive disk `Board/x.py` is `board/x.py`.
     return head.lower() in READ_ONLY
@@ -244,8 +243,7 @@ def _atlas_rel(base, root, rel):
 def _in_atlas(base, path):
     """The Atlas-relative file a typed path names, or "", checked the way the
     listing checks: no absolute path, `..`, hidden, ignored or private
-    component, the real file inside the root, and `_walkable`. `vendor` is
-    allowed only at the top of Atlas.
+    component, the real file inside the root, and `_walkable`.
     """
     raw = str(path or "").replace("\\", "/").strip()
     if not raw or raw.startswith("/") or ":" in raw:
@@ -256,8 +254,7 @@ def _in_atlas(base, path):
     low = [x.lower() for x in parts]
     if low[0] in PRIVATE:
         return ""
-    rest = low[1:] if low[0] == "vendor" else low
-    if any(x in IGNORE for x in rest[:-1]):
+    if any(x in IGNORE for x in low[:-1]):
         return ""
     rel = "/".join(parts)
     if _atlas_rel(base, base, rel) != rel:

@@ -181,11 +181,10 @@ DO_SENSE = (
 # Where the tutor may read: `walk.resolve` falls back to the Atlas root, and
 # `walk.READ_ONLY` marks what is read-only.
 TRACE_SENSE = (
-    "YOU MAY TRACE ANY PATH IN ATLAS -- the board's code, a vendor tree, "
-    "another subject -- and quote it with its path. %s ARE READ-ONLY, in do "
-    "mode too: never edit, create or commit a file under them in this "
-    "checkout. The board changes only in a git worktree; a vendor tree is "
-    "pulled at a commit. "
+    "YOU MAY TRACE ANY PATH IN ATLAS -- the board's code, another subject -- "
+    "and quote it with its path. %s IS READ-ONLY, in do mode too: never edit, "
+    "create or commit a file under it in this checkout. The board changes "
+    "only in a git worktree. "
     % " and ".join(d + "/" for d in walk.READ_ONLY)
 )
 

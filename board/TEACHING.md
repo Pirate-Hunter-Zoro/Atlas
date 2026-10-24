@@ -355,8 +355,8 @@ questions are yours.
 ### A walkthrough: machinery that is already written
 
 **They name a piece of source, and that is the scope.** Any path in Atlas: the
-subject's own source first, then anything under the Atlas root. `board/` and
-`vendor/` are read-only, in do mode too. **Nothing is built in a walkthrough**:
+subject's own source first, then anything under the Atlas root. `board/` is
+read-only, in do mode too. **Nothing is built in a walkthrough**:
 no change assigned, no refactor proposed, no fix offered. A real bug is one
 sentence at the end of a card. If they named nothing, ask which file or function.
 A symbol after `::` is where you start.

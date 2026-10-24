@@ -298,7 +298,7 @@ finally:
     shutil.rmtree(proj, ignore_errors=True)
 
 # ---------------------------------------------------------------------------
-# ANY PATH IN ATLAS, WITH board/ AND vendor/ READ-ONLY
+# ANY PATH IN ATLAS, WITH board/ READ-ONLY
 # ---------------------------------------------------------------------------
 # A name this subject does not have is looked for under the Atlas root. The
 # subject's own source comes first, the bare-filename shortcut stays the
@@ -319,9 +319,10 @@ try:
           "def run_once(base):\n" + BODY + "\n")
     write(home, "board/node_modules/katex/index.js",
           "function render() {\n" + BODY + "\n}\n")
+    write(home, "board/scripts/kes-up",
+          "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
     write(home, "vendor/kestrel/bin/kes-up",
           "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
-    write(home, "vendor/kestrel/README.md", "# kestrel\n" + BODY)
     write(home, "ai-config/policy/x.py", "def private():\n" + BODY + "\n")
     write(home, "sessions/20261008-000000/x.py", "def x():\n" + BODY + "\n")
     write(home, ".hidden/x.py", "def x():\n" + BODY + "\n")
@@ -332,10 +333,10 @@ try:
     walk._cache.clear()
     ws = os.path.join(home, "courses", "Topology")
 
-    check("a vendor tree is not a subject",
+    check("only what is under courses/ and projects/ is a subject",
           [w["id"] for w in subjects.all()]
           == ["courses/Topology", "projects/Speech-Lab"])
-    check("and the vendor-tree machinery is gone",
+    check("and there is no second tree to resolve into",
           not hasattr(walk, "resolve_any") and not hasattr(walk, "ELSEWHERE"))
 
     chosen, unknown = walk.resolve(ws, ["board/tutorboard/sync.py"])
@@ -344,16 +345,16 @@ try:
           and chosen[0]["path"] == "board/tutorboard/sync.py"
           and chosen[0]["readonly"] is True
           and os.path.realpath(chosen[0]["root"]) == os.path.realpath(home))
-    chosen, unknown = walk.resolve(ws, ["vendor/kestrel/bin/kes-up"])
-    check("vendor/kestrel/bin/kes-up resolves by its shebang, read-only",
+    chosen, unknown = walk.resolve(ws, ["board/scripts/kes-up"])
+    check("board/scripts/kes-up resolves by its shebang, read-only",
           not unknown and [u["name"] for u in chosen]
-          == ["vendor/kestrel/bin/kes-up"] and chosen[0]["readonly"] is True)
-    chosen, unknown = walk.resolve(ws, ["vendor/kestrel/bin/kes-up::warm",
+          == ["board/scripts/kes-up"] and chosen[0]["readonly"] is True)
+    chosen, unknown = walk.resolve(ws, ["board/scripts/kes-up::warm",
                                         "board.tutorboard.sync.run_once"])
     check("a symbol in Atlas is carried once the file really defines it",
           not unknown and sorted(u["name"] for u in chosen)
-          == ["board/tutorboard/sync.py::run_once",
-              "vendor/kestrel/bin/kes-up::warm"])
+          == ["board/scripts/kes-up::warm",
+              "board/tutorboard/sync.py::run_once"])
     check("and one it does not define is unknown",
           walk.resolve(ws, ["board/tutorboard/sync.py::missing"])[1]
           == ["board/tutorboard/sync.py::missing"])
@@ -377,7 +378,7 @@ try:
 
     refused = ["ai-config/policy/x.py", "sessions/20261008-000000/x.py",
                ".hidden/x.py", "projects/Speech-Lab/results/r.py",
-               "board/node_modules/katex/index.js", "vendor/kestrel/README.md",
+               "board/node_modules/katex/index.js", "vendor/kestrel/bin/kes-up",
                "projects/Speech-Lab/escape.py", "../" + os.path.basename(outside)
                + "/secret.py", os.path.join(outside, "secret.py"),
                "courses/Topology/../../etc/passwd", "board/tutorboard/nope.py"]
@@ -388,10 +389,10 @@ try:
           all(u["readonly"] for u in chosen))
 
     line = sense.session_sense(course_repo.Repo(ws, os.path.join(ws, "live")))
-    check("the sense says any path in Atlas may be traced, board/ and vendor/ "
-          "read-only",
+    check("the sense says any path in Atlas may be traced, board/ read-only, "
+          "and names no vendor tree",
           "TRACE ANY PATH IN ATLAS" in line
-          and "board/ and vendor/ ARE READ-ONLY" in line)
+          and "board/ IS READ-ONLY" in line and "vendor" not in line.lower())
 finally:
     if was is None:
         os.environ.pop("TUTORBOARD_COURSES", None)
