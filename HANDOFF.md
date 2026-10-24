@@ -158,8 +158,7 @@ existing vision route on the slate PNG.
 ## The owner's
 
 - **Time Machine has no destination** (`tmutil destinationinfo`). Set one now. Materials,
-  sessions, `.ink/` and the Colibri course's sources live only on the Mac disk. Copy the
-  project zips in `~/LIBR-handoff-2026-10-23/` to a second disk.
+  sessions, `.ink/` and the Colibri course's sources live only on the Mac disk.
 - **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
