@@ -594,6 +594,10 @@ function create(opts) {
 
   var rLive = menuRow("Live");
   var bLive = mk(rLive, "sl-chip", "off", "let the tutor see each page as you pause");
+  /* Whether this surface hands pages to a tutor at all: a canvas does not
+     (`api.sendable`), and every picture it leaves on disk is the one it files,
+     so its autosaves are drawn at the send cap. */
+  var sendable = true;
   if (compact) {
     var rFull = menuRow("Room");
     var aFull = el("a", "sl-chip", "full screen");
@@ -2183,7 +2187,7 @@ function create(opts) {
     var body = { page: p.n, w: p.w, h: p.h,
                  strokes: p.strokes.map(stripDense),
                  objects: objs(p).map(stripObj),
-                 png: withPicture ? toPNG(p, send ? 0 : PNG_IDLE_EDGE) : "",
+                 png: withPicture ? toPNG(p, send || !sendable ? 0 : PNG_IDLE_EDGE) : "",
                  send: !!send,
                  pages: pages.length };
     /* Which turn this is, and which question it answers. The host decides --
@@ -2609,6 +2613,53 @@ function create(opts) {
       else tool.mode = v;
     }
     return tool.mode;
+  };
+  /* A CANVAS NEVER WAKES A TUTOR WHILE IT IS WRITTEN ON. `sendable(false)`
+     takes away Send and the Live row, turns Live off, and draws every
+     picture at the send cap, since those pictures are what the canvas files
+     and what it gives the tutor. No argument: whether it may send. */
+  api.sendable = function (v) {
+    if (v === undefined) return sendable;
+    sendable = !!v;
+    bSend.hidden = !sendable;
+    rLive.parentNode.hidden = !sendable;
+    if (!sendable && tool.live) {
+      tool.live = false;
+      clearTimeout(liveTimer);
+      bLive.textContent = "off";
+      bLive.classList.remove("sel");
+    }
+    return sendable;
+  };
+  /* A canvas's way out, in the menu: "PDF", every inked page as vector ink
+     (`pdfUrl`, the server's /canvas.pdf), and "this page as PNG", the page in
+     hand drawn at the send cap. Made once; a second call only moves the PDF's
+     address. */
+  var rKeep = null, aPdf = null;
+  api.canvasMenu = function (pdfUrl) {
+    if (!rKeep) {
+      rKeep = menuRow("Keep");
+      aPdf = el("a", "sl-chip", "PDF");
+      aPdf.setAttribute("download", "");
+      aPdf.title = "every page with ink, as one PDF";
+      rKeep.appendChild(aPdf);
+      var aPng = el("a", "sl-chip", "this page as PNG");
+      aPng.title = "the page in hand, as a picture";
+      aPng.href = "#";
+      aPng.onclick = function (e) {
+        var p = page();
+        if (!p || !p.strokes.length) {
+          e.preventDefault();
+          toast("nothing is written on this page");
+          return;
+        }
+        aPng.setAttribute("download", "page-" + (p.n || noOf(current)) + ".png");
+        aPng.href = toPNG(p, 0);
+      };
+      rKeep.appendChild(aPng);
+    }
+    aPdf.href = pdfUrl;
+    return rKeep;
   };
   api.reach = reach;
   api.inkBox = inkBox;

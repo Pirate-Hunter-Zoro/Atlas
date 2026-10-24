@@ -22,19 +22,41 @@
 <!-- The way off this page. -->
 <div id="away">
   <a id="back" href="/board" title="back to the board">‹ board</a>
-  <!-- A NOTES CANVAS (a session whose view is slate): its title, and End,
-       after a second tap, which has the tutor transcribe these pages into
-       notes.md and build it. -->
+  <!-- A CANVAS (a session whose view is slate): its title; "Save to…", which
+       binds it to a course or project (POST /bind) and files its pages there,
+       neither ending it nor waking a tutor; "Give to the tutor", after a
+       second tap, which hands every page over in one turn (POST /give); and
+       End, which asks how it ends. -->
   <span id="notes-name" hidden></span>
-  <button id="notes-end" type="button" hidden
-          title="end the notes: the tutor transcribes these pages into notes.md">End</button>
+  <button id="canvas-save" class="away-btn" type="button" hidden
+          title="file these pages in a course or project; the canvas stays open">Save to…</button>
+  <button id="canvas-give" class="away-btn" type="button" hidden
+          title="hand every page to the tutor: one turn reads them all">Give to the tutor</button>
+  <button id="notes-end" class="away-btn" type="button" hidden
+          title="end the canvas: keep the pages, have them transcribed, or leave them unfiled">End</button>
 </div>
-<!-- A NOTES CANVAS BOUND TO NOTHING asks at End where its notes go, in the
-     one picker order: Random lessons, Recent, Courses, Projects, and a new
-     one. A tap ends it into that subject (POST /end {subject}); "keep it
-     unfiled" ends it with no turn, the pages left in the session. -->
+<!-- HOW A CANVAS ENDS: its pages kept in the library with no turn, kept and
+     transcribed into the notes.md beside them, or (bound to nothing) left
+     unfiled in the session. -->
+<div id="canvas-end" class="notes-send" hidden>
+  <p class="notes-send-head">End this canvas</p>
+  <button type="button" data-end="keep">End, keep the pages
+    <span class="canvas-end-sub">in the library, with no turn</span></button>
+  <button type="button" data-end="transcribe">End and transcribe
+    <span class="canvas-end-sub">the tutor writes the text under each page</span></button>
+  <button type="button" data-end="unfiled" id="canvas-end-unfiled">Keep it unfiled
+    <span class="canvas-end-sub">no turn; the pages stay in the session</span></button>
+  <div class="notes-send-acts">
+    <button id="canvas-end-back" type="button">not yet</button>
+  </div>
+</div>
+<!-- WHERE A CANVAS GOES, in the one picker order: Random lessons, Recent,
+     Courses, Projects, and a new one. From "Save to…" a tap binds it there;
+     from End a tap ends it into that subject (POST /end {subject,
+     transcribe}), and "keep it unfiled" ends it with no turn, the pages left
+     in the session. -->
 <div id="notes-send" class="notes-send" hidden>
-  <p class="notes-send-head">Send these notes to a course or project, then end</p>
+  <p class="notes-send-head" id="notes-send-head">Send these notes to a course or project, then end</p>
   <div id="notes-send-list"></div>
   <div class="notes-send-new">
     <button id="notes-new-course" type="button">+ new course</button>

@@ -293,6 +293,8 @@ DRIVE = {
                                              ("/cards?before=x", None, REFUSED)]),
     ("GET", "/subject.json", "lesson"): ("session", [("/subject.json", None, OK)]),
     ("GET", "/archive", "lesson"): ("session", [("/archive", None, OK)]),
+    ("GET", "/canvas.pdf", "lesson"): ("session", [("/canvas.pdf", None, None)]),
+    ("POST", "/give", "lesson"): ("session", [("/give", {}, REFUSED)]),
     ("GET", "/archive/", "lesson"): ("session", [("/archive/", None, OK),
                                                 ("/archive/nope", None, (404,))]),
     ("POST", "/mode", "lesson"): ("session", [("/mode", {"mode": "do"}, OK),

@@ -98,6 +98,27 @@ def tutor_sense(repo):
             % (n, memo.WORDS, text))
 
 
+def canvas_sense(repo, st):
+    """The brief's line for a canvas (`view: slate`): what it is, its inked
+    pages in order, and `board slate --all`; else ""."""
+    if not getattr(repo, "stored", False) or st.get("view") != "slate":
+        return ""
+    from . import sessions                                   # local: a cycle
+    try:
+        pages = sessions.slate_pages(os.path.basename(os.path.normpath(repo.live)),
+                                     getattr(repo, "atlas", None))
+    except Exception:                                        # noqa: BLE001
+        pages = []
+    head = ("canvas: this session is a canvas the owner wrote on with no tutor, "
+            "and handed to you whole. Its pages are its lesson: read every one "
+            "before you answer (`board slate --all` prints them all)")
+    if not pages:
+        return head + "; none has ink yet."
+    return head + ". %d page%s, in order:\n%s" % (
+        len(pages), "" if len(pages) == 1 else "s",
+        "\n".join("  page %d: %s" % (i, p) for i, p in enumerate(pages, start=1)))
+
+
 def _unbound(repo):
     """A stored session bound to no subject: its root is the Atlas root."""
     atlas = getattr(repo, "atlas", None)
@@ -335,6 +356,9 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
         beside_open = siblings_sense(repo, st.get("subject"))
         if beside_open:
             out.append(beside_open)
+    canvas = canvas_sense(repo, st)
+    if canvas:
+        out.append(canvas)
     # The write-up's counts every turn: a debt on the brief gets paid. In do
     # mode the counts stay, without the next problem or the call to pay them:
     # a request there is the scope, and a write-up is made only when asked for.

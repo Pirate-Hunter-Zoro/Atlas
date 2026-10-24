@@ -81,12 +81,8 @@ Rules that hold throughout:
 
 ## Owner files
 
-These are pre-approved. Write each from its bullets, and commit it when its item runs.
-
-- **`courses/Random/RULES.md` (item 12):**
-  - Each session is its own topic.
-  - TUTOR.md "Done recently" holds at most 15 one-line entries, newest first.
-  - Cut before adding.
+These are pre-approved. Write each from its bullets, and commit it when its item runs. None is
+waiting.
 
 
 ## 5. The LIBR exit
@@ -101,85 +97,6 @@ removes the cluster, every PHI guard, Meetings, Paper-Writer and the vendored Co
 Sections 1 and 2 are done: every zip and bundle in `~/LIBR-handoff-2026-10-23/` verifies. Section 3
 waits for the owner's section 5b.
 
-
-## 12. Free boards and any PDF, saved to Random lessons or a subject
-
-These already exist:
-- "New session" starts unbound. The chip binds it, End on an unbound session opens the send
-  picker, and the send files uploads into `materials/`.
-- Home's "Annotate a PDF" takes a file from the iPad's Files.
-
-What is missing is a catch-all, a URL or a Mac path, and a single "save to" order.
-- **`courses/Random` ("Random lessons").** It is a course, so phi is false.
-  - Create it with `subjects.create("courses/Random")`, which names it "Random".
-  - Then set its `tutorboard.json` `name` to "Random lessons" and commit that by pathspec.
-  - Its RULES.md is in *Owner files*. Never name it Inbox, Data, Raw or
-  Audio while `fenced.NEVER` exists, or Scratch, which `board.js` already uses for the uploads
-  drawer.
-- **The constant:** `subjects.SCRATCH = "courses/Random"` and `subjects.scratch(base)`.
-  `/subjects.json` returns `scratch` beside `meetings` (or alone after the exit).
-- **One order in all four pickers:** "Random lessons" first, then Recent, Courses, Projects. The
-  pickers are `board.js` `paintSubjects`, `home.js` `paintSender` and `openAnnot`, and `slate.js`
-  `openSend`, which also ends on "keep it unfiled". Annotate
-  preselects Random lessons, and "not yet: it stays in the session" stays last. No route changes.
-- **The notes canvas:** an unbound canvas binds to the catch-all unless its pages plainly belong
-  elsewhere. Change `runner/prompts/notes.md` step 1 and `loop.notes_up`, and name the catch-all
-  in `brief.py`'s unbound line.
-- **The marked copy reads all ink.** `burn.strokes_by_page` reads every dir in
-  `course_repo.ink_dirs(repo)`. Today ink drawn before a bind is missing from "keep a marked copy".
-- **A blank canvas** (owner decision). Home's Notes canvas (`home.js` `newNotes`, a `view: slate`
-  session) already opens in one tap, holds many pages and never wakes a tutor while unsent. Build
-  the rest:
-  - **Named for what it is.** `#act-notes` becomes "New canvas", sub-line "write now; file it or
-    give it to a tutor later", beside `#new-session`. The meeting deck's `notes*` ids stay its own.
-  - **Writing never wakes a tutor.** On a canvas, `slate.js` hides `bSend` and the Live chip through
-    a new `api.sendable(false)` in `slate-core.js`.
-  - **"Save to…" on the canvas.** `#away` gains a subject button that opens the shared picker and
-    binds through `POST /s/<id>/bind`. It neither ends the session nor wakes a turn.
-  - **The pages are filed, not only transcribed.** A new `sessions.file_canvas(sid)` writes the
-    inked pages to `<subject>/docs/<slug>/handwritten/page-NN.png` (at the send cap, not
-    `PNG_IDLE_EDGE`), beside a `notes.md` with one image link per page and a `doc.json` naming the
-    session. It runs on bind and on End, and `_kept` commits that directory.
-  - **End offers three things.** "End, keep the pages" files them and queues no turn. "End and
-    transcribe" is today's `_notes`, writing the text under each page's image. "Keep it unfiled"
-    ends with no turn and leaves the pages in the session. `routes/lesson.py` `_end` takes
-    `{subject?, transcribe}`, and `RUNNER.end` runs only when `transcribe` is true.
-  - **"Give to the tutor" wakes one turn on the whole canvas.** It sits on the canvas and on its
-    Continue and Past rows. `POST /s/<id>/give` writes one waking `[canvas]` line naming every
-    inked page in order (`sessions.slate_pages`). On an ended canvas it calls `sessions.reopen`
-    first, so it is not in `ENDED_REFUSES`. Home then opens `/s/<id>/board`.
-  - **The tutor knows the canvas exists.** For a canvas session, `brief.py` names its pages and
-    `board slate --all`.
-  - **A taught canvas gets its wrap-up.** `service._wrap` runs `loop.wrap_up` for a `view: slate`
-    session that has cards, and `_notes` when transcription was asked for.
-  - **Export.** `GET /s/<id>/canvas.pdf` comes from a new `burn.canvas_pdf(pages)`, drawing the
-    strokes as vector paths on white pages through `_write_pdf`, each page cropped like `pngBox`
-    (canvas PNGs are RGBA, which `burn._png_parts` refuses). The canvas menu offers "PDF" and "this
-    page as PNG".
-- **From a URL:** `POST /s/<id>/fetch {url}` in `routes/writing.py`, added to
-  `handler.ENDED_REFUSES`.
-  - Allow http and https only. Build the opener without `FileHandler` or `FTPHandler`, and
-    recheck the scheme after redirects.
-  - Use a 60 s timeout and the `multipart.MAX_UPLOAD` cap. The body must start with `%PDF-`.
-  - Reply like `/upload`.
-  - Home's Annotate sheet gains `#annot-url`.
-- **From a Mac path:** `board open <file.pdf> [--subject <id>]` copies, never moves, the file into
-  a new "Annotate <name>" session. It binds and files when given `--subject`, and prints the URL.
-  It is listed in `NO_LIVE`.
-
-Done when:
-- All four pickers show Random lessons first, and a canvas has no Send or Live (JSDOM).
-- `/sessions/new {view:slate}` plus an unsent `/slate/save` writes no waking line and queues no
-  turn. `/give` writes one `[canvas]` line listing pages 1..N and queues one turn; on an ended
-  canvas it reopens and wakes; on an empty one it answers 400.
-- `_end {transcribe:false}` queues nothing and commits `docs/<slug>/notes.md` with
-  `handwritten/page-*.png`; with no subject and no transcription it commits nothing.
-- `canvas.pdf` starts with `%PDF-` and has one page per inked page.
-- `_wrap` on a canvas with cards writes TUTOR.md.
-- A send there files uploads into `courses/Random/materials/`.
-- `/fetch` lands a local http.server PDF and refuses file://, ftp:// and a non-PDF.
-- `board open` has a CLI test.
-- A marked copy made after a bind holds the ink drawn before it.
 
 ## 14. Speech: every tutor speaks, listens and judges pronunciation
 
@@ -300,7 +217,9 @@ existing vision route on the slate PNG.
 These are built but not yet used for real. Strike each one after an evening on the iPad.
 
 - **Home:**
-  - Continue rows, New session, the Courses and Projects lists, and "+ new".
+  - Continue rows, New session and New canvas side by side, the Courses and Projects lists,
+    and "+ new".
+  - Random lessons first in every picker, and preselected in Annotate's sheet.
   - A subject delete with its typed name.
   - Deletes of a material, a document and a session, each with a second tap.
 - **Sessions:**
@@ -320,7 +239,10 @@ These are built but not yet used for real. Strike each one after an evening on t
     or not fixed.
   - Pinch-zoom on a paper and a deck in the one reader. Safari's page zoom never starts, ink
     stays on its words, and one finger scrolls a zoomed page sideways.
-  - The notes canvas: a full-slate session whose End leaves a notes.md.
+  - A canvas's "End and transcribe": each page's text lands under its image in the filed
+    notes.md, and it builds.
+  - A canvas shows no Send and no Live, and the menu's "this page as PNG" and "PDF" each save.
+  - "Give to the tutor" from a canvas's Continue row and from its Past row.
   - A canvas at a lecture: "New canvas" in one tap, three pages with the tutor still
     listening, "Save to" Random lessons mid-canvas, "Give to the tutor" days later bringing one
     card that reads all three pages, the PDF in the share sheet, and "End, keep the pages"

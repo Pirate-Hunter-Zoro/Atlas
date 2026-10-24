@@ -450,12 +450,12 @@ found them.
 A library correction is a `[revise]` turn, an overhaul a `[rework]`: `board see`
 each picture the feedback file names.
 
-### A notes canvas
+### A canvas
 
-A blank canvas has no lesson. You hear from it once, at End, in a turn of its
-own: bind it only if the owner chose no subject, start the transcript with
-`board writeup new --md "<title>"`, transcribe the pages into that `notes.md`,
-and `board build` it. The End commits it.
+Given to you (`[canvas]`), its pages are the lesson: read all (`board slate --all`).
+At End, a transcript turn binds it only if no subject was chosen (Random lessons,
+unless the pages plainly belong elsewhere), writes each page's text under its image
+in the notes.md `board writeup new --md "<title>"` prints, and `board build`s it.
 
 ## Showing a slide or a figure
 

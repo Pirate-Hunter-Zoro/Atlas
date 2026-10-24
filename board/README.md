@@ -84,7 +84,8 @@ and the audit refuses any path under it.
 
 `session.json` holds `id`, `title`, `subject` (a subject id or null), `mode` (teach or do),
 `opened`, `ended`, `writeup`, `seen`, `code` (a cluster coding session, or null) and `view`
-(`board`, or `slate` for a notes canvas). Beside it: `cards/`, `slate/`, `answers/`,
+(`board`, or `slate` for a canvas). A canvas also keeps `canvas` (where its pages are filed),
+`given` and `transcribe`. Beside it: `cards/`, `slate/`, `answers/`,
 `turns.jsonl`, `inbox/messages.jsonl`, `uploads/`, `annotations/`, `agent.json`,
 `cost.jsonl`, `agent.log`.
 
@@ -212,7 +213,17 @@ tree gets a `doc.json` written in place, so its ids hold.
   `<subject>/.ink/`, keyed `doc/<id>/p<n>`. Both are ignored.
 - **Materials** are third-party or uploaded files in `<subject>/materials/`, ignored, readable
   and inkable.
-- **Notes canvas.** A session in slate view. End has the tutor transcribe a `notes.md`.
+- **Canvas.** A session in slate view, written on with no tutor: `api.sendable(false)` takes
+  away Send and Live. Every bind ("Save to…", `/bind`) and every End files its inked pages
+  (`sessions.file_canvas`) as `<subject>/docs/<slug>/handwritten/page-NN.png`, beside a
+  `notes.md` with one image link per page and a `doc.json` naming the session; End commits the
+  directory. End offers "End, keep the pages" (no turn), "End and transcribe" (the tutor writes
+  each page's text under its image) and, unbound, "Keep it unfiled" (no turn, nothing
+  committed): `POST /end {subject?, transcribe}`, and a taught canvas still gets its wrap-up.
+  "Give to the tutor" (`POST /give`, on the canvas and its home rows) reopens an ended canvas
+  and writes one waking `[canvas]` line naming every inked page: one turn. `GET
+  /s/<id>/canvas.pdf` draws the pages as vector ink (`burn.canvas_pdf`); the menu also keeps
+  the page in hand as a PNG.
 - **Annotate a PDF.** From the iPad's Files, from an address (`POST /s/<id>/fetch {url}`: http
   or https only, a body starting `%PDF-`, at most 1 GB), or from a Mac path (`board open
   <file.pdf> [--subject <id>]`, which copies it into a new session and prints the URL). Home's
@@ -224,11 +235,12 @@ tree gets a `doc.json` written in place, so its ids hold.
 
 ## The web client
 
-- **Home** (`/`, `web/home.js`): open sessions, New session, the Tutor chooser, notices, a
-  search, courses and projects most recently used first (each row can make a deck or paper,
-  or be deleted), the newest ten past sessions (an unbound one can be sent to a subject), the
-  Notes, Annotate a PDF and Meeting deck actions, relay and Colibri health, settings. A script
-  that did not load shows a Retry line, and what breaks is posted to `/client-error`.
+- **Home** (`/`, `web/home.js`): open sessions, New session with New canvas beside it, the
+  Tutor chooser, notices, a search, courses and projects most recently used first (each row
+  can make a deck or paper, or be deleted), the newest ten past sessions (an unbound one can be
+  sent to a subject, a canvas given to the tutor), the Annotate a PDF and Meeting deck actions,
+  relay and Colibri health, settings. A script that did not load shows a Retry line, and what
+  breaks is posted to `/client-error`.
 - **Board** (`/s/<id>/board`): the session header (subject chip, mode, End), the cards, the
   answer box, the slate. **Slate** (`/s/<id>/slate`) is the full-page writing surface.
 - **Library** (`/library?subject=<id>`): every document and result of a subject, the reader,

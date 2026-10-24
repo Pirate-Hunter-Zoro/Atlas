@@ -814,8 +814,23 @@ def _writeup_status(live, st):
 def _notes_new(live, state, words):
     """`board writeup new --md [title]`: `docs/<slug>/notes.md` and its
     doc.json in the bound subject, for a notes canvas's End. A taken slug
-    takes `-2`."""
+    takes `-2`. A canvas's own are the ones its pages are filed in
+    (`sessions.file_canvas`): notes.md already holds each page's picture,
+    and the transcript goes under it."""
     from tutorboard import artifacts
+    if live.stored and (state or {}).get("view") == "slate":
+        try:
+            rel = sessions.file_canvas(_sid(live), base=live.atlas)
+        except (sessions.Refused, OSError, ValueError) as exc:
+            print("board writeup: the canvas could not be filed: %s" % exc,
+                  file=sys.stderr)
+            return 1
+        if rel:
+            src = os.path.join(live.root, *rel.split("/")) + os.sep \
+                + sessions.CANVAS_NOTES
+            print("the canvas is filed at %s" % os.path.relpath(
+                os.path.realpath(src), os.path.realpath(subjects.root())))
+            return 0
     title = " ".join(words).strip() or (state or {}).get("title") \
         or "Notes %s" % time.strftime("%Y-%m-%d")
     try:
@@ -867,7 +882,9 @@ def cmd_writeup(live, args):
     board writeup new --md [title]
         a notes canvas's transcript: docs/<slug>/notes.md and its doc.json,
         <slug> from the title or the session's; prints the source's path from
-        the Atlas root, for `board build`. The session's write-up is untouched.
+        the Atlas root, for `board build`. On a canvas it is the notes.md its
+        pages are filed beside, one picture per page already in it. The
+        session's write-up is untouched.
     board writeup build          rebuild the PDF; a failure reaches the banner
     board writeup status         which file, what is written, what is next
     board writeup use <name>     write into this course set (hw04, ch07)

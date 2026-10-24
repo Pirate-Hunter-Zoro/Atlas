@@ -26,7 +26,12 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
                                         uploads; for an ended session, the
                                         wrap-up queued late
     POST /end                 session   End: `ended` set, and the wrap-up queued;
-                                        with `subject`, sent there first
+                                        with `subject`, sent there first; a
+                                        canvas's only with `transcribe` or cards
+    POST /give                session   a canvas handed to the tutor whole: one
+                                        waking `[canvas]` line, reopened first
+                                        when it has ended
+    GET  /canvas.pdf          session   a canvas's inked pages as a PDF
 """
 
 import re
@@ -90,7 +95,40 @@ def get(h, repo, path):
     if path == "/archive":
         return h.send_json({"sessions": archive.list_archive(repo)})
 
+    if path == "/canvas.pdf":
+        return _canvas_pdf(h, repo)
+
     return NOT_MINE
+
+
+def _canvas_pdf(h, repo):
+    """`GET /canvas.pdf`: the slate's inked pages as one PDF, vector ink on
+    white pages (`burn.canvas_pdf`), as an attachment named for the session.
+    404 when no page has ink."""
+    import tempfile
+    from ...course import burn
+    from ...lesson import slate as lesson_slate
+    if not getattr(repo, "stored", False):
+        return h.send_json({"ok": False, "error": "a canvas is a session's"},
+                           status=404)
+    pages = lesson_slate.read_slate_pages(repo)
+    fd, tmp = tempfile.mkstemp(prefix=".canvas-", suffix=".pdf", dir=repo.live)
+    os.close(fd)
+    try:
+        if not burn.canvas_pdf(pages, tmp):
+            return h.send_json({"ok": False, "error": "no page of this canvas "
+                                "has ink yet"}, status=404)
+        with open(tmp, "rb") as fh:
+            data = fh.read()
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+    title = (repo.state() or {}).get("title") or "canvas"
+    name = (re.sub(r"[^A-Za-z0-9]+", "-", title).strip("-") or "canvas") + ".pdf"
+    return h.send_bytes(data, "application/pdf",
+                        extra=("Content-Disposition", 'attachment; filename="%s"' % name))
 
 
 def _begin(h, repo):
@@ -413,7 +451,35 @@ def post(h, repo, path):
 
     if path == "/end":
         return _end(h, repo)
+
+    if path == "/give":
+        return _give(h, repo)
     return NOT_MINE
+
+
+def _give(h, repo):
+    """`POST /give`: hand this canvas to the tutor whole (`sessions.give`):
+    reopened first when it has ended -- so an ended session answers it --
+    then one waking `[canvas]` line naming every inked page in order, and one
+    turn queued. 400 for a session that is not a canvas or has no ink. The
+    reply names the board to open."""
+    if not repo.stored:
+        return h.send_json({"ok": False, "error": "not a session"}, status=404)
+    if _body(h) is None:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    sid = os.path.basename(repo.live)
+    base = repo.atlas
+    try:
+        rec, pages = sessions.give(sid, base=base)
+    except sessions.Refused as exc:
+        return h.send_json({"ok": False, "error": str(exc)}, status=400)
+    except sessions.NoSession:
+        return h.send_json({"ok": False, "error": "no such session"}, status=404)
+    queued = runner.wake(repo)
+    h.note("canvas %s given to the tutor (%d pages)" % (sid, len(pages)))
+    h.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "pages": len(pages), "queued": bool(queued),
+                        "session": rec, "url": "/s/%s/board" % sid})
 
 
 def _body(h):
@@ -503,11 +569,14 @@ def _end(h, repo):
     """`POST /end {subject?, transcribe?}`: End this session. With `subject`,
     it is sent there first (`_sent`): a refused send is 400 and the session
     stays open. `sessions.end` sets `ended` and commits the subject's
-    TUTOR.md and the session's artifacts; then the wrap-up turn is queued, the
-    only thing that ever runs it. A canvas (`view: slate`) queues it only when
-    `transcribe` is not false: "keep it unfiled" ends with no turn. A second
-    End changes nothing but retries the commit; one naming another subject
-    than an ended session's is 409."""
+    TUTOR.md and the session's artifacts -- a canvas's filed pages among them
+    (`sessions.file_canvas`); then the wrap-up turn is queued, the only thing
+    that ever runs it. A canvas (`view: slate`) queues it only when
+    `transcribe` is true (absent counts as true) or a tutor has taught on it
+    (it has cards): "End, keep the pages" and "keep it unfiled" end with no
+    turn. `transcribe` is kept in session.json for the wrap-up. A second End
+    changes nothing but retries the commit; one naming another subject than
+    an ended session's is 409."""
     if not repo.stored:
         return h.send_json({"ok": False, "error": "not a session"}, status=404)
     payload = _body(h)
@@ -526,13 +595,18 @@ def _end(h, repo):
             sent = _sent(h, sid, base, subject, True)
             if sent is None:
                 return None
+        rec = sessions.get(sid, base) or {}
+        canvas = rec.get("view") == "slate"
+        if canvas and rec.get("transcribe") is not transcribe:
+            rec["transcribe"] = transcribe
+            sessions._save(repo.live, rec)
         try:
             rec, committed, said = sessions.end(sid, base=base)
         except sessions.NoSession:
             return h.send_json({"ok": False, "error": "no such session"},
                                status=404)
-        canvas = rec.get("view") == "slate"
-        queued = bool((transcribe or not canvas)
+        taught = canvas and bool(cards.newest(repo.cards)[0])
+        queued = bool((transcribe or taught or not canvas)
                       and runner.RUNNER and runner.RUNNER.end(sid))
     h.note("session %s ended (%s)" % (sid, said))
     h.hub.worker.dirty.set()

@@ -302,11 +302,17 @@ class Runner(object):
         a turn. A session sent there at or after End (its `sent_late`) has
         its agreed answers written up in it too, and `sent_late` cleared.
         Then `sessions.end` once more, so what it wrote is committed. A
-        notes canvas (`view: slate`) with ink on its pages has its own,
-        bound or not: `_notes`."""
+        canvas (`view: slate`) has its pages transcribed first when its End
+        asked for that (`transcribe`, absent counting as asked): `_notes`,
+        bound or not. Then, taught (it has cards) and bound, it gets the
+        wrap-up every lesson gets."""
         rec = sessions.get(sid, self.atlas) or {}
         if rec.get("view") == "slate":
-            return self._notes(sid, repo, rec)
+            if rec.get("transcribe") is not False:
+                self._notes(sid, repo, rec)
+                # The transcript's turn may have bound it.
+                repo = sessions.repo(sid, self.atlas)
+                rec = sessions.get(sid, self.atlas) or rec
         if os.path.realpath(repo.root) == os.path.realpath(self.atlas):
             return False
         if not lesson_cards.newest(repo.cards)[0]:

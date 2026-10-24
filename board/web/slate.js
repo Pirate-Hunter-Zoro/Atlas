@@ -29,48 +29,114 @@ var writer = window.Slate.create({ root: document.getElementById("slate"),
                                    saveUrl: BASE + "/slate/save",
                                    fullUrl: BASE + "/slate" });
 
-/* A NOTES CANVAS is a session whose view is `slate`: this page is the whole
-   of it. Its title, and End after a second tap within four seconds, which
-   ends the session and queues the turn that transcribes these pages into
-   notes.md (`runner.service._notes`). What is owed to the disk goes first.
-   Bound to nothing, the second tap asks where the notes go first. */
+/* A CANVAS is a session whose view is `slate`: this page is the whole of it,
+   written on with no tutor. It never sends (`writer.sendable(false)`); it is
+   filed with "Save to…", handed over whole with "Give to the tutor", kept as
+   a PDF or a PNG from the menu, and ended in one of three ways. What is owed
+   to the disk goes first, every time. */
 var endBtn = document.getElementById("notes-end");
-var endArmed = null;
+var saveBtn = document.getElementById("canvas-save");
+var giveBtn = document.getElementById("canvas-give");
+var endPanel = document.getElementById("canvas-end");
 var notesState = {};
+var subjectName = "";
+
+function getJson(url) {
+  return fetch(url, { credentials: "same-origin" }).then(function (r) { return r.json(); });
+}
+
+function postJson(url, body) {
+  return fetch(url, {
+    method: "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {})
+  }).then(function (r) { return r.json(); });
+}
+
+/* Every page's picture on disk before anything reads the pages: the last
+   page of an evening is the one whose picture is still waiting for a gap. */
+function settled() {
+  var settle = writer && writer.flush ? writer.flush() : null;
+  return Promise.resolve(settle).catch(function () {});
+}
 
 function paintNotes(state) {
   notesState = state;
   var name = document.getElementById("notes-name");
-  name.textContent = state.title || "Notes";
+  name.textContent = state.title || "Canvas";
   name.hidden = false;
+  if (writer.sendable) writer.sendable(false);
+  if (writer.canvasMenu && BASE) writer.canvasMenu(BASE + "/canvas.pdf");
   endBtn.hidden = false;
+  giveBtn.hidden = false;
+  saveBtn.hidden = !!state.ended;
+  paintSave();
   if (state.ended) {
     endBtn.disabled = true;
     endBtn.textContent = "ended";
   }
 }
 
-function endNotes() {
-  if (!endArmed) {
-    endBtn.textContent = "tap again to end";
-    endBtn.classList.add("armed");
-    endArmed = setTimeout(function () {
-      endArmed = null;
-      endBtn.textContent = "End";
-      endBtn.classList.remove("armed");
+function paintSave() {
+  var bound = notesState.subject;
+  saveBtn.textContent = bound ? "in " + (subjectName || bound) : "Save to…";
+  saveBtn.title = bound ? "filed in " + (subjectName || bound) + "; tap to move it"
+                        : "file these pages in a course or project; the canvas stays open";
+}
+
+/* GIVE TO THE TUTOR, after a second tap within four seconds: one turn reads
+   every page (POST /give, which reopens an ended canvas), and the board it
+   is taught on opens. */
+var giveArmed = null;
+var giving = false;
+function giveCanvas() {
+  if (giving) return;
+  if (!giveArmed) {
+    giveBtn.textContent = "tap again to give it";
+    giveBtn.classList.add("armed");
+    giveArmed = setTimeout(function () {
+      giveArmed = null;
+      giveBtn.textContent = "Give to the tutor";
+      giveBtn.classList.remove("armed");
     }, 4000);
     return;
   }
-  clearTimeout(endArmed);
-  endArmed = null;
-  endBtn.classList.remove("armed");
-  if (sendPanel && Object.prototype.hasOwnProperty.call(notesState, "subject")
-      && !notesState.subject) {
-    endBtn.textContent = "End";
-    openSend();
-    return;
-  }
-  finishEnd({});
+  clearTimeout(giveArmed);
+  giveArmed = null;
+  giveBtn.classList.remove("armed");
+  giving = true;
+  giveBtn.disabled = true;
+  giveBtn.textContent = "giving…";
+  settled().then(function () {
+    return postJson(BASE + "/give", {});
+  }).then(function (got) {
+    if (!got || !got.ok) throw new Error((got && got.error) || "not given");
+    giveBtn.textContent = "given";
+    go(got.url || BASE + "/board");
+  }).catch(function (e) {
+    giving = false;
+    giveBtn.disabled = false;
+    giveBtn.textContent = "Give to the tutor (" + ((e && e.message) || "the board did not answer") + ")";
+  });
+}
+function go(url) { window.location.href = url; }
+
+/* END: the three ways a canvas ends. Bound, "End, keep the pages" and "End
+   and transcribe" end it at once; bound to nothing, each first asks where
+   the pages go. "Keep it unfiled" is offered only while it is bound to
+   nothing. */
+function openEnd() {
+  if (ending) return;
+  if (sendPanel) sendPanel.hidden = true;
+  document.getElementById("canvas-end-unfiled").hidden = !!notesState.subject;
+  endPanel.hidden = false;
+}
+
+function endAs(how) {
+  endPanel.hidden = true;
+  if (how === "unfiled") { finishEnd({ transcribe: false }); return; }
+  var transcribe = how === "transcribe";
+  if (notesState.subject) { finishEnd({ transcribe: transcribe }); return; }
+  openSend(transcribe ? "transcribe" : "keep");
 }
 
 /* POST /end with `body`, once the pages are on disk. Refused, the canvas
@@ -82,17 +148,16 @@ function finishEnd(body) {
   ending = true;
   endBtn.disabled = true;
   endBtn.textContent = "ending…";
-  var settle = writer && writer.flush ? writer.flush() : null;
-  Promise.resolve(settle).catch(function () {}).then(function () {
-    return fetch(BASE + "/end", {
-      method: "POST", credentials: "same-origin",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-    });
-  }).then(function (r) { return r.json(); }).then(function (got) {
+  settled().then(function () {
+    return postJson(BASE + "/end", body);
+  }).then(function (got) {
     if (!got || !got.ok) throw new Error((got && got.error) || "not ended");
     if (sendPanel) sendPanel.hidden = true;
-    endBtn.textContent = "ended: the tutor is transcribing it into notes.md"
-      + (got.sent ? " in " + got.sent.name : "");
+    var where = got.sent ? got.sent.name : subjectName || notesState.subject;
+    saveBtn.hidden = true;
+    endBtn.textContent = body.transcribe === false
+      ? (where ? "ended: the pages are in " + where : "ended: the pages stay in this session")
+      : "ended: the tutor is transcribing it into notes.md" + (where ? " in " + where : "");
   }).catch(function (e) {
     var why = (e && e.message) || "the board did not answer";
     ending = false;
@@ -101,14 +166,53 @@ function finishEnd(body) {
     if (sendPanel && !sendPanel.hidden) sendSaid("Not ended: " + why);
   });
 }
-if (endBtn) endBtn.onclick = endNotes;
 
-/* WHERE THE NOTES GO, for a canvas bound to nothing: the one picker order
-   (Random lessons, the catch-all, first; then Recent; then every course, then
-   every project, from /subjects.json and /sessions.json), and a new one (a
-   project says whether it holds patient data). A tap ends the canvas into
-   it; "keep it unfiled", last, ends it with no turn and leaves the pages in
-   the session. */
+/* SAVE TO…: bind the canvas to a course or project (POST /bind), which files
+   its pages there; it neither ends nor wakes anything. A move off a subject
+   it has already filed pages in comes back `confirm`, and only a second tap
+   on the same subject moves it. */
+var bindArmed = null;
+var binding = false;
+function bindTo(id) {
+  if (binding) return;
+  var force = bindArmed === id;
+  bindArmed = null;
+  binding = true;
+  sendSaid("saving…");
+  settled().then(function () {
+    return postJson(BASE + "/bind", { subject: id, force: force });
+  }).then(function (got) {
+    binding = false;
+    if (got && got.confirm) {
+      bindArmed = id;
+      sendSaid(got.error + " Tap it again to move it.");
+      return;
+    }
+    if (!got || !got.ok) { sendSaid((got && got.error) || "Not saved."); return; }
+    notesState.subject = got.subject.id;
+    subjectName = got.subject.name || got.subject.id;
+    paintSave();
+    sendPanel.hidden = true;
+  }, function () { binding = false; sendSaid("Not saved: the board did not answer."); });
+}
+
+if (endBtn) {
+  endBtn.onclick = openEnd;
+  saveBtn.onclick = function () { openSend("bind"); };
+  giveBtn.onclick = giveCanvas;
+  Array.prototype.forEach.call(endPanel.querySelectorAll("button[data-end]"), function (b) {
+    b.onclick = function () { endAs(b.getAttribute("data-end")); };
+  });
+  document.getElementById("canvas-end-back").onclick = function () { endPanel.hidden = true; };
+}
+
+/* WHERE THE CANVAS GOES: the one picker order (Random lessons, the
+   catch-all, first; then Recent; then every course, then every project, from
+   /subjects.json and /sessions.json), and a new one (a project says whether
+   it holds patient data). `sendMode` is what a tap does: "bind" (Save to…),
+   or "keep" / "transcribe", which end it there. Ending, it closes on "keep
+   it unfiled", which ends it with no turn and leaves the pages in the
+   session. */
 var sendPanel = document.getElementById("notes-send");
 var sendList = document.getElementById("notes-send-list");
 var sendForm = document.getElementById("notes-send-form");
@@ -116,13 +220,17 @@ var sendName = document.getElementById("notes-send-name");
 var sendPhi = document.getElementById("notes-send-phi");
 var sendMaking = null;
 var sendMakingPhi = null;
+var sendMode = "transcribe";
 var RECENT = 4;
+var SEND_HEAD = {
+  bind: "Save this canvas to a course or project",
+  keep: "Keep the pages in a course or project, then end",
+  transcribe: "Transcribe the pages into a course or project, then end"
+};
+var SEND_GO = { bind: "make it and save there", keep: "make it, keep them there and end",
+                transcribe: "make it, transcribe them there and end" };
 
 function sendSaid(text) { document.getElementById("notes-send-said").textContent = text || ""; }
-
-function getJson(url) {
-  return fetch(url, { credentials: "same-origin" }).then(function (r) { return r.json(); });
-}
 
 /* `[[heading, [subject...]]]` in the one order; the catch-all under none. */
 function pickGroups(list, scratch, recentIds) {
@@ -130,7 +238,7 @@ function pickGroups(list, scratch, recentIds) {
   list.forEach(function (one) { byId[one.id] = one; });
   var top = scratch && byId[scratch] ? [byId[scratch]] : [];
   var recent = [];
-  recentIds.forEach(function (id) {
+  [notesState.subject].concat(recentIds).forEach(function (id) {
     var one = byId[id];
     if (one && top.indexOf(one) < 0 && recent.indexOf(one) < 0 && recent.length < RECENT) {
       recent.push(one);
@@ -141,6 +249,13 @@ function pickGroups(list, scratch, recentIds) {
           ["Courses", rest.filter(function (one) { return one.kind !== "project"; })],
           ["Projects", rest.filter(function (one) { return one.kind === "project"; })]]
     .filter(function (g) { return g[1].length; });
+}
+
+/* What a tap on a subject does, in the panel's mode. */
+function chosen(id) {
+  if (sendMode === "bind") { bindTo(id); return; }
+  sendSaid("sending…");
+  finishEnd({ subject: id, transcribe: sendMode === "transcribe" });
 }
 
 /* The list is painted once /subjects.json comes, and again when
@@ -164,17 +279,24 @@ function paintSend() {
       b.type = "button";
       b.textContent = one.name || one.slug || one.id;
       b.dataset.subject = one.id;
-      b.onclick = function () { sendSaid("sending…"); finishEnd({ subject: one.id }); };
+      if (one.id === notesState.subject) b.className = "on";
+      b.onclick = function () { chosen(one.id); };
       sendList.appendChild(b);
     });
   });
   if (!sendList.firstChild) sendSaid("No courses or projects yet: make one below.");
 }
 
-function openSend() {
+function openSend(mode) {
+  sendMode = mode || "transcribe";
   sendMaking = null;
   sendMakingPhi = null;
+  bindArmed = null;
   sendForm.hidden = true;
+  endPanel.hidden = true;
+  document.getElementById("notes-send-head").textContent = SEND_HEAD[sendMode];
+  document.getElementById("notes-send-go").textContent = SEND_GO[sendMode];
+  document.getElementById("notes-send-skip").hidden = sendMode === "bind";
   sendSaid("");
   sendList.textContent = "";
   sendSubjects = null;
@@ -222,13 +344,10 @@ if (sendPanel) {
     var body = { kind: sendMaking, name: name };
     if (sendMaking === "project") body.phi = sendMakingPhi;
     sendSaid("making " + name + "…");
-    fetch("/subjects/new", {
-      method: "POST", credentials: "same-origin",
-      headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-    }).then(function (r) { return r.json(); }).then(function (got) {
+    postJson("/subjects/new", body).then(function (got) {
       if (!got || !got.ok) { sendSaid((got && got.error) || "Not made."); return; }
       sendName.value = "";
-      finishEnd({ subject: got.subject.id });
+      chosen(got.subject.id);
     }, function () { sendSaid("Not made: the board did not answer."); });
   };
   document.getElementById("notes-send-skip").onclick = function () {
@@ -238,10 +357,14 @@ if (sendPanel) {
 }
 
 /* Show which question is being answered, so the full-screen view is not
-   context-free. A notes canvas answers none: it shows its title and End. */
+   context-free. A canvas answers none: it shows its title and its buttons. */
 fetch(BASE + "/board.json").then(function (r) { return r.json(); }).then(function (d) {
   var state = d.state || {};
-  if (state.view === "slate") { paintNotes(state); return; }
+  if (state.view === "slate") {
+    subjectName = state.subject ? state.course || "" : "";
+    paintNotes(state);
+    return;
+  }
   var cards = d.cards || [];
   for (var i = cards.length - 1; i >= 0; i--) {
     if (cards[i].kind === "question") {

@@ -13,11 +13,15 @@
     set_code(id, code) record or clear the session's cluster coding session
     coding()          {id: code} for every session with `code` set
     file(id, upload)  move an upload into the bound subject, ink and all
+    file_canvas(id)   a canvas's inked pages into the bound subject's
+                      `docs/<slug>/`, beside a notes.md and a doc.json
+    give(id)          hand a canvas to the tutor: one waking `[canvas]` line
     all(), get(id), path(id), repo(id)
 
 A session is Mac-only and ignored (`/sessions/`; the audit refuses any path
 under it) and persists until `end`. session.json = {id, title, subject,
-mode, opened, ended, writeup, problem, seen, code, view, sent_late?};
+mode, opened, ended, writeup, problem, seen, code, view, sent_late?,
+canvas?, given?, transcribe?};
 `subject` is a subject id or null, `writeup` a source path from the Atlas
 root or null, `problem` the label of the write-up's problem on their screen
 or null,
@@ -26,7 +30,9 @@ a session taught bound to nothing is sent at or after its End, and cleared
 once its wrap-up has written it up there. `code` is the cluster coding session as the Mac last
 heard it ({ref, sha, paths, step, subject, prev, seen, at}); while set,
 `gitops.commit` refuses the held paths on main and `board push` goes to the
-ref.
+ref. A canvas (`view: slate`) records where its pages are filed as `canvas`
+({subject, dir}), when it was last handed to the tutor as `given`, and
+whether its End asked for a transcript as `transcribe`.
 
 The constraint: an id is matched against `ID_RE`, never joined onto a path
 unchecked.
@@ -254,6 +260,7 @@ def end(sid, base=None, now=None):
     if not found:
         return rec, True, "ended; the session is bound to no subject, so nothing was committed"
     subject = found["id"]
+    rec = _filed(rec["id"], base, rec)
     keep = []
     if os.path.isfile(os.path.join(base, subject, "TUTOR.md")):
         keep.append("%s/TUTOR.md" % subject)
@@ -357,7 +364,9 @@ def _line(where, text, signal, now=None, **extra):
 def bind(sid, subject, base=None, now=None, force=False):
     """Bind session `sid` to `subject` (matched against `subjects.all()`).
     `(record, changed)`. Appends a non-waking `[bind] <id>` line; nothing is
-    filed or moved (D21). Rebinding the same subject is silent.
+    filed or moved (D21), but a canvas's pages, which are filed there
+    (`file_canvas`) on every bind, the same subject's again included.
+    Rebinding the same subject writes no line.
 
     Moving a session off a subject it has already left something in -- a
     filed upload, an artifact, its write-up (`_left_in`) -- or any cards of
@@ -372,7 +381,7 @@ def bind(sid, subject, base=None, now=None, force=False):
                       "projects/<name>, or make it with --create" % subject)
     rec = get(sid, base)
     if rec.get("subject") == found["id"]:
-        return rec, False
+        return _filed(sid, base, rec), False
     was = rec.get("subject")
     if was and not force:
         left = _left_in(where, base, was, rec)
@@ -393,7 +402,20 @@ def bind(sid, subject, base=None, now=None, force=False):
     _save(where, rec)
     _line(where, "[bind] %s" % found["id"], "bind", now=now,
           subject=found["id"])
-    return rec, True
+    return _filed(sid, base, rec), True
+
+
+def _filed(sid, base, rec):
+    """A canvas's pages filed where it is bound (`file_canvas`), and its
+    record as that leaves it; any other session's record as it is. A filing
+    that fails leaves the pages in the session, and End files them again."""
+    if rec.get("view") != "slate":
+        return rec
+    try:
+        file_canvas(sid, base=base)
+    except (Refused, OSError, ValueError):
+        return rec
+    return get(sid, base) or rec
 
 
 def _cards(where):
@@ -688,9 +710,10 @@ def current():
 
 
 def url(rec):
-    """Where a session opens: its board, or the slate of a notes canvas."""
-    return "/s/%s/%s" % (rec.get("id"),
-                         "slate" if rec.get("view") == "slate" else "board")
+    """Where a session opens: its board, or the slate of a canvas not yet
+    handed to the tutor (`given`)."""
+    canvas = rec.get("view") == "slate" and not rec.get("given")
+    return "/s/%s/%s" % (rec.get("id"), "slate" if canvas else "board")
 
 
 def slate_pages(sid, base=None):
@@ -707,6 +730,125 @@ def slate_pages(sid, base=None):
         if page.get("strokes") and os.path.isfile(png):
             out.append(png)
     return out
+
+
+# ---------------------------------------------------------------------------
+# a canvas: its pages filed, and handed to the tutor
+# ---------------------------------------------------------------------------
+CANVAS_HAND = "handwritten"
+CANVAS_NOTES = "notes.md"
+
+
+def _page_link(n):
+    return "![page %d](%s/page-%02d.png)" % (n, CANVAS_HAND, n)
+
+
+def file_canvas(sid, base=None):
+    """File canvas `sid`'s inked pages into its bound subject:
+    `<subject>/docs/<slug>/handwritten/page-NN.png`, each the picture the
+    canvas saved (drawn at the send cap), beside a `notes.md` with one image
+    link per page and a `doc.json` naming the session (`artifacts.create`).
+    `<slug>` is the title's, kept in session.json `canvas` so a second filing
+    -- every bind and every End files it -- writes into the same directory.
+    Pictures are written over; notes.md keeps what was written under them
+    and gains a link for a page it lacks. Nothing is committed here: End's
+    `_kept` commits the directory. The directory relative to the subject, or
+    None for an unbound canvas or one with no ink. Refused for a session
+    that is not a canvas."""
+    from . import artifacts                              # local: artifacts imports this
+    base = base or subjects.root()
+    where = _need(sid, base)
+    rec = get(sid, base)
+    if rec.get("view") != "slate":
+        raise Refused("session %s is not a canvas" % sid)
+    found = subjects.find(rec.get("subject"), base) if rec.get("subject") else None
+    if not found:
+        return None
+    pngs = []
+    for png in slate_pages(sid, base):
+        m = re.search(r"page-(\d+)\.png\Z", png)
+        if m:
+            pngs.append((int(m.group(1)), png))
+    if not pngs:
+        return None
+    root = found["root"]
+    held_ = rec.get("canvas") if isinstance(rec.get("canvas"), dict) else {}
+    rel = held_.get("dir") if held_.get("subject") == found["id"] else None
+    if rel and not (artifacts.SLUG_RE.match(rel.split("/")[-1])
+                    and rel.startswith(artifacts.DOCS + "/")
+                    and os.path.isfile(os.path.join(root, rel, artifacts.DOC_JSON))):
+        rel = None
+    if not rel:
+        title = rec.get("title") or "Canvas %s" % rec.get("opened", "")[:10]
+        art = artifacts.create(root, title, sid, source=CANVAS_NOTES)
+        rel = art["rel"]
+        rec["canvas"] = {"subject": found["id"], "dir": rel}
+        _save(where, rec)
+    d = os.path.join(root, *rel.split("/"))
+    hand = os.path.join(d, CANVAS_HAND)
+    os.makedirs(hand, exist_ok=True)
+    for n, png in pngs:
+        shutil.copyfile(png, os.path.join(hand, "page-%02d.png" % n))
+    notes = os.path.join(d, CANVAS_NOTES)
+    try:
+        with open(notes, "r", encoding="utf-8") as fh:
+            text = fh.read()
+    except OSError:
+        text = "# %s\n" % (rec.get("title") or "Canvas")
+    missing = [n for n, _png in pngs if _page_link(n) not in text]
+    if missing or not os.path.isfile(notes):
+        text = text.rstrip("\n") + "\n"
+        for n in missing:
+            text += "\n%s\n" % _page_link(n)
+        with open(notes, "w", encoding="utf-8") as fh:
+            fh.write(text)
+    return rel
+
+
+def canvas_line(pages):
+    """The waking `[canvas]` line's text for `pages`, in page order."""
+    listed = "\n".join("    page %d: %s" % (i, p) for i, p in enumerate(pages, start=1))
+    return ("[canvas] They handed you their canvas: %d page%s written with no "
+            "tutor, in this order. Open every picture and read all of it before "
+            "you answer, then teach from what is on it: answer a question it "
+            "asks, check working it shows, and say what it leaves open.\n%s"
+            % (len(pages), "" if len(pages) == 1 else "s", listed))
+
+
+def give(sid, base=None, now=None):
+    """Hand canvas `sid` to the tutor: reopened first when it has ended, then
+    one transcript turn and one waking `[canvas]` line naming every inked
+    page in order (`slate_pages`). `(record, pages)`; the caller queues the
+    turn. Refused for a session that is not a canvas, or one with no ink."""
+    from .lesson import turns as lesson_turns               # local: heavy
+    base = base or subjects.root()
+    with held(sid, base):
+        where = _need(sid, base)
+        rec = get(sid, base)
+        if rec.get("view") != "slate":
+            raise Refused("only a canvas is handed to the tutor whole")
+        pages = slate_pages(sid, base)
+        if not pages:
+            raise Refused("nothing is written on this canvas yet")
+        if rec.get("ended"):
+            rec = reopen(sid, base)
+        now = time.time() if now is None else now
+        rec["given"] = time.strftime(WHEN, time.localtime(now))
+        _save(where, rec)
+        repo_ = repo(sid, base)
+        tid = lesson_turns.next_turn_id(repo_)
+        record = {"id": tid, "rev": lesson_turns.turn_revision(repo_, tid),
+                  "kind": "text", "answers": None, "t": now,
+                  "iso": time.strftime(WHEN, time.localtime(now)),
+                  "from": "student",
+                  "text": "Here is my canvas (%d page%s)." % (
+                      len(pages), "" if len(pages) == 1 else "s"),
+                  "signal": "canvas", "read": False}
+        lesson_turns.write_turn(repo_, record)
+        with open(repo_.messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(dict(record, text=canvas_line(pages),
+                                     pages=pages)) + "\n")
+        return rec, pages
 
 
 def show(rec):

@@ -483,8 +483,9 @@ async function stubbed() {
   // labels, and its note saying who takes the next turn before any tap.
   const who = d.getElementById('who');
   const whoNote = () => d.getElementById('who-note').textContent;
-  check('the Tutor chooser sits directly under New session, out of Settings',
-        d.getElementById('new-session').nextElementSibling === who
+  check('the Tutor chooser sits directly under New session and New canvas, out of Settings',
+        d.getElementById('starts').nextElementSibling === who
+        && d.getElementById('new-session').parentElement === d.getElementById('starts')
         && !d.getElementById('settings').contains(who)
         && /^Tutor$/.test(who.querySelector('.who-lead').textContent));
   check('it is drawn with both choices, each reading its label',
@@ -824,12 +825,17 @@ async function stubbed() {
          Promise.resolve({ status: 200, json: () => Promise.resolve({
            ok: true, id: NEW, url: '/s/' + NEW + '/slate' }) }))
       : orig(u, init)))(nw.fetch);
+    const said = nw.document.getElementById('act-notes-sub').textContent;
     nw.document.getElementById('act-notes').click();
     await sleep(30);
     const asked = nw.asked.filter((r) => r.url === '/sessions/new')[0];
-    check('Notes posts /sessions/new with view slate and a title of the day',
+    check('New canvas, beside New session, posts /sessions/new with view slate and a '
+          + 'title of the day',
           asked && asked.body.view === 'slate'
-          && /^Notes \d{4}-\d\d-\d\d$/.test(asked.body.title));
+          && /^Canvas \d{4}-\d\d-\d\d$/.test(asked.body.title)
+          && nw.document.getElementById('act-notes').parentElement.id === 'starts'
+          && /New canvas/.test(nw.document.getElementById('act-notes').textContent)
+          && said === 'write now; file it or give it to a tutor later');
     check('and opens the new session at its slate',
           nw.__went.indexOf('/s/' + NEW + '/slate') >= 0);
   }
@@ -951,6 +957,43 @@ async function stubbed() {
           && Array.from(sel.querySelectorAll('optgroup')).map((g) => g.label).join('|')
             === 'Recent|Courses|Projects');
     rw.close();
+  }
+
+  // A CANVAS'S ROW, open or past, offers "give to the tutor": a second tap
+  // posts /s/<id>/give and opens the board it answers with.
+  {
+    const CAN = '20261009-170000';
+    const listing = JSON.parse(JSON.stringify(answers['/sessions.json']));
+    listing.sessions.unshift({ id: CAN, title: 'Canvas 2026-10-09', subject: null,
+                               view: 'slate', mode: 'teach', opened: '2026-10-09 17:00:00',
+                               ended: null, url: '/s/' + CAN + '/slate', new_cards: 0,
+                               last_card: null });
+    const cw = load('', { over: { '/sessions.json': listing } });
+    await sleep(80);
+    const gave = [];
+    cw.fetch = ((orig) => (u, init) => {
+      if (String(u) === '/s/' + CAN + '/give') {
+        gave.push(init && init.method);
+        return Promise.resolve({ status: 200, json: () => Promise.resolve({
+          ok: true, pages: 3, url: '/s/' + CAN + '/board' }) });
+      }
+      return orig(u, init);
+    })(cw.fetch);
+    const cd = cw.document;
+    const b = cd.querySelector('[data-give-for="' + CAN + '"]');
+    check('only a canvas\'s row offers "give to the tutor", and it opens at its slate',
+          b && cd.querySelectorAll('[data-give-for]').length === 1
+          && cd.querySelector('a[data-session="' + CAN + '"]').getAttribute('href')
+            === '/s/' + CAN + '/slate');
+    b.click();
+    await sleep(20);
+    check('the first tap posts nothing', !gave.length && /again/.test(b.textContent));
+    b.click();
+    await sleep(40);
+    check('the second posts /give and opens the canvas\'s board',
+          gave.length === 1 && gave[0] === 'POST'
+          && cw.__went.indexOf('/s/' + CAN + '/board') >= 0);
+    cw.close();
   }
 
   // + NEW COURSE WITH ITS TEXTBOOK: the course made, then a session bound to

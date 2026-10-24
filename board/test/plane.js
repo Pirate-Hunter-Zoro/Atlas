@@ -1324,12 +1324,13 @@ const heelSwipe = (id, x, y, dx, dy) => {
              + 'edge stays in the map for ever');
   }
 
-  // ------------------------------------------------- A NOTES CANVAS (T40)
+  // ------------------------------------------------- A CANVAS (T40, item 12)
   //
-  // A session whose view is `slate`: the full slate is the whole of it. Two
-  // pages written there survive a reload, and End, after a second tap, puts
-  // every page's picture on disk before it ends the session -- the wrap-up is
-  // transcribed from those pictures.
+  // A session whose view is `slate`: the full slate is the whole of it, and
+  // it never sends. Two pages written there survive a reload. End asks how it
+  // ends -- keep the pages, transcribe them, or (unbound) keep it unfiled --
+  // and puts every page's picture on disk before it ends the session. "Save
+  // to…" binds it without ending it; "Give to the tutor" hands it over.
   {
     const check = (m, c, d) => (c ? ok(m) : fail(m + (d ? ': ' + d : '')));
     const SID = '20261009-150000';
@@ -1373,6 +1374,13 @@ const heelSwipe = (id, x, y, dx, dy) => {
           if (url === '/subjects/new') {
             return reply({ ok: true, subject: { id: 'projects/' + body.name, kind: body.kind } });
           }
+          if (url === B + '/bind') {
+            return reply({ ok: true, changed: true, subject: { id: body.subject,
+              name: body.subject === 'courses/Random' ? 'Random lessons' : body.subject } });
+          }
+          if (url === B + '/give') {
+            return reply({ ok: true, pages: 2, queued: true, url: B + '/board' });
+          }
           return reply({ ok: false });
         }
         if (url === '/subjects.json') {
@@ -1401,11 +1409,17 @@ const heelSwipe = (id, x, y, dx, dy) => {
           src = src.replace('var writer = window.Slate.create(',
                             'var writer = window.__writer = window.Slate.create(');
         }
+        if (f === 'slate.js') {
+          w2.__went = [];
+          src = src.replace('function go(url) { window.location.href = url; }',
+                            'function go(url) { window.__went.push(url); }');
+        }
         try { w2.eval(src); } catch (e) { fail('notes canvas: ' + f + ': ' + e.message); }
       }
       return w2;
     }
-    const w2 = mount(B + '/slate/state', true);
+    const w2 = mount(B + '/slate/state', true, { subject: 'courses/Galois-Theory',
+                                                 course: 'Galois Theory' });
     await sleep(60);
     const d2 = w2.document;
     const sheet2 = d2.querySelector('canvas.sl-sheet');
@@ -1440,37 +1454,85 @@ const heelSwipe = (id, x, y, dx, dy) => {
     check('and both are there after a reload',
           w3.__writer.debug().pages === 2 && w3.__writer.strokes() === 1);
 
+    // A CANVAS NEVER SENDS: no Send, no Live, and every picture it leaves
+    // on disk drawn at the send cap; its menu keeps a PDF and a page's PNG.
+    const sendBtn = Array.from(d2.querySelectorAll('button')).find((b) => b.title === 'hand this page to the tutor');
+    const liveRow = Array.from(d2.querySelectorAll('.sl-label')).find((e) => e.textContent === 'Live');
+    check('a canvas has no Send and no Live',
+          sendBtn && sendBtn.hidden && liveRow && liveRow.parentNode.hidden
+          && w2.__writer.sendable() === false);
+    const keep = Array.from(d2.querySelectorAll('.sl-label')).find((e) => e.textContent === 'Keep');
+    const keeps = keep ? Array.from(keep.parentNode.querySelectorAll('a')) : [];
+    check('its menu offers "PDF" (/canvas.pdf) and "this page as PNG"',
+          keeps.length === 2 && keeps[0].textContent === 'PDF'
+          && keeps[0].getAttribute('href') === B + '/canvas.pdf'
+          && keeps[1].textContent === 'this page as PNG');
+    check('writing on it sent nothing: only saves, none of them a send',
+          posts.length > 0 && posts.every((p) => p.url === B + '/slate/save' && !p.body.send),
+          JSON.stringify(posts.map((p) => p.url)));
+    check('and its buttons are Save to… (here naming where it is filed), Give to the tutor and End',
+          !d2.getElementById('canvas-save').hidden && !d2.getElementById('canvas-give').hidden
+          && /in Galois Theory/.test(d2.getElementById('canvas-save').textContent));
+
     const end = d2.getElementById('notes-end');
     posts.length = 0;
     end.click();
     await sleep(20);
-    check('End asks for a second tap', !posts.some((p) => p.url === B + '/end')
-          && /again/.test(end.textContent));
-    end.click();
+    const endPanel = d2.getElementById('canvas-end');
+    check('End asks how it ends, posting nothing: keep the pages, transcribe, '
+          + 'and (bound) no "keep it unfiled"',
+          !endPanel.hidden && !posts.some((p) => p.url === B + '/end')
+          && endPanel.querySelector('[data-end="keep"]')
+          && endPanel.querySelector('[data-end="transcribe"]')
+          && d2.getElementById('canvas-end-unfiled').hidden);
+    endPanel.querySelector('[data-end="transcribe"]').click();
     await sleep(200);
     const ended = posts.findIndex((p) => p.url === B + '/end');
     const pictures = posts.slice(0, ended < 0 ? posts.length : ended)
       .filter((p) => p.url === B + '/slate/save' && p.body.png).map((p) => p.body.page)
       .sort();
-    check('the second puts every page\'s picture on disk, then ends the session',
-          ended >= 0 && JSON.stringify(pictures) === '[1,2]', JSON.stringify(posts.map((p) => p.url)));
+    check('"End and transcribe" puts every page\'s picture on disk, then ends asking for it',
+          ended >= 0 && JSON.stringify(pictures) === '[1,2]'
+          && posts[ended].body.transcribe === true, JSON.stringify(posts.map((p) => p.url)));
     check('and says the transcript is being written', /notes\.md/.test(end.textContent)
           && end.disabled);
     w2.close();
     w3.close();
 
+    // Bound, "End, keep the pages" ends at once with no transcript.
+    {
+      const wk = mount(B + '/slate/state', false, { subject: 'courses/Galois-Theory',
+                                                     course: 'Galois Theory' });
+      await sleep(60);
+      posts.length = 0;
+      wk.document.getElementById('notes-end').click();
+      wk.document.querySelector('#canvas-end [data-end="keep"]').click();
+      await sleep(120);
+      const e = posts.filter((p) => p.url === B + '/end');
+      check('bound, "End, keep the pages" ends it asking for no transcript',
+            e.length === 1 && e[0].body.transcribe === false && !e[0].body.subject
+            && /pages are in Galois Theory/.test(wk.document.getElementById('notes-end').textContent),
+            JSON.stringify(e));
+      wk.close();
+    }
+
     // Bound to nothing, End asks where the notes go first.
-    const tapEnd = async (dd) => {
+    const tapEnd = async (dd, how) => {
       dd.getElementById('notes-end').click();
       await sleep(20);
-      dd.getElementById('notes-end').click();
+      dd.querySelector('#canvas-end [data-end="' + (how || 'transcribe') + '"]').click();
       await sleep(60);
     };
     const w4 = mount(B + '/slate/state', false, { subject: null });
     await sleep(60);
     const d4 = w4.document;
     posts.length = 0;
-    await tapEnd(d4);
+    d4.getElementById('notes-end').click();
+    await sleep(20);
+    check('bound to nothing, End also offers "Keep it unfiled"',
+          !d4.getElementById('canvas-end-unfiled').hidden);
+    d4.querySelector('#canvas-end [data-end="transcribe"]').click();
+    await sleep(60);
     const panel = d4.getElementById('notes-send');
     const rows4 = Array.from(d4.querySelectorAll('#notes-send-list button'));
     check('an unbound canvas\'s End offers every course and project before it ends, '
@@ -1482,14 +1544,15 @@ const heelSwipe = (id, x, y, dx, dy) => {
           && d4.getElementById('notes-send-list').firstElementChild === rows4[0],
           rows4.map((b) => b.textContent).join(','));
     check('and ends on "keep it unfiled"',
-          /keep it unfiled/.test(d4.getElementById('notes-send-skip').textContent));
+          /keep it unfiled/.test(d4.getElementById('notes-send-skip').textContent)
+          && !d4.getElementById('notes-send-skip').hidden);
     rows4[2].click();
     rows4[2].click();
     rows4[0].click();
     await sleep(200);
     const sentEnd = posts.filter((p) => p.url === B + '/end');
     check('a tap ends it into that subject, and taps while it is asked post nothing',
-          sentEnd.length === 1
+          sentEnd.length === 1 && sentEnd[0].body.transcribe === true
           && sentEnd[0].body.subject === 'courses/Galois-Theory' && panel.hidden
           && /notes\.md in Galois Theory/.test(d4.getElementById('notes-end').textContent),
           JSON.stringify(sentEnd));
@@ -1499,7 +1562,7 @@ const heelSwipe = (id, x, y, dx, dy) => {
     await sleep(60);
     const d5 = w5.document;
     posts.length = 0;
-    await tapEnd(d5);
+    await tapEnd(d5, 'keep');
     d5.getElementById('notes-new-project').click();
     d5.getElementById('notes-send-name').value = 'Reading';
     d5.getElementById('notes-send-go').click();
@@ -1512,9 +1575,10 @@ const heelSwipe = (id, x, y, dx, dy) => {
     await sleep(200);
     const made5 = posts.filter((p) => p.url === '/subjects/new');
     const end5 = posts.filter((p) => p.url === B + '/end');
-    check('then makes it and ends the canvas into it',
+    check('then makes it and ends the canvas into it, keeping the pages',
           made5.length === 1 && made5[0].body.phi === false
-          && end5.length === 1 && end5[0].body.subject === 'projects/Reading',
+          && end5.length === 1 && end5[0].body.subject === 'projects/Reading'
+          && end5[0].body.transcribe === false,
           JSON.stringify(posts.map((p) => p.url)));
     w5.close();
 
@@ -1530,6 +1594,42 @@ const heelSwipe = (id, x, y, dx, dy) => {
           end6.length === 1 && !end6[0].body.subject && end6[0].body.transcribe === false,
           JSON.stringify(end6));
     w6.close();
+
+    // SAVE TO…: the picker binds it there, and nothing ends or wakes.
+    const w7 = mount(B + '/slate/state', false, { subject: null });
+    await sleep(60);
+    const d7 = w7.document;
+    posts.length = 0;
+    d7.getElementById('canvas-save').click();
+    await sleep(60);
+    const rows7 = Array.from(d7.querySelectorAll('#notes-send-list button'));
+    check('"Save to…" opens the same picker, Random lessons first, with no "keep it unfiled"',
+          !d7.getElementById('notes-send').hidden && rows7[0].textContent === 'Random lessons'
+          && d7.getElementById('notes-send-skip').hidden
+          && /Save this canvas/.test(d7.getElementById('notes-send-head').textContent));
+    rows7[0].click();
+    await sleep(150);
+    const binds = posts.filter((p) => p.url === B + '/bind');
+    check('a tap binds it there through POST /bind, and nothing is ended or given',
+          binds.length === 1 && binds[0].body.subject === 'courses/Random'
+          && !posts.some((p) => /\/(end|give)$/.test(p.url))
+          && d7.getElementById('notes-send').hidden
+          && /in Random lessons/.test(d7.getElementById('canvas-save').textContent),
+          JSON.stringify(posts.map((p) => p.url)));
+
+    // GIVE TO THE TUTOR: a second tap, the pages on disk, then /give, then the board.
+    posts.length = 0;
+    const give = d7.getElementById('canvas-give');
+    give.click();
+    await sleep(20);
+    check('"Give to the tutor" asks for a second tap, posting nothing',
+          !posts.some((p) => p.url === B + '/give') && /again/.test(give.textContent));
+    give.click();
+    await sleep(150);
+    check('the second gives it (POST /give) and opens the session\'s board',
+          posts.filter((p) => p.url === B + '/give').length === 1
+          && w7.__went.indexOf(B + '/board') >= 0, JSON.stringify(posts.map((p) => p.url)));
+    w7.close();
   }
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'

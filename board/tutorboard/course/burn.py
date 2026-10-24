@@ -344,7 +344,8 @@ def _write_pdf(out_path, pages):
     """A PDF of `pages`, each `(image, w_px, h_px, ink_ops, w_pt, h_pt)`.
 
     One image plus one content stream per page; JPEG and PNG go in untouched.
-    The page size comes with the page, because the ink was scaled to it.
+    An `image` of None is a white page with only the ink on it. The page size
+    comes with the page, because the ink was scaled to it.
     """
     objs = [b""]                       # 1-indexed; slot 0 is never written
 
@@ -354,12 +355,16 @@ def _write_pdf(out_path, pages):
 
     kids, page_objs = [], []
     for image, w_px, h_px, ink, w_pt, h_pt in pages:
-        body = _image_obj(image, w_px, h_px)
-        if body is None:
-            raise ValueError("unreadable page picture: %s" % os.path.basename(image))
-        img_num = add(body)
-        content = (b"q\n%.4f 0 0 %.4f 0 0 cm\n/Im0 Do\nQ\n"
-                   % (w_pt, h_pt)) + ink
+        if image is None:
+            img_num = None
+            content = (b"q\n1 1 1 rg\n0 0 %.4f %.4f re f\nQ\n" % (w_pt, h_pt)) + ink
+        else:
+            body = _image_obj(image, w_px, h_px)
+            if body is None:
+                raise ValueError("unreadable page picture: %s" % os.path.basename(image))
+            img_num = add(body)
+            content = (b"q\n%.4f 0 0 %.4f 0 0 cm\n/Im0 Do\nQ\n"
+                       % (w_pt, h_pt)) + ink
         packed = zlib.compress(content)
         con_num = add(b"<< /Length %d /Filter /FlateDecode >>\nstream\n"
                       % len(packed) + packed + b"\nendstream")
@@ -368,10 +373,11 @@ def _write_pdf(out_path, pages):
     # Pages is numbered before its children, which name it as /Parent.
     pages_num = len(objs) + len(page_objs)
     for img_num, con_num, w_pt, h_pt in page_objs:
+        res = (b"<< /XObject << /Im0 %d 0 R >> >>" % img_num
+               if img_num is not None else b"<< >>")
         num = add(b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %.4f %.4f] "
-                  b"/Resources << /XObject << /Im0 %d 0 R >> >> "
-                  b"/Contents %d 0 R >>"
-                  % (pages_num, w_pt, h_pt, img_num, con_num))
+                  b"/Resources %s /Contents %d 0 R >>"
+                  % (pages_num, w_pt, h_pt, res, con_num))
         kids.append(num)
 
     pages_obj = add(b"<< /Type /Pages /Kids [%s] /Count %d >>"
@@ -400,6 +406,133 @@ def _write_pdf(out_path, pages):
         fh.write(bytes(out))
     os.replace(tmp, out_path)
     return out_path
+
+
+# ---------------------------------------------------------------------------
+# A CANVAS, AS A PDF
+# ---------------------------------------------------------------------------
+# The slate's own crop and colours (`slate-core.js`): a margin of PNG_PAD
+# logical units round the ink, as `pngBox` frames a page; ink as `forPaper`
+# darkens it for white; a highlighter as `asHighlight` pales it, under the pen.
+CANVAS_PAD = 26.0
+# The longest side of a page, in points: an A4 page's.
+CANVAS_MAX_PT = 842.0
+
+
+def _for_paper(colour):
+    """`forPaper`: a colour as it reads on white, as three PDF numbers."""
+    r, g, b = _rgb(colour if re.match(r"\A#?[0-9a-fA-F]{6}\Z", str(colour or ""))
+                   else "#1a1b1e")
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    if lum <= 0.45:
+        return r, g, b
+    if max(r, g, b) - min(r, g, b) < 12 / 255.0:
+        return 26 / 255.0, 27 / 255.0, 30 / 255.0
+    k = 0.30 / max(lum, 0.001)
+    return tuple(max(0.0, min(1.0, v * k)) for v in (r, g, b))
+
+
+def _as_highlight(colour):
+    """`asHighlight`: a highlighter's colour, paled toward white."""
+    if not re.match(r"\A#?[0-9a-fA-F]{6}\Z", str(colour or "")):
+        return 1.0, 224 / 255.0, 138 / 255.0
+    rgb = [v * 255 for v in _rgb(colour)]
+    k = 245.0 / max(max(rgb), 1)
+    return tuple(min(255.0, round(200 + (v * k - 200) * 0.55)) / 255.0 for v in rgb)
+
+
+def _canvas_box(strokes):
+    """The ink's box plus `CANVAS_PAD`, in logical units, or None."""
+    x0 = y0 = float("inf")
+    x1 = y1 = float("-inf")
+    for st in strokes:
+        pad = float(st.get("w") or 1) * (3 if st.get("hl") else 1)
+        for q in st.get("pts") or []:
+            try:
+                x, y = float(q[0]), float(q[1])
+            except (TypeError, ValueError, IndexError):
+                continue
+            x0, x1 = min(x0, x - pad), max(x1, x + pad)
+            y0, y1 = min(y0, y - pad), max(y1, y + pad)
+    if not x1 > x0:
+        return None
+    return (x0 - CANVAS_PAD, y0 - CANVAS_PAD,
+            (x1 - x0) + 2 * CANVAS_PAD, (y1 - y0) + 2 * CANVAS_PAD)
+
+
+def _canvas_ops(strokes, box, k):
+    """One canvas page's strokes as content-stream operators: highlighters
+    first, then the pen, each segment as wide as the slate paints it
+    (`paintStroke`), in points `k` per logical unit, y flipped."""
+    x0, y0, w, h = box
+    hpt = h * k
+    ops = ["q", "1 J", "1 j"]
+    order = [st for st in strokes if st.get("hl")] + [st for st in strokes if not st.get("hl")]
+    for st in order:
+        pts = []
+        for q in st.get("pts") or []:
+            try:
+                pr = float(q[2]) if len(q) > 2 else 0.5
+                pts.append(((float(q[0]) - x0) * k, hpt - (float(q[1]) - y0) * k, pr))
+            except (TypeError, ValueError, IndexError):
+                continue
+        if not pts:
+            continue
+        hl = bool(st.get("hl"))
+        r, g, b = _as_highlight(st.get("c")) if hl else _for_paper(st.get("c"))
+        base = float(st.get("w") or 2) * (6 if hl else 1) * k
+        ops.append("%.4f %.4f %.4f RG" % (r, g, b))
+        ops.append("%.4f %.4f %.4f rg" % (r, g, b))
+
+        def wide(a, c):
+            if hl:
+                return base
+            return round(base * (0.5 + 0.85 * ((a[2] + c[2]) / 2.0)) * 4) / 4.0
+        if len(pts) == 1:
+            x, y, p = pts[0]
+            rad = base * (0.5 + 0.85 * p) / 2.0
+            c = rad * 0.5523
+            ops += ["%.3f %.3f m" % (x - rad, y),
+                    "%.3f %.3f %.3f %.3f %.3f %.3f c" % (x - rad, y + c, x - c, y + rad, x, y + rad),
+                    "%.3f %.3f %.3f %.3f %.3f %.3f c" % (x + c, y + rad, x + rad, y + c, x + rad, y),
+                    "%.3f %.3f %.3f %.3f %.3f %.3f c" % (x + rad, y - c, x + c, y - rad, x, y - rad),
+                    "%.3f %.3f %.3f %.3f %.3f %.3f c" % (x - c, y - rad, x - rad, y - c, x - rad, y),
+                    "f"]
+            continue
+        i = 1
+        while i < len(pts):
+            w_ = wide(pts[i - 1], pts[i])
+            ops.append("%.3f w" % max(w_, 0.1))
+            ops.append("%.3f %.3f m" % (pts[i - 1][0], pts[i - 1][1]))
+            ops.append("%.3f %.3f l" % (pts[i][0], pts[i][1]))
+            i += 1
+            while i < len(pts) and wide(pts[i - 1], pts[i]) == w_:
+                ops.append("%.3f %.3f l" % (pts[i][0], pts[i][1]))
+                i += 1
+            ops.append("S")
+    ops.append("Q")
+    return "\n".join(ops).encode("latin-1", "replace")
+
+
+def canvas_pdf(pages, out_path):
+    """A canvas's inked pages as a PDF at `out_path`: one white page each, in
+    the order given, cropped to its ink as the slate crops a picture
+    (`pngBox`), its strokes drawn as vector paths. `pages` are slate page
+    records (`{strokes: [{c, w, hl, pts: [[x, y, pressure], ...]}]}`); one
+    with no ink is left out. The number of pages written; none writes no
+    file."""
+    out = []
+    for page in pages:
+        strokes = [st for st in (page or {}).get("strokes") or []
+                   if isinstance(st, dict) and st.get("pts")]
+        box = _canvas_box(strokes)
+        if not box:
+            continue
+        k = min(1.0, CANVAS_MAX_PT / max(box[2], box[3]))
+        out.append((None, 0, 0, _canvas_ops(strokes, box, k), box[2] * k, box[3] * k))
+    if out:
+        _write_pdf(out_path, out)
+    return len(out)
 
 
 def new_name(stem):

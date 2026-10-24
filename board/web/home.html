@@ -54,10 +54,19 @@
     <p id="open-none" class="hint" hidden>No session is open.</p>
   </section>
 
-  <button id="new-session" class="action primary" type="button">
-    <span class="action-name">New session</span>
-    <span class="action-sub" id="new-session-sub">starts unbound, in teach mode</span>
-  </button>
+  <!-- The two ways to start: a lesson with a tutor, and a canvas to write on
+       with none (a session in full-slate view), filed or handed to a tutor
+       later. -->
+  <div id="starts" class="starts">
+    <button id="new-session" class="action primary" type="button">
+      <span class="action-name">New session</span>
+      <span class="action-sub" id="new-session-sub">starts unbound, in teach mode</span>
+    </button>
+    <button id="act-notes" class="action" type="button">
+      <span class="action-name">New canvas</span>
+      <span class="action-sub" id="act-notes-sub">write now; file it or give it to a tutor later</span>
+    </button>
+  </div>
 
   <!-- Who takes the next turn in every session: the machine's one provider
        setting (POST /default-agent), drawn by `who.js`. Shown when there are
@@ -125,13 +134,8 @@
   </section>
 
   <section id="make" class="actions">
-    <!-- Notes is a session in full-slate view; its End has the tutor
-         transcribe the pages into notes.md. Annotate a PDF uploads one into a
-         new session and opens it in the reader. -->
-    <button id="act-notes" class="action" type="button">
-      <span class="action-name">Notes</span>
-      <span class="action-sub" id="act-notes-sub">a blank canvas; End transcribes it</span>
-    </button>
+    <!-- Annotate a PDF puts one into a new session and opens it in the
+         reader. -->
     <button id="act-annotate" class="action" type="button">
       <span class="action-name">Annotate a PDF</span>
       <span class="action-sub">upload one and write on it</span>

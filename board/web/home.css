@@ -168,7 +168,7 @@ h2 {
   border: 1px solid var(--rule); border-radius: .45rem;
   background: transparent; color: var(--ink-3); cursor: pointer;
 }
-.row-delete.armed { border-color: var(--accent); color: var(--accent); }
+.row-delete.armed, .row-make.armed { border-color: var(--accent); color: var(--accent); }
 .badge {
   flex: none;
   font-family: var(--ui); font-size: .7rem; font-weight: 700;
@@ -186,11 +186,14 @@ h2 {
 }
 .dismiss:hover, .add:hover { border-color: var(--ink-3); color: var(--ink); }
 
-#new-session { width: 100%; margin-top: 1rem; text-align: left; }
+/* New session and New canvas, side by side once there is room. */
+.starts { display: grid; gap: .6rem; margin-top: 1rem; }
+@media (min-width: 30rem) { .starts { grid-template-columns: 1.4fr 1fr; } }
+.starts .action { width: 100%; text-align: left; }
 
-/* ---------- the three actions ---------- */
+/* ---------- the actions ---------- */
 .actions { display: grid; gap: .6rem; margin-top: 2rem; }
-@media (min-width: 30rem) { .actions { grid-template-columns: 1fr 1fr 1fr; } }
+@media (min-width: 30rem) { .actions { grid-template-columns: 1fr 1fr; } }
 .actions .action { min-height: 4.2rem; text-align: left; }
 .action:disabled { opacity: .5; cursor: default; }
 

@@ -43,17 +43,21 @@ body > #away {
   color: var(--sl-dim); text-decoration: none; font-size: .85rem;
 }
 #notes-name {
+  flex: 1 1 auto;
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   color: var(--sl-ink); font-size: .85rem; font-weight: 600;
 }
-#notes-end {
-  margin-left: auto; flex: none;
+.away-btn {
+  flex: none;
   font: inherit; font-size: .8rem; padding: .3rem .8rem; cursor: pointer;
   color: var(--sl-ink); background: var(--sl-panel);
   border: 1px solid var(--sl-line); border-radius: .4rem;
 }
-#notes-end.armed { border-color: var(--sl-accent); color: var(--sl-accent); }
-#notes-end:disabled { cursor: default; color: var(--sl-dim); }
+#canvas-save { max-width: 14rem; overflow: hidden; text-overflow: ellipsis;
+               white-space: nowrap; }
+.away-btn.armed { border-color: var(--sl-accent); color: var(--sl-accent); }
+.away-btn:disabled { cursor: default; color: var(--sl-dim); }
+.canvas-end-sub { display: block; font-size: .72rem; color: var(--sl-dim); }
 /* Where an unbound canvas's notes go, asked at End: a panel under the row. */
 .notes-send {
   position: fixed; z-index: 90; right: .9rem;

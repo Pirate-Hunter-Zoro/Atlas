@@ -1,9 +1,9 @@
 /* ==========================================================================
    home.js -- the start screen.
 
-   Top to bottom: the open sessions (Continue), New session, who tutors,
-   notices, a search, the courses and the projects (most recently used
-   first), past sessions (the newest ten), three actions, and settings.
+   Top to bottom: the open sessions (Continue), New session and New canvas,
+   who tutors, notices, a search, the courses and the projects (most recently
+   used first), past sessions (the newest ten), the actions, and settings.
 
    Everything it reads is unprefixed and one of these: GET /sessions.json,
    /subjects.json (which also names the Meetings subject, or null),
@@ -18,7 +18,8 @@
    session's /s/<id>/send (an unbound one, sent to a course or project), and
    for Annotate a PDF the new session's own /s/<id>/bind, /upload (a file from
    the iPad) or /fetch (an address), and /file.
-   Notes opens a new session at /s/<id>/slate, a notes canvas.
+   New canvas opens a new session at /s/<id>/slate, a canvas; a canvas's row
+   offers "give to the tutor", its /s/<id>/give.
    A session opens at /s/<id>/board; a subject's page is its library,
    /library?subject=<id>.
 
@@ -272,6 +273,7 @@ function pastRow(rec) {
 function withDelete(row, rec) {
   var wrap = el("div", "row-wrap");
   wrap.appendChild(row);
+  if (rec.view === "slate") wrap.appendChild(giveButton(rec));
   if (rec.ended && !rec.subject) {
     var send = el("button", "row-make", "send to…");
     send.type = "button";
@@ -321,6 +323,46 @@ function withDelete(row, rec) {
   return wrap;
 }
 
+/* GIVE TO THE TUTOR, on a canvas's row, open or past: a second tap within
+   four seconds posts /s/<id>/give, which reopens an ended canvas and wakes
+   one turn on all its pages, then opens its board. */
+function giveButton(rec) {
+  var b = el("button", "row-make", "give to the tutor");
+  b.type = "button";
+  b.title = "one turn reads every page of this canvas";
+  b.setAttribute("data-give-for", rec.id);
+  var armed = null;
+  b.onclick = function () {
+    if (!armed) {
+      b.textContent = "tap again";
+      b.classList.add("armed");
+      armed = setTimeout(function () {
+        armed = null;
+        b.textContent = "give to the tutor";
+        b.classList.remove("armed");
+      }, 4000);
+      return;
+    }
+    clearTimeout(armed);
+    armed = null;
+    b.disabled = true;
+    b.textContent = "giving";
+    postJSON("/s/" + enc(rec.id) + "/give", {}).then(function (got) {
+      if (got && got.ok) { go(got.url || "/s/" + enc(rec.id) + "/board"); return; }
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "give to the tutor";
+      say((got && got.error) || "the canvas was not given");
+    }).catch(function () {
+      b.disabled = false;
+      b.classList.remove("armed");
+      b.textContent = "give to the tutor";
+      say("the board did not answer; nothing was given");
+    });
+  };
+  return b;
+}
+
 /* PAST SESSIONS, the newest PAST_SHOWN of them, narrowed by the search; the
    rest are one tap away ("show all"), until the page is loaded again. */
 var PAST_SHOWN = 10;
@@ -368,9 +410,9 @@ function newSession() {
   });
 }
 
-/* ------------------------------------------------------------------- notes */
-/* A NOTES CANVAS is a session in full-slate view (`view: slate`), titled by
-   the day. Its End has the tutor transcribe the pages into notes.md. */
+/* ------------------------------------------------------------------ canvas */
+/* A CANVAS is a session in full-slate view (`view: slate`), titled by the
+   day: written on with no tutor, filed or handed to one later. */
 function today() {
   var d = new Date();
   function two(n) { return (n < 10 ? "0" : "") + n; }
@@ -382,7 +424,7 @@ function newNotes() {
   starting = true;
   els.actNotes.disabled = true;
   els.actNotesSub.textContent = "opening…";
-  postJSON("/sessions/new", { view: "slate", title: "Notes " + today() })
+  postJSON("/sessions/new", { view: "slate", title: "Canvas " + today() })
     .then(function (got) {
       if (got && got.ok && got.url) { go(got.url); return; }
       throw new Error((got && got.error) || "the canvas was not made");
