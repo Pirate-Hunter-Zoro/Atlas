@@ -650,19 +650,22 @@ try:
     out = cards.extract_tikz(body, jobs, repo)
     name = synth.sha("zh-CN", "你好", "ni3 hao3", "Tingting")
     check("a say fence becomes a placeholder with the phrase after it",
-          ("@@SAY:%s:pending:zh-CN@@ 你好 (ni3 hao3)" % name) in out
+          ("@@SAY:%s:pending:zh-CN:ni3%%20hao3@@ 你好\n" % name) in out
           and "```python" in out, out)
     check("and one job for the compiler thread, in the subject's voice",
           len(jobs) == 1 and jobs[0][0] == name and jobs[0][1] == "say"
           and json.loads(jobs[0][2])["voice"] == "Tingting"
           and json.loads(jobs[0][2])["live"] == repo.live, jobs)
+    out = cards.extract_tikz("```say zh-CN\n谢谢 (thank you)\n```\n", [], repo)
+    check("a phrase without pinyin keeps its own parentheses as words",
+          "zh-CN@@ 谢谢 (thank you)\n" in out, out)
     os.makedirs(paths.SPEECH, exist_ok=True)
     with open(os.path.join(paths.SPEECH, name + ".m4a"), "wb") as fh:
         fh.write(b"cached")
     jobs = []
     out = cards.extract_tikz(body, jobs, repo)
     check("a cached phrase is ready and queues nothing",
-          ("@@SAY:%s:ready:zh-CN@@" % name) in out and not jobs)
+          ("@@SAY:%s:ready:zh-CN:" % name) in out and not jobs)
     write_config({"order": {"tts": ["local"], "stt": ["local"], "assess": ["local"]},
                   "recipes": {"local": LOCAL}})
     synth.make(paths.SPEECH, "f" * 32, synth.job("en-US", "hello")[1])

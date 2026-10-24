@@ -311,7 +311,8 @@ Every session speaks and listens; a subject's `speech.lang` only sets the defaul
   and `speech/tones.py`, a stdlib tone check labelled a prototype. Azure takes
   `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`, OpenAI `OPENAI_API_KEY`, in keys.env.
 - A card's fence opened with `say <lang>` (optional `pinyin="..."`) becomes
-  `@@SAY:<sha>:<status>:<lang>@@`, synthesised on the TikZ thread into the speech cache
+  `@@SAY:<sha>:<status>:<lang>[:<pinyin, percent-encoded>]@@ <words>` (pinyin in the marker,
+  since words may end in parentheses), synthesised on the TikZ thread into the speech cache
   (`paths.SPEECH`) and served at `/speech/<sha>.m4a`. `POST /speech/card` speaks a card's
   prose without its math or code.
 - `POST /s/<id>/speech/say` takes a recording and writes `sessions/<id>/speech/<base>.heard.json`

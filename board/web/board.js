@@ -389,12 +389,13 @@ function renderMarkdown(src) {
     }
 
     /* a `say` phrase (`lesson/cards.extract_say`): a play button that fetches
-       the phrase whole, and the words. web/speak.js plays it. */
-    var said = line.match(/^\s*@@SAY:([0-9a-f]+):(\w+):([A-Za-z0-9-]+)@@\s*(.*)$/);
+       the phrase whole, and the words. web/speak.js plays it. The pinyin is
+       the marker's percent-encoded fourth field, never read off the words:
+       a phrase may itself end in parentheses. */
+    var said = line.match(/^\s*@@SAY:([0-9a-f]+):(\w+):([A-Za-z0-9-]+)(?::([A-Za-z0-9%._~-]*))?@@\s*(.*)$/);
     if (said) {
-      var words = said[4].trim(), pin = "";
-      var pm = /^(.*?)\s+\(([^()]*)\)$/.exec(words);
-      if (pm) { words = pm[1]; pin = pm[2]; }
+      var words = said[5].trim(), pin = "";
+      try { pin = said[4] ? decodeURIComponent(said[4]) : ""; } catch (e) { pin = ""; }
       out.push('<div class="say-phrase" data-sha="' + said[1] + '" data-status="'
                + said[2] + '" data-lang="' + said[3] + '" data-text="'
                + attrText(words, store) + '" data-pinyin="'

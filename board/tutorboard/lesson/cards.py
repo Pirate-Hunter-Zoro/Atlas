@@ -10,6 +10,7 @@ because a truncated file mid-write would otherwise reach the glass empty.
 import os
 import re
 import time
+import urllib.parse
 
 from .. import reasoning
 from ..course import library
@@ -87,8 +88,10 @@ def say_attrs(raw):
 
 def extract_say(body, jobs, repo):
     """Replace each `say` fence with `@@SAY:<sha>:<status>:<lang>@@` and the
-    words (and pinyin) after it, which the client makes a play button
-    fetching `/speech/<sha>.m4a`. A phrase not yet cached is queued, as a
+    words after it, which the client makes a play button fetching
+    `/speech/<sha>.m4a`. Pinyin rides in the marker, percent-encoded, as
+    `@@SAY:<sha>:<status>:<lang>:<pinyin>@@`: in the words it could not be
+    told from a phrase that itself ends in parentheses. A phrase not yet cached is queued, as a
     figure is, as a `say` job (`server/tikz.py` hands it to `speech/synth.py`)."""
     if "```" not in body:
         return body
@@ -110,8 +113,9 @@ def extract_say(body, jobs, repo):
         status = synth.status(name)
         if status == "pending":
             jobs.append((name, "say", src))
-        return "\n\n@@SAY:%s:%s:%s@@ %s%s\n\n" % (
-            name, status, lang, text, " (%s)" % pinyin if pinyin else "")
+        return "\n\n@@SAY:%s:%s:%s%s@@ %s\n\n" % (
+            name, status, lang,
+            ":" + urllib.parse.quote(pinyin, safe="") if pinyin else "", text)
 
     return SAY_BLOCK.sub(sub, body)
 

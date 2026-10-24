@@ -155,7 +155,7 @@ try {
 const now = Date.now() / 1000;
 const SHA = 'a'.repeat(32);
 const question = { id: '0001', kind: 'question', title: 'Say hello',
-                   body: 'Say this:\n\n@@SAY:' + SHA + ':ready:zh-CN@@ 你好 (ni3 hao3)\n\nThen stop.',
+                   body: 'Say this:\n\n@@SAY:' + SHA + ':ready:zh-CN:ni3%20hao3@@ 你好\n\nThen stop.',
                    mtime: now };
 const lesson = { id: '0002', kind: 'lesson', title: '', body: 'A card with no head.',
                  mtime: now - 10 };
@@ -318,8 +318,19 @@ function paint(extra) {
   check(phrase && /Say this/.test(doc.querySelector('.card[data-card="0001"] .body').textContent)
         && /Then stop/.test(doc.querySelector('.card[data-card="0001"] .body').textContent),
         'between the prose around it', 'the prose around the phrase was lost');
+  window.__render({ state: { course: 'Mandarin', subject: 'courses/Mandarin' },
+                    cards: [{ id: '0009', kind: 'lesson', title: 'Thanks', mtime: now,
+                              body: '@@SAY:' + 'e'.repeat(32) + ':ready:zh-CN@@ 谢谢 (thank you)' }],
+                    turns: [], messages: [], uploads: [], slate: [], speech: null });
+  const bare2 = doc.querySelector('.card[data-card="0009"] .say-phrase');
+  check(bare2 && bare2.dataset.text === '谢谢 (thank you)' && bare2.dataset.pinyin === '',
+        'a phrase without pinyin keeps its own parentheses: no pinyin is made of them',
+        'the phrase\'s own parentheses were taken for pinyin: '
+        + (bare2 ? JSON.stringify(bare2.dataset) : 'none'));
+  paint();
+  await sleep(10);
   plays.length = 0;
-  phrase.querySelector('.say-play').click();
+  doc.querySelector('.card[data-card="0001"] .say-phrase .say-play').click();
   await sleep(20);
   check(gets(new RegExp('/speech/' + SHA + '\\.m4a$')).length === 1 && plays.length === 1,
         'its play button fetches /speech/<sha>.m4a and plays it',
