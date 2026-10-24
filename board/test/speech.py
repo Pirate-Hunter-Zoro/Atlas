@@ -322,7 +322,8 @@ try:
     # 2. THE HOSTED RECIPES, against a stand-in
     # =======================================================================
     seen = []
-    behave = {"azure_tts": 200, "openai_stt": 200, "azure_stt": 200}
+    behave = {"azure_tts": 200, "openai_stt": 200, "azure_stt": 200,
+              "openai_stream": False}
     reply_wav = os.path.join(box, "reply.wav")
     wav(reply_wav, syllable(CONTOURS["T1"], 0.4))
     with open(reply_wav, "rb") as fh:
@@ -362,6 +363,12 @@ try:
                 return self.answer(200, json.dumps(got).encode("utf-8"),
                                    "application/json")
             if self.path.startswith("/openai/speech"):
+                if behave["openai_stream"]:
+                    # As OpenAI streams it: RIFF and data sizes 0xFFFFFFFF.
+                    at = REPLY.index(b"data") + 4
+                    streamed = (REPLY[:4] + b"\xff\xff\xff\xff" + REPLY[8:at]
+                                + b"\xff\xff\xff\xff" + REPLY[at + 4:])
+                    return self.answer(200, streamed, "audio/wav")
                 return self.answer(200, REPLY, "audio/wav")
             if self.path.startswith("/openai/transcriptions"):
                 if behave["openai_stt"] != 200:
@@ -438,6 +445,18 @@ try:
               and seen[-1]["headers"].get("Authorization") == "Bearer oa-key", req)
         check("and the refusal alone marks nothing",
               speech.chain("tts", "zh-CN", cfg)[0] == "azure")
+        behave["openai_stream"] = True
+        got, by = speech.run("tts", "zh-CN", {"text": "你好", "dest": dest},
+                             live=live, cfg=cfg)
+        behave["openai_stream"] = False
+        cost = [json.loads(l) for l in open(os.path.join(live, "cost.jsonl"))][-1]
+        check("a streamed WAV declaring 0xFFFFFFFF bytes is sized from what came: "
+              "0.4 s, not a day of audio",
+              by == "openai" and abs(cost["seconds"] - 0.4) < 0.01
+              and cost["usd"] < 0.001
+              and abs(audio.seconds(reply_wav) - 0.4) < 0.01, cost)
+        check("and still lands as an m4a",
+              os.path.getsize(dest) > 0 and open(dest, "rb").read(12)[4:8] == b"ftyp")
         behave["azure_tts"] = 200
     else:
         skip("hosted TTS to m4a", "neither afconvert nor ffmpeg is installed")
@@ -495,7 +514,7 @@ try:
     clear_marks()
     costs = [json.loads(l) for l in open(os.path.join(live, "cost.jsonl"))]
     check("every job that answered wrote exactly one cost line",
-          len(costs) == (6 if CONVERTS else 4)
+          len(costs) == (7 if CONVERTS else 4)
           and all(c["requests"] == 1 and c["tokens"] == 0 for c in costs), costs)
     body, ctype = speech.multipart_body([("a", "1")], [("f", "x.wav", "audio/wav", b"RIFF")])
     check("the hand-built multipart ends with its closing boundary",

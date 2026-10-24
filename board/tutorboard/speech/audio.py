@@ -10,6 +10,7 @@ which a browser without `audio/mp4` records, need `ffmpeg`. Neither present is
 import array
 import os
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -72,14 +73,60 @@ def write_wav(path, samples, rate=RATE):
     return path
 
 
+def _data_chunk(path):
+    """`(offset, declared size, file size)` of a RIFF WAV's data chunk, or
+    None. A streamed WAV (OpenAI's) declares 0xFFFFFFFF, so the declared size
+    is never trusted past the end of the file."""
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as fh:
+            head = fh.read(12)
+            if len(head) < 12 or head[:4] != b"RIFF" or head[8:12] != b"WAVE":
+                return None
+            at = 12
+            while at + 8 <= size:
+                fh.seek(at)
+                chunk = fh.read(8)
+                n = struct.unpack("<I", chunk[4:8])[0]
+                if chunk[:4] == b"data":
+                    return at + 8, n, size
+                at += 8 + n + (n & 1)
+    except OSError:
+        return None
+    return None
+
+
+def mend_wav(path):
+    """Write a WAV's true RIFF and data sizes over ones that run past the end
+    of the file (a stream's 0xFFFFFFFF). True when it changed anything."""
+    got = _data_chunk(path)
+    if not got:
+        return False
+    offset, declared, size = got
+    actual = size - offset
+    if declared <= actual:
+        return False
+    with open(path, "r+b") as fh:
+        fh.seek(4)
+        fh.write(struct.pack("<I", size - 8))
+        fh.seek(offset - 4)
+        fh.write(struct.pack("<I", actual))
+    return True
+
+
 def wav_shape(path):
-    """`(rate, channels, bits, seconds)` of a WAV, or None for anything else."""
+    """`(rate, channels, bits, seconds)` of a WAV, or None for anything else.
+    The seconds are what the file holds, whatever its header declares."""
     try:
         with wave.open(path, "rb") as w:
-            return (w.getframerate(), w.getnchannels(), w.getsampwidth() * 8,
-                    w.getnframes() / float(w.getframerate() or 1))
+            rate, chans, width = w.getframerate(), w.getnchannels(), w.getsampwidth()
+            frames = w.getnframes()
     except (wave.Error, EOFError, OSError):
         return None
+    got = _data_chunk(path)
+    if got and chans and width:
+        frames = min(frames, (got[2] - got[0]) // (chans * width))
+    return rate, chans, width * 8, frames / float(rate or 1)
 
 
 def seconds(path):

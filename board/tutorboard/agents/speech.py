@@ -559,6 +559,8 @@ def _landed_wav(raw, dest):
         wav = os.path.join(box, "said.wav")
         with open(wav, "wb") as fh:
             fh.write(raw)
+        # A streamed WAV declares 0xFFFFFFFF bytes: sized from what came.
+        audio.mend_wav(wav)
         if not audio.wav_shape(wav):
             raise Refused("the audio that came back is not WAV")
         secs = audio.seconds(wav)
