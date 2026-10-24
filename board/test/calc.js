@@ -212,6 +212,10 @@ const REF = [
   e.evaluate('[1, 2; 3, 4]').frac === null && e.evaluate('[0.5, pi]').frac === null
     ? ok('no hint for whole numbers, nor where an entry is no small fraction')
     : fail('a matrix hint where none belongs');
+  const N = e.evaluate('inv([1 - 1/2, -1/4; -1/3, 1 - 1/3])');
+  N.frac === '[[8/3, 1], [4/3, 2]]'
+    ? ok('a whole number with float noise in it is whole: inv(I - Q) reads [[8/3, 1], [4/3, 2]]')
+    : fail('inv(I - Q) carries ' + JSON.stringify(N.frac) + ' for ' + N.text);
 }
 
 // ---- DEG / RAD

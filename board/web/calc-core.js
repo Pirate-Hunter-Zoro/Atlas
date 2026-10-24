@@ -1219,7 +1219,12 @@ function create(mathjs, opts) {
         return inner.indexOf(null) >= 0 ? null : "[" + inner.join(", ") + "]";
       }
       if (typeof x !== "number" || !isFinite(x)) return null;
-      if (Number.isInteger(x) && Math.abs(x) < 1e15) return String(x);
+      /* A whole number carrying float noise (inv(I - Q) gives 2.0000000000000004)
+         is that whole number. */
+      var whole = Math.round(x);
+      if (Math.abs(x - whole) <= 1e-12 * Math.max(1, Math.abs(x)) && Math.abs(whole) < 1e15) {
+        return String(whole === 0 ? 0 : whole);
+      }
       var f = fracOf(x);
       if (f) any = true;
       return f;
