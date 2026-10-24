@@ -15,7 +15,7 @@ laid over it the way `agents` is: `recipes` merges one level deeper (`"replace":
 true` replaces an entry) and `order` per kind. No vendor is load-bearing:
 `chain(kind, lang)` passes over a recipe that is unkeyed, missing its command,
 out of allowance, stood down or without the language, and ALWAYS ends with
-`local`, which runs on this Mac alone. `run()` walks the chain the way
+`local`, which runs on this Mac alone and which the config cannot remove. `run()` walks the chain the way
 `seeing.describe` walks vision routes, each refusal passing to the next, and
 writes one cost line for the recipe that answered.
 
@@ -162,7 +162,26 @@ def load(user=None):
         for kind, names in order.items():
             if kind in KINDS and isinstance(names, list):
                 cfg["order"][kind] = [n for n in names if isinstance(n, str)]
+    _keep_local(cfg)
     return cfg
+
+
+def _keep_local(cfg):
+    """`local` ends every chain, so the config may tune it but never remove
+    it: a recipe set to null or replaced gets back each job it lost, and it
+    stays this Mac's, unkeyed and in every language."""
+    have = cfg["recipes"].get(LOCAL)
+    default = json.loads(json.dumps(DEFAULT_SPEECH["recipes"][LOCAL]))
+    if not isinstance(have, dict):
+        cfg["recipes"][LOCAL] = default
+        return
+    for kind in KINDS:
+        if not isinstance(have.get(kind), dict):
+            have[kind] = default[kind]
+        else:
+            have[kind].pop("langs", None)
+    for field in ("via", "needs_key", "region_key", "langs", "replace"):
+        have.pop(field, None)
 
 
 def clean_lang(lang):

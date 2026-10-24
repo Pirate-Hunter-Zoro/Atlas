@@ -205,6 +205,19 @@ try:
           and cfg["recipes"]["azure"]["tts"]["format"] == "riff-24khz-16bit-mono-pcm")
     check("a new recipe is added and null removes one",
           "spare" in cfg["recipes"] and "openai" not in cfg["recipes"])
+    for said, block in (("null", None),
+                        ("replaced", {"replace": True, "tts": {"cmd": ["say"]}}),
+                        ("made hosted", {"via": "azure", "needs_key": "NOPE",
+                                         "langs": ["fr"],
+                                         "stt": {"cmd": ["whisper-cli"], "langs": ["fr"]}})):
+        kept = speech.load({"recipes": {"local": block}})["recipes"]["local"]
+        check("the config cannot take local away: %s, it still does every job "
+              "here, unkeyed, in every language" % said,
+              all(isinstance(kept.get(k), dict) for k in speech.KINDS)
+              and not any(f in kept for f in ("via", "needs_key", "region_key", "langs"))
+              and not any("langs" in kept[k] for k in speech.KINDS)
+              and speech.unavailable({"recipes": {"local": kept}}, "local", "assess",
+                                     "zh-CN") is None, kept)
     check("the defaults themselves are never changed by a load",
           "openai" in speech.DEFAULT_SPEECH["recipes"])
 

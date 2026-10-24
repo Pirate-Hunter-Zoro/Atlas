@@ -305,7 +305,8 @@ Every session speaks and listens; a subject's `speech.lang` only sets the defaul
 - `agents/speech.py` is a table of its own, `azure`, `openai` and `local`, with an `order` per
   kind (`tts`, `stt`, `assess`). config.json's `speech` block is laid over it as `agents` is:
   `recipes` per name, `order` per kind. `chain` passes over a recipe that is unkeyed, missing
-  its command, limited, stood down or without the language, and always ends with `local`:
+  its command, limited, stood down or without the language, and always ends with `local`,
+  which the config may tune but never remove, key or narrow to a language:
   `say` (espeak-ng for Irish), `whisper-cli` with the model `scripts/speech-model.sh` fetches,
   and `speech/tones.py`, a stdlib tone check labelled a prototype. Azure takes
   `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`, OpenAI `OPENAI_API_KEY`, in keys.env.
