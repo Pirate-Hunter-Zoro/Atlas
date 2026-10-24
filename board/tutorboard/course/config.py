@@ -25,13 +25,11 @@ def mode_of(state):
 
 
 def read_config(root):
-    """What a subject's `tutorboard.json` says: `name`, `phi`, `check`.
+    """What a subject's `tutorboard.json` says: `name`, `check`.
 
     All optional; other keys (`stance`, `aim`, `subtitle`, `mode`, `agent`)
     are ignored. `name` defaults to the directory with dashes as spaces.
-    `phi` stays literal (True, False, else None), because only a literal False
-    opens check output (`code.output_open`). `check` goes through
-    `clean_check`.
+    `check` goes through `clean_check`.
     """
     try:
         with open(os.path.join(root, "tutorboard.json"), "r", encoding="utf-8") as fh:
@@ -40,11 +38,9 @@ def read_config(root):
         said = {}
     if not isinstance(said, dict):
         said = {}
-    phi = said.get("phi")
     cfg = {
         "name": said.get("name")
         or os.path.basename(os.path.abspath(root)).replace("-", " "),
-        "phi": phi if isinstance(phi, bool) else None,
     }
     cfg["check"], cfg["check_problems"] = clean_check(said.get("check"))
     cfg["check_line"] = check_line(cfg["check"])

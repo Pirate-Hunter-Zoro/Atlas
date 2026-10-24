@@ -593,8 +593,8 @@ function deleteButton(doc, route, body) {
 }
 
 /* DELETE THIS SUBJECT, from its own page outside any session. Its name must
-   be typed, and the server refuses (409, with the reason) unless
-   tutorboard.json at HEAD says "phi": false and nothing is open on it. The
+   be typed, and the server refuses (409, with the reason) while anything is
+   open on it. The
    directory goes to the trash for 30 days; its tracked files leave git in one
    commit. */
 function paintDrop() {

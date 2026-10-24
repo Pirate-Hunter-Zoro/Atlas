@@ -9,10 +9,9 @@
 #
 #  So this file is left holding three honest categories: files a command
 #  regenerates, other people's work, and `ai-config/`, which is its own
-#  private repository. Patient data lives only on the cluster, under a
-#  subject's phi/ and results/, ignored by the anchored rules below. An ignore
-#  rule is a guard somebody can delete by accident, so board/test/tracked.py
-#  and the commit-time gate (board/tutorboard/audit.py) refuse those paths too.
+#  private repository. An ignore rule is a guard somebody can delete by
+#  accident, so board/test/tracked.py and the commit-time gate
+#  (board/tutorboard/audit.py) refuse those paths too.
 #
 #  EACH WORKSPACE KEEPS ITS OWN .gitignore, and those are the load-bearing
 #  ones. Nothing here may shadow one of those: git will not descend into a
@@ -101,9 +100,8 @@ Thumbs.db
 **/.claude/
 
 # ---- the one directory that is its own private repository ----
-# `ai-config/` holds the operating contract every assistant reads, the PHI
-# guard, and each vendor's settings files, which name real paths on the lab's
-# storage. It lives INSIDE this tree, so one directory is the whole of the
+# `ai-config/` holds the operating contract every assistant reads, its hooks,
+# and each vendor's settings files, which name real paths on this machine. It lives INSIDE this tree, so one directory is the whole of the
 # work, and is ignored here, so a public repository never carries a byte of it.
 /ai-config/
 
@@ -116,9 +114,8 @@ Thumbs.db
 #
 # THIS IS THE FIRST OF TWO GUARDS AND IT IS THE WEAKER ONE. A pattern is right
 # until somebody adds a file with `git add -f` or edits this list. The other is
-# the rule that makes the PHI arrangement safe: `board/test/tracked.py` asks GIT
-# ITSELF what it can see, on every run of the suite, and refuses these same
-# shapes there.
+# `board/test/tracked.py`, which asks GIT ITSELF what it can see, on every run
+# of the suite, and refuses these same shapes there.
 *-api-key
 *_api_key
 *.key
@@ -127,16 +124,13 @@ keys.env
 
 # ---- what stays on the Mac, and what belongs to somebody else ----
 # Sessions, document ink and materials (third-party or uploaded files) are
-# never tracked. phi/ and results/ never leave the machine they are on. A
-# course's textbook, chapter readings, lecture decks and assignment sheets are
+# never tracked, and neither is a project's results/. A course's textbook, chapter readings, lecture decks and assignment sheets are
 # other people's work. board/tutorboard/audit.py refuses the same shapes at
 # commit time, which is the guard a `git add -f` cannot walk past.
 /sessions/
 **/.ink/
 **/materials/
-/projects/*/phi/
 /projects/*/results/
-/courses/*/phi/
 /courses/*/textbook/
 /courses/*/chapters/*/reading/
 /courses/*/chapters/*/lectures/

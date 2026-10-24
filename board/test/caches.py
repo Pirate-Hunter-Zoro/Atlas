@@ -61,7 +61,7 @@ SUBJECT = {"A": "courses/Alpha", "B": "projects/Beta"}
 LENGTH = {"A": "1", "B": "6"}
 for who, rel in SUBJECT.items():
     write(os.path.join(atlas, rel, "tutorboard.json"),
-          json.dumps({"name": os.path.basename(rel), "phi": False}))
+          json.dumps({"name": os.path.basename(rel)}))
     write(os.path.join(atlas, rel, "latex", "coursemacros.sty"),
           "\\ProvidesPackage{coursemacros}\n\\newcommand{\\runlen}{%s}\n" % LENGTH[who])
 

@@ -1566,17 +1566,11 @@ const heelSwipe = (id, x, y, dx, dy) => {
     d5.getElementById('notes-new-project').click();
     d5.getElementById('notes-send-name').value = 'Reading';
     d5.getElementById('notes-send-go').click();
-    await sleep(40);
-    check('+ new project asks about patient data before it makes anything',
-          !posts.some((p) => p.url === '/subjects/new')
-          && /patient data/.test(d5.getElementById('notes-send-said').textContent));
-    d5.getElementById('notes-phi-no').click();
-    d5.getElementById('notes-send-go').click();
     await sleep(200);
     const made5 = posts.filter((p) => p.url === '/subjects/new');
     const end5 = posts.filter((p) => p.url === B + '/end');
     check('then makes it and ends the canvas into it, keeping the pages',
-          made5.length === 1 && made5[0].body.phi === false
+          made5.length === 1 && made5[0].body.name === 'Reading'
           && end5.length === 1 && end5[0].body.subject === 'projects/Reading'
           && end5[0].body.transcribe === false,
           JSON.stringify(posts.map((p) => p.url)));

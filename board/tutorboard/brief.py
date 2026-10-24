@@ -307,7 +307,7 @@ def briefing(repo, sense, chapter=None, doing=None):
                    "to no course or project. Teach it now. Bind it only when "
                    "the owner names a subject: `board bind courses/<Name>` or "
                    "`board bind projects/<Name>`, `--create` only when no "
-                   "subject below fits (a project also needs `--phi yes|no`). "
+                   "subject below fits. "
                    "Otherwise the owner sends it to one at End, and the "
                    "wrap-up writes it up there. A lesson that belongs to no "
                    "subject goes to Random lessons, the catch-all: `board bind "

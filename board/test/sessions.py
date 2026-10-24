@@ -19,8 +19,8 @@ repository and a temp trash. Nothing here touches the real `sessions/`.
   * `/sessions/` is ignored, and the pre-commit hook refuses
     `git add -f sessions/x/cards/0001.md`.
   * `bind` sets `subject` with a non-waking `[bind]` line and files nothing;
-    `bind --create` makes a subject in one commit, with the PHI ignore stanza
-    for a patient-data project, and refuses `../x`, `/abs` and `research/x`.
+    `bind --create` makes a subject in one commit, and refuses `../x`, `/abs`
+    and `research/x`.
   * `file` moves an upload into the bound subject and its ink to
     `<subject>/.ink/`, re-keyed: the old keys are gone and the new ones load.
   * `send` binds, then files every upload left, a clash refused without
@@ -124,7 +124,7 @@ try:
     write(os.path.join(galois, "TUTOR.md"), "# Where things are\n")
     proj = os.path.join(base, "projects", "Proj")
     write(os.path.join(proj, "tutorboard.json"),
-          json.dumps({"name": "Proj", "phi": False}))
+          json.dumps({"name": "Proj"}))
     write(os.path.join(base, ".gitignore"), "/sessions/\n")
     git("init", "-q")
     git("add", "-A")
@@ -348,7 +348,7 @@ try:
           sorted(files) == ["courses/Test/TUTOR.md",
                             "courses/Test/tutorboard.json"], files)
     cfg = json.load(open(os.path.join(base, "courses", "Test", "tutorboard.json")))
-    check("a course is phi false", cfg == {"name": "Test", "phi": False}, cfg)
+    check("its tutorboard.json holds the name", cfg == {"name": "Test"}, cfg)
     tutor = open(os.path.join(base, "courses", "Test", "TUTOR.md")).read()
     check("TUTOR.md is the skeleton of the four sections, in order",
           [l[3:] for l in tutor.splitlines() if l.startswith("## ")]
@@ -356,33 +356,20 @@ try:
     check("and the session is bound to the new course",
           sessions.get(f["id"], base)["subject"] == "courses/Test")
 
-    g = sessions.new("Patients", base=base, now=now + 120)
+    g = sessions.new("A project", base=base, now=now + 120)
     g_dir = sessions.path(g["id"], base)
-    code, out = board(["bind", "projects/New", "--create"], session=g_dir)
-    check("a project without --phi is refused, asking about patient data",
-          code == 1 and "--phi" in out
-          and not os.path.exists(os.path.join(base, "projects", "New")), out)
     head = git("rev-parse", "HEAD").stdout.strip()
-    code, out = board(["bind", "projects/New", "--create", "--phi", "yes"],
-                      session=g_dir)
-    check("git check-ignore -q projects/New/phi/x succeeds right after "
-          "bind projects/New --create --phi yes",
-          code == 0 and git("check-ignore", "-q", "projects/New/phi/x")
-          .returncode == 0, out)
-    check("and so do results/ and .env",
-          git("check-ignore", "-q", "projects/New/results/r.csv").returncode == 0
-          and git("check-ignore", "-q", "projects/New/.env").returncode == 0)
+    code, out = board(["bind", "projects/New", "--create"], session=g_dir)
     files = git("show", "--name-only", "--pretty=format:", "HEAD").stdout.split()
-    check("in one commit with the .gitignore, tutorboard.json and TUTOR.md",
-          git("rev-list", "--count", "%s..HEAD" % head).stdout.strip() == "1"
-          and sorted(files) == ["projects/New/.gitignore", "projects/New/TUTOR.md",
-                                "projects/New/tutorboard.json"], files)
-    check("tutorboard.json says phi true",
-          json.load(open(os.path.join(base, "projects", "New", "tutorboard.json")))
-          ["phi"] is True)
+    check("bind projects/New --create makes a project in one commit, "
+          "tutorboard.json and TUTOR.md",
+          code == 0 and git("rev-list", "--count", "%s..HEAD" % head)
+          .stdout.strip() == "1"
+          and sorted(files) == ["projects/New/TUTOR.md",
+                                "projects/New/tutorboard.json"], (out, files))
     head = git("rev-parse", "HEAD").stdout.strip()
     for bad in ("../x", "/abs", "research/x", "courses/Test", "courses/a/b"):
-        code, out = board(["bind", bad, "--create", "--phi", "no"], session=g_dir)
+        code, out = board(["bind", bad, "--create"], session=g_dir)
         check("--create refuses %s" % bad,
               code == 1 and out.startswith("board bind: ")
               and "Traceback" not in out, out)
@@ -391,7 +378,7 @@ try:
           and not os.path.exists(os.path.join(base, "research"))
           and not os.path.exists(os.path.join(os.path.dirname(base), "x"))
           and not os.path.exists("/abs"))
-    code, out = board(["bind", "projects/Plain Data", "--create", "--phi", "no"])
+    code, out = board(["bind", "projects/Plain Data", "--create"])
     check("with no session, --create only makes the subject, slugified",
           code == 0 and os.path.isfile(os.path.join(
               base, "projects", "Plain-Data", "tutorboard.json"))

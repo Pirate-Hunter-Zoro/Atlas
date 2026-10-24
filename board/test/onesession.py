@@ -84,10 +84,10 @@ if args.galois:
         print("FAIL no %s to copy" % real)
         sys.exit(1)
     shutil.copytree(real, os.path.join(atlas, SUBJECT), symlinks=True,
-                    ignore=shutil.ignore_patterns(".git", "phi", "results"))
+                    ignore=shutil.ignore_patterns(".git", "results"))
 else:
     write(os.path.join(atlas, SUBJECT, "tutorboard.json"),
-          json.dumps({"name": "Galois Theory", "phi": False}))
+          json.dumps({"name": "Galois Theory"}))
     write(os.path.join(atlas, SUBJECT, "TUTOR.md"), "# Galois Theory\n")
 write(os.path.join(atlas, ".gitignore"), "/sessions/\n**/.ink/\n")
 GIT = ["git", "-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]

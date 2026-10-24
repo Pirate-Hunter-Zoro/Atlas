@@ -113,7 +113,7 @@ def write(path, text):
 
 for who, rel in list(SUBJECT.items()) + [("G", LONE)]:
     write(os.path.join(atlas, rel, "tutorboard.json"),
-          json.dumps({"name": os.path.basename(rel), "phi": False}))
+          json.dumps({"name": os.path.basename(rel)}))
     if who in DOC:
         d = os.path.join(atlas, rel, "docs", DOC[who])
         write(os.path.join(d, "doc.json"), json.dumps(

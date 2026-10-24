@@ -21,7 +21,7 @@ def turn_environment(spec, base=None):
     `{NAME}` values come from `keys.fill`; a value naming a missing key is
     dropped rather than passed with its braces. Every turn carries
     `TUTORBOARD_TURN=1`, which `.githooks/pre-commit` reads to refuse RULES.md
-    and a `phi` change.
+    and a deleted tutorboard.json.
     """
     extra = (spec or {}).get("env") or {}
     env = dict(base if base is not None else os.environ)

@@ -122,7 +122,7 @@ class World(object):
         write(os.path.join(seed, ".gitignore"), "/sessions/\nai-config/\nign/\n")
         subj = os.path.join(seed, "projects", "P")
         write(os.path.join(subj, "tutorboard.json"),
-              json.dumps({"name": "P", "phi": False}))
+              json.dumps({"name": "P"}))
         write(os.path.join(subj, "TUTOR.md"), "# P\n")
         write(os.path.join(subj, "src", "a.py"), "a = 1\n")
         write(os.path.join(subj, "notes.md"), "notes\n")

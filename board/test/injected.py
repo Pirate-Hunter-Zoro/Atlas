@@ -88,7 +88,7 @@ def last_call():
 # --- a temp Atlas: one course, its RULES.md committed, its TUTOR.md --------
 atlas = os.path.join(box, "atlas")
 course = os.path.join(atlas, "courses", "Demo")
-write(os.path.join(course, "tutorboard.json"), json.dumps({"name": "Demo", "phi": False}))
+write(os.path.join(course, "tutorboard.json"), json.dumps({"name": "Demo"}))
 write(os.path.join(course, "RULES.md"), "# Rules\n\n- never make the owner transcribe.\n")
 write(os.path.join(course, "TUTOR.md"),
       "# Demo\n\n## Where things are\n\nnotes in ch01.\n\n## Now\n\ncosets next.\n")

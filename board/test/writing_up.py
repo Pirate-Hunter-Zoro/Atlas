@@ -116,10 +116,10 @@ try:
     # Synthetic subjects cover a plain project and chapter-shaped homework.
     llm = os.path.join(base, "projects", "Research-Lab")
     write(os.path.join(llm, "tutorboard.json"),
-          json.dumps({"name": "Research Lab", "phi": True}))
+          json.dumps({"name": "Research Lab"}))
     gal = os.path.join(base, "courses", "Algebra-Lab")
     write(os.path.join(gal, "tutorboard.json"),
-          json.dumps({"name": "Algebra Lab", "phi": False}))
+          json.dumps({"name": "Algebra Lab"}))
     ch07_rel = "chapters/ch07-fixture"
     hw_tex = os.path.join(gal, ch07_rel, "homework", "ch07-homework.tex")
     sheet = r"""\documentclass{article}
@@ -140,7 +140,7 @@ A fixed statement.
     algo_parent = "projects"
     algo = os.path.join(base, algo_parent, "Arena-Lab")
     write(os.path.join(algo, "tutorboard.json"),
-          '{"name": "Arena Lab", "phi": false}')
+          '{"name": "Arena Lab"}')
     git("add", "-A")
     git("commit", "-q", "-m", "fixture")
 

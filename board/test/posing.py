@@ -107,7 +107,7 @@ try:
     write(os.path.join(base, ".gitignore"), "/sessions/\nlive/\n")
     course = os.path.join(base, "courses", "Markov-Lab")
     write(os.path.join(course, "tutorboard.json"),
-          json.dumps({"name": "Markov Lab", "phi": False}))
+          json.dumps({"name": "Markov Lab"}))
     tex = os.path.join(course, "homework", "hw01", "hw01.tex")
     write(tex, SHEET)
 

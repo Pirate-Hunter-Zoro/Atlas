@@ -315,18 +315,15 @@ try:
     write(home, "projects/PSYCH-ASR/tutorboard.json", '{"name": "PSYCH-ASR"}')
     write(home, "projects/PSYCH-ASR/psych_asr/grade.py",
           "def grade(a, b):\n" + BODY + "\n")
-    write(home, "projects/PSYCH-ASR/phi/a.py", "def a():\n" + BODY + "\n")
     write(home, "projects/PSYCH-ASR/results/r.py", "def r():\n" + BODY + "\n")
     write(home, "board/tutorboard/sync.py",
           "def run_once(base):\n" + BODY + "\n")
-    write(home, "board/data/x.py", "def x():\n" + BODY + "\n")
     write(home, "board/node_modules/katex/index.js",
           "function render() {\n" + BODY + "\n}\n")
     write(home, "vendor/colibri/bin/coli-up",
           "#!/usr/bin/env bash\nwarm() {\n" + BODY + "\n}\n")
-    write(home, "vendor/colibri/raw/x.py", "def x():\n" + BODY + "\n")
     write(home, "vendor/colibri/README.md", "# colibri\n" + BODY)
-    write(home, "ai-config/policy/phi.py", "def fence():\n" + BODY + "\n")
+    write(home, "ai-config/policy/x.py", "def private():\n" + BODY + "\n")
     write(home, "sessions/20261008-000000/x.py", "def x():\n" + BODY + "\n")
     write(home, ".hidden/x.py", "def x():\n" + BODY + "\n")
     write(outside, "secret.py", "def secret():\n" + BODY + "\n")
@@ -379,7 +376,7 @@ try:
           and [u["path"] for u in walk.resolve(ws, ["space.py"])[0]]
           == ["topo/space.py"])
 
-    refused = ["ai-config/policy/phi.py", "sessions/20261008-000000/x.py",
+    refused = ["ai-config/policy/x.py", "sessions/20261008-000000/x.py",
                ".hidden/x.py", "projects/PSYCH-ASR/results/r.py",
                "board/node_modules/katex/index.js", "vendor/colibri/README.md",
                "projects/PSYCH-ASR/escape.py", "../" + os.path.basename(outside)

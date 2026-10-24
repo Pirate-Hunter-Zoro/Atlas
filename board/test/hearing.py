@@ -329,7 +329,7 @@ try:
     shutil.copy(os.path.join(ROOT, "bootstrap.sh"),
                 os.path.join(mac, "board", "bootstrap.sh"))
     write(os.path.join(mac, "courses", "Topology", "tutorboard.json"),
-          json.dumps({"name": "Topology", "phi": False}))
+          json.dumps({"name": "Topology"}))
     fakes = os.path.join(base, "fakebin")
     calls_log = os.path.join(base, "calls.log")
     write(os.path.join(fakes, "git"),
@@ -507,7 +507,7 @@ def copy_tool(top):
 
 def a_fixture_atlas(where):
     write(os.path.join(where, "courses", "Demo", "tutorboard.json"),
-          json.dumps({"name": "Demo", "phi": False}))
+          json.dumps({"name": "Demo"}))
     write(os.path.join(where, ".gitignore"), "/sessions/\n")
     git(where, "init", "-q", "-b", "main")
     git(where, "add", "-A")
@@ -634,7 +634,7 @@ try:
           "/sessions/\nai-config/\n")
     csubj = os.path.join(cmac, "projects", "Code")
     write(os.path.join(csubj, "tutorboard.json"),
-          json.dumps({"name": "Code", "phi": False}))
+          json.dumps({"name": "Code"}))
     write(os.path.join(csubj, "src", "a.py"), "x = 1\n")
     write(os.path.join(csubj, "notes.md"), "notes\n")
     git(cmac, "add", "-A")

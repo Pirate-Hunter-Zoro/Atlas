@@ -125,7 +125,7 @@ try:
     write(os.path.join(base, ".gitignore"), ROOT_IGNORE)
     write(os.path.join(lab, ".gitignore"), LAB_IGNORE)
     write(os.path.join(lab, "tutorboard.json"),
-          json.dumps({"name": "Lab", "phi": False}))
+          json.dumps({"name": "Lab"}))
     write(os.path.join(lab, "TUTOR.md"), "# Where things are\n")
     write(os.path.join(docs, "doc.json"), json.dumps(
         {"title": "A Private AI Assistant", "source": "fleet.tex",
@@ -157,7 +157,7 @@ try:
     note = library.write_note(page, doc["id"], "Say what Colibri is first.",
                               ask="rework",
                               purpose="a twenty-minute talk for the lab on "
-                                      "Colibri and why it is safe with PHI",
+                                      "Colibri and why it runs locally",
                               hand_over=False)
     check("an overhaul's note is filed in docs/feedback/ under the deck's stem",
           note.get("ok") and note["rel"].startswith("docs/feedback/fleet-")
@@ -363,7 +363,7 @@ try:
     talk = os.path.join(base, "projects", "Talk")
     talks = os.path.join(talk, "talks")
     write(os.path.join(talk, "tutorboard.json"),
-          json.dumps({"name": "Talk", "phi": False}))
+          json.dumps({"name": "Talk"}))
     write(os.path.join(talk, "TUTOR.md"), "# Where things are\n")
     write(os.path.join(talks, "intro.md"), "# Intro\n\nOne slide.\n")
     git("add", "-A", "projects/Talk")

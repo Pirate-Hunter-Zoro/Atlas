@@ -2,7 +2,7 @@
 //
 //   1. With a stubbed server: the sections in order, a Continue row with its
 //      subject, last card and new count, notices that dismiss, + new project
-//      asking "patient data?", and the address grammar -- `#/s/` carried to
+//      made from its name, and the address grammar -- `#/s/` carried to
 //      the session's board, and an old `#/w/` link followed nowhere. The
 //      re-centre pill placed off the bar; the boot check's Retry line and
 //      the beacon to /client-error; a failed refresh tried again; the Tutor
@@ -101,13 +101,11 @@ async function stubbed() {
     { name: 'codex', label: 'Codex', headless: true, cmd: 'codex' }];
   // GET /subject/delete?subject=, by subject: what the check says.
   const CHECKS = {
-    'courses/Probability': { why: '', blocker: '', phi: false, sessions: [] },
-    'projects/Mosaic': { why: 'phi', phi: true, sessions: [],
-      blocker: 'projects/Mosaic may hold patient data, so the board does not remove it' },
-    'courses/Galois-Theory': { why: 'open-session', phi: false, sessions: [SID, GAL],
+    'courses/Probability': { why: '', blocker: '', sessions: [] },
+    'courses/Galois-Theory': { why: 'open-session', sessions: [SID, GAL],
       blocker: 'sessions ' + SID + ' and ' + GAL + ' are open on it; end them first; '
         + 'request 2026-10-09-gal has no terminal report yet' },
-    'projects/TRD-EHR': { why: 'request', phi: false, sessions: [],
+    'projects/TRD-EHR': { why: 'request', sessions: [],
       blocker: 'request 2026-10-09-knn is outstanding on it; wait for its report' },
   };
   const answers = {
@@ -373,29 +371,24 @@ async function stubbed() {
         !d.getElementById('colibri')
         && !/colibri/i.test(fs.readFileSync(path.join(WEB, 'home.html'), 'utf8')));
 
-  // + new project: it asks "patient data?" before it can be made.
+  // + new project: a name, and nothing else, before it can be made.
   d.getElementById('new-project').click();
-  check('+ new project opens the sheet and asks "patient data?"',
-        !d.getElementById('maker').hidden && !d.getElementById('maker-phi').hidden
-        && /Patient data\?/.test(d.getElementById('maker-phi').textContent));
+  check('+ new project opens the sheet',
+        !d.getElementById('maker').hidden);
+  check('an unnamed project cannot be made yet',
+        d.getElementById('maker-go').disabled);
   const name = d.getElementById('maker-name');
   name.value = 'Diarization';
   name.dispatchEvent(new w.Event('input'));
-  check('a named project with no answer cannot be made yet',
-        d.getElementById('maker-go').disabled);
-  d.querySelector('#maker-phi button[data-phi="yes"]').click();
-  check('answered, it can', !d.getElementById('maker-go').disabled);
+  check('named, it can', !d.getElementById('maker-go').disabled);
   d.getElementById('maker-go').click();
   await sleep(60);
   const made = w.asked.filter((r) => r.url === '/subjects/new');
-  check('it posts the kind, the name and the answer',
+  check('it posts the kind and the name, and nothing else',
         made.length === 1 && made[0].body.kind === 'project'
-        && made[0].body.name === 'Diarization' && made[0].body.phi === true);
+        && made[0].body.name === 'Diarization'
+        && Object.keys(made[0].body).sort().join(',') === 'kind,name');
   check('and the sheet closes', d.getElementById('maker').hidden);
-  d.getElementById('new-course').click();
-  check('+ new course asks nothing about patient data',
-        d.getElementById('maker-phi').hidden);
-  d.getElementById('maker-close').click();
 
   check('Notes and Annotate a PDF are live',
         !d.getElementById('act-notes').disabled && !d.getElementById('act-annotate').disabled);
@@ -522,24 +515,6 @@ async function stubbed() {
         dropper.hidden
         && d.getElementById('said').textContent === 'Probability is in the trash (/t/x/courses-Probability).'
         && w.asked.filter((r) => r.url === '/subjects.json').length > askedSubjects);
-  await openDrop('projects/Mosaic');
-  check('a subject that may hold patient data asks for no name, and says it goes on the cluster',
-        !dropper.hidden && d.getElementById('dropper-ask').hidden && dropGo.hidden
-        && /patient data/.test(dropWhy().textContent)
-        && /cluster/.test(dropWhy().textContent) && /git rm/.test(dropWhy().textContent));
-  d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
-  check('Escape closes it', dropper.hidden);
-  const saidPhi = CHECKS['projects/Mosaic'];
-  CHECKS['projects/Mosaic'] = { why: 'phi', phi: null, sessions: [],
-    blocker: 'projects/Mosaic: tutorboard.json at HEAD does not say "phi": false '
-      + '(no tutorboard.json at HEAD), so the board does not remove it' };
-  await openDrop('projects/Mosaic');
-  check('one whose HEAD says nothing of patient data shows the board\'s sentence, '
-        + 'naming what is missing, not the patient-data one',
-        d.getElementById('dropper-ask').hidden && dropGo.hidden
-        && dropWhy().textContent === CHECKS['projects/Mosaic'].blocker);
-  CHECKS['projects/Mosaic'] = saidPhi;
-  d.getElementById('dropper-close').click();
   await openDrop('courses/Galois-Theory');
   const held = Array.from(dropWhy().querySelectorAll('a')).map((a) => a.getAttribute('href'));
   check('a subject with open sessions links each to its board, and says to end or delete them',
@@ -555,7 +530,8 @@ async function stubbed() {
   check('any other blocker is shown in the board\'s own words',
         d.getElementById('dropper-ask').hidden
         && dropWhy().textContent === 'request 2026-10-09-knn is outstanding on it; wait for its report');
-  d.getElementById('dropper-close').click();
+  d.dispatchEvent(new w.KeyboardEvent('keydown', { key: 'Escape' }));
+  check('Escape closes it', dropper.hidden);
   await openDrop('projects/libr-local-llm');
   check('a check the board could not answer asks for nothing',
         d.getElementById('dropper-ask').hidden && dropGo.hidden && !dropper.hidden);
@@ -598,17 +574,15 @@ async function stubbed() {
         !sender.hidden && /bound elsewhere/.test(d.getElementById('sender-said').textContent));
   w.sendReply = null;
   d.getElementById('sender-new-project').click();
-  check('+ new project from it opens the maker, asking "patient data?"',
+  check('+ new project from it opens the maker',
         sender.hidden && !d.getElementById('maker').hidden
-        && !d.getElementById('maker-phi').hidden
         && /sent to it/.test(d.getElementById('maker-kind').textContent));
   typeIn(d.getElementById('maker-name'), 'Lectures');
-  d.querySelector('#maker-phi button[data-phi="no"]').click();
   d.getElementById('maker-go').click();
   await sleep(60);
   const madeThen = w.asked.filter((r) => r.url === '/subjects/new').pop();
   check('and the session is sent to what it made',
-        madeThen && madeThen.body.name === 'Lectures' && madeThen.body.phi === false
+        madeThen && madeThen.body.name === 'Lectures'
         && sends().length === 3 && sends()[2].body.subject === 'projects/Lectures'
         && sender.hidden && d.getElementById('maker').hidden);
   openSend();
@@ -1022,9 +996,9 @@ git("config", "user.name", "Fixture")
 git("config", "user.email", "fixture@example.invalid")
 git("config", "commit.gpgsign", "false")
 gal = os.path.join(atlas, "courses", "Galois-Theory")
-write(os.path.join(gal, "tutorboard.json"), json.dumps({"name": "Galois Theory", "phi": False}))
+write(os.path.join(gal, "tutorboard.json"), json.dumps({"name": "Galois Theory"}))
 write(os.path.join(atlas, "projects", "Mosaic", "tutorboard.json"),
-      json.dumps({"name": "Mosaic", "phi": True}))
+      json.dumps({"name": "Mosaic"}))
 write(os.path.join(atlas, ".gitignore"), "/sessions/\n*/*/live/\n")
 git("add", "-A")
 git("commit", "-q", "-m", "fixture")
@@ -1206,10 +1180,7 @@ async function real() {
                                                       headers: { 'Content-Type': 'application/json' } });
       return { status: r.status, body: await r.json() };
     };
-    let refused = await post({ kind: 'project', name: 'Unanswered' });
-    check('POST /subjects/new refuses a project with no answer about patient data',
-          refused.status === 400 && /patient data/.test(refused.body.error || ''));
-    refused = await post({ kind: 'course', name: 'Linear Algebra' });
+    let refused = await post({ kind: 'course', name: 'Linear Algebra' });
     check('and a name some subject already has',
           refused.status === 400 && /already exists/.test(refused.body.error || ''));
     refused = await post({ kind: 'course', name: '../x' });
@@ -1251,10 +1222,7 @@ async function real() {
         const sheet = d.getElementById(id);
         if (sheet.hidden || sheet.__pressed) return;
         sheet.__pressed = true;
-        if (id === 'maker') {
-          d.querySelector('#maker-phi button[data-phi="no"]').click();
-          d.getElementById('maker-close').click();
-        }
+        if (id === 'maker') d.getElementById('maker-close').click();
       });
       if (!d.getElementById('dropper').hidden) {
         await sleep(200);

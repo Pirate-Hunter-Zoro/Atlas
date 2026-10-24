@@ -76,7 +76,6 @@ var els = {
   maker: $("maker"),
   makerKind: $("maker-kind"),
   makerName: $("maker-name"),
-  makerPhi: $("maker-phi"),
   makerBook: $("maker-book"),
   makerBookFile: $("maker-book-file"),
   makerBar: $("maker-bar"),
@@ -678,17 +677,12 @@ function paintSubjects(data) {
 }
 
 /* --------------------------------------------- deleting a subject, the sheet */
-/* `GET /subject/delete?subject=` first, which is read-only: whether it may
-   hold patient data (`phi` at HEAD), and everything else in the way, all of
-   it in `blocker`. Only when nothing is in the way is the slug asked for, and
+/* `GET /subject/delete?subject=` first, which is read-only: everything in
+   the way, all of it in `blocker`. Only when nothing is in the way is the slug asked for, and
    Go wakes only on it typed exactly. The server decides again on the POST. */
 var dropFor = null;
 var dropOpen = false;         /* the check said nothing is in the way */
 var dropping = false;
-
-var PHI_WHY = "It may hold patient data, so the iPad never removes it. It is "
-  + "removed on the cluster: move its fenced data where its agreement says, "
-  + "then git rm it and push from the cluster checkout.";
 
 function openDropper(s) {
   dropFor = s;
@@ -719,11 +713,6 @@ function paintDropCheck(got) {
   els.dropperWhy.innerHTML = "";
   if (got.ok === false && !why) {
     els.dropperWhy.textContent = got.error || "The board would not say whether it can go.";
-  } else if (why === "phi" && got.phi === true) {
-    /* Patient data said at HEAD. Not said at all (`phi` null: no
-       tutorboard.json there, or no phi key) falls to the board's sentence,
-       which names what is missing. */
-    els.dropperWhy.textContent = PHI_WHY;
   } else if (why === "open-session" && held.length) {
     els.dropperWhy.appendChild(document.createTextNode("Open on it: "));
     held.forEach(function (sid, i) {
@@ -978,7 +967,6 @@ function askArtifact() {
 
 /* ------------------------------------------------------- + new, the sheet */
 var makerKind = "course";
-var makerPhi = null;          /* a project's answer: true, false, or unasked */
 var making = false;
 var makerThen = null;         /* what is done with the subject once made */
 
@@ -986,14 +974,12 @@ var makerThen = null;         /* what is done with the subject once made */
    which sends its session there. */
 function openMaker(kind, then) {
   makerKind = kind === "project" ? "project" : "course";
-  makerPhi = null;
   making = false;
   makerThen = then || null;
   els.makerKind.textContent = "new " + makerKind
     + (makerThen ? ", and the session sent to it" : "");
   els.makerName.value = "";
   els.makerName.placeholder = makerKind === "course" ? "Linear Algebra" : "Diarization";
-  els.makerPhi.hidden = makerKind !== "project";
   /* A textbook only for a course made from + new: the send sheet's maker
      sends an existing session there instead. */
   els.makerBook.hidden = makerKind !== "course" || !!makerThen;
@@ -1014,22 +1000,13 @@ function makerSay(text, bad) {
 }
 
 function paintMaker() {
-  Array.prototype.forEach.call(els.makerPhi.querySelectorAll("button[data-phi]"),
-    function (b) {
-      var said = b.getAttribute("data-phi") === "yes";
-      b.setAttribute("aria-pressed", makerPhi === said ? "true" : "false");
-    });
   var name = els.makerName.value.trim();
-  var want = !name ? "name it first"
-    : makerKind === "project" && makerPhi === null ? "say whether it holds patient data"
-    : "";
+  var want = !name ? "name it first" : "";
   var book = makerBook();
   els.makerGo.disabled = making || !!want;
   els.makerGoSub.textContent = making ? (book ? "uploading the textbook…" : "making it…")
     : want || (book ? "then its textbook is indexed" : "")
-    || (makerKind === "project" && makerPhi
-        ? "a project holding patient data: phi/ and results/ ignored"
-        : "one commit: tutorboard.json and TUTOR.md");
+    || "one commit: tutorboard.json and TUTOR.md";
 }
 
 /* The textbook PDF chosen on the sheet, or null. */
@@ -1066,7 +1043,6 @@ function bookInto(subject, file) {
 function makeSubject() {
   var name = els.makerName.value.trim();
   if (!name || making) return;
-  if (makerKind === "project" && makerPhi === null) return;
   var book = makerBook();
   if (book && !/\.pdf$/i.test(book.name || "")) {
     makerSay("The textbook is not a PDF.", true);
@@ -1075,7 +1051,6 @@ function makeSubject() {
   making = true;
   paintMaker();
   var body = { kind: makerKind, name: name };
-  if (makerKind === "project") body.phi = makerPhi;
   postJSON("/subjects/new", body).then(function (got) {
     making = false;
     if (!got || !got.ok) {
@@ -1341,12 +1316,6 @@ els.newProject.onclick = function () { openMaker("project"); };
 els.makerName.addEventListener("input", function () { makerSay(""); paintMaker(); });
 els.makerName.addEventListener("keydown", function (ev) {
   if (ev.key === "Enter") makeSubject();
-});
-els.makerPhi.addEventListener("click", function (ev) {
-  var b = ev.target.closest ? ev.target.closest("button[data-phi]") : null;
-  if (!b) return;
-  makerPhi = b.getAttribute("data-phi") === "yes";
-  paintMaker();
 });
 els.makerGo.onclick = makeSubject;
 els.makerBookFile.onchange = paintMaker;

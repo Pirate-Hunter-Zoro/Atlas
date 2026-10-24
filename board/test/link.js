@@ -2309,8 +2309,8 @@ async function latchFlow() {
 
 // ---------------------------------------------------------------------------
 // THE HEADER, DRIVEN. Binding from the chip updates it without a reload, the
-// toggle flips `mode` through POST /mode, a new project asks "patient data?",
-// and End posts /end only after a second tap -- on a bound session. On an
+// toggle flips `mode` through POST /mode, a new project is made from its
+// name, and End posts /end only after a second tap -- on a bound session. On an
 // unbound one End asks where the lecture goes, the chip of one that ended
 // unbound still sends it, and Make binds it first. The tutor's chip chooses
 // who teaches. The server is scripted here; the routes themselves are
@@ -2478,26 +2478,25 @@ async function headerFlow() {
            + doc.getElementById('make-said').textContent);
   make.click();
 
-  // The chip: make a project, which asks about patient data first.
+  // The chip: make a project from its name alone.
   chip.click();
   await sleep(20);
   doc.getElementById('subjpick-project').click();
   const form = doc.getElementById('subjpick-form');
-  const phi = doc.getElementById('subjpick-phi');
-  !form.hidden && !phi.hidden
-    ? ok('+ new project asks "patient data?"') : fail('a new project is not asked about patient data');
-  doc.getElementById('subjpick-name').value = 'Grant Notes';
+  !form.hidden ? ok('+ new project opens a form that asks for the name')
+    : fail('the new-project form did not open');
   doc.getElementById('subjpick-go').click();
   await sleep(20);
   posts('/subjects/new').length === 0
-    ? ok('and makes nothing until it is answered') : fail('a project was made without the phi answer');
-  doc.getElementById('subjpick-phi-no').click();
+    ? ok('and makes nothing until it is named') : fail('a project was made with no name');
+  doc.getElementById('subjpick-name').value = 'Grant Notes';
   doc.getElementById('subjpick-go').click();
   await sleep(40);
   const made = posts('/subjects/new');
-  made.length === 1 && made[0].body.kind === 'project' && made[0].body.phi === false
+  made.length === 1 && made[0].body.kind === 'project'
+    && Object.keys(made[0].body).sort().join(',') === 'kind,name'
     && made[0].body.name === 'Grant Notes'
-    ? ok('then posts /subjects/new with the answer')
+    ? ok('then posts /subjects/new with the kind and the name')
     : fail('the new project was posted as ' + JSON.stringify(made));
   posts('/bind').slice(-1)[0].body.subject === 'projects/Grant-Notes'
     && label.textContent === 'Grant Notes'
@@ -2619,15 +2618,9 @@ async function headerFlow() {
   /make it, send it there and end/.test(doc.getElementById('subjpick-go').textContent)
     ? ok('the new-subject form in send mode says it will end the session')
     : fail('the form says ' + doc.getElementById('subjpick-go').textContent);
-  ends = posts('/end').length;
-  doc.getElementById('subjpick-go').click();
-  await sleep(20);
-  posts('/end').length === ends ? ok('and asks about patient data before anything')
-    : fail('a project was sent without the phi answer');
-  doc.getElementById('subjpick-phi-yes').click();
   doc.getElementById('subjpick-go').click();
   await sleep(60);
-  posts('/subjects/new').slice(-1)[0].body.phi === true
+  posts('/subjects/new').slice(-1)[0].body.name === 'Grant Two'
     && posts('/end').slice(-1)[0].body.subject === 'projects/Grant-Two'
     ? ok('then makes it and ends the session into it')
     : fail('the new project went ' + JSON.stringify(posts('/end').slice(-1)[0]));

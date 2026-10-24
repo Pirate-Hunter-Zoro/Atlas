@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Delete from the iPad, against a real server: a subject (its name typed,
-D23's `"phi": false` at HEAD, no open session or coding session), a material and a session (each after a second tap on the page,
+no open session or coding session), a material and a session (each after a second tap on the page,
 which is `test/uploads.js`'s and `test/home.js`'s), and the trash pruned
 after 30 days.
 
@@ -71,19 +71,14 @@ def commits():
 
 put(".gitignore", "/sessions/\nmaterials/\n.ink/\n")
 for slug in ("Gone", "Open", "Coded", "Keep", "Many"):
-    put("courses/%s/tutorboard.json" % slug, json.dumps({"name": slug, "phi": False}))
+    put("courses/%s/tutorboard.json" % slug, json.dumps({"name": slug}))
     put("courses/%s/TUTOR.md" % slug, "# %s\n" % slug)
 put("courses/Gone/hw/set1.tex", "\\documentclass{article}\n")
 put("courses/Gone/materials/book.pdf", "%PDF-1.4 not really\n")      # ignored residue
-put("projects/Secret/tutorboard.json", json.dumps({"name": "Secret", "phi": True}))
-put("projects/NoKey/tutorboard.json", json.dumps({"name": "NoKey"}))
-put("projects/Worded/tutorboard.json", json.dumps({"name": "Worded", "phi": "no"}))
-put("projects/Flipped/tutorboard.json", json.dumps({"name": "Flipped", "phi": True}))
+put("projects/Plain/tutorboard.json", json.dumps({"name": "Plain"}))
 subprocess.run(["git", "init", "-q", atlas], check=True)
 git("add", "-A")
 git("-c", "commit.gpgsign=false", "commit", "-q", "-m", "fixture")
-# The working tree says false; HEAD does not.
-put("projects/Flipped/tutorboard.json", json.dumps({"name": "Flipped", "phi": False}))
 
 open_one = sessions.new("open on Open", base=atlas)
 sessions.bind(open_one["id"], "courses/Open", base=atlas)
@@ -138,13 +133,6 @@ check("a path that only resolves to a subject gets 400", status == 400)
 status, got = gone("courses/Gone", "gone")
 check("a typed name that is not the slug gets 400, naming the slug",
       status == 400 and "Gone" in got.get("error", ""))
-status, got = gone("projects/Secret", "Secret")
-check('"phi": true gets 409, with the reason',
-      status == 409 and "phi" in got.get("error", ""))
-status, got = gone("projects/NoKey", "NoKey")
-check("no phi key gets 409", status == 409 and "no phi key" in got.get("error", ""))
-status, got = gone("projects/Flipped", "Flipped")
-check('"phi": false in the working tree but not at HEAD gets 409', status == 409)
 status, got = gone("courses/Open", "Open")
 check("an open session on it gets 409, naming the session",
       status == 409 and open_one["id"] in got.get("error", ""))
@@ -153,17 +141,14 @@ check("a session holding a coding session on it gets 409",
       status == 409 and "coding" in got.get("error", ""))
 check("nothing refused moved or committed",
       commits() == n and all(os.path.isdir(os.path.join(atlas, s)) for s in (
-          "projects/Secret", "projects/NoKey", "courses/Open", "courses/Coded"))
+          "courses/Open", "courses/Coded"))
       and not os.path.isdir(TRASH))
 
-# /subjects.json carries each subject's phi, from the working tree.
+# /subjects.json carries each subject's id, kind, slug and name, and no more.
 status, got = ask("GET", "/subjects.json")
-phis = dict((one["id"], one.get("phi", "absent")) for one in got.get("subjects", []))
-check("/subjects.json carries phi per subject, as the working tree says it",
-      phis.get("projects/Secret") is True and phis.get("projects/NoKey") is None
-      and phis.get("projects/Flipped") is False and phis.get("courses/Keep") is False)
-check("a phi that is not true or false is null there, never the word itself",
-      status == 200 and phis.get("projects/Worded") is None)
+keys = set(k for one in got.get("subjects", []) for k in one)
+check("/subjects.json carries id, kind, slug and name per subject",
+      status == 200 and keys == {"id", "kind", "slug", "name"})
 
 # The read-only check the delete sheet asks first.
 def asked(subject):
@@ -171,26 +156,14 @@ def asked(subject):
 
 
 n = commits()
-status, got = asked("projects/Secret")
-check('the check: "phi": true is why "phi", and the sentence says the board does not remove it',
-      status == 200 and got.get("ok") and got.get("phi") is True
-      and got.get("why") == "phi" and "does not remove it" in got.get("blocker", "")
-      and got.get("subject") == "projects/Secret" and got.get("slug") == "Secret"
-      and got.get("kind") == "project" and got.get("name") == "Secret")
-status, got = asked("projects/NoKey")
-check("no phi key is phi null, why phi",
-      status == 200 and got.get("phi") is None and got.get("why") == "phi"
-      and "no phi key" in got.get("blocker", ""))
-status, got = asked("projects/Worded")
-check('"phi": "no" is phi null in the check, why phi, the word in the sentence',
-      status == 200 and got.get("phi") is None and got.get("why") == "phi"
-      and '"no"' in got.get("blocker", ""))
-status, got = asked("projects/Flipped")
-check('phi false in the working tree only is phi true at HEAD, why phi',
-      status == 200 and got.get("phi") is True and got.get("why") == "phi")
+status, got = asked("projects/Plain")
+check("the check names the subject, and a project nothing blocks may go",
+      status == 200 and got.get("ok") and got.get("why") == ""
+      and got.get("subject") == "projects/Plain" and got.get("slug") == "Plain"
+      and got.get("kind") == "project" and got.get("name") == "Plain")
 status, got = asked("courses/Open")
 check("an open session is why open-session, listed in sessions and the sentence",
-      status == 200 and got.get("phi") is False and got.get("why") == "open-session"
+      status == 200 and got.get("why") == "open-session"
       and got.get("sessions") == [open_one["id"]]
       and open_one["id"] in got.get("blocker", ""))
 status, got = asked("courses/Coded")
@@ -208,9 +181,9 @@ status, got = gone("courses/Many", "Many")
 check("and the delete refuses with that same sentence",
       status == 409 and got.get("error") == said)
 status, got = asked("courses/Gone")
-check("a subject nothing blocks has why and blocker empty, phi false",
+check("a subject nothing blocks has why and blocker empty",
       status == 200 and got.get("why") == "" and got.get("blocker") == ""
-      and got.get("phi") is False and got.get("sessions") == [])
+      and got.get("sessions") == [])
 check("an unknown id, ../x or a bare slug is 404",
       asked("courses/Nope")[0] == 404 and asked("../x")[0] == 404
       and asked("Gone")[0] == 404 and asked("")[0] == 404)

@@ -125,10 +125,10 @@ def calls(sid):
 # ---------------------------------------------------------------------------
 atlas = os.path.join(box, "atlas")
 write(os.path.join(atlas, "courses", "Demo", "tutorboard.json"),
-      json.dumps({"name": "Demo", "phi": False}))
+      json.dumps({"name": "Demo"}))
 write(os.path.join(atlas, "courses", "Demo", "TUTOR.md"), "# Demo\n")
 write(os.path.join(atlas, "courses", "Random", "tutorboard.json"),
-      json.dumps({"name": "Random lessons", "phi": False}))
+      json.dumps({"name": "Random lessons"}))
 write(os.path.join(atlas, "courses", "Random", "TUTOR.md"), "# Random\n")
 shutil.copyfile(os.path.join(ROOT, ".gitignore"), os.path.join(atlas, ".gitignore"))
 git("init", "-q", "-b", "main")

@@ -56,7 +56,7 @@ for name in ("sync.py", "code.py"):
     shutil.copy(os.path.join(ROOT, "tutorboard", name),
                 os.path.join(atlas, "board", "tutorboard", name))
 BODY = "def solve(x):\n    return x < 2 and '<b>'\n" + "# padding line\n" * 20
-write("projects/Beta/tutorboard.json", json.dumps({"name": "Beta", "phi": False}))
+write("projects/Beta/tutorboard.json", json.dumps({"name": "Beta"}))
 write("projects/Beta/src/model.py", "# beta-own-model\n" + BODY)
 write("projects/Beta/src/.hidden.py", "# hidden-secret\n" + BODY)
 write("ai-config/policy/x.py", "# private-secret\n" + BODY)

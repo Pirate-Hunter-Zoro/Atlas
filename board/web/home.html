@@ -151,21 +151,14 @@
 
 </main>
 
-<!-- A new course or project: a name, and for a project whether it holds
-     patient data. POST /subjects/new makes and commits it. -->
+<!-- A new course or project: a name. POST /subjects/new makes and commits
+     it. -->
 <div id="maker" class="sheet" hidden>
   <div class="sheet-box" role="dialog" aria-modal="true" aria-labelledby="maker-title">
     <p class="eyebrow" id="maker-kind">new course</p>
     <h3 id="maker-title">What is it called?</h3>
     <input id="maker-name" type="text" autocomplete="off" autocorrect="off"
            spellcheck="false" placeholder="Linear Algebra">
-    <div id="maker-phi" class="maker-phi" hidden>
-      <p class="sheet-line">Patient data?</p>
-      <div class="picks">
-        <button type="button" data-phi="yes">yes</button>
-        <button type="button" data-phi="no">no</button>
-      </div>
-    </div>
     <div id="maker-book" class="maker-book" hidden>
       <p class="sheet-line">Its textbook PDF, if it follows one: the tutor gets
         an index of its chapters, sections, pages and exercises.</p>

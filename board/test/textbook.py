@@ -618,7 +618,7 @@ def server_suite(base):
     from tutorboard.server import app
 
     course = os.path.join(base, "courses", "Served")
-    put(os.path.join(course, "tutorboard.json"), '{"name": "Served", "phi": false}')
+    put(os.path.join(course, "tutorboard.json"), '{"name": "Served"}')
     sid = sessions.new(title="Served: the book", base=base)["id"]
     sessions.bind(sid, "courses/Served", base=base)
     where = sessions.path(sid, base)

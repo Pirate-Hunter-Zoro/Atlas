@@ -46,7 +46,7 @@ with tempfile.TemporaryDirectory(prefix="subject-discovery-") as tmp:
     env.pop("TUTORBOARD_COURSES", None)
     env.pop("TUTORBOARD_SESSION", None)
     env.pop("TUTORBOARD_TURN", None)
-    for name in ("rules_fence", "writing_up", "subjects"):
+    for name in ("memo", "writing_up", "subjects"):
         result = subprocess.run([sys.executable, str(root / "board/test" / (name + ".py"))],
                                 cwd=root / "board", env=env, capture_output=True, text=True, timeout=120)
         assert result.returncode == 0, name + "\n" + result.stdout + result.stderr

@@ -54,10 +54,10 @@ The assistant runs these. The student never does.
                                        the session store, sessions/<id>/: a new
                                        session, its session.json, End (the only
                                        thing that ends one), or delete to the trash
-    board bind <subject> [--create] [--phi yes|no] [--session <id>]
+    board bind <subject> [--create] [--session <id>]
                                        bind this session to courses/<name> or
-                                       projects/<name>; --create makes it first
-                                       (a project needs --phi). Files nothing
+                                       projects/<name>; --create makes it first.
+                                       Files nothing
     board file <upload> [materials|<relpath>] [--session <id>]
                                        move an upload into the bound subject,
                                        materials/ by default; its ink follows
@@ -554,11 +554,9 @@ def cmd_bind(live, args):
         Moving a session off a subject it has already left a write-up, an
         artifact, a filed upload or a lesson's cards in is refused unless
         --force: only the owner confirms that move.
-    board bind <subject> --create [--phi yes|no]
+    board bind <subject> --create
         make the subject, then bind: the slug of the name as its directory,
-        tutorboard.json, a TUTOR.md skeleton, and for --phi yes a .gitignore
-        keeping phi/, results/ and .env out. One commit. A course holds no
-        patient data; a project must say --phi yes or --phi no. With no
+        tutorboard.json and a TUTOR.md skeleton. One commit. With no
         session, it only makes the subject.
 
     The session is TUTORBOARD_SESSION's, or --session <id>.
@@ -568,32 +566,19 @@ def cmd_bind(live, args):
         create = "--create" in rest
         force = "--force" in rest
         rest = [a for a in rest if a not in ("--create", "--force")]
-        phi = None
-        if "--phi" in rest:
-            n = rest.index("--phi")
-            said = rest[n + 1].lower() if n + 1 < len(rest) else ""
-            if said not in ("yes", "no"):
-                print("board bind: --phi yes or --phi no", file=sys.stderr)
-                return 2
-            if not create:
-                print("board bind: --phi goes with --create; an existing "
-                      "subject keeps its own answer", file=sys.stderr)
-                return 2
-            phi = said == "yes"
-            del rest[n:n + 2]
         if len(rest) != 1:
             print("usage: board bind <courses/name|projects/name> [--create] "
-                  "[--phi yes|no] [--force] [--session <id>]", file=sys.stderr)
+                  "[--force] [--session <id>]", file=sys.stderr)
             return 2
         subject = rest[0]
         if create:
             from tutorboard import subjects
-            made, ok, said = subjects.create(subject, phi=phi, base=base)
+            made, ok, said = subjects.create(subject, base=base)
             if not ok:
                 print("board bind: %s was not made: %s" % (subject, said),
                       file=sys.stderr)
                 return 1
-            print("made %s (phi: %s)" % (made["id"], "yes" if phi else "no"))
+            print("made %s" % made["id"])
             subject = made["id"]
         if not sid:
             if create:

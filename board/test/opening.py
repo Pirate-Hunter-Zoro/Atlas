@@ -82,7 +82,7 @@ def git(*args):
 
 for slug, name in (("Random", "Random lessons"), ("Demo", "Demo")):
     write(os.path.join(atlas, "courses", slug, "tutorboard.json"),
-          json.dumps({"name": name, "phi": False}))
+          json.dumps({"name": name}))
     write(os.path.join(atlas, "courses", slug, "TUTOR.md"), "# %s\n" % name)
 shutil.copyfile(os.path.join(ROOT, ".gitignore"), os.path.join(atlas, ".gitignore"))
 git("init", "-q", "-b", "main")

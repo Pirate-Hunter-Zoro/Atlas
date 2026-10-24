@@ -57,7 +57,7 @@ tmp = os.path.realpath(tempfile.mkdtemp(prefix="subjects-"))
 try:
     topo = mk(tmp, "courses/Topology", {"name": "Algebraic Topology"})
     mk(tmp, "courses/.trash")
-    psych = mk(tmp, "projects/PSYCH-ASR", {"name": "PSYCH-ASR", "phi": True})
+    psych = mk(tmp, "projects/PSYCH-ASR", {"name": "PSYCH-ASR"})
     mk(tmp, "projects/X")
     mk(tmp, "projects/libr-local-llm", {"name": "libr-local-llm"})
     mk(tmp, "projects/Paper-Writer", {"name": "Paper-Writer"})
@@ -100,7 +100,7 @@ try:
 
     # --- the catch-all ------------------------------------------------------
     check("with no courses/Random, scratch() is None", subjects.scratch() is None)
-    mk(tmp, "courses/Random", {"name": "Random lessons", "phi": False})
+    mk(tmp, "courses/Random", {"name": "Random lessons"})
     check("scratch() names courses/Random once it exists",
           subjects.SCRATCH == "courses/Random" and subjects.scratch() == "courses/Random"
           and subjects.find(subjects.scratch())["name"] == "Random lessons")
@@ -150,12 +150,12 @@ try:
 
     # --- read_config --------------------------------------------------------
     one = mk(tmp, "projects/Conf", {
-        "name": "Conf", "phi": False, "check": "make test",
+        "name": "Conf", "check": "make test",
         "stance": "do", "aim": "build",
         "subtitle": "x", "mode": "code"})
     cfg = config.read_config(one)
-    check("read_config returns name, phi and check",
-          cfg["name"] == "Conf" and cfg["phi"] is False
+    check("read_config returns name and check",
+          cfg["name"] == "Conf"
           and cfg["check"] == {"all": ["bash", "-c", "make test"],
                                "line": "make test"}
           and "relay" not in cfg)
@@ -163,12 +163,8 @@ try:
           not any(k in cfg for k in ("stance", "aim", "subtitle", "mode",
                                      "said_stance")))
     bare = config.read_config(mk(tmp, "projects/Bare-One"))
-    check("absent phi is None, name from the directory",
-          bare["phi"] is None
-          and bare["name"] == "Bare One" and bare["check"] is None)
-    check("phi stays literal: a string is not an answer",
-          config.read_config(mk(tmp, "projects/Str", {"phi": "false"}))["phi"]
-          is None)
+    check("name from the directory when absent",
+          bare["name"] == "Bare One" and bare["check"] is None)
 
     # --- create -------------------------------------------------------------
     import subprocess
@@ -190,18 +186,15 @@ try:
           subjects.slugify("Algebraic  Topology: I") == "Algebraic-Topology-I"
           and subjects.slugify("../x") == "x")
 
-    def refused(ident, phi=None):
+    def refused(ident):
         try:
-            subjects.create(ident, phi=phi, base=gen)
+            subjects.create(ident, base=gen)
         except subjects.Refused as exc:
             return str(exc)
         return ""
     for bad in ("../x", "/abs", "research/x", "practice/x", "courses/a/b",
                 "courses/..", "courses/", "~/x", "courses/!!!", "projects/Old"):
-        check("create refuses %r" % bad, bool(refused(bad, phi=False)))
-    check("a project with no phi answer is refused, asking it",
-          "patient data" in refused("projects/P"))
-    check("a course is never phi true", bool(refused("courses/C", phi=True)))
+        check("create refuses %r" % bad, bool(refused(bad)))
     check("and none of the refusals made a directory or a commit",
           sorted(os.listdir(gen)) == [".git", "projects"]
           and git("rev-list", "--count", "HEAD").stdout.strip() == "1")
@@ -213,17 +206,14 @@ try:
           and git("status", "--porcelain").stdout == "")
     check("and the new subject is listed",
           "courses/Point-Set-Topology" in [s["id"] for s in subjects.all(gen)])
-    rec, ok, said = subjects.create("projects/Clinic", phi=True, base=gen)
-    ign = open(os.path.join(gen, "projects", "Clinic", ".gitignore")).read()
-    check("a patient-data project carries the PHI ignore stanza",
-          ok and ign.split() == ["/phi/", "/results/", ".env"]
-          and git("check-ignore", "-q", "projects/Clinic/phi/x").returncode == 0)
-    rec, ok, said = subjects.create("projects/Open", phi=False, base=gen)
-    check("a project with phi false has no stanza and says false",
+    rec, ok, said = subjects.create("projects/Open", base=gen)
+    check("a project holds tutorboard.json with its name and TUTOR.md, "
+          "and no .gitignore",
           ok and not os.path.exists(os.path.join(gen, "projects", "Open", ".gitignore"))
-          and config.read_config(rec["root"])["phi"] is False)
+          and json.load(open(os.path.join(rec["root"], "tutorboard.json")))
+          == {"name": "Open"})
     check("a slug is one subject, whatever its case or parent",
-          bool(refused("courses/open", phi=False)))
+          bool(refused("courses/open")))
 finally:
     os.environ.pop("TUTORBOARD_COURSES", None)
     shutil.rmtree(tmp, ignore_errors=True)
@@ -246,11 +236,9 @@ check("on this tree, all() is exactly the directories under the subject parents"
 # subjects at all (test/independence.py) has no catch-all to check.
 if listed:
     _scratch = subjects.find(subjects.SCRATCH)
-    check("this tree's catch-all is courses/Random, \"Random lessons\", a course with "
-          "phi false",
+    check("this tree's catch-all is courses/Random, \"Random lessons\", a course",
           subjects.scratch() == subjects.SCRATCH and _scratch
-          and _scratch["name"] == "Random lessons" and _scratch["kind"] == "course"
-          and subjects.phi(_scratch["root"]) is False)
+          and _scratch["name"] == "Random lessons" and _scratch["kind"] == "course")
 check("and its name is not Scratch",
       subjects.SCRATCH.split("/")[1].lower() != "scratch")
 

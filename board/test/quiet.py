@@ -81,7 +81,7 @@ try:
     write(os.path.join(base, ".gitignore"), "/sessions/\n")
     proj = os.path.join(base, "projects", "Probe")
     write(os.path.join(proj, "tutorboard.json"),
-          json.dumps({"name": "Probe", "phi": False}))
+          json.dumps({"name": "Probe"}))
     write(os.path.join(proj, "TUTOR.md"),
           "# Probe\n\n## Where things are\n\nsrc/\n\n## Now\n\nthe loader\n\n"
           "## Open decisions\n\n## Done recently\n")

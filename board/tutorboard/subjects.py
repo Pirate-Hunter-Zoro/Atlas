@@ -1,8 +1,8 @@
 """Subjects: every directory directly under `courses/` or `projects/`.
 
-The kind is the parent directory. `create(ident, phi)` makes the directory,
-tutorboard.json and a TUTOR.md skeleton (plus the PHI ignore stanza for a
-patient-data project) in one gitops commit; `delete` moves one to the trash.
+The kind is the parent directory. `create(ident)` makes the directory,
+tutorboard.json and a TUTOR.md skeleton in one gitops commit; `delete` moves
+one to the trash.
 
 The constraint: no registry and no marker file, so `mkdir projects/X` is a
 project; a file that must be edited when a directory is made is the registry
@@ -35,9 +35,6 @@ SCRATCH = "courses/Random"
 # TUTOR.md's sections, in order. `board memo <section>` writes one of them.
 TUTOR_SECTIONS = ("Where things are", "Now", "Open decisions", "Done recently")
 
-# A patient-data project's own .gitignore: what never leaves the machine.
-PHI_IGNORE = ("/phi/", "/results/", ".env")
-
 
 class Refused(ValueError):
     """A subject that cannot be made as asked; the message says why."""
@@ -65,17 +62,6 @@ def _name(where, slug):
     except Exception:                                        # noqa: BLE001
         said = None
     return str(said) if said else slug.replace("-", " ")
-
-
-def phi(where):
-    """`phi` as the working tree's tutorboard.json in `where` says it: True,
-    False, else None. For display; a delete reads HEAD (`head_phi`)."""
-    from .course import config                               # local: a cycle
-    try:
-        said = config.read_config(where).get("phi")
-    except Exception:                                        # noqa: BLE001
-        return None
-    return said if isinstance(said, bool) else None
 
 
 def walk(base=None):
@@ -187,15 +173,13 @@ def _tutor_md(name):
     return "\n".join(out)
 
 
-def create(ident, phi=None, base=None):
+def create(ident, base=None):
     """Make the subject `ident` (`courses/<name>` or `projects/<name>`) and
     commit it. `(record, ok, said)`, `record` as `all()` gives it.
 
     Refused: an absolute path, `.` or `..`, anything but exactly
-    `<courses|projects>/<name>`, a taken slug, a course holding patient data,
-    a project with no `phi` answer. tutorboard.json holds {name, phi}; `phi`
-    true also writes `PHI_IGNORE`. A failed commit removes the directory, so
-    asking twice is safe.
+    `<courses|projects>/<name>`, or a taken slug. tutorboard.json holds
+    {name}. A failed commit removes the directory, so asking twice is safe.
     """
     from . import gitops                                     # local: light here
     base = _base(base)
@@ -224,14 +208,6 @@ def create(ident, phi=None, base=None):
         if one[2].lower() == slug.lower():
             raise Refused("%s/%s already exists: a slug names one subject"
                           % (one[0], one[2]))
-    if kind == "course":
-        if phi:
-            raise Refused("a course holds no patient data; make it a project")
-        phi = False
-    elif phi is None:
-        raise Refused("does %s hold patient data? say --phi yes or --phi no"
-                      % name)
-    phi = bool(phi)
 
     rel = "%s/%s" % (parts[0], slug)
     where = os.path.join(base, parts[0], slug)
@@ -247,16 +223,12 @@ def create(ident, phi=None, base=None):
         made.append("%s/%s" % (rel, fname))
 
     try:
-        put("tutorboard.json",
-            json.dumps({"name": name, "phi": phi}, indent=2) + "\n")
-        if phi:
-            put(".gitignore", "\n".join(PHI_IGNORE) + "\n")
+        put("tutorboard.json", json.dumps({"name": name}, indent=2) + "\n")
         put("TUTOR.md", _tutor_md(name))
     except OSError:
         shutil.rmtree(where, ignore_errors=True)
         raise
-    ok, said = gitops.commit(base, made, "%s: a new %s%s" % (
-        rel, kind, " that holds patient data" if phi else ""))
+    ok, said = gitops.commit(base, made, "%s: a new %s" % (rel, kind))
     if not ok:
         gitops._git(base, "reset", "-q", "--", *made)
         shutil.rmtree(where, ignore_errors=True)
@@ -271,20 +243,6 @@ class Busy(Refused):
     """A delete refused for what the subject is or holds now (409, not 400)."""
 
 
-def head_phi(base, ident):
-    """`phi` as tutorboard.json says it at HEAD: True, False, None for a
-    file with no `phi` key, or "" when there is no such file at HEAD."""
-    from . import gitops                                     # local: light here
-    code, out = gitops._git(base, "show", "HEAD:%s/tutorboard.json" % ident)
-    if code != 0:
-        return ""
-    try:
-        said = json.loads(out)
-    except ValueError:
-        return None
-    return said.get("phi") if isinstance(said, dict) else None
-
-
 def _plural(items, one, many):
     """`one` or `many`, with the items named and joined in English."""
     names = list(items)
@@ -295,25 +253,16 @@ def _plural(items, one, many):
 
 def delete_check(found, base=None):
     """Whether the subject `found` (an `all()` record) may be deleted now:
-    `{phi, why, blocker, sessions}`, read-only.
+    `{why, blocker, sessions}`, read-only.
 
-    `phi` is `head_phi`'s answer when it is true or false, else None. `why` names the
-    first thing in the way: "phi" (D23: tutorboard.json at HEAD must say
-    `"phi": false` literally), "open-session" or "coding", else "". `blocker` is one sentence naming every one of them, else "".
+    `why` names the first thing in the way: "open-session" or "coding", else
+    "". `blocker` is one sentence naming every one of them, else "".
     `sessions` the open sessions bound to it.
     """
     from . import sessions                                   # local: a cycle
     base = _base(base)
     ident = found["id"]
-    phi = head_phi(base, ident)
     kinds, parts = [], []
-    if phi is not False:
-        kinds.append("phi")
-        parts.append("tutorboard.json at HEAD does not say \"phi\": false (%s), "
-                     "so the board does not remove it"
-                     % ("no tutorboard.json at HEAD" if phi == ""
-                        else "no phi key" if phi is None
-                        else "phi is %s" % json.dumps(phi)))
     open_ids, coding_ids = [], []
     for rec in sessions.all(base):
         code = rec.get("code")
@@ -332,8 +281,7 @@ def delete_check(found, base=None):
                              "it; end that first (board code --end)",
                              "sessions %s hold coding sessions on it; end "
                              "those first (board code --end)"))
-    return {"phi": phi if isinstance(phi, bool) else None,
-            "why": kinds[0] if kinds else "",
+    return {"why": kinds[0] if kinds else "",
             "blocker": "%s: %s" % (ident, "; ".join(parts)) if parts else "",
             "sessions": open_ids}
 

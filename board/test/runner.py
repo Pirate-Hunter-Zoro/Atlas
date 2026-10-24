@@ -150,11 +150,11 @@ def calls(sid=None, kind=None):
 # ---------------------------------------------------------------------------
 atlas = os.path.join(box, "atlas")
 write(os.path.join(atlas, "courses", "Demo", "tutorboard.json"),
-      json.dumps({"name": "Demo", "phi": False}))
+      json.dumps({"name": "Demo"}))
 algo = os.path.join(atlas, "projects", "Arena-Lab")
 # The Go check is a fixture, independent of any real project.
 write(os.path.join(algo, "tutorboard.json"), json.dumps({
-    "name": "Arena Lab", "phi": False,
+    "name": "Arena Lab",
     "check": {"all": ["go", "test", "./..."],
               "one": ["go", "test", "./{dir}/..."],
               "path": ["/usr/local/go/bin"]}}))
@@ -573,7 +573,7 @@ try:
     server.stop()
     server = None
     write(os.path.join(atlas, "projects", "Lonely", "tutorboard.json"),
-          json.dumps({"name": "Lonely", "phi": False}))
+          json.dumps({"name": "Lonely"}))
     r = service.install(service.Runner(atlas, concurrency=2)).start()
     got = registry.runner_route("projects/Lonely", "[writeup] a deck please",
                                 base=atlas, ask="a deck")

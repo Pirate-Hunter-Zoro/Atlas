@@ -85,8 +85,6 @@ body > #away {
   font: inherit; padding: .4rem .5rem; border-radius: .35rem;
   border: 1px solid var(--sl-line); background: transparent; color: var(--sl-ink);
 }
-.notes-send-phi { display: flex; align-items: center; gap: .35rem; }
-.notes-send-phi button.on { border-color: var(--sl-accent); color: var(--sl-accent); }
 .notes-send-said { margin: .2rem .3rem 0; color: var(--sl-dim); }
 .notes-send-said:empty { display: none; }
 body > #prompt {

@@ -85,7 +85,7 @@ try:
     write(os.path.join(base, ".gitignore"), "/sessions/\n")
     proj = os.path.join(base, "projects", "Probe")
     write(os.path.join(proj, "tutorboard.json"),
-          json.dumps({"name": "Probe", "phi": False}))
+          json.dumps({"name": "Probe"}))
     write(os.path.join(proj, "RULES.md"),
           "# Rules\n\n- Never read the held-out split before the analysis is frozen.\n")
     write(os.path.join(proj, "README.md"), "# Probe\n\nREADME-SENTINEL text.\n")

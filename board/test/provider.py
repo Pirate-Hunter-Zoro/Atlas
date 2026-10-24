@@ -116,7 +116,7 @@ def on_disk():
 # ---------------------------------------------------------------------------
 atlas = os.path.join(box, "atlas")
 write(os.path.join(atlas, "courses", "Demo", "tutorboard.json"),
-      json.dumps({"name": "Demo", "phi": False, "agent": "deepseek"}))
+      json.dumps({"name": "Demo", "agent": "deepseek"}))
 write(os.path.join(atlas, ".gitignore"), "/sessions/\n")
 for args in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-qm", "fixture"]):
     subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t"] + args,

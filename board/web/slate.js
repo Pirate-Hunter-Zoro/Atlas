@@ -208,8 +208,7 @@ if (endBtn) {
 
 /* WHERE THE CANVAS GOES: the one picker order (Random lessons, the
    catch-all, first; then Recent; then every course, then every project, from
-   /subjects.json and /sessions.json), and a new one (a project says whether
-   it holds patient data). `sendMode` is what a tap does: "bind" (Save to…),
+   /subjects.json and /sessions.json), and a new one. `sendMode` is what a tap does: "bind" (Save to…),
    or "keep" / "transcribe", which end it there. Ending, it closes on "keep
    it unfiled", which ends it with no turn and leaves the pages in the
    session. */
@@ -217,9 +216,7 @@ var sendPanel = document.getElementById("notes-send");
 var sendList = document.getElementById("notes-send-list");
 var sendForm = document.getElementById("notes-send-form");
 var sendName = document.getElementById("notes-send-name");
-var sendPhi = document.getElementById("notes-send-phi");
 var sendMaking = null;
-var sendMakingPhi = null;
 var sendMode = "transcribe";
 var RECENT = 4;
 var SEND_HEAD = {
@@ -290,7 +287,6 @@ function paintSend() {
 function openSend(mode) {
   sendMode = mode || "transcribe";
   sendMaking = null;
-  sendMakingPhi = null;
   bindArmed = null;
   sendForm.hidden = true;
   endPanel.hidden = true;
@@ -314,11 +310,7 @@ function openSend(mode) {
 
 function startSendMaking(kind) {
   sendMaking = kind;
-  sendMakingPhi = null;
   sendForm.hidden = false;
-  sendPhi.hidden = kind !== "project";
-  Array.prototype.forEach.call(sendPhi.querySelectorAll("button"),
-                               function (b) { b.classList.remove("on"); });
   sendName.placeholder = kind === "project" ? "the project's name" : "the course's name";
   sendSaid("");
 }
@@ -326,23 +318,11 @@ function startSendMaking(kind) {
 if (sendPanel) {
   document.getElementById("notes-new-course").onclick = function () { startSendMaking("course"); };
   document.getElementById("notes-new-project").onclick = function () { startSendMaking("project"); };
-  ["no", "yes"].forEach(function (word) {
-    var b = document.getElementById("notes-phi-" + word);
-    b.onclick = function () {
-      sendMakingPhi = word === "yes";
-      Array.prototype.forEach.call(sendPhi.querySelectorAll("button"),
-                                   function (x) { x.classList.toggle("on", x === b); });
-    };
-  });
   document.getElementById("notes-send-go").onclick = function () {
     var name = (sendName.value || "").trim();
     if (!sendMaking) return;
     if (!name) { sendSaid("Name it first."); return; }
-    if (sendMaking === "project" && sendMakingPhi === null) {
-      sendSaid("Say whether it holds patient data."); return;
-    }
     var body = { kind: sendMaking, name: name };
-    if (sendMaking === "project") body.phi = sendMakingPhi;
     sendSaid("making " + name + "…");
     postJson("/subjects/new", body).then(function (got) {
       if (!got || !got.ok) { sendSaid((got && got.error) || "Not made."); return; }

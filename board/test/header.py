@@ -53,7 +53,7 @@ runner_service.wake = lambda repo: WOKEN.append(repo.live) or False
 
 os.makedirs(os.path.join(atlas, "projects", "Beta"))
 with open(os.path.join(atlas, "projects", "Beta", "tutorboard.json"), "w") as fh:
-    json.dump({"name": "Beta", "phi": False}, fh)
+    json.dump({"name": "Beta"}, fh)
 with open(os.path.join(atlas, ".gitignore"), "w") as fh:
     fh.write("/sessions/\n")
 subprocess.run(["git", "init", "-q", atlas], check=True)

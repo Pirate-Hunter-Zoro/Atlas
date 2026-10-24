@@ -465,14 +465,13 @@ class Handler(BaseHTTPRequestHandler):
             return self.new_session(registry)
         if how == "subjects":
             # `scratch`: the catch-all every picker offers first
-            # (`subjects.SCRATCH`) when this tree has it, else null. `phi`
-            # per subject is the working tree's, for display.
+            # (`subjects.SCRATCH`) when this tree has it, else null.
             every = subjects.all(registry.atlas)
             return self.send_json({
                 "ok": True,
                 "scratch": subjects.scratch(registry.atlas),
-                "subjects": [dict({k: one[k] for k in ("id", "kind", "slug", "name")},
-                                  phi=subjects.phi(one["root"])) for one in every]})
+                "subjects": [{k: one[k] for k in ("id", "kind", "slug", "name")}
+                             for one in every]})
         if how == "subject-new":
             return self.new_subject(registry)
         if how == "subject-delete-check":
@@ -556,9 +555,9 @@ class Handler(BaseHTTPRequestHandler):
         return {"ok": True, "sessions": out}
 
     def new_subject(self, registry):
-        """POST /subjects/new {kind: course|project, name, phi}: make the
-        subject and commit it (`subjects.create`). A project needs `phi`
-        answered; a refusal is 400 in `subjects.create`'s own words."""
+        """POST /subjects/new {kind: course|project, name}: make the subject
+        and commit it (`subjects.create`); a refusal is 400 in
+        `subjects.create`'s own words."""
         try:
             body = self.read_body()
             payload = json.loads(body.decode("utf-8")) if body.strip() else {}
@@ -575,12 +574,8 @@ class Handler(BaseHTTPRequestHandler):
         if "/" in name or "\\" in name:
             return self.send_json({"ok": False,
                                    "error": "a name has no slash in it"}, status=400)
-        phi = payload.get("phi")
-        if phi is not None and not isinstance(phi, bool):
-            return self.send_json({"ok": False,
-                                   "error": "phi is true or false"}, status=400)
         try:
-            made, ok, said = subjects.create("%s/%s" % (parent, name), phi=phi,
+            made, ok, said = subjects.create("%s/%s" % (parent, name),
                                              base=registry.atlas)
         except subjects.Refused as exc:
             return self.send_json({"ok": False, "error": str(exc)}, status=400)
@@ -606,7 +601,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def delete_check(self, registry, query):
         """GET /subject/delete?subject=<id>: may it be deleted now, read-only
-        (`subjects.delete_check`). `{ok, subject, slug, kind, name, phi, why,
+        (`subjects.delete_check`). `{ok, subject, slug, kind, name, why,
         blocker, sessions}`; 404 for an id that is not exactly a subject's."""
         ident = (query.get("subject") or [""])[0].strip()
         found = subjects.deletable(ident, registry.atlas)
@@ -622,8 +617,7 @@ class Handler(BaseHTTPRequestHandler):
     def delete_subject(self, registry):
         """POST /subject/delete {subject, typed}: `subjects.delete`. 400 for a
         subject that is none or a typed name that is not its slug; 409, with
-        every reason, for D23 (`"phi": false` literally at HEAD) and for an
-        open session, a coding session or an outstanding request on it. The
+        every reason, for an open session or a coding session on it. The
         reply names the trash directory it went to. The commit is local, as
         End's is."""
         payload = self._payload()

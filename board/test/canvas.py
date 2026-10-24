@@ -136,7 +136,7 @@ def git(*args):
 
 
 write(os.path.join(atlas, "courses", "Random", "tutorboard.json"),
-      json.dumps({"name": "Random lessons", "phi": False}))
+      json.dumps({"name": "Random lessons"}))
 write(os.path.join(atlas, "courses", "Random", "TUTOR.md"),
       "# Random lessons\n\n## Where things are\n\n## Now\n\n## Open decisions\n\n"
       "## Done recently\n")

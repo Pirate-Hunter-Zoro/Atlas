@@ -313,7 +313,6 @@ button.action { font: inherit; cursor: pointer; }
   padding: .7rem .8rem; border-radius: .5rem;
   border: 1px solid var(--rule); background: var(--paper-2); color: var(--ink);
 }
-.maker-phi { margin-top: .8rem; }
 .picks { display: flex; gap: .5rem; margin-top: .4rem; }
 .picks button {
   font: inherit; font-family: var(--ui); font-size: .92rem;

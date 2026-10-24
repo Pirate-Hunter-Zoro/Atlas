@@ -84,7 +84,7 @@ def commits():
 os.environ.update({k: ENV[k] for k in ENV if k.startswith("GIT_")})
 git("init", "-q")
 root = os.path.join(base, "courses", "Topo")
-write(os.path.join(root, "tutorboard.json"), json.dumps({"name": "Topo", "phi": False}))
+write(os.path.join(root, "tutorboard.json"), json.dumps({"name": "Topo"}))
 # Two legacy documents and a material, in the shapes a course already has.
 hw_dir = os.path.join(root, "chapters", "ch01-spaces", "homework")
 write(os.path.join(hw_dir, "ch01-homework.tex"),

@@ -128,7 +128,7 @@ def calls(kind=None):
 # ---------------------------------------------------------------------------
 atlas = os.path.join(box, "atlas")
 beta = os.path.join(atlas, "projects", "Beta")
-write(os.path.join(beta, "tutorboard.json"), json.dumps({"name": "Beta", "phi": False}))
+write(os.path.join(beta, "tutorboard.json"), json.dumps({"name": "Beta"}))
 write(os.path.join(atlas, ".gitignore"), "/sessions/\n")
 subprocess.run(["git", "init", "-q", "-b", "main", atlas], check=True)
 subprocess.run(["git", "-C", atlas, "add", "-A"], check=True)

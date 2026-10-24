@@ -112,7 +112,6 @@ var els = {
   subjpickList: document.getElementById("subjpick-list"),
   subjpickForm: document.getElementById("subjpick-form"),
   subjpickName: document.getElementById("subjpick-name"),
-  subjpickPhi: document.getElementById("subjpick-phi"),
   subjpickSaid: document.getElementById("subjpick-said"),
   subjpickHead: document.getElementById("subjpick-head"),
   subjpickFilter: document.getElementById("subjpick-filter"),
@@ -3832,10 +3831,8 @@ var boundTo = null;
 /* A flip on its way to the server: the payload does not paint over it. */
 var modeAsked = null;
 var endArmed = 0;
-/* Which kind of subject the picker's form is making, and its patient-data
-   answer: null until a project's is given. */
+/* Which kind of subject the picker's form is making. */
 var making = null;
-var makingPhi = null;
 /* What a tap in the picker does: "bind" from the chip; "send" from End on an
    unbound session, which ends it into the subject; "late" from the chip of a
    session that ended unbound, which sends it there; "make" from Make on an
@@ -4171,7 +4168,6 @@ function openPicker(mode, then) {
   pickThen = then || null;
   bindArmed = null;
   making = null;
-  makingPhi = null;
   els.subjpickForm.hidden = true;
   els.subjpickHead.textContent = PICK_HEAD[mode] || "";
   els.subjpickHead.hidden = !PICK_HEAD[mode];
@@ -4207,14 +4203,6 @@ function subjectRow(one) {
   var b = document.createElement("button");
   b.type = "button";
   b.textContent = one.name || one.slug || one.id;
-  /* What the list can say of a project's data (`phi`, read off its
-     tutorboard.json); the server decides what may be done with it. */
-  if (one.phi === true) {
-    var mark = document.createElement("span");
-    mark.className = "subjpick-mark";
-    mark.textContent = " · patient data";
-    b.appendChild(mark);
-  }
   b.dataset.subject = one.id;
   b.dataset.find = ((one.name || "") + " " + one.id).toLowerCase();
   if (one.id === headerState.subject) b.className = "on";
@@ -4375,11 +4363,7 @@ els.subjpickSkip.onclick = function (e) {
 
 function startMaking(kind) {
   making = kind;
-  makingPhi = null;
   els.subjpickForm.hidden = false;
-  els.subjpickPhi.hidden = kind !== "project";
-  Array.prototype.forEach.call(els.subjpickPhi.querySelectorAll("button"),
-                               function (b) { b.classList.remove("on"); });
   els.subjpickName.placeholder = kind === "project" ? "the project's name" : "the course's name";
   pickSaid("");
   try { els.subjpickName.focus(); } catch (e) { /* not focusable here */ }
@@ -4391,25 +4375,12 @@ document.getElementById("subjpick-course").onclick = function (e) {
 document.getElementById("subjpick-project").onclick = function (e) {
   e.stopPropagation(); startMaking("project");
 };
-["no", "yes"].forEach(function (word) {
-  var b = document.getElementById("subjpick-phi-" + word);
-  b.onclick = function (e) {
-    e.stopPropagation();
-    makingPhi = word === "yes";
-    Array.prototype.forEach.call(els.subjpickPhi.querySelectorAll("button"),
-                                 function (x) { x.classList.toggle("on", x === b); });
-  };
-});
 document.getElementById("subjpick-go").onclick = function (e) {
   e.stopPropagation();
   var name = (els.subjpickName.value || "").trim();
   if (!making) return;
   if (!name) { pickSaid("Name it first."); return; }
-  if (making === "project" && makingPhi === null) {
-    pickSaid("Say whether it holds patient data."); return;
-  }
   var body = { kind: making, name: name };
-  if (making === "project") body.phi = makingPhi;
   pickSaid("making " + name + "…");
   postJson("/subjects/new", body).then(function (got) {
     if (!got || !got.ok) { pickSaid((got && got.error) || "Not made."); return; }
