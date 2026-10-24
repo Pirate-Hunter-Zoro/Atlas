@@ -16,7 +16,22 @@
    whatever MediaRecorder picks. A take stops itself at MAX_TAKE_MS, the
    longest the hosted assessors read.
 
-   A take aims at the newest `say` phrase on the question, when it has one.
+   SPEAKING. Every card gets a speak button (`.card-speak`, in its head, or on
+   the card when it has none): POST `/speech/card` reads the card's prose and
+   answers with a phrase URL. A card's `say` fence is rendered by board.js as
+   `.say-phrase` with a play button; a tap plays it and makes it the target of
+   the next take. Audio is fetched whole into a Blob and played from an object
+   URL, because nothing on the server answers a Range request and Safari will
+   not play an `<audio src>` that cannot seek.
+
+   AUTO-SPEAK, AND THE iOS UNLOCK. `#speak-auto` in the menu plays each new
+   card's `say` phrases as it lands, and never its prose: a language course
+   auto-speaks target phrases only (HANDOFF's owner decisions), and a card is
+   read whole only from its own button. It is stored per subject (`speak-auto:<subject>`), and a
+   subject with no stored choice takes `speech.auto` from its tutorboard.json.
+   iOS plays sound only from an element first played inside a tap, so the
+   toggle's own tap plays a silent clip on the one shared player; every later
+   play goes through that element.
 
    board.js owns the page and hands over what this needs (`init`): its
    session fetch, the question being answered, whether the session has ended,
@@ -28,16 +43,24 @@
 
 var MAX_TAKE_MS = 30000;
 var MIMES = ["audio/mp4", "audio/webm;codecs=opus"];
+/* A tenth of a second of silence: the clip played inside the unlocking tap. */
+var SILENT = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
 
 var hooks = {};
 var els = {};
 var started = false;
 
+var subject = "";          /* whose auto-speak choice is read */
 var defaults = null;       /* the subject's `speech` block, or null */
+var seen = null;           /* card ids already on screen: only new ones speak */
 var target = null;         /* {text, lang, pinyin} a take aims at */
 var lastHeard = "";        /* the heard block painted, as JSON */
 
 var take = null;           /* the take being recorded */
+var player = null;         /* the one shared <audio> */
+var playUrl = null;        /* its current object URL */
+var queue = [];            /* URLs waiting to be played */
+var playing = false;
 
 function $(id) { return document.getElementById(id); }
 
@@ -52,15 +75,107 @@ function init(h) {
     state: $("speak-state"),
     target: $("speak-target"),
     heard: $("heard"),
+    auto: $("speak-auto"),
   };
   if (started) return;
   started = true;
   if (els.rec) els.rec.addEventListener("click", function () {
     if (take) stop(); else record();
   });
+  if (els.auto) els.auto.addEventListener("click", function () {
+    setAuto(!auto());
+    unlock();
+  });
+  /* A phrase's play button and a card's speak button, wherever they are:
+     cards are rebuilt by the board's reconcile, so nothing is bound to them. */
+  document.addEventListener("click", function (e) {
+    var t = e.target && e.target.closest ? e.target : null;
+    if (!t) return;
+    var play = t.closest(".say-play");
+    if (play) {
+      e.preventDefault();
+      e.stopPropagation();
+      phrase(play.closest(".say-phrase"), true);
+      return;
+    }
+    var card = t.closest(".card-speak");
+    if (card) {
+      e.preventDefault();
+      e.stopPropagation();
+      speakCard(card);
+    }
+  }, true);
 }
 
-/* ------------------------------------------------------------ the target */
+/* -------------------------------------------------------------- the player */
+
+function getPlayer() {
+  if (!player) {
+    player = new Audio();
+    player.preload = "auto";
+    player.addEventListener("ended", next);
+    player.addEventListener("error", next);
+  }
+  return player;
+}
+
+/* Inside a tap: play the silent clip once, so iOS lets this element play
+   later on its own. Skipped while something plays: that element is already
+   allowed. */
+function unlock() {
+  var p = getPlayer();
+  if (playing) return;
+  try {
+    p.src = SILENT;
+    var got = p.play();
+    if (got && got.catch) got.catch(function () {});
+  } catch (e) {}
+}
+
+/* Fetched whole, then played from a Blob: no Range support on the server. */
+function fetchBlob(url) {
+  return fetch(url).then(function (r) {
+    if (!r.ok) throw new Error(r.status === 404 ? "not made yet" : "HTTP " + r.status);
+    return r.blob();
+  });
+}
+
+function enqueue(url) {
+  queue.push(url);
+  if (!playing) next();
+}
+
+function next() {
+  if (!queue.length) { playing = false; return; }
+  playing = true;
+  var url = queue.shift();
+  fetchBlob(url).then(function (blob) {
+    var p = getPlayer();
+    if (playUrl) { try { URL.revokeObjectURL(playUrl); } catch (e) {} }
+    playUrl = URL.createObjectURL(blob);
+    p.src = playUrl;
+    var got = p.play();
+    if (got && got.catch) got.catch(function () { next(); });
+  }).catch(function () { next(); });
+}
+
+/* Plays now, ahead of anything queued: a tap means this one. */
+function playNow(url) {
+  queue = [];
+  playing = false;
+  if (player) { try { player.pause(); } catch (e) {} }
+  return fetchBlob(url).then(function (blob) {
+    var p = getPlayer();
+    if (playUrl) { try { URL.revokeObjectURL(playUrl); } catch (e) {} }
+    playUrl = URL.createObjectURL(blob);
+    p.src = playUrl;
+    playing = true;
+    var got = p.play();
+    if (got && got.catch) got.catch(function () { playing = false; });
+  });
+}
+
+/* --------------------------------------------------------------- phrases */
 
 function phraseOf(node) {
   if (!node) return null;
@@ -69,6 +184,22 @@ function phraseOf(node) {
 }
 
 /* A phrase's play button: play it and aim the next take at it. */
+function phrase(node, tapped) {
+  var p = phraseOf(node);
+  if (!p || !p.sha) return null;
+  aim(p);
+  var url = "/speech/" + p.sha + ".m4a";
+  if (!tapped) { enqueue(url); return null; }
+  node.classList.add("busy");
+  return playNow(url).then(function () {
+    node.classList.remove("busy");
+    node.classList.remove("failed");
+  }, function (err) {
+    node.classList.remove("busy");
+    node.classList.add("failed");
+    node.title = String(err && err.message || err);
+  });
+}
 
 function aim(p) {
   target = p && p.text ? { text: p.text, lang: p.lang || "", pinyin: p.pinyin || "" } : null;
@@ -99,6 +230,103 @@ function aimDefault() {
   if (node) aim(phraseOf(node));
 }
 
+/* ------------------------------------------------------------ a card read */
+
+function speakCard(btn) {
+  var card = btn.closest("[data-card]");
+  if (!card || !hooks.api) return null;
+  btn.classList.add("busy");
+  return speakCardId(card.dataset.card, true).then(function () {
+    btn.classList.remove("busy");
+    btn.classList.remove("failed");
+    btn.title = "read this card aloud";
+  }, function (err) {
+    btn.classList.remove("busy");
+    btn.classList.add("failed");
+    btn.title = String(err && err.message || err);
+  });
+}
+
+function speakCardId(id, now) {
+  return hooks.api("/speech/card", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ card: id }),
+  }).then(function (r) {
+    return r.json().catch(function () { return { ok: false, error: "HTTP " + r.status }; });
+  }).then(function (got) {
+    if (!got || !got.ok) throw new Error((got && got.error) || "could not be spoken");
+    return now ? playNow(got.url) : enqueue(got.url);
+  });
+}
+
+/* One speak button per card. Idempotent: the reconcile keeps nodes. */
+function decorate() {
+  Array.prototype.forEach.call(document.querySelectorAll("article.card[data-card]"),
+                               function (card) {
+    if (card.dataset.kind === "pending") return;
+    if (card.querySelector(".card-speak")) return;
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "card-speak";
+    b.title = "read this card aloud";
+    b.setAttribute("aria-label", "read this card aloud");
+    b.textContent = "▶ speak";
+    var head = card.querySelector(".card-head");
+    if (head) {
+      var num = head.querySelector(".card-num");
+      head.insertBefore(b, num || null);
+    } else {
+      b.classList.add("bare");
+      card.insertBefore(b, card.firstChild);
+    }
+  });
+}
+
+/* ------------------------------------------------------------- auto-speak */
+
+function autoKey() { return "speak-auto:" + (subject || ""); }
+
+function auto() {
+  try {
+    var v = localStorage.getItem(autoKey());
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch (e) {}
+  return !!(defaults && defaults.auto);
+}
+
+function setAuto(on) {
+  try { localStorage.setItem(autoKey(), on ? "1" : "0"); } catch (e) {}
+  paintAuto();
+}
+
+function paintAuto() {
+  if (!els.auto) return;
+  var on = auto();
+  els.auto.setAttribute("aria-pressed", on ? "true" : "false");
+  els.auto.textContent = on ? "♪  play new phrases: on" : "♪  play new phrases: off";
+}
+
+/* New cards since the last frame: their `say` phrases played in order when
+   auto-speak is on. The prose is not read. The first frame only learns what
+   is already there. */
+function speakNew(cards) {
+  var fresh = [];
+  cards.forEach(function (c) {
+    if (!c || c.kind === "pending") return;
+    if (seen && !seen[c.id]) fresh.push(c.id);
+  });
+  if (!seen) seen = {};
+  cards.forEach(function (c) { if (c && c.kind !== "pending") seen[c.id] = true; });
+  if (!fresh.length || !auto() || (hooks.ended && hooks.ended())) return;
+  fresh.forEach(function (id) {
+    Array.prototype.forEach.call(
+      document.querySelectorAll('[data-card="' + id + '"] .say-phrase'),
+      function (n) { phrase(n, false); });
+  });
+}
+
 /* --------------------------------------------------------------- the take */
 
 function mime() {
@@ -124,6 +352,7 @@ function record() {
     say("this browser cannot record", "bad");
     return Promise.resolve();
   }
+  unlock();
   if (!target) aimDefault();
   var t = { chunks: [], stream: null, rec: null, timer: null, ctx: null, raf: null };
   take = t;
@@ -327,11 +556,16 @@ function showHeard(h) {
 
 /* --------------------------------------------------------------- per frame */
 
-/* Every frame: the subject's defaults and the newest speech turn as the
-   heard block. */
+/* Every frame: the subject's defaults, the speak buttons, new cards'
+   phrases played, and the newest speech turn as the heard block. */
 function paint(data) {
   data = data || {};
+  var st = data.state || {};
   if (data.speech !== undefined) defaults = data.speech || null;
+  subject = st.subject || st.course || "";
+  paintAuto();
+  decorate();
+  if (!data.archived) speakNew(data.cards || []);
   var newest = null;
   (data.turns || []).forEach(function (t) {
     if (t.kind === "speech" && (!newest || (t.t || 0) >= (newest.t || 0))) newest = t;
@@ -354,7 +588,11 @@ window.Speak = {
   show: show,
   record: record,
   stop: stop,
+  auto: auto,
+  setAuto: setAuto,
   mime: mime,
+  decorate: decorate,
+  speakCard: speakCardId,
   aim: aim,
 };
 })();

@@ -279,6 +279,15 @@ function restore(html, store) {
   });
 }
 
+/* Escaped prose with its parked math and code put back as their own source,
+   for an attribute: a `say` phrase's words, which the take is aimed at. */
+function attrText(s, store) {
+  return s.replace(SENT_RE, function (_, n) {
+    var item = store[+n];
+    return item ? escapeHtml(item.text) : "";
+  }).replace(/"/g, "&quot;");
+}
+
 /* A CODE FENCE KEEPS ITS INFO STRING. "```py board/x.py#L40-58" is Python,
    highlighted (`codeview.js`, highlight.js in web/vendor/highlight/), numbered
    from 40, under a caption linking the read-only source viewer at that range.
@@ -379,6 +388,25 @@ function renderMarkdown(src) {
       continue;
     }
 
+    /* a `say` phrase (`lesson/cards.extract_say`): a play button that fetches
+       the phrase whole, and the words. web/speak.js plays it. */
+    var said = line.match(/^\s*@@SAY:([0-9a-f]+):(\w+):([A-Za-z0-9-]+)@@\s*(.*)$/);
+    if (said) {
+      var words = said[4].trim(), pin = "";
+      var pm = /^(.*?)\s+\(([^()]*)\)$/.exec(words);
+      if (pm) { words = pm[1]; pin = pm[2]; }
+      out.push('<div class="say-phrase" data-sha="' + said[1] + '" data-status="'
+               + said[2] + '" data-lang="' + said[3] + '" data-text="'
+               + attrText(words, store) + '" data-pinyin="'
+               + attrText(pin, store) + '">'
+               + '<button type="button" class="say-play" aria-label="play">▶</button>'
+               + '<span class="say-words" lang="' + said[3] + '">' + inline(words) + "</span>"
+               + (pin ? '<span class="say-pinyin">' + inline(pin) + "</span>" : "")
+               + "</div>");
+      i++;
+      continue;
+    }
+
     /* heading */
     var h = line.match(/^(#{1,6})\s+(.*)$/);
     if (h) {
@@ -451,6 +479,7 @@ function renderMarkdown(src) {
            !/^\s*>/.test(lines[i]) &&
            !/^\s*([-*+]|\d+[.)])\s/.test(lines[i]) &&
            !/^\s*@@FIGURE:/.test(lines[i]) &&
+           !/^\s*@@SAY:/.test(lines[i]) &&
            !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(lines[i])) {
       para.push(lines[i]);
       i++;
@@ -1512,7 +1541,7 @@ function render(data) {
        came back for ink that had gone days ago. */
     window.Annotate.loadSent(data.notes_sent);
   }
-  /* The last take heard. */
+  /* Speak buttons on the cards, new phrases played, the last take heard. */
   if (window.Speak) window.Speak.paint(data);
   renderScratch(data.uploads || []);
   /* And every address written into the lesson, checked against the payload
@@ -3099,9 +3128,9 @@ if (window.Problem) {
   });
 }
 
-/* SPEAKING AND LISTENING. speak.js owns the spoken half of the answer panel;
-   this hands it the session's routes and the question a take answers, and
-   `render` paints it. */
+/* SPEAKING AND LISTENING. speak.js owns the spoken half of the answer panel,
+   the speak buttons, the phrases and auto-speak; this hands it the session's
+   routes and the question a take answers, and `render` paints it. */
 if (window.Speak) {
   window.Speak.init({
     api: api,

@@ -2112,9 +2112,34 @@ body[data-ended] #notesend, body[data-ended] #drop {
 }
 
 /* ---------------------------------------------------------------- speaking
-   web/speak.js. The spoken half of the answer panel records a take and shows
-   what was heard, a chip per syllable. Tone chips are never colour alone: each says the
+   web/speak.js. A card's speak button sits in its head before the number (or
+   floats on a headless card); a `say` phrase is a play button and its words;
+   the spoken half of the answer panel records a take and shows what was
+   heard, a chip per syllable. Tone chips are never colour alone: each says the
    tone it heard, and `?` when it could not tell. */
+.card-head .card-speak { margin-left: auto; }
+.card-head .card-speak + .card-num { margin-left: 0; }
+.card-speak {
+  font: inherit; font-family: var(--ui); font-size: .68rem; cursor: pointer;
+  padding: .12rem .45rem; border-radius: .3rem; flex: none;
+  border: 1px solid transparent; background: transparent; color: var(--ink-3);
+}
+.card-speak:hover { border-color: var(--ink-3); color: var(--ink); }
+.card-speak.bare { float: right; margin: 0 0 .3rem .6rem; }
+.card-speak.busy, .say-phrase.busy .say-play { opacity: .5; }
+.card-speak.failed, .say-phrase.failed .say-play { text-decoration: line-through; }
+.say-phrase {
+  display: flex; align-items: baseline; gap: .6rem; flex-wrap: wrap;
+  margin: .6rem 0;
+}
+.say-play {
+  font: inherit; font-family: var(--ui); font-size: .8rem; cursor: pointer;
+  padding: .2rem .6rem; border-radius: .35rem;
+  border: 1px solid var(--ink-3); background: transparent; color: var(--ink);
+}
+.say-words { font-size: 1.25rem; }
+.say-pinyin { font-family: var(--ui); font-size: .85rem; color: var(--ink-3); }
+
 #speakbox { display: flex; flex-direction: column; gap: .55rem; padding: .7rem .9rem; color: #e9e7e2; }
 #speak-target { font-size: 1.05rem; }
 #speakrow { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
