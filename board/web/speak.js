@@ -3,10 +3,10 @@
 
    THE THIRD ANSWER TAB. `#tab-speak` opens `#speakbox` in the answer panel:
    record and stop, a level meter while recording, the phrase being aimed at,
-   and the last heard block -- "heard: ..." with a chip per syllable saying the
-   tone heard against the tone wanted. A take is posted as multipart to
-   `/s/<id>/speech/say` (`routes/speaking.py`), which answers with the heard
-   record; the tutor is given words, never the audio.
+   and the last heard block -- "heard: ..." with a chip per syllable: the tone
+   confirmed, an unconfirmed hint ("T4?"), or wrong where Azure scored it so.
+   A take is posted as multipart to `/s/<id>/speech/say` (`routes/speaking.py`),
+   which answers with the heard record; the tutor is given words, never the audio.
 
    THE MICROPHONE IS ASKED FOR ON A TAP AND LET GO AFTER EVERY TAKE.
    `getUserMedia` runs only from the record button, and every track of the
@@ -559,19 +559,31 @@ function showHeard(h) {
     h.tones.forEach(function (s) {
       var chip = document.createElement("span");
       var heard = s.heard || "unknown";
-      var state = heard === "unknown" || !s.expect ? "unknown"
-                : heard === s.expect ? "ok" : "off";
+      /* Only a recipe that scores phonemes (Azure) fails a syllable; the
+         local check confirms or leaves a hint, and a record without `call`
+         (from before it had one) is never read as a failure. */
+      var hint = s.hint || (!s.call && heard !== "unknown" && heard !== s.expect
+                            ? heard : "");
+      var state = s.call === "wrong" ? "off"
+                : s.expect && heard === s.expect && !hint ? "ok"
+                : hint ? "hint" : "unknown";
       chip.className = "tone " + state;
       chip.dataset.expect = s.expect || "";
       chip.dataset.heard = heard;
-      chip.title = "wanted " + (s.expect || "?") + ", heard " + heard
-        + (typeof s.confidence === "number" ? " (" + Math.round(s.confidence * 100) + "%)" : "");
+      var pct = typeof s.confidence === "number"
+        ? " (" + Math.round(s.confidence * 100) + "%)" : "";
+      chip.title = "wanted " + (s.expect || "?") + ", " + (
+        state === "off" ? "scored wrong" + pct
+        : state === "ok" ? "heard " + heard + pct
+        : state === "hint" ? "maybe " + hint + pct + ": unconfirmed, not a verdict"
+        : "not judged");
       var syl = document.createElement("span");
       syl.className = "syl";
       syl.textContent = s.syllable || s.pinyin || "?";
       var tone = document.createElement("span");
       tone.className = "t";
-      tone.textContent = heard === "unknown" ? "?" : heard;
+      tone.textContent = state === "off" ? "\u2717" : state === "ok" ? heard
+                       : state === "hint" ? hint + "?" : "?";
       chip.appendChild(syl);
       chip.appendChild(tone);
       row.appendChild(chip);

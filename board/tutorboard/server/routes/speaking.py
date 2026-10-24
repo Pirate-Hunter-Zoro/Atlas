@@ -156,7 +156,7 @@ def say(h, repo):
             "text": rec["heard"], "target": rec["target"], "pinyin": rec["pinyin"],
             "lang": lang, "verdict": rec["verdict"],
             "tones": [{k: s.get(k) for k in ("syllable", "pinyin", "expect", "heard",
-                                             "confidence")}
+                                             "call", "hint", "confidence")}
                       for s in got.get("syllables") or []],
             "prototype": bool(got.get("prototype")),
             "heard": "/speech/%s.heard.json" % base,

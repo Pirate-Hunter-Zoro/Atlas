@@ -19,7 +19,10 @@ for `say`; every WAV is synthesised at run time with `wave`.
   - THE TONE CHECK, on sine sweeps: T1-T4 in any order, through voiced runs
     and through whisper's timings; a split syllable merged back; silence is
     unknown; pinyin parsed with sandhi; DTW; the word diff; the prototype
-    label on every result.
+    label on every result. The local check confirms or abstains: no input,
+    a wrong tone included, ever gets a syllable called wrong, and the
+    board's Tingting voice, on phrases SURE was never set on and at three
+    rates, gets none called wrong and some confirmed.
   - THE ROUTE, end to end with STT stubbed: a take saved under the session's
     speech/, heard, judged, a turn record and a waking `[speech]` line whose
     `file:` is the heard record and never the audio; an ended session 409;
@@ -489,6 +492,8 @@ try:
           and got["syllables"][1]["heard"] == "unknown"
           and got["syllables"][1]["confidence"] == 0.4
           and "好" in got["verdict"], got)
+    check("and Azure, which scores the phonemes itself, may fail a syllable",
+          [s["call"] for s in got["syllables"]] == ["right", "wrong"], got)
 
     behave["azure_stt"] = 429
     got, by = speech.run("stt", "zh-CN", {"wav": take_wav}, live=live, cfg=cfg)
@@ -665,15 +670,66 @@ try:
     path = os.path.join(box, "nihao.wav")
     wav(path, samples)
     got = tones.assess(path, "你好", "zh-CN", pinyin="ni3 hao3")
-    check("so ni3 hao3 said as T2 T3 is every tone right",
+    check("so ni3 hao3 said as T2 T3 is every tone confirmed",
           [s["heard"] for s in got["syllables"]] == ["T2", "T3"]
-          and got["verdict"].startswith("every tone right"), got["verdict"])
+          and [s["call"] for s in got["syllables"]] == ["right", "right"]
+          and got["verdict"].startswith("every tone confirmed"), got["verdict"])
     samples, _spans = phrase(["T4", "T3"])
     wav(path, samples)
     got = tones.assess(path, "你好", "zh-CN", pinyin="ni3 hao3")
-    check("and said as T4 T3 names the syllable off",
-          "你 (heard T4, wanted T2)" in got["verdict"] and got["score"] == 50,
-          got["verdict"])
+    first = got["syllables"][0]
+    check("and said as T4 T3, 你 is unconfirmed with a T4 hint, never off",
+          first["heard"] == "unknown" and first["call"] == "unknown"
+          and first["hint"] == "T4" and first["confidence"] >= tones.SURE
+          and got["syllables"][1]["call"] == "right"
+          and "confirmed on 好" in got["verdict"] and "off" not in got["verdict"]
+          and got["score"] is None, (got["verdict"], first))
+
+    # Confirm or abstain: whatever the take, the local check never fails a
+    # syllable. Every tone said as every other, a level hum, noise, and a
+    # phrase with no pinyin at all.
+    def never_wrong(got):
+        bad = [s for s in got["syllables"]
+               if s["call"] not in ("right", "unknown")
+               or s["heard"] not in (s["expect"], "unknown")
+               or (s["call"] == "right") != (s["heard"] != "unknown")]
+        verdict = got["verdict"].lower()
+        return not bad and not any(w in verdict for w in ("off", "wrong", "wanted"))
+    names = ["T1", "T2", "T3", "T4"]
+    takes, bad = 0, []
+    probe = os.path.join(box, "probe.wav")
+    for shift in (1, 2, 3):
+        said = names[shift:] + names[:shift]
+        for meant in (names, list(reversed(names))):
+            if any(a == b for a, b in zip(said, meant)):
+                continue
+            samples, _spans = phrase(said)
+            wav(probe, samples)
+            got = tones.assess(probe, "妈麻马骂", "zh-CN",
+                               pinyin=" ".join("ma%s" % t[1] for t in meant))
+            takes += 1
+            if not never_wrong(got) or got["confirmed"]:
+                bad.append((said, meant, got["verdict"]))
+        got = tones.assess(probe, "妈麻马骂", "zh-CN")
+        takes += 1
+        if not never_wrong(got) or got["confirmed"]:
+            bad.append((said, None, got["verdict"]))
+    rng = __import__("random").Random(14)
+    wav(probe, [rng.uniform(-0.5, 0.5) for _ in range(R)])
+    for pin in ("ni3 hao3", "ma1 ma2 ma3 ma4", None):
+        got = tones.assess(probe, "你好", "zh-CN", pinyin=pin)
+        takes += 1
+        if not never_wrong(got):
+            bad.append(("noise", pin, got["verdict"]))
+    wav(probe, phrase(["T1", "T1", "T1"])[0])
+    for pin in ("ma4 ma3 ma2", "ma1 ma1 ma1", "ma ma ma", None):
+        got = tones.assess(probe, "妈妈妈", "zh-CN", pinyin=pin)
+        takes += 1
+        if not never_wrong(got):
+            bad.append(("hum", pin, got["verdict"]))
+    check("no take, a wrong tone on every syllable included, gets a syllable "
+          "called wrong (%d takes)" % takes, not bad and takes >= 14,
+          "\n".join(map(str, bad)))
 
     same = tones.contour(path)
     other_path = os.path.join(box, "other.wav")
@@ -707,41 +763,80 @@ try:
           "never called a third",
           tones.classify(dip, (0, 10), expect="T2")[0] in ("T2", "unknown"))
 
-    # The board's own reference voice, judged against its own pinyin: a
-    # prototype that calls the reference wrong is worse than one that says
-    # unknown. Every syllable called must be the one meant.
+    # The board's own reference voice, judged against its own pinyin. The
+    # local check confirms or abstains, so no syllable may be called wrong;
+    # and it must confirm some, or the check is inert.
     TINGTING = [("你好", "nǐ hǎo"), ("谢谢", "xiè xie"), ("我是学生", "wǒ shì xuésheng"),
                 ("中国", "zhōngguó"), ("我很好", "wǒ hěn hǎo"),
                 ("老师好", "lǎoshī hǎo"), ("今天天气很好", "jīntiān tiānqì hěn hǎo"),
                 ("我们去吃饭吧", "wǒmen qù chīfàn ba"),
                 ("你叫什么名字", "nǐ jiào shénme míngzi"), ("不是", "bú shì")]
+    # Held out: none of these set SURE. 一 and 不 are written as spoken.
+    HELD_OUT = [("我喜欢中文", "wǒ xǐhuan zhōngwén"),
+                ("我买了一本书", "wǒ mǎi le yì běn shū"),
+                ("他是老师", "tā shì lǎoshī"), ("你去哪里", "nǐ qù nǎlǐ"),
+                ("我想喝水", "wǒ xiǎng hē shuǐ"), ("明天见", "míngtiān jiàn"),
+                ("请坐", "qǐng zuò"), ("对不起", "duì bu qǐ"),
+                ("没关系", "méi guānxi"), ("我爱你", "wǒ ài nǐ"),
+                ("这是什么", "zhè shì shénme"), ("我不知道", "wǒ bù zhīdào"),
+                ("他们都很忙", "tāmen dōu hěn máng"),
+                ("你会说汉语吗", "nǐ huì shuō hànyǔ ma"),
+                ("我有两个哥哥", "wǒ yǒu liǎng gè gēge"),
+                ("今天星期一", "jīntiān xīngqī yī"), ("现在几点", "xiànzài jǐ diǎn"),
+                ("我要一杯咖啡", "wǒ yào yì bēi kāfēi"),
+                ("北京很大", "běijīng hěn dà"), ("她喜欢唱歌", "tā xǐhuan chànggē"),
+                ("我们一起学习", "wǒmen yìqǐ xuéxí"), ("不客气", "bú kèqi"),
+                ("你吃饭了吗", "nǐ chī fàn le ma"), ("生日快乐", "shēngrì kuàilè")]
     has_voice = bool(shutil.which("say")) and "Tingting" in subprocess.run(
         ["say", "-v", "?"], capture_output=True, text=True).stdout \
         if shutil.which("say") else False
-    if has_voice and CONVERTS:
-        called, off = 0, []
-        for k, (zh, py) in enumerate(TINGTING):
-            aiff = os.path.join(box, "tingting-%d.aiff" % k)
-            subprocess.run(["say", "-v", "Tingting", "-o", aiff, zh], check=True)
-            said = audio.to_wav16k(aiff, os.path.join(box, "tingting-%d.wav" % k))
+
+    def tingting(phrases, rate, tag):
+        """`(syllables, confirmed, wrong)` for these phrases said by Tingting
+        at `rate` words a minute (None: her default), rendered side by side."""
+        aiffs = [os.path.join(box, "tingting-%s-%d.aiff" % (tag, k))
+                 for k in range(len(phrases))]
+        procs = [subprocess.Popen(["say", "-v", "Tingting"]
+                                  + (["-r", str(rate)] if rate else [])
+                                  + ["-o", aiff, zh])
+                 for aiff, (zh, _py) in zip(aiffs, phrases)]
+        if any(p.wait() for p in procs):
+            raise RuntimeError("say -v Tingting failed")
+        total, confirmed, wrong = 0, 0, []
+        for aiff, (zh, py) in zip(aiffs, phrases):
+            said = audio.to_wav16k(aiff, aiff[:-5] + ".wav")
             for syl in tones.assess(said, zh, "zh-CN", pinyin=py)["syllables"]:
-                if syl["heard"] == "unknown":
-                    continue
-                called += 1
-                if syl["heard"] != syl["expect"]:
-                    off.append("%s %s: heard %s at %.2f, meant %s" % (
-                        zh, syl["pinyin"], syl["heard"], syl["confidence"],
-                        syl["expect"]))
-        check("Tingting's ten phrases: no syllable called wrong above SURE (%d "
-              "called)" % called, not off, "\n".join(off))
-        check("and a third of the syllables or more are called at all",
-              called >= 12, called)
+                total += 1
+                if syl["call"] == "right" and syl["heard"] == syl["expect"]:
+                    confirmed += 1
+                elif syl["call"] != "unknown" or syl["heard"] != "unknown":
+                    wrong.append("%s %s: %s %s at %.2f, meant %s" % (
+                        zh, syl["pinyin"], syl["call"], syl["heard"],
+                        syl["confidence"], syl["expect"]))
+        return total, confirmed, wrong
+
+    if has_voice and CONVERTS:
+        total, confirmed, wrong = tingting(TINGTING, None, "ten")
+        check("Tingting's ten phrases: no syllable called wrong (%d of %d "
+              "confirmed)" % (confirmed, total), not wrong, "\n".join(wrong))
+        check("and a third of the syllables or more are confirmed",
+              confirmed >= 12, confirmed)
+        for rate in (140, None, 240):
+            total, confirmed, wrong = tingting(HELD_OUT, rate, rate or "default")
+            print("     held out at say -r %s: %d of %d syllables confirmed (%.2f)"
+                  % (rate or "default", confirmed, total,
+                     confirmed / float(total or 1)))
+            check("Tingting's %d held-out phrases at say -r %s: no syllable "
+                  "called wrong, %d of %d confirmed"
+                  % (len(HELD_OUT), rate or "default", confirmed, total),
+                  not wrong and confirmed > 0, "\n".join(wrong))
     else:
         print()
         print("SKIPPED THE TINGTING SELF-CHECK: this Mac lacks %s, so the tone "
-              "check was NOT run against the board's own reference voice."
+              "check was NOT run against the board's own reference voice, on "
+              "its ten phrases or the %d held out."
               % ("the Tingting voice for `say`" if not has_voice
-                 else "afconvert or ffmpeg"))
+                 else "afconvert or ffmpeg", len(HELD_OUT)))
         print()
 
     # =======================================================================
@@ -781,6 +876,9 @@ try:
         fh.write("{}")
     check("then it is",
           sense.SPEECH_SENSE in sense.session_sense(math_repo))
+    check("SPEECH_SENSE says the local check confirms only, and Azure alone fails",
+          "never tell them a tone is wrong" in sense.SPEECH_SENSE
+          and "Only Azure" in sense.SPEECH_SENSE)
     check("SPEECH_SENSE names `board hear`, and that is a command",
           "board hear" in sense.SPEECH_SENSE)
     check("and says the local tone check is a prototype",
@@ -914,7 +1012,7 @@ try:
     msgs = inbox.unread(repo)
     m = msgs[-1]
     check("and a waking [speech] line: heard, target, verdict",
-          m["text"].startswith("[speech] heard: '你好'. Target: '你好'. every tone right")
+          m["text"].startswith("[speech] heard: '你好'. Target: '你好'. every tone confirmed")
           and inbox.wakes(m), m.get("text"))
     shown = inbox.render([m], repo)
     check("whose file: is the heard record, and the tutor never gets the audio",

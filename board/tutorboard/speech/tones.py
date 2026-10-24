@@ -12,13 +12,19 @@ meant to be? Standard library only. A PROTOTYPE, and every result says so.
                  by shape and register, a dipping second tone and the half
                  third accepted where they are spoken; a low-confidence call
                  is `unknown`, never a guess
+    assess       confirms or abstains, and never fails a syllable: a tone
+                 heard as meant at SURE or above is `right`; any other is
+                 `unknown`, its best fit kept as an unconfirmed `hint`
     dtw          the whole contour against the TTS reference's, when there is one
     word_diff    what was said against what was meant, word by word
 
 The prototype found six voiced runs in four syllables, which is why runs are
 merged to the count rather than trusted. A tone is `T1`..`T4`, `neutral` or
 `unknown`; `target` is the written tone and `expect` the one actually spoken
-after third-tone and 不 sandhi.
+after third-tone and 不 sandhi. A syllable's `call` is `right` or `unknown`
+here; only a recipe that scores phonemes itself (Azure) may call one `wrong`,
+because the contour fit makes confident wrong calls on the board's own voice
+outside the phrases SURE was set on.
 """
 
 import difflib
@@ -43,9 +49,8 @@ GAP_FRAMES = 2
 MIN_RUN = 4
 # An unvoiced frame at least this share of the loudest is inside a syllable.
 LOUD_GAP = 0.5
-# A call below this is `unknown`. Calibrated on the board's own reference
-# voice (test/speech.py renders ten phrases with `say -v Tingting`): no
-# syllable there is called wrong above 0.26, and SURE keeps clear of it.
+# A call below this is `unknown`, and only a call of the meant tone at or
+# above it confirms a syllable; no call ever fails one.
 SURE = 0.35
 # The weight of a contour's level outside its tone's REGISTER, and of its
 # gap from the template's own level, against the shape's.
@@ -428,19 +433,27 @@ def _distance(c, t, tone, soft=None):
 
 
 def classify(st, span, short=False, half=False, expect=None):
-    """`(tone, confidence, contour)` for frames `span` of the semitone track.
+    """`(tone, confidence, contour)` for frames `span` of the semitone track,
+    the tone `unknown` below SURE.
 
     `short`: brief enough to be a neutral tone. `half`: a third tone before
     another tone in its phrase, spoken low and level or low-falling (the half
     third), which is heard as T3 there. `expect`: the tone meant; a neutral
     tone, whose pitch follows the tone before it, is never called wrong, only
     neutral or `unknown`."""
+    best, sure, shape = fit(st, span, short=short, half=half, expect=expect)
+    return (best if best and sure >= SURE else "unknown"), sure, shape
+
+
+def fit(st, span, short=False, half=False, expect=None):
+    """`(tone, confidence, contour)`: `classify`'s best fit whatever its
+    confidence, the tone None when the span holds too little pitch."""
     a, b = span
     cut = max(0, (b - a) // 10)
     inner = st[a + cut:b - cut]
     points = [v for v in inner if v is not None]
     if len(points) < MIN_RUN:
-        return "unknown", 0.0, []
+        return None, 0.0, []
     c = _five(points)
     shapes = [(k, t) for k, t in TEMPLATES.items()
               if k != "neutral" or short or expect == "neutral"]
@@ -464,8 +477,7 @@ def classify(st, span, short=False, half=False, expect=None):
     # Pitch lost over much of the syllable (creak, a whisper) is no call.
     sure *= min(1.0, len(points) / (VOICED * max(1, len(inner))))
     sure = max(0.0, min(1.0, sure))
-    return (best if sure >= SURE else "unknown"), round(sure, 2), \
-        [round(v, 2) for v in c]
+    return best, round(sure, 2), [round(v, 2) for v in c]
 
 
 # ---------------------------------------------------------------------------
@@ -551,7 +563,8 @@ def unheard(ref, lang, pinyin=None):
                            "pinyin": aims[i]["syllable"] if i < len(aims) else "",
                            "target": aims[i]["target"] if i < len(aims) else None,
                            "expect": aims[i]["expect"] if i < len(aims) else None,
-                           "heard": "unknown", "confidence": 0.0}
+                           "heard": "unknown", "call": "unknown", "hint": None,
+                           "confidence": 0.0}
                           for i in range(n)],
             "words": word_diff(ref, "", lang), "prototype": True, "label": LABEL}
 
@@ -600,41 +613,41 @@ def assess(wav, ref, lang, pinyin=None, words=None, heard=None, reference=None):
         aim = aims[i] if i < len(aims) else {"syllable": "", "target": None,
                                              "expect": None}
         if span is None:
-            tone, sure, shape = "unknown", 0.0, []
+            best, sure, shape = None, 0.0, []
         else:
             half = (aim["expect"] == "T3" and not aim.get("last", True)
                     and i + 1 < len(aims) and aims[i + 1]["expect"] != "T3")
-            tone, sure, shape = classify(
+            best, sure, shape = fit(
                 st, span, short=(span[1] - span[0]) < 0.6 * typical, half=half,
                 expect=aim["expect"])
+        # Confirm or abstain: the meant tone heard surely is right; anything
+        # else is unknown, the best fit only a hint, never a wrong tone.
+        right = bool(aim["expect"]) and best == aim["expect"] and sure >= SURE
         out.append({"syllable": texts[i] if i < len(texts) else "",
                     "pinyin": aim["syllable"], "target": aim["target"],
-                    "expect": aim["expect"], "heard": tone, "confidence": sure,
+                    "expect": aim["expect"],
+                    "heard": best if right else "unknown",
+                    "call": "right" if right else "unknown",
+                    "hint": None if right else best, "confidence": sure,
                     "start": round(span[0] * HOP, 2) if span else None,
                     "end": round(span[1] * HOP, 2) if span else None,
                     "contour": shape})
 
-    known = [s for s in out if s["heard"] != "unknown" and s["expect"]]
-    wrong = [s for s in known if s["heard"] != s["expect"]]
-    unsure = [s for s in out if s["heard"] == "unknown"]
+    confirmed = [s for s in out if s["call"] == "right"]
     if not out:
         tones_said = "no syllable could be found"
     elif not aims:
-        tones_said = "tones heard: %s (no pinyin was given to check them against)" % (
-            " ".join(s["heard"] for s in out))
-    elif wrong:
-        tones_said = "tone off on %s" % ", ".join(
-            "%s (heard %s, wanted %s)" % (s["syllable"] or s["pinyin"], s["heard"],
-                                          s["expect"]) for s in wrong[:3])
-    elif len(unsure) == len(out):
-        tones_said = "tones unknown: the pitch could not be read"
-    elif unsure:
-        tones_said = "tones right where they could be read (%d of %d unsure)" % (
-            len(unsure), len(out))
+        tones_said = "tones unconfirmed: no pinyin was given to check them against"
+    elif len(confirmed) == len(out):
+        tones_said = "every tone confirmed"
+    elif not confirmed:
+        tones_said = ("no tone confirmed: the %d unconfirmed were not judged"
+                      % len(out))
     else:
-        tones_said = "every tone right"
-    score = (round(100.0 * (len(known) - len(wrong)) / len(known))
-             if known else None)
+        tones_said = "tones confirmed on %s; the other %d of %d unconfirmed, " \
+            "not judged" % (", ".join(s["syllable"] or s["pinyin"]
+                                      for s in confirmed[:6]),
+                            len(out) - len(confirmed), len(out))
     shape = None
     if reference:
         try:
@@ -645,7 +658,7 @@ def assess(wav, ref, lang, pinyin=None, words=None, heard=None, reference=None):
             shape = {"dtw": round(gap, 2),
                      "similarity": round(math.exp(-gap / 3.0), 2)}
     verdict = "; ".join(x for x in (said_words, tones_said) if x)
-    return {"verdict": "%s (%s)" % (verdict, LABEL), "score": score,
-            "syllables": out, "words": diff, "contour": shape,
+    return {"verdict": "%s (%s)" % (verdict, LABEL), "score": None,
+            "confirmed": len(confirmed), "syllables": out, "words": diff, "contour": shape,
             "segmented_by": how, "voiced_runs": len(runs),
             "prototype": True, "label": LABEL, "seconds": secs}

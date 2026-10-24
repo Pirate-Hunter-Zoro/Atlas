@@ -226,11 +226,15 @@ function paint(extra) {
   // ---- a take --------------------------------------------------------------
   heardReply = {
     ok: true, turn: '0003', rev: 1,
-    heard: { heard: '你好', target: '你好', pinyin: 'ni3 hao3', verdict: 'one tone off',
+    heard: { heard: '你好', target: '你好', pinyin: 'ni3 hao3', verdict: 'tones confirmed on 你',
              assess: { prototype: true, syllables: [
-               { syllable: '你', expect: 'T2', heard: 'T2', confidence: 0.9 },
-               { syllable: '好', expect: 'T3', heard: 'T1', confidence: 0.7 },
-               { syllable: '吗', expect: 'T0', heard: 'unknown', confidence: 0.1 }] } },
+               { syllable: '你', expect: 'T2', heard: 'T2', call: 'right', hint: null, confidence: 0.9 },
+               { syllable: '好', expect: 'T3', heard: 'unknown', call: 'unknown', hint: 'T1', confidence: 0.7 },
+               { syllable: '吗', expect: 'neutral', heard: 'unknown', call: 'unknown', hint: null, confidence: 0.1 },
+               // Azure's phoneme-level failure, the only kind that is wrong.
+               { syllable: '们', expect: 'T2', heard: 'unknown', call: 'wrong', hint: null, confidence: 0.3 },
+               // A record from before `call`: a mismatch is a hint, never wrong.
+               { syllable: '我', expect: 'T3', heard: 'T4', confidence: 0.6 }] } },
   };
   const rec = doc.getElementById('speak-rec');
   rec.click();
@@ -266,14 +270,18 @@ function paint(extra) {
   check(!heard.hidden && /heard: 你好/.test(heard.textContent),
         'the heard block says "heard: 你好"', 'no heard block: ' + heard.textContent);
   const chips = heard.querySelectorAll('.tone');
-  check(chips.length === 3, 'with a chip per syllable', 'tone chips: ' + chips.length);
-  check(chips.length === 3 && chips[0].classList.contains('ok') && chips[1].classList.contains('off')
-        && chips[2].classList.contains('unknown'),
-        'right, wrong and unsure each marked', 'the chips are not marked by verdict');
-  check(chips.length === 3 && /T1/.test(chips[1].textContent) && /\?/.test(chips[2].textContent),
-        'and each says the tone it heard, in text, not colour alone',
-        'a chip does not say what it heard');
-  check(/one tone off/.test(heard.textContent), 'with the verdict under them', 'no verdict');
+  const marks = [...chips].map(c => c.className.replace('tone ', '')).join(' ');
+  check(chips.length === 5, 'with a chip per syllable', 'tone chips: ' + chips.length);
+  check(marks === 'ok hint unknown off hint',
+        'confirmed, an unconfirmed hint, unjudged and Azure\'s wrong each marked apart, '
+        + 'and an old mismatch only a hint', 'the chips are marked: ' + marks);
+  const texts = [...chips].map(c => c.querySelector('.t').textContent).join(' ');
+  check(texts === 'T2 T1? ? \u2717 T4?',
+        'and each says it in text, not colour alone: a hint with its question mark',
+        'the chips say: ' + texts);
+  check(/unconfirmed/.test(chips[1].title) && !/wrong/.test(chips[1].title),
+        'a hint\'s title says unconfirmed, never wrong', 'hint title: ' + chips[1].title);
+  check(/tones confirmed on 你/.test(heard.textContent), 'with the verdict under them', 'no verdict');
   check(!/stop/.test(rec.textContent) && !doc.getElementById('speak-meter').classList.contains('on'),
         'and the button is back to record', 'the box still looks like it is recording');
 

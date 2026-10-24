@@ -130,9 +130,12 @@ def summary(rec):
     if got.get("syllables"):
         out.append("tones:   " + "  ".join(
             "%s %s->%s (%.2f)" % (s.get("syllable") or s.get("pinyin") or "?",
-                                  s.get("expect") or "?", s.get("heard"),
+                                  s.get("expect") or "?", _heard_as(s),
                                   s.get("confidence") or 0)
             for s in got["syllables"]))
+        if any(_heard_as(s).endswith("?") for s in got["syllables"]):
+            out.append("         (a tone with ? is an unconfirmed hint, never a "
+                       "wrong tone)")
     off = [w for w in got.get("words") or [] if w.get("op") != "equal"]
     if off:
         out.append("words:   " + ", ".join(
@@ -142,6 +145,20 @@ def summary(rec):
     if got.get("prototype"):
         out.append("(%s)" % (got.get("label") or "a prototype"))
     return "\n".join(out)
+
+
+def _heard_as(s):
+    """A syllable's tone as `board hear` prints it: the tone confirmed,
+    `wrong` only where the recipe failed it, a hint with a question mark; a
+    record from before `call` never has a mismatch read as wrong."""
+    heard = s.get("heard") or "unknown"
+    if s.get("call") == "wrong":
+        return "wrong"
+    if s.get("hint"):
+        return "%s?" % s["hint"]
+    if not s.get("call") and heard not in ("unknown", s.get("expect")):
+        return "%s?" % heard
+    return heard
 
 
 def newest(live):

@@ -694,11 +694,14 @@ def _azure_assess(spec, name, lang, job):
             t = targets[n] if n < len(targets) else None
             n += 1
             sure = (acc or 0) / 100.0
+            right = sure >= 0.8 and op == "equal"
+            # Azure scores the phonemes itself, so it alone may fail one.
             syllables.append({
                 "syllable": ch, "target": t and t["target"],
                 "expect": t and t["expect"],
-                "heard": (t and t["expect"]) if sure >= 0.8 and op == "equal"
-                else "unknown",
+                "heard": (t and t["expect"]) if right else "unknown",
+                "call": "right" if right else "wrong" if op != "equal"
+                else "unknown", "hint": None,
                 "confidence": round(sure, 2)})
     score = _pa(best, "PronScore")
     if score is None:

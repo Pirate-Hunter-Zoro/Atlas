@@ -339,10 +339,11 @@ SPEECH_SENSE = (
     "Mandarin, and gets a play button. A `[speech]` line is a take they "
     "recorded: what was heard, the target and the verdict; its `file:` is the "
     "heard record, which `board hear <file>` prints with each syllable's tone. "
-    "The local tone check is a prototype: a tone marked unknown was not "
-    "judged, so never call it wrong, and a tone it calls off is worth a "
-    "second listen, not a verdict. Run the "
-    "drill as TEACHING.md says under `A speaking drill`. "
+    "The local tone check is a prototype that confirms only: a tone it marks "
+    "right was heard right, and any other is unconfirmed, a hint like `T4?` "
+    "at most, so never tell them a tone is wrong on its word; listen again. "
+    "Only Azure, which scores the phonemes itself, can fail a syllable. Run "
+    "the drill as TEACHING.md says under `A speaking drill`. "
 )
 
 

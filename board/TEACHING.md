@@ -456,9 +456,9 @@ in the notes.md `board writeup new --md "<title>"` prints, and `board build`s it
 Every session speaks and listens. A phrase to hear goes in a fence opened with
 `say <lang>` (`pinyin="ni3 hao3"` after it for Mandarin), one phrase a fence; pose
 it, then ask them to say it back. A `[speech]` line is their take: `board hear
-<file>` prints its words and each syllable's tone. **A tone marked unknown was
-not judged, so it is never wrong**; the local check is a prototype, so a doubtful
-verdict means listen again. Correct one syllable a turn.
+<file>` prints its words and each syllable's tone. **The local check confirms
+only: never tell them a tone is wrong on its word**; unknown or a hint (`T4?`)
+means listen again. Only Azure can fail a syllable. Correct one a turn.
 
 ## Showing a slide or a figure
 

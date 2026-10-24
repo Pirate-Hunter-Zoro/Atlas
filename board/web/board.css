@@ -2174,3 +2174,4 @@ body[data-ended] #notesend, body[data-ended] #drop {
 #heard .tone.ok { border-color: #9fd49a; color: #9fd49a; }
 #heard .tone.off { border-color: #e0827c; color: #e0827c; }
 #heard .tone.unknown { color: #8b8f98; border-style: dashed; }
+#heard .tone.hint { color: #8b8f98; border-style: dotted; font-style: italic; }
