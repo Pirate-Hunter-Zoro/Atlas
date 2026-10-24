@@ -47,8 +47,8 @@ PLAIN_SENSE = (
     # The board typesets `$...$` and `$$...$$` with KaTeX, so math in prose
     # must be TeX or it ships as ugly pseudo-TeX.
     "MATHEMATICS IN A CARD IS TeX, NOT ASCII. The board typesets `$...$` and "
-    "`$$...$$`; a Greek letter spelled out or a sum written `sum_i` reaches "
-    "the glass as ugly source.\n"
+    "`$$...$$`; spelled-out Greek or `sum_i` reaches the glass as ugly "
+    "source.\n"
     # `plain.py` enforces two of these rules; the turn is told the numbers so
     # it writes the card once rather than learning them from a refusal.
     "TWO OF THOSE ARE A DOOR, NOT A REQUEST: `board write` refuses a card "
@@ -115,19 +115,20 @@ METHOD_SENSE = (
 # session: this string is the whole prompt, and TEACHING.md alone was not
 # read. `board writeup` makes the file the first time.
 WRITEUP_SENSE = (
-    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER. When their answer "
-    "to an exercise (never a rung) is agreed, before you pose the next, run "
-    "`board writeup add <label>` under the exercise's label, with the "
-    "STATEMENT, a line `---`, then THEIR argument on stdin (a quoted "
-    "heredoc). It writes both into the write-up, files their newest page "
-    "(`--turn tNNNN` for another) and rebuilds the PDF. Code "
-    "goes in fenced ``` blocks. COMPILING IS YOURS: fix a failed build and put "
-    "the LaTeX error on the board, not the word 'failed'. Nothing goes in that "
-    "they did not write -- no step, sentence or proof of yours, however right. "
+    "POSE A HOMEWORK PROBLEM BEFORE TEACHING IT: `board writeup pose <label>` "
+    "with its statement on stdin writes it if missing and shows it to them. "
+    "THE WRITE-UP IS PART OF THE TURN THAT AGREES AN ANSWER. Once their answer "
+    "to an exercise (never a rung) is agreed, before the next, run "
+    "`board writeup add <label>` with the STATEMENT, a line `---`, then THEIR "
+    "argument on stdin (a quoted heredoc). It writes both, files their newest "
+    "page (`--turn tNNNN` for another) and rebuilds the PDF. Code goes in "
+    "fenced ``` blocks. COMPILING IS YOURS: fix a failed build and put its "
+    "LaTeX error on the board, not 'failed'. Nothing goes in that they did not "
+    "write -- no step, sentence or proof of yours. "
     # Never tell them to write it up: the document is the tutor's, and a
     # missing word in a proof is a correction now, not a note for later.
-    "NEVER TELL THEM TO WRITE IT UP: report what the file NOW SAYS, and make a "
-    "correction there this turn. "
+    "NEVER TELL THEM TO WRITE IT UP: report what the file NOW SAYS, and correct "
+    "it there this turn. "
 )
 
 
@@ -370,7 +371,7 @@ def skip_sense(repo):
     still owed, read off the document so it survives a restart.
     """
     st = repo.state()
-    if (st.get("session") or "lecture") != "homework":
+    if not homework.assigned(repo.root, st):
         return SIGNAL_SENSE["skip"]
 
     line = ("they are not writing this one out NOW. This is a homework sitting, so "
@@ -665,10 +666,12 @@ def _session_sense(repo):
     """What this sitting is, in a sentence an assistant can act on: its label
     if set, else where to look; where exercises come from; the mode."""
     st = repo.state()
-    kind = st.get("session") or "lecture"
-    if kind not in ("lecture", "homework"):
-        # A legacy review, walk or make sitting reads as a lecture.
-        kind = "lecture"
+    # A sitting on a bound set is homework (`homework.bound`, less a docs/
+    # write-up): session.json has no `session`, which only a workspace's
+    # state.json still carries.
+    hw_set = homework.assigned(repo.root, st)
+    kind = ("homework" if hw_set or st.get("session") == "homework"
+            else "lecture")
     chapter = (st.get("chapter") or "").strip()
     doing = mode_sense(config.mode_of(st))
 
@@ -687,7 +690,7 @@ def _session_sense(repo):
     how += reading_sense(repo)
     how += results_sense(repo)
 
-    if kind == "homework":
+    if hw_set:
         st_hw = homework.status(repo.root, st)
         if st_hw and st_hw.get("name"):
             sheet = st_hw.get("assignment") or []
@@ -707,8 +710,10 @@ def _session_sense(repo):
                      + _sheet_refs(repo.root, sheet[0])) if sheet else (
                      "No assignment sheet is filed under %s; ask which problems are "
                      "assigned before teaching anything." % os.path.dirname(st_hw["rel"]))
-            return (how + sitting + "%s Transcribe each statement before you "
-                    "teach it. " % where)
+            now = homework.current(st_hw["problems"], st.get("problem"))
+            return (how + sitting + "%s Pose each problem before you teach "
+                    "it.%s " % (where, (" Problem %s is on their screen." % now)
+                                if now else ""))
 
     if chapter:
         return (how + "This sitting is labelled %r and it is a %s. Start there."

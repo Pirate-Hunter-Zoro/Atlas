@@ -180,7 +180,9 @@ tree gets a `doc.json` written in place, so its ids hold.
   stays tracked, and End commits it rebuilt.
 - **Write-ups.** In teach mode every agreed answer goes in with `board writeup add`, and the
   PDF is rebuilt. A course's assigned set is the same artifact, written in place
-  (`board writeup use hw04`).
+  (`board writeup use hw04`). `board writeup pose <label>` comes first: it writes a missing
+  statement and pins session.json `problem`, the problem on their screen; the panel switches
+  it with `POST /problem`.
 - **Deck or paper.** The Make menu creates the `doc.json`; a `[writeup]` turn writes and
   builds it.
 - **Meeting deck.** `board meeting --since 7d` or home's meeting panel: one brief of the

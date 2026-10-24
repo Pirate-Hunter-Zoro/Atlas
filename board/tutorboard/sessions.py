@@ -17,8 +17,10 @@
 
 A session is Mac-only and ignored (`/sessions/`; the audit refuses any path
 under it) and persists until `end`. session.json = {id, title, subject,
-mode, opened, ended, writeup, seen, code, view, sent_late?}; `subject` is a
-subject id or null, `writeup` a source path from the Atlas root or null,
+mode, opened, ended, writeup, problem, seen, code, view, sent_late?};
+`subject` is a subject id or null, `writeup` a source path from the Atlas
+root or null, `problem` the label of the write-up's problem on their screen
+or null,
 times local `YYYY-MM-DD HH:MM:SS`. `sent_late`, the subject id, is set when
 a session taught bound to nothing is sent at or after its End, and cleared
 once its wrap-up has written it up there. `code` is the cluster coding session as the Mac last
@@ -164,7 +166,8 @@ def new(title=None, base=None, now=None, view="board"):
     where = os.path.join(top, sid)
     rec = {"id": sid, "title": title or None, "subject": None, "mode": "teach",
            "opened": time.strftime(WHEN, time.localtime(now)), "ended": None,
-           "writeup": None, "seen": 0, "code": None, "view": view}
+           "writeup": None, "problem": None, "seen": 0, "code": None,
+           "view": view}
     _save(where, rec)
     for d in LAYOUT:
         os.makedirs(os.path.join(where, d), exist_ok=True)

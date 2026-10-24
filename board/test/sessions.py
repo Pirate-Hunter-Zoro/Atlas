@@ -140,8 +140,8 @@ try:
                                 time.strftime("%Y%m%d-%H%M%S", time.localtime(now))))
     want = {"id": a["id"], "title": None, "subject": None, "mode": "teach",
             "opened": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
-            "ended": None, "writeup": None, "seen": 0, "code": None,
-            "view": "board"}
+            "ended": None, "writeup": None, "problem": None, "seen": 0,
+            "code": None, "view": "board"}
     on_disk = json.load(open(os.path.join(a_dir, "session.json")))
     check("session.json is exactly the specified record, unbound, in teach",
           on_disk == want, on_disk)

@@ -274,8 +274,8 @@ def beside_sense(repo):
     out.append(
         "Work below was done by the PERSON, in their own editor, outside this "
         "board. YOU DID NOT DO ANY OF IT. Do not describe it as something you "
-        "did, do not report it as progress you made, and do not assume you know "
-        "what is in it -- read the files if the lesson touches them.")
+        "did, and do not assume you know what is in it -- read the files if the "
+        "lesson touches them.")
 
     if commits:
         out.append("")
@@ -352,6 +352,10 @@ def briefing(repo, sense, chapter=None, doing=None, repair=None):
                     hw_st["total"] - hw_st["stated"])
             if hw_st.get("next") and not do:
                 line += ", next %s unless they set it aside" % hw_st["next"]
+            # The problem on their screen, when one is pinned.
+            if st.get("problem") and homework.current(
+                    hw_st["problems"], st["problem"]) == st["problem"]:
+                line += "; problem %s is on their screen" % st["problem"]
             out.append(line + pay)
         else:
             out.append("writeup: %s (%s) -- nothing written yet%s"

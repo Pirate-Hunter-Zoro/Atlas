@@ -327,8 +327,8 @@ A homework set inverts one thing: **the problem list is not yours.**
    when its whole statement is proved, not one case of it.
 2. **Say the plan in your first card:** which problems, in order, and where you
    start. If the sheet is missing, ask which problems are assigned.
-3. **Take them one at a time**, posed and laddered like any exercise. A problem
-   they already have needs no ladder.
+3. **Take them one at a time**, each posed with `board writeup pose <label>`,
+   then laddered like any exercise. One they already have needs no ladder.
 4. **Lay the document's skeleton in order, once, then fill it as you go.** After
    your first card lands, put one `problem` environment per assigned problem into
    the set's `.tex`, in the sheet's order, each with a placeholder statement and

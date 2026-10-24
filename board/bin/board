@@ -98,6 +98,9 @@ The assistant runs these. The student never does.
                                        write-up: statement, a line ---, then
                                        their argument; files the sent page and
                                        rebuilds the PDF
+    board writeup pose <label> < text  put a problem on their screen before
+                                       teaching it: the statement on stdin is
+                                       written only where it is missing
     board writeup new|build|status     start it, rebuild it, what is still empty
     board writeup new --md [title]     a notes canvas's notes.md, in
                                        docs/<slug>/ beside its doc.json
@@ -744,6 +747,24 @@ def _notes_new(live, state, words):
     return 0
 
 
+def _writeup_pose(live, found, rest):
+    """`board writeup pose <label>`: the problem into the write-up if it is not
+    there, then pinned as the one on their screen."""
+    if not rest or rest[0].startswith("--"):
+        print("usage: board writeup pose <label> < the statement, as posed",
+              file=sys.stderr)
+        return 2
+    statement = "" if sys.stdin is None or sys.stdin.isatty() else sys.stdin.read()
+    said, why = homework.pose(found["tex"], rest[0], statement.strip("\n"))
+    if not said:
+        print("board writeup pose: %s" % why, file=sys.stderr)
+        return 1
+    live.set_state(problem=said["label"])
+    print("%s on their screen, in %s (statement %s, region %s)" % (
+        said["label"], found["rel"], said["statement"], said["region"]))
+    return 0
+
+
 def cmd_writeup(live, args):
     """The session's write-up: every agreed answer, typeset and built.
 
@@ -753,6 +774,11 @@ def cmd_writeup(live, args):
         a new problem appended where the file has no such label), copies the
         newest sent page (or turn tNN's) into handwritten/<set>-<label>.png, and
         rebuilds the PDF. Fenced ``` code blocks are set verbatim.
+    board writeup pose <label> < statement
+        before teaching a problem: writes the statement only where the label
+        is absent, a \\todo or empty, lays an empty solution region under a
+        problem without one, touches no region and no transcribed statement,
+        then pins the label as session.json `problem`, the one on their screen.
     board writeup new [title]    start it now rather than at the first add
     board writeup new --md [title]
         a notes canvas's transcript: docs/<slug>/notes.md and its doc.json,
@@ -786,7 +812,7 @@ def cmd_writeup(live, args):
         want = rest[0]
         for s in homework.sets(live.root):
             if want in (s["name"], s["rel"]) or os.path.abspath(want) == s["tex"]:
-                live.set_state(hw=s["rel"])
+                live.set_state(hw=s["rel"], problem=None)
                 print("this session writes into %s  (%s)" % (s["name"], s["rel"]))
                 return 0
         print("no problem set called %r here" % want, file=sys.stderr)
@@ -805,7 +831,7 @@ def cmd_writeup(live, args):
     if sub == "new" and "--md" in rest:
         return _notes_new(live, state, [a for a in rest if not a.startswith("--")])
 
-    if sub in ("new", "add"):
+    if sub in ("new", "add", "pose"):
         title = None
         if sub == "new":
             title = " ".join(a for a in rest if not a.startswith("--")) or None
@@ -817,13 +843,15 @@ def cmd_writeup(live, args):
             print("board writeup: %s" % exc, file=sys.stderr)
             return 1
         if found["rel"] != state.get("hw"):
-            live.set_state(hw=found["rel"])
+            live.set_state(hw=found["rel"], problem=None)
         if made:
             print("started %s" % found["rel"])
         if sub == "new":
             if not made:
                 print("this session writes into %s  (%s)" % (found["name"], found["rel"]))
             return 0
+        if sub == "pose":
+            return _writeup_pose(live, found, rest)
         if not rest or rest[0].startswith("--"):
             print("usage: board writeup add <label> [--turn tNN] [--no-page] "
                   "[--no-build] < statement, a line ---, then the argument",
@@ -890,7 +918,7 @@ def cmd_writeup(live, args):
         print(os.path.relpath(dest, live.root))
         return 0
 
-    print("unknown: board writeup %s  (add, new, build, status, use, list, file)"
+    print("unknown: board writeup %s  (add, pose, new, build, status, use, list, file)"
           % sub, file=sys.stderr)
     return 1
 

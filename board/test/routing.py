@@ -301,6 +301,9 @@ DRIVE = {
         ("/bind", lambda who: {"subject": SUBJECT[who]}, OK),
         ("/bind", {"subject": "../x"}, REFUSED),
         ("/bind", {"subject": "courses/Nowhere"}, REFUSED)]),
+    ("POST", "/problem", "lesson"): ("session", [
+        ("/problem", {"label": "{mark}"}, REFUSED),
+        ("/problem", {"label": ""}, OK)]),
     ("POST", "/handover", "lesson"): ("session", [("/handover", {"card": "0001"}, None)]),
     # Refused here; a send that lands files the session's uploads, so it is
     # driven after every read of them, before End.

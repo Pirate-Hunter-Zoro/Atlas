@@ -13,6 +13,7 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
                               session   one of them, read only
     POST /mode                session   teach or do, from now on
     POST /bind                session   bind the session to a subject, from its chip
+    POST /problem             session   the write-up's problem on their screen
     POST /handover            session   one step written for them
     POST /dismiss-finish      session   the end-of-session offer waved off
     POST /session             session   label the sitting: a lecture on a
@@ -175,6 +176,37 @@ def _bind(h, repo):
         "kind": found.get("kind") or ""}})
 
 
+def _problem(h, repo):
+    """`POST /problem {label}`: switch the problem on their screen to one of
+    the pinned write-up's, or clear it with no label. session.json `problem`
+    and a non-waking `[problem]` line; the next turn reads it. Setting the
+    label already pinned writes nothing.
+    """
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    label = str(payload.get("label") or "").strip() or None
+    st = repo.state()
+    found = homework.bound(repo.root, st)
+    if label is not None:
+        labels = [p["label"] for p in homework.problems(found["tex"])] if found else []
+        if label not in labels:
+            return h.send_json({"ok": False, "error": "no problem %s in the write-up"
+                                % label}, status=400)
+    if (st.get("problem") or None) == label:
+        return h.send_json({"ok": True, "problem": label, "changed": False})
+    repo.set_state(problem=label)
+    text = ("[problem] They are now on problem %s of %s. Pose it if it is not "
+            "posed yet." % (label, found["name"]) if label
+            else "[problem] They cleared the problem on their screen.")
+    sessions.quiet_line(repo.messages_path, text, "problem")
+    h.hub.worker.dirty.set()
+    return h.send_json({"ok": True, "problem": label, "changed": True})
+
+
 def _card_here(repo, card):
     """Is `card` the id of a card on this board? Matched against the cards
     that exist, never made into a path."""
@@ -255,7 +287,7 @@ def _session(h, repo):
         chosen = dict((x["name"], x) for x in homework.sets(repo.root)).get(want)
         if not chosen:
             return h.send_json({"ok": False, "error": "no such set"}, status=400)
-    change = {"session": kind, "finished": None, "hw": None,
+    change = {"session": kind, "finished": None, "hw": None, "problem": None,
               # Legacy sitting keys: a box, a thread, a rethink.
               "node": None, "thread": None, "rethink": None}
     if chapter:
@@ -279,6 +311,9 @@ def post(h, repo, path):
 
     if path == "/bind":
         return _bind(h, repo)
+
+    if path == "/problem":
+        return _problem(h, repo)
 
     if path == "/handover":
         return _handover(h, repo)

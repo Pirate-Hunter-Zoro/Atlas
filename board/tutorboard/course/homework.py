@@ -5,7 +5,9 @@ Two layouts exist, `homework/hw04/hw04.tex` and
 assumed; a session settles which by its pin, session.json `writeup`. A
 session's write-up is the bound set written in place, else
 `docs/<slug>/writeup.tex` from `board/tex/writeup.tex.in`: `start` makes it,
-`add` writes an agreed answer, `build` compiles it for the banner.
+`pose` puts a problem in before it is taught, `add` writes an agreed answer,
+`build` compiles it for the banner. session.json `problem` is the label on
+their screen (`current`).
 
 The constraint: problem labels are opaque strings (`7.1`, `13`, `2(b)`),
 never integers.
@@ -361,6 +363,15 @@ def bound(root, state):
     return _pinned(root, every, (state or {}).get("hw")) or _named(every, state)
 
 
+def assigned(root, state):
+    """The problem set this sitting is on, or None: `bound`, less a session's
+    own `docs/` write-up, which is no set and assigns nothing."""
+    found = bound(root, state)
+    if found and fnmatch.fnmatch(found["rel"], DOCS_LAYOUT):
+        return None
+    return found
+
+
 def _region_written(lines):
     """Is there mathematics in here, or only the placeholder comment?"""
     for line in lines:
@@ -668,6 +679,76 @@ def add(tex, label, statement, argument):
         fh.write("\n".join(lines) + "\n")
     os.replace(tmp, tex)
     return said, None
+
+
+def pose(tex, label, statement):
+    """Put problem `label` in the write-up at `tex` before it is taught.
+
+    The statement is written only where the label is absent, a `\\todo` or
+    empty; a transcribed statement and every solution region are left as
+    they are. A problem with no region gets an empty marker pair under it.
+    `({label, statement, region}, None)`, or `(None, why)` with nothing
+    written; an unchanged file is not rewritten.
+    """
+    label = str(label or "").strip()
+    if not LABEL_RE.match(label):
+        return None, ("a label is letters, digits and . _ ( ) -, at most 24: %r"
+                      % label)
+    stmt, why = verbatim(statement)
+    if why:
+        return None, why
+    try:
+        with open(tex, "r", encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError as exc:
+        return None, "cannot read %s: %s" % (tex, exc)
+    said = {"label": label, "statement": "kept", "region": "kept"}
+    top, bottom = _markers(label)
+    begin, end = _find_problem(lines, label)
+    if begin is not None and end is not None:
+        body = "\n".join(lines[begin + 1:end])
+        if end > begin and stmt.strip() and ("\\todo{" in body or not body.strip()):
+            lines[begin + 1:end] = stmt.splitlines()
+            said["statement"] = "written"
+            begin, end = _find_problem(lines, label)
+        if _find_region(lines, label)[0] is None:
+            lines[end + 1:end + 1] = [top, bottom]
+            said["region"] = "added"
+    elif begin is None:
+        last = None
+        for i in range(len(lines) - 1, -1, -1):
+            if lines[i].strip().startswith("\\end{document}"):
+                last = i
+                break
+        if last is None:
+            return None, "%s has no \\end{document} to write before" % tex
+        stmt_lines = (stmt.splitlines() if stmt.strip()
+                      else ["\\todo{statement not yet transcribed}"])
+        lines[last:last] = (["\\begin{problem}{%s}" % label] + stmt_lines
+                            + ["\\end{problem}", top, bottom, ""])
+        said["statement"] = "written" if stmt.strip() else "placeholder"
+        said["region"] = "added"
+    else:
+        return None, "problem %s in %s has no \\end{problem}" % (label, tex)
+    if said["statement"] == "kept" and said["region"] == "kept":
+        return said, None
+    tmp = tex + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    os.replace(tmp, tex)
+    return said, None
+
+
+def current(probs, pinned):
+    """The problem on their screen: the pinned label when the set has it,
+    else the next one to write up once its statement is in, else None."""
+    probs = probs or []
+    if pinned and str(pinned) in [p["label"] for p in probs]:
+        return str(pinned)
+    for p in probs:
+        if not p["written"]:
+            return p["label"] if p["stated"] else None
+    return None
 
 
 def file_page(src, found, label):
