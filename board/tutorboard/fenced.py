@@ -21,11 +21,6 @@ import time
 # content arrives unsorted. `test/showing.py` fails if one stops being refused.
 NEVER = ("phi", "data", "inbox", "stage1", "stage2", "raw", "audio")
 
-# Where a workspace keeps output worth showing. An allowlist, and it must
-# stay one: a blocklist would hand over whatever a workspace grows next.
-RESULT_DIRS = ("results", "figures", "tables", "artifacts", "analysis")
-
-
 def in_fence(rel):
     """Is any lower-cased component of this path a name in `NEVER`?
     Backslashes are normalised first, since a path from a file may use them."""

@@ -1460,8 +1460,10 @@ def drawer_status(repo):
 # pictures. `/figure/` is compiled TikZ; `/result/<id>` is a pipeline's
 # picture, never cached by `sw.js` because jobs rewrite it in place.
 
-# Where to look, and nowhere else, in the order a person would look.
-LOOK_IN = fenced.RESULT_DIRS
+# Where to look, and nowhere else, in the order a person would look. An
+# allowlist, and it must stay one: a blocklist would hand over whatever a
+# workspace grows next.
+LOOK_IN = ("results", "figures", "tables", "artifacts", "analysis")
 
 # What a figure is: raster only. Vector pictures are `/figure/`'s.
 FIGURE_SUFFIXES = (".png", ".jpg", ".jpeg")

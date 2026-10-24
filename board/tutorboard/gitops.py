@@ -7,6 +7,7 @@
     merge_in(root, theirs)                      a merge around uncommitted work
     pull(root)                                  fast-forward only, guarded
     lockfiles_moved(root, before, after)        the subjects to rebuild after one
+    uncommitted(root, rel), git_here(root)      is this file safe to overwrite
     save(root, paths, message)                  commit, then push
     save_message(paths), is_save(message)       a save's message, and reading one back
     adopt_private(base)                         clone ai-config where it is missing
@@ -554,6 +555,78 @@ def save(root, paths, message, refuse=None):
         return False, said
     ok, pushed = push(root)
     return ok, "%s\n%s" % (said, pushed)
+
+
+# ---------------------------------------------------------------------------
+# Is this file safe to let something overwrite?
+# ---------------------------------------------------------------------------
+# An overhaul is refused unless its source is committed as it stands, so the
+# overhaul is one revertible diff; never committed on the owner's behalf.
+def _out(root, *args, **kw):
+    """git's stdout alone, or None on any failure. Never raises."""
+    try:
+        p = subprocess.run(["git", "--no-optional-locks"] + list(args),
+                           cwd=root, stdout=subprocess.PIPE,
+                           stderr=subprocess.DEVNULL,
+                           timeout=kw.get("timeout", 30))
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if p.returncode != 0:
+        return None
+    return p.stdout.decode("utf-8", "replace")
+
+
+def _top(root):
+    said = _out(root, "rev-parse", "--show-toplevel", timeout=10)
+    return (said or "").strip() or root
+
+
+def pending(root):
+    """Every path a commit from here would carry, relative to the repository:
+    `git status --porcelain -uall`, because `git diff` cannot see a new
+    untracked file."""
+    out = _out(_top(root), "status", "--porcelain", "-uall", "-z")
+    if out is None:
+        return []
+    names = []
+    parts = out.split("\0")
+    i = 0
+    while i < len(parts):
+        rec = parts[i]
+        i += 1
+        if len(rec) < 4:
+            continue
+        code, path = rec[:2], rec[3:]
+        if code[0] == "R" or code[1] == "R":
+            # A rename's record is followed by its source in the next field.
+            i += 1
+        if not path or code == "!!":
+            continue
+        names.append(path)
+    return names
+
+
+def git_here(root):
+    """Is there a repository over this path at all?"""
+    return _out(root, "rev-parse", "--git-dir", timeout=10) is not None
+
+
+def uncommitted(root, rel):
+    """Is this path, relative to `root`, something a commit would still carry?
+    False when committed, and False outside any repository (no undo to
+    protect)."""
+    if not rel:
+        return False
+    top = _top(root)
+    try:
+        mine = os.path.relpath(os.path.realpath(os.path.join(root, rel)),
+                               os.path.realpath(top))
+    except ValueError:
+        return False
+    if not git_here(root):
+        return False
+    mine = mine.replace(os.sep, "/")
+    return any(p.replace(os.sep, "/") == mine for p in pending(root))
 
 
 # What `scripts/setup.sh` builds a subject's environment from, at the

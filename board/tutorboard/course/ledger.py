@@ -411,10 +411,10 @@ def _crop(repo, pdf, current, builds, item, where):
 
 def _git_head(root, src):
     """The commit whose copy of `src` is exactly the snapshot, or ""."""
-    from .. import leaving                            # local: avoids a cycle
+    from .. import gitops                             # local: avoids a cycle
 
     try:
-        if not leaving.git_here(root) or leaving.uncommitted(root, src):
+        if not gitops.git_here(root) or gitops.uncommitted(root, src):
             return ""
         p = subprocess.run(["git", "rev-parse", "HEAD"], cwd=root,
                            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,

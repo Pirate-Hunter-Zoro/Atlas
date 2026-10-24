@@ -221,36 +221,3 @@ def _reason(root, base=None):
                ", ".join(shown),
                " and %d more" % more if more else "",
                "it" if len(hit) == 1 else "them"))
-
-
-# ---------------------------------------------------------------------------
-# THE OTHER QUESTION GIT ANSWERS: is this file safe to let something overwrite?
-# ---------------------------------------------------------------------------
-# Is this file safe to overwrite? An overhaul is refused unless its source is
-# committed as it stands, so the overhaul is one revertible diff; never
-# committed on the owner's behalf. Here because `pending` is the one porcelain
-# parser; `worktree.py` stays git-free.
-def uncommitted(root, rel):
-    """Is this path, relative to `root`, something a commit would still carry?
-    False when committed, and False outside any repository (no undo to
-    protect)."""
-    if not rel:
-        return False
-    top = _top(root)
-    try:
-        mine = os.path.relpath(os.path.realpath(os.path.join(root, rel)),
-                               os.path.realpath(top))
-    except ValueError:
-        return False
-    if not git_here(root):
-        return False
-    mine = mine.replace(os.sep, "/")
-    for path in pending(root):
-        if path.replace(os.sep, "/") == mine:
-            return True
-    return False
-
-
-def git_here(root):
-    """Is there a repository over this path at all?"""
-    return _git(["rev-parse", "--git-dir"], root, timeout=10) is not None

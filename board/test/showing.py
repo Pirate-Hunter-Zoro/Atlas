@@ -169,7 +169,7 @@ check("which is the one list every walker refuses",
 for bad in ("p" + "hi", "data", "inbox", "stage1", "stage2", "raw", "audio",
             "/a/b/p%s/stage1" % "hi", "x/data/raw"):
     check("refused by name: %r" % bad, fenced.refused(bad))
-for good in fenced.RESULT_DIRS + ("results/roc",):
+for good in library.LOOK_IN + ("results/roc",):
     check("a result directory is not refused: %r" % good,
           not fenced.refused(good))
 

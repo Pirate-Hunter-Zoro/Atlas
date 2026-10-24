@@ -63,7 +63,7 @@ from . import NOT_MINE
 from . import writing
 from .. import registry
 from ...runner import service as runner
-from ... import (artifacts, fenced, leaving, paths, sense, subjects,
+from ... import (artifacts, fenced, gitops, paths, sense, subjects,
                  writeups)
 from ...course import burn
 from ...course import ledger
@@ -560,7 +560,7 @@ def rework_refused(repo, doc):
         return ("%s has no source in this repository -- there is only a built "
                 "file -- so there is nothing to rework."
                 % doc["title"])
-    if leaving.uncommitted(repo.root, src):
+    if gitops.uncommitted(repo.root, src):
         # Name the board's save tap, not `git commit`: the laptop stays shut.
         return ("`%s` has changes nothing has committed, and an overhaul "
                 "replaces the whole document: git is the only undo it has. Tap "
