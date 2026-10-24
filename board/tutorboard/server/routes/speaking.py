@@ -22,6 +22,8 @@ import json
 import os
 import re
 import time
+import threading
+import uuid
 
 from . import NOT_MINE
 from .. import multipart
@@ -38,8 +40,15 @@ MAX_TAKE = 32 * 1024 * 1024
 PHRASE = re.compile(r"\A/speech/([0-9a-f]{32})\.m4a\Z")
 CARD_ID = re.compile(r"\A\d{4}\Z")
 
+_TURN_LOCK = threading.Lock()
+
 # A card read aloud stops here.
 MAX_SPOKEN = 4000
+
+
+def take_name():
+    """A take's base name: `take-<yyyymmdd-hhmmss>-<6 hex>`, unique per take."""
+    return "take-%s-%s" % (time.strftime("%Y%m%d-%H%M%S"), uuid.uuid4().hex[:6])
 
 
 def subject_speech(repo):
@@ -89,9 +98,11 @@ def say(h, repo):
     boundary = m.group(1).strip().strip('"').encode("utf-8")
     folder = os.path.join(repo.live, "speech")
     os.makedirs(folder, exist_ok=True)
-    tid = turns.next_turn_id(repo)
-    rev = turns.turn_revision(repo, tid)
-    base = "%s-r%d" % (tid, rev)
+    # Named by when it arrived, not by its turn: hearing takes up to a few
+    # minutes, and a turn id taken now would be handed out again to any
+    # answer, or second take, that lands meanwhile. The id is taken just
+    # before the turn is written, as every other route takes it.
+    base = take_name()
     fields, types = {}, []
 
     def name_for(index, filename):
@@ -132,25 +143,33 @@ def say(h, repo):
         return h.send_json({"ok": False, "error": "not heard: %s" % exc,
                             "audio": os.path.basename(recording)}, status=502)
     got = rec.get("assess") or {}
-    record = {
-        "id": tid, "rev": rev, "kind": "speech",
-        "answers": answers,
-        "t": time.time(), "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "from": "student",
-        "text": rec["heard"], "target": rec["target"], "pinyin": rec["pinyin"],
-        "lang": lang, "verdict": rec["verdict"],
-        "tones": [{k: s.get(k) for k in ("syllable", "pinyin", "expect", "heard",
-                                         "confidence")}
-                  for s in got.get("syllables") or []],
-        "prototype": bool(got.get("prototype")),
-        "heard": "/speech/%s.heard.json" % base,
-        "read": False,
-    }
-    turns.write_turn(repo, record)
-    msg = dict(record, text=hear.line(rec), heard=rec["file"])
-    msg.pop("tones", None)
-    with open(repo.messages_path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(msg, ensure_ascii=False) + "\n")
+    # Takes heard side by side finish side by side: the id is taken and
+    # written under one lock, so two never share it.
+    with _TURN_LOCK:
+        tid = turns.next_turn_id(repo)
+        rev = turns.turn_revision(repo, tid)
+        record = {
+            "id": tid, "rev": rev, "kind": "speech",
+            "answers": answers,
+            "t": time.time(), "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "from": "student",
+            "text": rec["heard"], "target": rec["target"], "pinyin": rec["pinyin"],
+            "lang": lang, "verdict": rec["verdict"],
+            "tones": [{k: s.get(k) for k in ("syllable", "pinyin", "expect", "heard",
+                                             "confidence")}
+                      for s in got.get("syllables") or []],
+            "prototype": bool(got.get("prototype")),
+            "heard": "/speech/%s.heard.json" % base,
+            "read": False,
+        }
+        turns.write_turn(repo, record)
+        msg = dict(record, text=hear.line(rec), heard=rec["file"])
+        msg.pop("tones", None)
+        # ASCII, as every inbox writer: `inbox._mark_read` patches a line in place
+        # only when the re-dumped line fits, and a rewrite of the whole file could
+        # lose a line appended meanwhile.
+        with open(repo.messages_path, "a", encoding="utf-8") as fh:
+            fh.write(json.dumps(msg) + "\n")
     runner.wake(repo)
     h.hub.worker.dirty.set()
     h.note("speech take %s: heard %r by %s in %.1f s" % (

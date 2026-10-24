@@ -234,6 +234,8 @@ try:
                  "out = a[a.index('-of') + 1]\n"
                  "assert os.path.isfile(a[a.index('-m') + 1]), 'no model'\n"
                  "assert os.path.isfile(a[a.index('-f') + 1]), 'no wav'\n"
+                 "import time\n"
+                 "time.sleep(float(os.environ.get('WHISPER_SLEEP') or 0))\n"
                  "said = json.load(open(os.environ['WHISPER_SAYS']))\n"
                  "said['argv'] = a\n"
                  "json.dump(said, open(out + '.json', 'w'))\n")
@@ -726,8 +728,11 @@ try:
           status == 200 and got.get("ok") and rec.get("heard") == "你好"
           and rec.get("stt_by") == "local" and rec.get("assess_by") == "local",
           (status, got))
-    base = "%s-r%d" % (got.get("turn"), got.get("rev") or 0)
+    base = rec.get("base") or ""
     folder = os.path.join(where, "speech")
+    check("a take is named by when it arrived, not by a turn id taken before "
+          "it was heard", base.startswith("take-") and got.get("turn") not in base,
+          base)
     check("the take as sent, its 16 kHz WAV and its heard record are under the "
           "session's speech/",
           sorted(os.listdir(folder)) == sorted([base + ".orig.wav", base + ".wav",
@@ -754,6 +759,14 @@ try:
     check("whose file: is the heard record, and the tutor never gets the audio",
           ("file: %s" % os.path.join(folder, base + ".heard.json")) in shown
           and ".wav" not in shown and ".m4a" not in shown, shown)
+    size = os.path.getsize(repo.messages_path)
+    raw_last = open(repo.messages_path, "rb").read().splitlines()[-1]
+    _text, taken = inbox.take(repo)
+    check("the [speech] line is written ASCII, so a turn marks it read in "
+          "place and never rewrites the inbox",
+          all(b < 128 for b in raw_last) and any(t.get("kind") == "speech" for t in taken)
+          and os.path.getsize(repo.messages_path) == size,
+          (raw_last[:80], size, os.path.getsize(repo.messages_path)))
     costs = [json.loads(l) for l in open(os.path.join(where, "cost.jsonl"))]
     check("the session's cost.jsonl has the STT and the assessment",
           [c["speech"] for c in costs] == ["stt", "assess"], costs)
@@ -778,11 +791,40 @@ try:
                                 filename="take" + ext,
                                 ctype="audio/mp4" if ext == ".m4a"
                                 else "audio/webm;codecs=opus")
-        b2 = "%s-r%d" % (got.get("turn"), got.get("rev") or 0)
+        b2 = (got.get("heard") or {}).get("base") or ""
         check("a %s take is converted by %s to 16 kHz mono and heard" % (ext, tool),
               status == 200 and got["heard"]["heard"] == "你好"
               and audio.wav_shape(os.path.join(folder, b2 + ".wav"))[:3] == (R, 1, 16)
               and os.path.isfile(os.path.join(folder, b2 + ext)), got)
+
+    # Two takes heard at once, and a typed answer landing while they are
+    # heard: three turns, three ids, and neither take's files overwritten.
+    from tutorboard.lesson import turns as lesson_turns
+    os.environ["WHISPER_SLEEP"] = "1.5"
+    answers = {}
+
+    def one_take(k):
+        answers[k] = post_take(sid, TAKE, {"lang": "zh-CN", "ref": "你好",
+                                           "pinyin": "ni3 hao3"})
+    racing = [threading.Thread(target=one_take, args=(k,)) for k in (0, 1)]
+    for th in racing:
+        th.start()
+    time.sleep(0.6)
+    typed = lesson_turns.next_turn_id(repo)
+    lesson_turns.write_turn(repo, {"id": typed, "rev": 1, "kind": "text",
+                                   "from": "student", "text": "typed meanwhile",
+                                   "t": time.time(), "read": False})
+    for th in racing:
+        th.join()
+    os.environ["WHISPER_SLEEP"] = "0"
+    ids = [typed] + [answers[k][1].get("turn") for k in (0, 1)]
+    bases = [answers[k][1].get("heard", {}).get("base") for k in (0, 1)]
+    check("two takes heard at once and a typed answer meanwhile get three turn ids",
+          all(answers[k][0] == 200 for k in (0, 1)) and len(set(ids)) == 3, ids)
+    check("and each take keeps its own recording and heard record",
+          len(set(bases)) == 2 and all(
+              os.path.isfile(os.path.join(folder, b + ".heard.json")) for b in bases),
+          bases)
 
     status, got = post_take(sid, TAKE, {"ref": "你好", "pinyin": "ni3 hao3"})
     check("with no lang, the subject's speech.lang is used",
