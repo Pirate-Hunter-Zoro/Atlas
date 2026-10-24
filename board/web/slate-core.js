@@ -188,6 +188,7 @@ function inPolygon(x, y, poly) {
    never taints. */
 var FIGS = {};                /* url -> {state, img, w, h, tints, png, at} */
 var figWatchers = [];         /* each surface's repaint, for a figure arriving */
+var figGen = 0;               /* figures arrived (or failed) so far: a photograph's key */
 var serverPng = false;
 var taintKnown = false;
 /* CSS pixels per pixel of the server's PNG: dvisvgm at zoom 1.35 against
@@ -213,6 +214,7 @@ function figTainted(img) {
 }
 
 function figTell(f) {
+  figGen++;
   figWatchers.slice().forEach(function (fn) {
     try { fn(f); } catch (e) { /* one surface's fault is its own */ }
   });
@@ -648,8 +650,12 @@ function create(opts) {
     return p.objects;
   }
 
-  /* A figure arriving repaints whatever shows it. */
-  figWatchers.push(function () { invalidateInk(); });
+  /* A figure arriving repaints whatever shows it: this surface, and through
+     `onFigure` the host's photographs, which `shoot` took without it. */
+  figWatchers.push(function () {
+    invalidateInk();
+    if (typeof opts.onFigure === "function") opts.onFigure();
+  });
 
   /* A page's number is its name on disk, carried, never counted from its
      position: saved pages have gaps, and an index would save onto a
@@ -2821,6 +2827,10 @@ function create(opts) {
      photographs by it: a picture taken on slate is wrong the moment the paper
      turns white, and it has no other way to know that anything changed. */
   api.paper = function () { return tool.paper + "/" + tool.rule; };
+  /* How many figures have arrived. A photograph of a page with a given on it
+     taken before its figure came is missing the given, so the host keys its
+     photographs by this as well as by the paper. */
+  api.figures = function () { return figGen; };
 
   /* Ink from somewhere else, as a page of its own: for a board whose sheet
      was cleared, reused or cloned over, so the answer can be written on again.
@@ -2888,6 +2898,12 @@ function create(opts) {
     return new Promise(function (resolve) {
       var tries = 0;
       function land() {
+        /* Not onto the stand-in sheet: the saved pages replace it when they
+           arrive, and a given on it would go with it. */
+        if (!loaded) {
+          if (++tries > 200) return resolve(false);
+          return setTimeout(land, 50);
+        }
         var f = figure(figBase, g.fig);
         if (f.state === "loading" || (f.state === "error" && !f.at)) {
           if (++tries > 200) return resolve(false);

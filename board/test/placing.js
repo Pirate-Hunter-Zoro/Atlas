@@ -9,7 +9,11 @@
 //   2. the lasso moves it, the eraser takes it whole, and undo brings it back;
 //   3. a save carries it, and the picture a send carries draws it under the
 //      ink;
-//   4. where drawing an SVG taints the canvas (some iPad Safari builds), the
+//   4. a photograph taken before a given's figure came is retaken: the
+//      surface counts arrivals and tells the host (`figures`, `onFigure`);
+//   5. a given placed before the saved pages arrive waits for them, and lands
+//      on the adopted page rather than the stand-in sheet they replace;
+//   6. where drawing an SVG taints the canvas (some iPad Safari builds), the
 //      first figure is caught doing it, every figure comes from the server's
 //      PNG instead, and the picture is still made.
 //
@@ -35,7 +39,8 @@ const FIG = 'de62f3b1439edd70';
 
 // A page whose canvases remember what was drawn on them, in order, and which
 // of them an SVG has tainted when `taints` is set.
-function world(taints) {
+function world(taints, more) {
+  more = more || {};
   const dom = new JSDOM('<!doctype html><body><div id="slate"></div></body>', {
     runScripts: 'outside-only', pretendToBeVisual: true, url: 'https://board.test/s/20261023-1/board',
   });
@@ -98,7 +103,9 @@ function world(taints) {
   const saves = [];
   window.fetch = (u, init) => {
     if (/slate\/state/.test(String(u))) {
-      return Promise.resolve({ json: () => Promise.resolve({ pages: [] }) });
+      const body = { pages: more.pages || [] };
+      return new Promise((r) => setTimeout(() => r({ json: () => Promise.resolve(body) }),
+                                           more.stateDelay || 0));
     }
     if (init && init.method === 'POST') {
       saves.push({ url: String(u), body: JSON.parse(init.body) });
@@ -114,6 +121,7 @@ function world(taints) {
   const slate = window.Slate.create({
     root: window.document.getElementById('slate'), compact: false,
     stateUrl: '/s/20261023-1/slate/state', saveUrl: '/s/20261023-1/slate/save',
+    onFigure: more.onFigure,
   });
   return { window, slate, log, loaded, saves };
 }
@@ -233,6 +241,37 @@ const P = { id: 'P', tex: 'P=\\begin{pmatrix} \\tfrac12 & 0 \\end{pmatrix}', fig
   const sentB = B.saves.filter((s) => s.body.send)[0];
   !threw && sentB && /data:image\/png/.test(sentB.body.png)
     ? ok('and the picture is still made') : fail('the tainted send: ' + (threw && threw.message));
+
+  // ------------------------------------------- a photograph retaken
+  let told = 0;
+  const C = world(false, { onFigure: () => { told++; } });
+  await sleep(20);
+  const before = C.slate.figures();
+  const ink = { w: 900, h: 500, strokes: [],
+                objects: [{ id: 'P', kind: 'tex', tex: P.tex, fig: FIG, x: 10, y: 10, w: 134, h: 75 }] };
+  const figDraws = () => C.log.filter((c) => c.k === 'drawImage' && c.args.length === 5
+                                            && c.args[0] && c.args[0].tagName === 'CANVAS').length;
+  C.log.length = 0;
+  const early = C.slate.previewInk(ink, 900, 420);
+  const drewEarly = figDraws();
+  await sleep(20);
+  C.log.length = 0;
+  const late = C.slate.previewInk(ink, 900, 420);
+  early && drewEarly === 0 && C.slate.figures() > before && told > 0 && late && figDraws() === 1
+    ? ok('a frozen board shot before its given\'s figure came is told of the arrival, and the retake has it')
+    : fail('early draws ' + drewEarly + ' figures ' + before + '->' + C.slate.figures()
+           + ' told ' + told + ' late draws ' + figDraws());
+
+  // ------------------------------------- placed before the pages arrive
+  const saved = { page: 3, w: 900, h: 500, strokes: [{ c: '#fff', w: 2, p: [[1, 1, 0.5], [9, 9, 0.5]] }] };
+  const D = world(false, { pages: [saved], stateDelay: 60 });
+  await sleep(5);
+  const placedD = await D.slate.placeTex(P);
+  placedD && D.slate.ready() && D.slate.pages() === 1 && D.slate.at() === 3
+    && D.slate.inkOn() === 1 && D.slate.objects().length === 1
+    ? ok('a given placed before the saved pages arrive lands on the adopted page')
+    : fail('placed ' + placedD + ' ready ' + D.slate.ready() + ' pages ' + D.slate.pages()
+           + ' at ' + D.slate.at() + ' objects ' + JSON.stringify(D.slate.objects()));
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\na given goes onto the page, moves, rubs out, undoes and is sent');

@@ -3084,6 +3084,7 @@ if (window.Problem) {
     place: function (g) {
       if (!writer || !writer.placeTex) return "the writing surface is still loading";
       if (els.writer.hidden) return "no page is open to write on";
+      if (writer.ready && !writer.ready()) return "the writing surface is still loading";
       return writer.placeTex(g).then(function (done) {
         return done ? g.id + " is on the page: drag it with the lasso"
                     : g.id + " is still being typeset; try again in a moment";
@@ -5344,7 +5345,10 @@ function paintBoards(qids, liveKey, off) {
      on it. The paper is a device setting -- one tap turns the whole sitting from
      slate to white -- and without it in the key the pictures kept the old scheme
      until something else happened to change them. */
-  var skin = writer && writer.paper ? writer.paper() : "";
+  /* And by how many figures have arrived: a board with a given on it,
+     photographed before the given's figure came, is missing the given. */
+  var skin = (writer && writer.paper ? writer.paper() : "")
+           + (writer && writer.figures ? ":" + writer.figures() : "");
   /* And the box each picture sits in is painted the same colour as the paper.
      It was #101114 in the stylesheet -- the slate's own black -- which is right
      until somebody chooses white paper, and then every board that has nothing on
@@ -6139,6 +6143,7 @@ function placeWriter(owed, questionNode, live, hold) {
 
 /* The one place the surface is built. Returns whether it started building one --
    `false` means there is already one, or this browser has no Slate at all. */
+var figureRender = null;
 function makeWriter(then) {
   if (writer || !window.Slate) return false;
   {
@@ -6186,6 +6191,15 @@ function makeWriter(then) {
            the live surface turns white and a dozen dormant boards stay on
            slate. */
         onPaper: function () { if (lastLive) render(lastLive); },
+        /* A typeset given's figure arriving: the photographs taken without
+           it are retaken. Several arriving together cost one render. */
+        onFigure: function () {
+          if (figureRender) return;
+          figureRender = setTimeout(function () {
+            figureRender = null;
+            if (lastLive) render(lastLive);
+          }, 0);
+        },
       });
       window.__writerDebug = writer.debug;
       if (then) then();
