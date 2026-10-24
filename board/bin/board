@@ -2154,7 +2154,8 @@ def cmd_cost(live, args):
     """What the turns on this machine cost, read from every session's
     `cost.jsonl` under the Atlas root's `sessions/`.
 
-        board cost                     every session that billed, one line each
+        board cost                     every session that billed, one line each,
+                                       and speech apart, sessionless jobs too
         board cost <session id>        one session, in total
         board cost <subject>           every session bound to it, one line each
         board cost <directory>         one directory's own cost.jsonl
@@ -2202,7 +2203,7 @@ def cmd_cost(live, args):
         for r in pick:
             usage.cost_report(cfg, r, per_turn=turns)
         return 0
-    return usage.cost_all(cfg, pick)
+    return usage.cost_all(cfg, pick, sessionless=False)
 
 
 def cmd_code(live, args):

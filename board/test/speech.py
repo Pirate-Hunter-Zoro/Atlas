@@ -510,6 +510,33 @@ try:
         usage.cost_report({}, {"dir": "live", "root": live})
     check("`board cost` counts a speech job apart from the turns",
           "1 turn(s)" in out.getvalue() and "speech:" in out.getvalue(), out.getvalue())
+    got, by = speech.run("stt", "zh-CN", {"wav": take_wav}, cfg=cfg)
+    alone = usage.read_jsonl(os.path.join(os.environ["BOARD_STATE_DIR"],
+                                          "speech-cost.jsonl"))
+    check("a job with no session costs in the state directory's speech-cost.jsonl",
+          len(alone) == 1 and alone[0]["agent"] == "speech:%s" % by, alone)
+    only_speech = os.path.join(box, "only-speech")
+    os.makedirs(only_speech)
+    with open(os.path.join(only_speech, "cost.jsonl"), "w") as fh:
+        fh.write(json.dumps(alone[0]) + "\n")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        usage.cost_all({}, [{"dir": "live", "root": live},
+                            {"dir": "only-speech", "root": only_speech}])
+    said = out.getvalue()
+    check("bare `board cost` shows speech apart from the turns: each place's, "
+          "and the jobs no session paid for",
+          "speech, apart from the turns" in said and "no session" in said
+          and "only-speech" in said and "1 turn(s)" in said
+          and "speech in total: %d job(s)" % (len(costs) + 2) in said, said)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        usage.cost_all({}, [{"dir": "only-speech", "root": only_speech}],
+                       sessionless=False)
+    check("and a place that only spoke still shows, with no sessionless line "
+          "when one subject is asked for",
+          "no turn has reported" in out.getvalue() and "only-speech" in out.getvalue()
+          and "no session" not in out.getvalue(), out.getvalue())
 
     # whisper-cli under -ml 1 cuts a segment per token, and a Chinese
     # character of two tokens ends one segment halfway through its UTF-8.

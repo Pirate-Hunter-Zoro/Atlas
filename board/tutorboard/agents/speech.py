@@ -449,7 +449,8 @@ def run(kind, lang, job, live=None, cfg=None):
                                                        -> tones.assess's shape
 
     One line goes to `live/cost.jsonl` (the session's), or to the state
-    directory's `speech-cost.jsonl` when there is no session.
+    directory's `speech-cost.jsonl` when there is no session; bare `board
+    cost` reads both.
     """
     cfg = load() if cfg is None else cfg
     lang = clean_lang(lang)
@@ -498,8 +499,8 @@ def record_cost(live, name, kind, lang, spec, job, got, took):
            "took": round(took, 2),
            "usd": round(_usd(spec, kind, job, got), 6),
            "host": machine.node_name()}
-    where = os.path.join(live, "cost.jsonl") if live else os.path.join(
-        paths.STATE_DIR, "speech-cost.jsonl")
+    from tutorboard.agents import usage
+    where = os.path.join(live, usage.COST_LOG) if live else usage.speech_log()
     try:
         os.makedirs(os.path.dirname(where), exist_ok=True)
         with open(where, "a", encoding="utf-8") as fh:

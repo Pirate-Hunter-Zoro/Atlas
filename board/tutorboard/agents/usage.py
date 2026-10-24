@@ -11,6 +11,7 @@ import os
 import re
 import time
 
+from tutorboard import paths
 from tutorboard.agents import recipes
 from tutorboard.course import repo as course_repo
 
@@ -399,24 +400,34 @@ def read_costs(where):
     path = os.path.join(where, COST_LOG)
     if not os.path.isfile(path):
         path = course_repo.session_path(where, COST_LOG) or path
+    return read_jsonl(path)
+
+
+def read_jsonl(path):
+    """Every line of `path` that is JSON; a torn line is skipped."""
+    out = []
     try:
         with open(path, "r", encoding="utf-8") as fh:
-            return [json.loads(l) for l in fh if l.strip()]
-    except (OSError, ValueError):
-        out = []
-        try:
-            with open(path, "r", encoding="utf-8") as fh:
-                for l in fh:
-                    l = l.strip()
-                    if not l:
-                        continue
-                    try:
-                        out.append(json.loads(l))
-                    except ValueError:
-                        pass
-        except OSError:
-            pass
-        return out
+            for l in fh:
+                l = l.strip()
+                if not l:
+                    continue
+                try:
+                    out.append(json.loads(l))
+                except ValueError:
+                    pass
+    except OSError:
+        pass
+    return out
+
+
+# A speech job with no session (a phrase made for a card) costs here.
+SPEECH_LOG = "speech-cost.jsonl"
+
+
+def speech_log():
+    return os.path.join(paths.STATE_DIR, SPEECH_LOG)
+
 
 def split_speech(rows):
     """`(turn rows, speech rows)`: a speech job (`agents/speech.record_cost`)
@@ -448,32 +459,47 @@ def _share(window):
     return share
 
 
-def cost_all(cfg, found):
+def cost_all(cfg, found, sessionless=True):
     """`board cost`: every place in `found` that billed, one line each.
-    Each is `{dir, root}`, `root` a session directory or a workspace root."""
+    Each is `{dir, root}`, `root` a session directory or a workspace root.
+    Speech jobs are shown apart from the turns, each place's on a line of its
+    own, and with `sessionless` the state directory's `speech-cost.jsonl`
+    too, which holds the jobs no session paid for."""
     share = _share(_window(cfg))
-    rows = [(c, split_speech(read_costs(c["root"]))[0]) for c in found]
-    rows = [(c, r) for c, r in rows if r]
+    split = [(c, split_speech(read_costs(c["root"]))) for c in found]
+    rows = [(c, turns) for c, (turns, _spoken) in split if turns]
+    spoken = [(c["dir"], said) for c, (_turns, said) in split if said]
+    if sessionless:
+        said = split_speech(read_jsonl(speech_log()))[1]
+        if said:
+            spoken.append(("no session", said))
     if not rows:
         print("no turn has reported a cost on this machine yet.")
         print("Turns record one only on a recipe whose `usage` names a "
               "parser -- `claude-json`, `codex-jsonl` or `opencode-json`; see "
               "agents/recipes.py.")
-        return 0
-    print("%-22s %6s %8s %11s %10s  %s" %
-          ("where", "turns", "trips/t", "tokens/t", "total", "who"))
-    for c, r in sorted(rows, key=lambda x: -sum(t.get("tokens", 0) for t in x[1])):
-        n = len(r)
-        print("%-22s %6d %8.1f %11s %9.2f  %s" %
-              (c["dir"][:22], n,
-               sum(t.get("requests", 0) for t in r) / float(n),
-               thousands(sum(t.get("tokens", 0) for t in r) / float(n)),
-               sum(t.get("usd", 0) for t in r),
-               ", ".join(sorted({t.get("agent") or "?" for t in r}))))
-    total = sum(t.get("tokens", 0) for _, r in rows for t in r)
-    print("\n%s tokens across %d turn(s) on %s%s"
-          % (thousands(total), sum(len(r) for _, r in rows), recipes.this_host(),
-             share(total)))
+    else:
+        print("%-22s %6s %8s %11s %10s  %s" %
+              ("where", "turns", "trips/t", "tokens/t", "total", "who"))
+        for c, r in sorted(rows, key=lambda x: -sum(t.get("tokens", 0) for t in x[1])):
+            n = len(r)
+            print("%-22s %6d %8.1f %11s %9.2f  %s" %
+                  (c["dir"][:22], n,
+                   sum(t.get("requests", 0) for t in r) / float(n),
+                   thousands(sum(t.get("tokens", 0) for t in r) / float(n)),
+                   sum(t.get("usd", 0) for t in r),
+                   ", ".join(sorted({t.get("agent") or "?" for t in r}))))
+        total = sum(t.get("tokens", 0) for _, r in rows for t in r)
+        print("\n%s tokens across %d turn(s) on %s%s"
+              % (thousands(total), sum(len(r) for _, r in rows), recipes.this_host(),
+                 share(total)))
+    if spoken:
+        print("\nspeech, apart from the turns:")
+        for where, said in spoken:
+            print("%-22s%s" % (where[:22], speech_line(said)[1:]))
+        print("speech in total: %d job(s), $%.3f"
+              % (sum(len(r) for _, r in spoken),
+                 sum(t.get("usd", 0) for _, r in spoken for t in r)))
     return 0
 
 
