@@ -825,8 +825,7 @@ def _local_stt(spec, name, lang, job):
             argv += ["--prompt", WHISPER_PROMPTS[primary(lang)]]
         _cmd(argv, timeout=120)
         try:
-            with open(base + ".json", "r", encoding="utf-8", errors="replace") as fh:
-                got = json.load(fh)
+            got = read_whisper(base + ".json")
         except (OSError, ValueError) as exc:
             raise Refused("whisper-cli wrote no transcript: %s" % exc)
     finally:
@@ -834,18 +833,38 @@ def _local_stt(spec, name, lang, job):
     return dict(whisper_words(got), seconds=audio.seconds(job["wav"]))
 
 
+def read_whisper(path):
+    """whisper-cli's `-oj` file, its bytes kept: under `-ml 1` a segment is a
+    token, and a CJK character of several tokens ends one segment halfway
+    through its UTF-8. Read as `surrogateescape`, `whisper_words` can join
+    the halves back into the character."""
+    with open(path, "rb") as fh:
+        return json.loads(fh.read().decode("utf-8", "surrogateescape"))
+
+
 def whisper_words(got):
     """`{text, words}` from whisper-cli's `-oj` output, one segment a word
-    under `-ml 1`."""
+    under `-ml 1`. Segments that end inside a character are joined, with
+    the first's start and the last's end, and punctuation is no word."""
     words, text = [], ""
+    held, start = b"", None
     for seg in (got or {}).get("transcription") or []:
-        said = seg.get("text") or ""
-        text += said
         off = seg.get("offsets") or {}
-        if said.strip():
+        if not held:
+            start = off.get("from")
+        held += str(seg.get("text") or "").encode("utf-8", "surrogateescape")
+        try:
+            said = held.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        held = b""
+        text += said
+        if any(ch.isalnum() for ch in said):
             words.append({"text": said.strip(),
-                          "start": (off.get("from") or 0) / 1000.0,
+                          "start": (start or 0) / 1000.0,
                           "end": (off.get("to") or 0) / 1000.0})
+    if held:
+        text += held.decode("utf-8", "replace")
     return {"text": text.strip(), "words": words}
 
 

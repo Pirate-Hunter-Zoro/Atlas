@@ -272,9 +272,12 @@ def merge_to(runs, n, rms=None):
 
 def from_words(words, n):
     """Frame spans from whisper's word timings, one per character of a
-    multi-character word, or None when they do not count out to `n`."""
+    multi-character word, punctuation skipped, or None when they do not
+    count out to `n`."""
     spans = []
     for w in words or []:
+        if not any(ch.isalnum() for ch in str(w.get("text") or "")):
+            continue          # punctuation, which is no syllable
         try:
             start, end = float(w.get("start")), float(w.get("end"))
         except (TypeError, ValueError):

@@ -250,6 +250,9 @@ try:
                  "import time\n"
                  "time.sleep(float(os.environ.get('WHISPER_SLEEP') or 0))\n"
                  "said = json.load(open(os.environ['WHISPER_SAYS']))\n"
+                 "if 'raw_hex' in said:\n"
+                 "    open(out + '.json', 'wb').write(bytes.fromhex(said['raw_hex']))\n"
+                 "    sys.exit(0)\n"
                  "said['argv'] = a\n"
                  "json.dump(said, open(out + '.json', 'w'))\n")
     os.chmod(fake_whisper, 0o755)
@@ -507,6 +510,34 @@ try:
         usage.cost_report({}, {"dir": "live", "root": live})
     check("`board cost` counts a speech job apart from the turns",
           "1 turn(s)" in out.getvalue() and "speech:" in out.getvalue(), out.getvalue())
+
+    # whisper-cli under -ml 1 cuts a segment per token, and a Chinese
+    # character of two tokens ends one segment halfway through its UTF-8.
+    ni = "你".encode("utf-8")
+    raw = (b'{"transcription": ['
+           b'{"offsets": {"from": 100, "to": 200}, "text": "' + ni[:2] + b'"},'
+           b'{"offsets": {"from": 200, "to": 300}, "text": "' + ni[2:] + b'"},'
+           b'{"offsets": {"from": 300, "to": 330}, "text": "\xef\xbc\x8c"},'
+           b'{"offsets": {"from": 330, "to": 600}, "text": "' + "好".encode() + b'"}]}')
+    split_says = os.path.join(box, "whisper-split.json")
+    with open(split_says, "w") as fh:
+        json.dump({"raw_hex": raw.hex()}, fh)
+    os.environ["WHISPER_SAYS"] = split_says
+    got, by = speech.run("stt", "zh-CN", {"wav": take_wav},
+                         cfg=speech.load({"order": {"stt": ["local"]},
+                                          "recipes": {"local": LOCAL}}))
+    check("a character whisper cut in two is joined whole, never U+FFFD",
+          by == "local" and got["text"] == "你，好" and "\ufffd" not in got["text"], got)
+    check("with the first half's start and the second's end, and punctuation "
+          "no word",
+          [(w["text"], w["start"], w["end"]) for w in got["words"]]
+          == [("你", 0.1, 0.3), ("好", 0.33, 0.6)], got["words"])
+    check("so whisper's timings still count out to the syllables past a comma",
+          tones.from_words([{"text": "你", "start": 0.1, "end": 0.3},
+                            {"text": "，", "start": 0.3, "end": 0.33},
+                            {"text": "好", "start": 0.33, "end": 0.6}], 2)
+          == [[10, 30], [33, 60]])
+    os.environ.pop("WHISPER_SAYS", None)
 
     # =======================================================================
     # 3. THE TONE CHECK
