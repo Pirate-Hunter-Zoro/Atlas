@@ -22,16 +22,24 @@ between those two is most of what these routes are about.
     POST /file              session    one upload `{upload, dest?}` filed into
                                        the bound subject (`sessions.file`),
                                        its ink re-keyed; `doc` is its new id
+    POST /fetch             session    `{url}`: a PDF fetched over http or
+                                       https into the session's uploads/,
+                                       answered as /upload answers
 
 The classes are `handler.UNPREFIXED`'s.
 """
 
 import re
 import shutil
+import tempfile
 import time
 import hashlib
 import json
 import os
+import posixpath
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from . import NOT_MINE
 from .. import multipart
@@ -418,6 +426,8 @@ def post(h, repo, path):
 
     if path == "/upload":
         return upload(h, repo)
+    if path == "/fetch":
+        return fetch(h, repo)
     if path == "/file":
         return file_upload(h, repo)
     return NOT_MINE
@@ -502,11 +512,18 @@ def upload(h, repo):
     except OSError as exc:
         h.note("upload failed: %s" % exc)
         return refuse(500, "the upload could not be written: %s" % exc)
+    return _landed(h, repo, [(where, size) for _filename, where, size in got])
+
+
+def _landed(h, repo, got):
+    """The reply to files now in the session's `uploads/`, `[(path, size)]`:
+    each with a non-waking `[uploaded]` line, and a PDF's `doc`, the id the
+    reader opens it as."""
     from ... import sessions                       # local: sessions imports this
     from ...course import library
     ids = dict((u["name"], u["id"]) for u in library.uploads(repo))
     saved = []
-    for _filename, where, size in got:
+    for where, size in got:
         name = os.path.basename(where)
         one = {"name": name, "size": size}
         if ids.get(name):
@@ -519,3 +536,178 @@ def upload(h, repo):
     h.hub.worker.dirty.set()
     return h.send_json({"ok": True, "saved": [s["name"] for s in saved],
                         "files": saved})
+
+
+# ---------------------------------------------------------------------------
+# A PDF FROM A URL
+# ---------------------------------------------------------------------------
+# Only these schemes are fetched, before a redirect and after it: a file://
+# or ftp:// answer would read the Mac's own disk or a server nobody chose.
+FETCH_SCHEMES = ("http", "https")
+FETCH_TIMEOUT = 60
+PDF_MAGIC = b"%PDF-"
+
+
+class _Refused(ValueError):
+    """A fetch refused as asked; `status` is the reply's."""
+
+    def __init__(self, why, status=400):
+        ValueError.__init__(self, why)
+        self.status = status
+
+
+def _off_http(url):
+    """A refusal for an address that is not http or https, else None."""
+    scheme = urllib.parse.urlsplit(url).scheme.lower()
+    if scheme in FETCH_SCHEMES:
+        return None
+    return _Refused("it redirects to %s, and only http and https are fetched"
+                    % (scheme + "://" if scheme else url))
+
+
+class _Redirects(urllib.request.HTTPRedirectHandler):
+    """The stock redirect handler, refusing any redirect off http or https in
+    the board's own words (the stock one follows one to ftp)."""
+
+    def http_error_302(self, req, fp, code, msg, headers):
+        said = headers.get("location") or headers.get("uri")
+        if said:
+            refused = _off_http(urllib.parse.urljoin(req.full_url, said))
+            if refused:
+                fp.close()
+                raise refused
+        return urllib.request.HTTPRedirectHandler.http_error_302(
+            self, req, fp, code, msg, headers)
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        refused = _off_http(newurl)
+        if refused:
+            raise refused
+        return urllib.request.HTTPRedirectHandler.redirect_request(
+            self, req, fp, code, msg, headers, newurl)
+
+
+def _opener():
+    """An opener with http, https and redirects only: built by hand, because
+    `build_opener` adds a FileHandler, an FTPHandler and a DataHandler."""
+    out = urllib.request.OpenerDirector()
+    for one in (urllib.request.ProxyHandler(), urllib.request.UnknownHandler(),
+                urllib.request.HTTPHandler(), urllib.request.HTTPSHandler(),
+                urllib.request.HTTPDefaultErrorHandler(), _Redirects(),
+                urllib.request.HTTPErrorProcessor()):
+        out.add_handler(one)
+    return out
+
+
+def _fetched_name(url, headers):
+    """The name a fetched PDF is kept under: Content-Disposition's filename,
+    else the URL's last path part, else `fetched`, ending `.pdf`."""
+    said = ""
+    m = re.search(r'filename\*?=(?:UTF-8\'\')?"?([^";]+)"?',
+                  headers.get("Content-Disposition") or "", re.I)
+    if m:
+        said = urllib.parse.unquote(m.group(1))
+    if not said:
+        said = urllib.parse.unquote(posixpath.basename(urllib.parse.urlsplit(url).path))
+    name = multipart.safe_filename(said or "fetched")
+    if name == "drop":
+        name = "fetched"
+    if not name.lower().endswith(".pdf"):
+        name += ".pdf"
+    return name
+
+
+def fetch_pdf(url, folder, limit=None, timeout=FETCH_TIMEOUT):
+    """Fetch the PDF at `url` into `folder` under a free name: `(path, size)`,
+    or `_Refused`. http and https only, checked before and after redirects;
+    at most `limit` bytes (`multipart.MAX_UPLOAD`); the body must start with
+    `%PDF-`. Nothing is left behind on a refusal."""
+    limit = multipart.MAX_UPLOAD if limit is None else limit
+    url = str(url or "").strip()
+    scheme = urllib.parse.urlsplit(url).scheme.lower()
+    if not url:
+        raise _Refused("name the PDF's address")
+    if scheme not in FETCH_SCHEMES or not urllib.parse.urlsplit(url).netloc:
+        raise _Refused("only an http or https address is fetched, not %s"
+                       % (scheme + "://" if scheme else url))
+    req = urllib.request.Request(url, headers={"User-Agent": "tutor-board",
+                                               "Accept": "application/pdf, */*"})
+    try:
+        resp = _opener().open(req, timeout=timeout)
+    except _Refused:
+        raise
+    except urllib.error.HTTPError as exc:
+        raise _Refused("the server answered %d %s" % (exc.code, exc.reason), 502)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise _Refused("it could not be fetched: %s"
+                       % getattr(exc, "reason", exc), 502)
+    tmp = None
+    try:
+        final = resp.geturl() or url
+        if urllib.parse.urlsplit(final).scheme.lower() not in FETCH_SCHEMES:
+            raise _Refused("it ended at %s, and only http and https are fetched"
+                           % final)
+        try:
+            said = int(resp.headers.get("Content-Length") or -1)
+        except ValueError:
+            said = -1
+        if said > limit:
+            raise _Refused("%s is over the 1 GB an upload may be" % _size(said), 413)
+        os.makedirs(folder, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(prefix=".fetch-", suffix=".part",
+                                   dir=os.path.dirname(folder))
+        size = 0
+        with os.fdopen(fd, "wb") as fh:
+            head = b""
+            while True:
+                chunk = resp.read(multipart.CHUNK)
+                if not chunk:
+                    break
+                if len(head) < len(PDF_MAGIC):
+                    head = (head + chunk)[:len(PDF_MAGIC)]
+                    if len(head) >= len(PDF_MAGIC) and head != PDF_MAGIC:
+                        raise _Refused("that is not a PDF: it does not start "
+                                       "with %PDF-")
+                size += len(chunk)
+                if size > limit:
+                    raise _Refused("it is over the 1 GB an upload may be", 413)
+                fh.write(chunk)
+        if head != PDF_MAGIC:
+            raise _Refused("that is not a PDF: it does not start with %PDF-")
+        dest = _free_name(folder, _fetched_name(final, resp.headers))
+        os.replace(tmp, dest)
+        tmp = None
+        return dest, size
+    except (OSError, ValueError) as exc:
+        if isinstance(exc, _Refused):
+            raise
+        raise _Refused("it could not be fetched: %s" % exc, 502)
+    finally:
+        resp.close()
+        if tmp:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
+def fetch(h, repo):
+    """`POST /fetch {url}`: the PDF at `url` into the session's `uploads/`
+    (`fetch_pdf`), replied to as `/upload` replies, its line waking nothing."""
+    if is_sessionless(repo) or not getattr(repo, "stored", False):
+        return h.send_json({"ok": False, "error": "a fetch is a session's: "
+                            "/s/<id>/fetch"}, status=400)
+    try:
+        payload = json.loads(h.read_body().decode("utf-8") or "{}")
+    except Exception:                                        # noqa: BLE001
+        payload = None
+    if not isinstance(payload, dict):
+        return h.send_json({"ok": False, "error": "bad json"}, status=400)
+    try:
+        where, size = fetch_pdf(payload.get("url"), repo.uploads)
+    except _Refused as exc:
+        h.note("fetch refused: %s" % exc)
+        return h.send_json({"ok": False, "error": str(exc)}, status=exc.status)
+    return _landed(h, repo, [(where, size)])

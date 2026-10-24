@@ -836,7 +836,7 @@ async function stubbed() {
 
   // ANNOTATE A PDF: a new session, the upload, filed when a subject is
   // picked, and the session's board opened on the document.
-  async function annotated(subject) {
+  async function annotated(subject, address) {
     const aw = load();
     await sleep(60);
     const ad = aw.document;
@@ -861,6 +861,10 @@ async function stubbed() {
       if (url === '/sessions/new') got = { ok: true, id: NEW, url: '/s/' + NEW + '/board' };
       if (url === '/s/' + NEW + '/bind') got = { ok: true };
       if (url === '/s/' + NEW + '/file') got = { ok: true, doc: 'materials-slides' };
+      if (url === '/s/' + NEW + '/fetch') {
+        got = { ok: true, saved: ['slides.pdf'],
+                files: [{ name: 'slides.pdf', size: 4, doc: 'uploads-slides' }] };
+      }
       if (!got) return orig(u, init);
       aw.asked.push({ url, method: 'POST', body });
       return Promise.resolve({ status: 200, json: () => Promise.resolve(got) });
@@ -869,9 +873,15 @@ async function stubbed() {
     const sheet = ad.getElementById('annot');
     const opts = Array.from(ad.querySelectorAll('#annot-subject option')).map((o) => o.value);
     const input = ad.getElementById('annot-file');
-    Object.defineProperty(input, 'files', {
-      value: [new aw.File(['%PDF-1.4'], 'slides.pdf', { type: 'application/pdf' })] });
-    input.dispatchEvent(new aw.Event('change'));
+    if (address) {
+      const box = ad.getElementById('annot-url');
+      box.value = address;
+      box.dispatchEvent(new aw.Event('input'));
+    } else {
+      Object.defineProperty(input, 'files', {
+        value: [new aw.File(['%PDF-1.4'], 'slides.pdf', { type: 'application/pdf' })] });
+      input.dispatchEvent(new aw.Event('change'));
+    }
     ad.getElementById('annot-subject').value = subject;
     ad.getElementById('annot-subject').dispatchEvent(new aw.Event('change'));
     const ready = !ad.getElementById('annot-go').disabled;
@@ -902,6 +912,15 @@ async function stubbed() {
           && filed && filed.body.upload === 'slides.pdf');
     check('and the reader opens the material, by the id it was filed under',
           r2.aw.__went[0] === '/s/' + r2.NEW + '/board#/s/' + r2.NEW + '/doc/materials-slides');
+    const r3 = await annotated('courses/Probability', 'https://example.org/papers/slides.pdf?dl=1');
+    const fetched = r3.aw.asked.filter((r) => /\/fetch$/.test(r.url))[0];
+    const made3 = r3.aw.asked.filter((r) => r.url === '/sessions/new')[0];
+    check('an address in #annot-url is fetched by the board into the new session, '
+          + 'then bound and filed like a file',
+          r3.ready && fetched && fetched.body.url === 'https://example.org/papers/slides.pdf?dl=1'
+          && made3 && made3.body.title === 'Annotate slides.pdf' && !r3.xhrs.length
+          && r3.aw.asked.some((r) => /\/file$/.test(r.url) && r.body.upload === 'slides.pdf')
+          && r3.aw.__went[0] === '/s/' + r3.NEW + '/board#/s/' + r3.NEW + '/doc/materials-slides');
   }
 
   // RANDOM LESSONS FIRST: with the catch-all on the tree (/subjects.json

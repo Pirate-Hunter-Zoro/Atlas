@@ -404,6 +404,10 @@ DRIVE = {
         ("/annotate/burn", {"kind": "homework", "mode": "none"}, None),
         ("/annotate/burn", {"kind": "lesson", "mode": "copy"}, None)]),
     ("POST", "/upload", "writing"): ("session", [("/upload", upload, OK)]),
+    ("POST", "/fetch", "writing"): ("session", [
+        ("/fetch", {"url": "file:///etc/hosts"}, REFUSED),
+        ("/fetch", {"url": "ftp://127.0.0.1/x.pdf"}, REFUSED),
+        ("/fetch", {}, REFUSED)]),
     ("POST", "/file", "writing"): ("session", [
         ("/file", {"upload": "nope.pdf"}, REFUSED),
         ("/file", {"upload": "../session.json"}, REFUSED)]),

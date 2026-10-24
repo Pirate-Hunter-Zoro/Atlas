@@ -96,7 +96,7 @@ UNPREFIXED = (
 # unbound to its subject, which is filing), /poke, /seen and reads still
 # answer. A cluster report reopens it (`sessions.reopen`).
 ENDED_REFUSES = ("/say", "/slate/save", "/text/save", "/handover", "/session",
-                 "/mode", "/bind", "/problem", "/upload", "/file",
+                 "/mode", "/bind", "/problem", "/upload", "/fetch", "/file",
                  "/annotate/save", "/annotate/burn", "/artifact", "/textbook")
 
 # The route classes UNPREFIXED names. A cross-subject one is 404 under

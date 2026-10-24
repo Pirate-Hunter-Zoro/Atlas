@@ -16,7 +16,8 @@
    /artifact?subject=<id> (a deck or a paper from a subject's row),
    /client-error (what broke on this page, for the board's log), a past
    session's /s/<id>/send (an unbound one, sent to a course or project), and
-   for Annotate a PDF the new session's own /s/<id>/bind, /upload and /file.
+   for Annotate a PDF the new session's own /s/<id>/bind, /upload (a file from
+   the iPad) or /fetch (an address), and /file.
    Notes opens a new session at /s/<id>/slate, a notes canvas.
    A session opens at /s/<id>/board; a subject's page is its library,
    /library?subject=<id>.
@@ -61,6 +62,7 @@ var els = {
   actAnnotate: $("act-annotate"),
   annot: $("annot"),
   annotFile: $("annot-file"),
+  annotUrl: $("annot-url"),
   annotSubject: $("annot-subject"),
   annotBar: $("annot-bar"),
   annotSaid: $("annot-said"),
@@ -404,13 +406,20 @@ function annotSay(text, bad) {
   els.annotSaid.textContent = text || "";
 }
 
+/* The address typed into `#annot-url`, when it is one; a file chosen wins. */
+function annotAddress() {
+  var said = String(els.annotUrl.value || "").trim();
+  return /^https?:\/\/[^\s]+$/i.test(said) ? said : "";
+}
+
 function paintAnnot() {
   var f = els.annotFile.files && els.annotFile.files[0];
-  els.annotGo.disabled = annotBusy || !f;
-  els.annotGoSub.textContent = annotBusy ? "uploading…"
-    : f ? (els.annotSubject.value ? "into " + els.annotSubject.value
-                                  : "into a new session")
-    : "choose a PDF";
+  var u = !f && annotAddress();
+  els.annotGo.disabled = annotBusy || !(f || u);
+  els.annotGoSub.textContent = annotBusy ? (u ? "fetching…" : "uploading…")
+    : f || u ? (els.annotSubject.value ? "into " + els.annotSubject.value
+                                       : "into a new session")
+    : "choose a PDF, or give its address";
 }
 
 /* The subjects in the one picker order (`pickGroups`), Random lessons
@@ -420,6 +429,7 @@ function openAnnot() {
   annotSay("");
   els.annotBar.hidden = true;
   els.annotFile.value = "";
+  els.annotUrl.value = "";
   els.annotSubject.innerHTML = "";
   pickGroups((subjectsData && subjectsData.subjects) || []).forEach(function (g) {
     var host = els.annotSubject;
@@ -478,46 +488,64 @@ function uploadTo(base, file, bar) {
   });
 }
 
+/* The name a PDF fetched from `url` is shown under before it lands: the
+   address's last part, else its host. */
+function urlName(url) {
+  var m = /^https?:\/\/([^\/?#]+)([^?#]*)/i.exec(url);
+  if (!m) return url;
+  var last = m[2].split("/").filter(Boolean).pop();
+  try { last = last ? decodeURIComponent(last) : ""; } catch (e) { /* as it is */ }
+  return last || m[1];
+}
+
+/* A file from the iPad goes up with /upload; an address is fetched by the
+   board, with /fetch, and answers the same. */
 function annotate() {
   var file = els.annotFile.files && els.annotFile.files[0];
+  var url = file ? "" : annotAddress();
   var subject = els.annotSubject.value;
-  if (!file || annotBusy) return;
-  if (!/\.pdf$/i.test(file.name || "")) {
+  if ((!file && !url) || annotBusy) return;
+  if (file && !/\.pdf$/i.test(file.name || "")) {
     annotSay("That is not a PDF.", true);
     return;
   }
   annotBusy = true;
   annotSay("");
   els.annotBar.value = 0;
-  els.annotBar.hidden = false;
+  els.annotBar.hidden = !!url;
   paintAnnot();
   var sid = "", base = "";
-  postJSON("/sessions/new", { title: "Annotate " + file.name }).then(function (got) {
-    if (!got || !got.ok) throw new Error((got && got.error) || "the session was not made");
-    sid = got.id;
-    base = "/s/" + enc(sid);
-    if (!subject) return null;
-    return postJSON(base + "/bind", { subject: subject }).then(function (b) {
-      if (!b || !b.ok) throw new Error((b && b.error) || "the session was not bound");
+  postJSON("/sessions/new", { title: "Annotate " + (file ? file.name : urlName(url)) })
+    .then(function (got) {
+      if (!got || !got.ok) throw new Error((got && got.error) || "the session was not made");
+      sid = got.id;
+      base = "/s/" + enc(sid);
+      if (!subject) return null;
+      return postJSON(base + "/bind", { subject: subject }).then(function (b) {
+        if (!b || !b.ok) throw new Error((b && b.error) || "the session was not bound");
+      });
+    }).then(function () {
+      if (file) return uploadTo(base, file);
+      return postJSON(base + "/fetch", { url: url }).then(function (got) {
+        if (got && got.ok && (got.files || []).length) return got.files[0];
+        throw new Error("it was not fetched: " + ((got && got.error) || "the board refused it"));
+      });
+    }).then(function (up) {
+      if (!subject) return up.doc;
+      return postJSON(base + "/file", { upload: up.name }).then(function (f) {
+        if (!f || !f.ok) throw new Error((f && f.error) || "it was not filed");
+        return f.doc;
+      });
+    }).then(function (doc) {
+      if (!doc) throw new Error("the board cannot read that PDF");
+      go(base + "/board" + window.Address.format(
+        { session: sid, surface: "doc", doc: doc }));
+    }).catch(function (e) {
+      annotBusy = false;
+      els.annotBar.hidden = true;
+      annotSay((e && e.message) || "the board did not answer", true);
+      paintAnnot();
     });
-  }).then(function () {
-    return uploadTo(base, file);
-  }).then(function (up) {
-    if (!subject) return up.doc;
-    return postJSON(base + "/file", { upload: up.name }).then(function (f) {
-      if (!f || !f.ok) throw new Error((f && f.error) || "it was not filed");
-      return f.doc;
-    });
-  }).then(function (doc) {
-    if (!doc) throw new Error("the board cannot read that PDF");
-    go(base + "/board" + window.Address.format(
-      { session: sid, surface: "doc", doc: doc }));
-  }).catch(function (e) {
-    annotBusy = false;
-    els.annotBar.hidden = true;
-    annotSay((e && e.message) || "the board did not answer", true);
-    paintAnnot();
-  });
 }
 
 /* ---------------------------------------------------------------- subjects */
@@ -1590,6 +1618,7 @@ els.actMeeting.onclick = openNotes;
 els.actNotes.onclick = newNotes;
 els.actAnnotate.onclick = openAnnot;
 els.annotFile.addEventListener("change", function () { annotSay(""); paintAnnot(); });
+els.annotUrl.addEventListener("input", function () { annotSay(""); paintAnnot(); });
 els.annotSubject.addEventListener("change", paintAnnot);
 els.annotGo.onclick = annotate;
 els.annotClose.onclick = closeAnnot;

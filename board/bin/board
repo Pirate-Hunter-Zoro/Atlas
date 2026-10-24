@@ -94,6 +94,11 @@ The assistant runs these. The student never does.
     board file <upload> [materials|<relpath>] [--session <id>]
                                        move an upload into the bound subject,
                                        materials/ by default; its ink follows
+    board open <file.pdf> [--subject <id>]
+                                       copy a PDF on this Mac into a new
+                                       "Annotate <name>" session to write on;
+                                       --subject binds it and files the copy.
+                                       Prints the URL
     board writeup add <label> < text   an agreed answer into the session's
                                        write-up: statement, a line ---, then
                                        their argument; files the sent page and
@@ -675,6 +680,85 @@ def cmd_file(live, args):
     print("filed %s -> %s/%s" % (got["from"], got["subject"], got["to"]))
     for old, new in sorted(got["keys"].items()):
         print("    ink %s -> %s" % (old, new))
+    return 0
+
+
+def cmd_open(live, args):
+    """Open a PDF on this Mac on the iPad, to write on.
+
+    board open <file.pdf> [--subject <id>]
+        copies the PDF -- never moves it -- into the uploads/ of a new session
+        titled "Annotate <name>", with an [uploaded] line that wakes nothing.
+        With --subject (courses/<name> or projects/<name>) the session is
+        bound to that subject and the copy filed into its materials/. Prints
+        the session's id and the URL its board opens the PDF at.
+    """
+    from tutorboard.course import library
+    from tutorboard.server import multipart
+    from tutorboard.server.routes import writing
+    rest = list(args)
+    subject = None
+    if "--subject" in rest:
+        n = rest.index("--subject")
+        if n + 1 >= len(rest):
+            print("board open: --subject needs a subject id", file=sys.stderr)
+            return 2
+        subject = rest[n + 1]
+        del rest[n:n + 2]
+    if len(rest) != 1 or rest[0].startswith("--"):
+        print("usage: board open <file.pdf> [--subject <id>]", file=sys.stderr)
+        return 2
+    src = os.path.abspath(os.path.expanduser(rest[0]))
+    if not os.path.isfile(src):
+        print("board open: no file %s" % src, file=sys.stderr)
+        return 1
+    try:
+        with open(src, "rb") as fh:
+            head = fh.read(len(writing.PDF_MAGIC))
+        size = os.path.getsize(src)
+    except OSError as exc:
+        print("board open: %s cannot be read: %s" % (src, exc), file=sys.stderr)
+        return 1
+    if head != writing.PDF_MAGIC:
+        print("board open: %s is not a PDF: it does not start with %%PDF-" % src,
+              file=sys.stderr)
+        return 1
+    if size > multipart.MAX_UPLOAD:
+        print("board open: %s is over the 1 GB an upload may be" % src, file=sys.stderr)
+        return 1
+    base = subjects.root()
+    found = None
+    if subject:
+        found = subjects.find(subject, base)
+        if not found:
+            print("board open: no subject %r: name one of courses/<name> or "
+                  "projects/<name>" % subject, file=sys.stderr)
+            return 1
+    rec = sessions.new(title="Annotate %s" % os.path.basename(src), base=base)
+    sid = rec["id"]
+    repo = sessions.repo(sid, base, create=True)
+    os.makedirs(repo.uploads, exist_ok=True)
+    dest = writing._free_name(repo.uploads, os.path.basename(src))
+    shutil.copyfile(src, dest)
+    name = os.path.basename(dest)
+    sessions.quiet_line(repo.messages_path, "[uploaded] %s (%s)"
+                        % (name, writing._size(size)), "uploaded", files=[name])
+    doc = dict((u["name"], u["id"]) for u in library.uploads(repo)).get(name)
+    print("opened %s in session %s" % (src, sid))
+    if found:
+        try:
+            sessions.bind(sid, found["id"], base=base)
+            got = sessions.file(sid, name, base=base)
+        except (sessions.NoSession, sessions.Refused) as exc:
+            print("board open: the session is made, but the PDF was not filed: %s"
+                  % exc, file=sys.stderr)
+            return 1
+        doc = got["doc"]
+        print("filed into %s/%s" % (got["subject"], got["to"]))
+    where = "/s/%s/board" % sid
+    if doc:
+        where += "#/s/%s/doc/%s" % (sid, doc)
+    print("http://127.0.0.1:%d%s" % (paths.port(), where))
     return 0
 
 
@@ -2809,6 +2893,7 @@ COMMANDS = {
     "deckfig": cmd_deckfig,
     "round": cmd_round, "textbook": cmd_textbook,
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
+    "open": cmd_open,
 }
 
 # Retired commands, refused by name with what replaced each.
@@ -2822,7 +2907,7 @@ GONE = {
 }
 
 # Commands about a path they are given: no `live/` is made for them.
-NO_LIVE = ("textbook", "build", "session", "bind", "file", "code",
+NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
            "pull", "cost", "doctor", "vpn", "egress", "limit", "ask-cluster")
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo. Every other command refuses without a session.

@@ -93,8 +93,9 @@ and the audit refuses any path under it.
   non-waking `[bind]` line. Nothing moves or restarts. `--create` makes the subject first.
   An unbound session is a generic lecture: its brief lists the subjects there are, and
   Make binds it through the chip's picker before it makes anything.
-- **Send.** End on an unbound session opens the picker to send it: every course and project,
-  the recent ones first, a filter, `+ new`, and "end without sending". `POST /end {subject}`
+- **Send.** End on an unbound session opens the picker to send it: every course and project
+  in the one picker order every picker keeps (Random lessons, `subjects.SCRATCH`, then Recent,
+  Courses, Projects), a filter, `+ new`, and "end without sending". `POST /end {subject}`
   runs `sessions.send` (bind, then file every upload into `materials/`) and ends it, one
   request at a time per session (`sessions.held`). Sending an unbound session sets its
   `sent_late`, so the wrap-up writes up the agreed answers (`prompts/wrapup-sent.md`) and
@@ -212,8 +213,12 @@ tree gets a `doc.json` written in place, so its ids hold.
 - **Materials** are third-party or uploaded files in `<subject>/materials/`, ignored, readable
   and inkable.
 - **Notes canvas.** A session in slate view. End has the tutor transcribe a `notes.md`.
-- **Annotate a PDF.** Upload it, ink it, and "Keep a marked copy" writes `<name>-marked.pdf`
-  beside it (`course/burn.py`). Filing the upload re-keys its ink.
+- **Annotate a PDF.** From the iPad's Files, from an address (`POST /s/<id>/fetch {url}`: http
+  or https only, a body starting `%PDF-`, at most 1 GB), or from a Mac path (`board open
+  <file.pdf> [--subject <id>]`, which copies it into a new session and prints the URL). Home's
+  sheet preselects Random lessons. Ink it, and "Keep a marked copy" writes `<name>-marked.pdf`
+  beside it (`course/burn.py`), with the ink drawn before and after a bind. Filing the upload
+  re-keys its ink.
 - **Export.** The session export is a screenshot of the scrolled board, wrapped in a PDF
   (`web/shot.js`, `course/screenshot.py`).
 
