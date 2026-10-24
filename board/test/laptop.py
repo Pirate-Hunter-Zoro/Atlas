@@ -232,6 +232,8 @@ try:
     run(["git", "clone", "-q", aorigin, os.path.join(laptop, "ai-config")])
     setup = os.path.join(laptop, "scripts", "setup-mac.sh")
 
+    # A retired project's ignored leftovers, which subjects.walk would list.
+    write(os.path.join(laptop, "projects", "Paper-Writer", ".venv", "pyvenv.cfg"), "x\n")
     # A stray board from before, loaded, with its plist.
     write(AGENT, "<plist/>\n")
     write(LOADED, "tutor-board\n")
@@ -250,6 +252,9 @@ try:
     check("--coding ends clean, as a coding checkout",
           code == 0 and "THIS CODING CHECKOUT IS UP TO DATE" in out, out)
     check("and writes the role file", read(ROLE).strip() == "coding", read(ROLE))
+    check("a retired project holding no tracked file is deleted, and said",
+          not os.path.exists(os.path.join(laptop, "projects", "Paper-Writer"))
+          and "deleted projects/Paper-Writer" in out, out)
     check("it pulls main", git(laptop, "rev-parse", "HEAD")
           == git(origin, "rev-parse", "main"), out)
     check("and runs scripts/setup.sh, ai-config's install.sh and install-clis.sh",

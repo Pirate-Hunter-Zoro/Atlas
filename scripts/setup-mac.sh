@@ -17,7 +17,7 @@
 # changes nothing:
 #
 #   1  main, fast-forward only; once, the checkouts of the retired vendor
-#      submodules go
+#      submodules go, and so do the retired projects' untracked leftovers
 #   2  bootstrap: `board` on the PATH, ai-config,
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
 #   3  the Brewfile and every subject's environment (scripts/setup.sh)
@@ -96,6 +96,17 @@ if [ ! -f .gitmodules ] && [ -n "$GIT_COMMON" ] && [ -d "$GIT_COMMON/modules/ven
     rmdir "$GIT_COMMON/modules/vendor" "$GIT_COMMON/modules" vendor 2>/dev/null
   fi
 fi
+# Five retired projects leave ignored leftovers (.venv, docs builds, .ink)
+# behind on a clone that pulls their removal, and subjects.walk lists any
+# directory under projects/ as a subject. One holding no tracked file goes.
+for p in TRD-EHR PSYCH-ASR libr-local-llm Meetings Paper-Writer; do
+  [ -d "projects/$p" ] || continue
+  if [ -n "$(git ls-files -- "projects/$p")" ]; then
+    warn "projects/$p still holds tracked files, so it was kept"
+    continue
+  fi
+  rm -rf "projects/$p" && good "deleted projects/$p, a retired project's untracked leftovers"
+done
 
 echo "== 2. bootstrap"
 bash board/bootstrap.sh 2>&1 | sed 's/^/  /'

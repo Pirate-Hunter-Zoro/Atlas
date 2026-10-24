@@ -1,5 +1,0 @@
-{
-  "name": "Paper-Writer",
-  "phi": false,
-  "check": "uv run python -m unittest discover -s tests"
-}
