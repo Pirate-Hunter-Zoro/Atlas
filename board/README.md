@@ -289,7 +289,7 @@ No AI provider is load-bearing: every AI use in Atlas reads one table and walks 
   its entry, or naming the chain in `fallback`.
 - Who uses the table: every board turn (`resolve`), image reading (`seeing.route`, every
   sighted recipe in turn), `board doctor`, and anything outside the board through
-  `agents/oneshot.py`, which Paper-Writer's daemon uses.
+  `agents/oneshot.py`.
 - Keys come from `~/.config/tutor-board/keys.env` (`keys.py`) and never reach a command line,
   because argv shows in `ps`. A usage limit marks a provider unavailable until it expires, and
   the next in the chain takes its turns (`limits.py`). `board doctor` spends one real turn per
@@ -330,7 +330,7 @@ python3 board/test/run.py sync code    the suites named
 ```
 
 A suite is any `*.py` or `*.js` file in `test/` that `run.py` does not list as a helper:
-discovery, not a registry. The run also covers Paper-Writer's unittests,
+discovery, not a registry. The run also covers each subject's `tests/board/*.py`,
 `tools/sync-macros.py --check`, and ai-config's own tests. The suite needs `node`;
 it installs jsdom into `board/node_modules` on first run, for development only.
 

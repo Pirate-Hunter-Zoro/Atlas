@@ -72,11 +72,6 @@ def tracked_markdown():
 # nobody has to go and look it up.
 RETIRED = {
     "~/Tutor-Board": "board/",
-    "~/PSYCH-ASR": "projects/PSYCH-ASR",
-    "~/TRD-EHR": "projects/TRD-EHR",
-    "~/libr-local-llm": "projects/libr-local-llm",
-    "~/Paper-Writer": "projects/Paper-Writer",
-    "~/Research-Journey": "projects/PSYCH-ASR/docs",
     "~/Galois-Theory": "courses/Galois-Theory",
     "~/Probability": "courses/Probability",
     "~/.config/tutor-board/courses.txt": "nothing -- workspaces are discovered",

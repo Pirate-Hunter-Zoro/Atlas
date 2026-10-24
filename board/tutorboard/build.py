@@ -7,11 +7,9 @@
 
 Output lands beside the source. Nothing else in board/ runs a compiler.
 
-THE MARKDOWN HALF IS A COPY of Paper-Writer's converter
-(`paperwriter/stages/building.py`, its figure gate, its `config` lookups and
-`pdf_fit.lua`), copied rather than imported so the board does not depend on a
-project. A document built here must be the document Paper-Writer would build:
-the same flags, the same reference .docx, the same resource path.
+The markdown half is the board's own converter: the `config` lookups, a
+figure gate, the pandoc flags and `build/pdf_fit.lua`. Every .md is built
+with the same flags, the same reference .docx and the same resource path.
 
 Pandoc reports a figure it could not find as a warning and exits 0, so every
 built .docx is opened and its images counted. A lost figure always fails the
@@ -220,7 +218,7 @@ def _read(path):
 
 
 # ---------------------------------------------------------------------------
-# Markdown: Paper-Writer's converter, copied. `config` first.
+# Markdown: the converter. `config` first.
 # ---------------------------------------------------------------------------
 
 PDF_FIT = Path(__file__).with_name("build") / "pdf_fit.lua"
@@ -272,7 +270,7 @@ def pdf_monofont():
     return os.environ.get("PAPER_PDF_MONOFONT", "DejaVu Sans Mono").strip()
 
 
-# --- the figure gate (paperwriter/gates/figures.py) --------------------------
+# --- the figure gate -------------------------------------------------------
 
 _GATE_IMAGE_RE = re.compile(r"!\[[^\]]*\]\(([^)]*)\)(?:\{([^}]*)\})?")
 _WIDTH_RE = re.compile(r"width=([0-9.]+)in")
@@ -318,7 +316,7 @@ def _figure_check(text, name, text_width_in=DEFAULT_TEXT_WIDTH_IN):
     return problems
 
 
-# --- the converter (paperwriter/stages/building.py) --------------------------
+# --- the converter ---------------------------------------------------------
 
 def _format_flags(fmt, reference):
     """The pandoc flags that depend on what is being built. A .docx takes the

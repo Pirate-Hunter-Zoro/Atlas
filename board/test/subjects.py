@@ -57,15 +57,15 @@ tmp = os.path.realpath(tempfile.mkdtemp(prefix="subjects-"))
 try:
     topo = mk(tmp, "courses/Topology", {"name": "Algebraic Topology"})
     mk(tmp, "courses/.trash")
-    psych = mk(tmp, "projects/PSYCH-ASR", {"name": "PSYCH-ASR"})
+    poll = mk(tmp, "projects/POLL-KIT", {"name": "POLL-KIT"})
     mk(tmp, "projects/X")
-    mk(tmp, "projects/libr-local-llm", {"name": "libr-local-llm"})
-    mk(tmp, "projects/Paper-Writer", {"name": "Paper-Writer"})
+    mk(tmp, "projects/local-tools", {"name": "local-tools"})
+    mk(tmp, "projects/Pen-Notes", {"name": "Pen-Notes"})
     mk(tmp, "projects/Arena-Lab")
     # Residue left at the legacy parents on a machine that has not moved it.
     mk(tmp, "research/Leftover", {"name": "Leftover"})
     mk(tmp, "practice/Stale")
-    mk(tmp, "vendor/colibri")
+    mk(tmp, "vendor/widget")
     with open(os.path.join(tmp, "projects", "notes.txt"), "w") as fh:
         fh.write("not a subject\n")
 
@@ -77,8 +77,8 @@ try:
     ids = [s["id"] for s in got]
     check("all() lists every non-dot directory under the subject parents",
           ids == ["courses/Topology", "projects/Arena-Lab",
-                  "projects/PSYCH-ASR", "projects/Paper-Writer", "projects/X",
-                  "projects/libr-local-llm"])
+                  "projects/POLL-KIT", "projects/Pen-Notes", "projects/X",
+                  "projects/local-tools"])
     check("research/ and practice/ hold no subject: they merged into projects/",
           not any(i.startswith(("research/", "practice/")) for i in ids)
           and subjects.kind_of(os.path.join(tmp, "research", "Leftover")) == "")
@@ -89,14 +89,14 @@ try:
     check("courses/ holds courses; projects/ projects",
           kinds["courses/Topology"] == "course"
           and kinds["projects/X"] == "project"
-          and kinds["projects/PSYCH-ASR"] == "project"
+          and kinds["projects/POLL-KIT"] == "project"
           and kinds["projects/Arena-Lab"] == "project")
     names = dict((s["id"], s["name"]) for s in got)
     check("name comes from tutorboard.json, else the slug",
           names["courses/Topology"] == "Algebraic Topology"
           and names["projects/Arena-Lab"] == "Arena Lab")
     check("vendor/ and dot directories are not subjects",
-          not any("colibri" in i or ".trash" in i for i in ids))
+          not any("widget" in i or ".trash" in i for i in ids))
 
     # --- the catch-all ------------------------------------------------------
     check("with no courses/Random, scratch() is None", subjects.scratch() is None)
@@ -116,37 +116,37 @@ try:
           subjects.find("courses/../projects/X") is None)
     check("kind_of a subject and a path inside one",
           subjects.kind_of(topo) == "course"
-          and subjects.kind_of(os.path.join(psych, "src", "a.py")) == "project")
+          and subjects.kind_of(os.path.join(poll, "src", "a.py")) == "project")
     check("kind_of a non-subject path is empty",
-          subjects.kind_of(os.path.join(tmp, "vendor", "colibri")) == ""
+          subjects.kind_of(os.path.join(tmp, "vendor", "widget")) == ""
           and subjects.kind_of(os.path.join(tmp, "courses")) == ""
           and subjects.kind_of("/") == "")
 
     # No fallback: an id under a merged-away parent is not a subject's id.
-    check("find('research/PSYCH-ASR') returns nothing, though PSYCH-ASR exists",
-          subjects.find("research/PSYCH-ASR") is None
+    check("find('research/POLL-KIT') returns nothing, though POLL-KIT exists",
+          subjects.find("research/POLL-KIT") is None
           and subjects.find("practice/Arena-Lab") is None
-          and subjects.find("PSYCH-ASR")["id"] == "projects/PSYCH-ASR")
+          and subjects.find("POLL-KIT")["id"] == "projects/POLL-KIT")
     check("and residue under such a parent is never a subject",
           subjects.find("research/Leftover") is None
           and subjects.find("Leftover") is None)
     check("nor is a stray path ending in a subject's name",
-          subjects.find(os.path.join(tmp, "elsewhere", "PSYCH-ASR")) is None
-          and subjects.find("vendor/PSYCH-ASR") is None)
+          subjects.find(os.path.join(tmp, "elsewhere", "POLL-KIT")) is None
+          and subjects.find("vendor/POLL-KIT") is None)
 
     # --- identify and roots ------------------------------------------------
     check("roots lists every subject's directory in walk order",
           subjects.roots() == [s["root"] for s in subjects.all()])
     check("identify reads the parent directory",
           subjects.identify(topo) == "courses/Topology"
-          and subjects.identify(os.path.join(tmp, "vendor", "colibri")) == "colibri")
+          and subjects.identify(os.path.join(tmp, "vendor", "widget")) == "widget")
     check("identify still names a subject that is gone",
           subjects.identify(os.path.join(tmp, "courses", "Gone")) == "courses/Gone")
 
     # --- lookups by slug ----------------------------------------------------
     check("a project resolves by its bare slug",
-          (subjects.find("Paper-Writer") or {}).get("root")
-          == os.path.join(tmp, "projects", "Paper-Writer"))
+          (subjects.find("Pen-Notes") or {}).get("root")
+          == os.path.join(tmp, "projects", "Pen-Notes"))
 
     # --- read_config --------------------------------------------------------
     one = mk(tmp, "projects/Conf", {

@@ -15,7 +15,7 @@ brew "pandoc"
 brew "node"          # the test suite's headless browser
 brew "gh"
 brew "tailscale"
-cask "font-dejavu"   # the PDF face Paper-Writer names: it has the ₀ ρ ≈ − a paper uses
+cask "font-dejavu"   # `board build`'s PDF face: it has the ₀ ρ ≈ − a paper uses
 
 # the workspaces' code. Not elan: scripts/setup.sh installs it into ~/.elan for
 # a Lean subject, on every machine, and a second one here would shadow it.

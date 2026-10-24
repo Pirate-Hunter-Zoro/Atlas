@@ -1,6 +1,6 @@
 """One prompt, to whichever provider can take it: AI use outside the board.
 
-A tool that is not a board turn (Paper-Writer's daemon, a script) calls `run`
+A tool that is not a board turn (a script, a daemon) calls `run`
 instead of a vendor's CLI, so it uses the same table the board does
 (`recipes.load_config`) and walks the same order (`recipes.chain`): a provider
 that is missing, unkeyed, out of allowance or failing hands the prompt to the
@@ -64,8 +64,8 @@ def _attempt(cfg, name, prompt, cwd, timeout):
 def run(prompt, cwd, timeout=1200, cfg=None, names=None, done=None):
     """Send `prompt` from `cwd` down the chain until one provider answers.
 
-    `done(name)` judges an answer beyond a clean exit (Paper-Writer: did the
-    artifact land?); False moves on to the next provider. Returns
+    `done(name)` judges an answer beyond a clean exit (did the artifact
+    land?); False moves on to the next provider. Returns
     `{ok, name, text, tried}`, `tried` a list of `(name, why)` for every
     provider passed over.
     """

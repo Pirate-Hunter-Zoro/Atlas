@@ -135,7 +135,7 @@ runner_service.wake = lambda r: woken.append(r) or True
 
 httpd = None
 try:
-    # A project that once said `"stance": "do"`, as TRD-EHR and Paper-Writer did.
+    # A project that once said `"stance": "do"`, as two projects once did.
     proj = os.path.join(base, "projects", "Doer")
     write(os.path.join(proj, "tutorboard.json"),
           json.dumps({"name": "Doer", "stance": "do", "aim": "build"}))
