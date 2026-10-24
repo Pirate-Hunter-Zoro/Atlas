@@ -82,8 +82,7 @@ waiting.
   it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
   active.
 - **Speech.** This Mac has `whisper-cpp`, `espeak-ng`, the whisper model and the Azure key.
-  `setup-mac.sh` installs the first three on any other Mac. Download the premium Tingting, Kyoko
-  and Amélie voices in System Settings.
+  `setup-mac.sh` installs the first three on any other Mac.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
   `setup-mac.sh --coding` the Mac mini's tailnet name.
 - **Read `board/TEACHING.md` once.** Every turn is told to follow it.
