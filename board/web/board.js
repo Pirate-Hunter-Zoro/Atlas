@@ -3078,6 +3078,17 @@ if (window.Problem) {
     typeset: typeset,
     macros: courseMacros,
     ended: function () { return !!(headerState && headerState.ended); },
+    /* Onto the page under the pen, typeset, looped for the lasso. The
+       surface is the open answer's; with none open there is nowhere to put
+       it. */
+    place: function (g) {
+      if (!writer || !writer.placeTex) return "the writing surface is still loading";
+      if (els.writer.hidden) return "no page is open to write on";
+      return writer.placeTex(g).then(function (done) {
+        return done ? g.id + " is on the page: drag it with the lasso"
+                    : g.id + " is still being typeset; try again in a moment";
+      });
+    },
   });
 }
 

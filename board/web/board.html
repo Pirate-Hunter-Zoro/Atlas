@@ -115,8 +115,8 @@
 <!-- THE PROBLEM ON THEIR SCREEN (web/problem.js), so a statement never
      scrolls away: its label, which opens the whole statement in #probpanel
      and closes it, a picker over every problem in the set, and one chip per
-     given -- each a menu that puts it in the calculator, the typed answer or
-     the clipboard. -->
+     given -- each a menu that puts it in the calculator, the typed answer,
+     the clipboard or onto the writing surface, typeset. -->
 <div id="probbar" class="probbar" hidden>
   <button id="prob-open" class="prob-open" type="button" aria-expanded="false"
           aria-controls="probpanel" title="the whole statement (tap again to close)"><span id="prob-label">problem</span></button>
@@ -267,6 +267,7 @@
   <button id="probmenu-calc" type="button">to calculator</button>
   <button id="probmenu-say" type="button">into typed answer</button>
   <button id="probmenu-copy" type="button">copy TeX</button>
+  <button id="probmenu-page" type="button">onto the page</button>
   <p id="probmenu-said" class="hdrmenu-note muted"></p>
 </div>
 

@@ -187,7 +187,11 @@ tree gets a `doc.json` written in place, so its ids hold.
   read from the pinned set alone and cached on its mtime. On the board `web/problem.js` draws
   it as `#probbar` in the chrome: the label opens the whole statement (`#probpanel`, fixed,
   outside the sticky chrome), a picker switches problems, and each given's chip goes to the
-  calculator (`Calc.enter`), into the typed answer, or onto the clipboard as TeX.
+  calculator (`Calc.enter`), into the typed answer, onto the clipboard as TeX, or onto the
+  writing surface: a page's `objects` (`{id, kind: 'tex', tex, fig, x, y, w, h}`) are the
+  given typeset as `server/tikz.py`'s kind-`latex` figure, drawn under the ink and in the
+  sent PNG, moved by the lasso, rubbed out whole and undone like ink. Where an SVG would
+  taint the canvas the slate draws the figure's dvipng PNG instead.
 - **Deck or paper.** The Make menu creates the `doc.json`; a `[writeup]` turn writes and
   builds it.
 - **Meeting deck.** `board meeting --since 7d` or home's meeting panel: one brief of the

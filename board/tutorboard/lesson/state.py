@@ -12,6 +12,7 @@ import time
 from .. import machine
 from ..runner import daemon
 from ..course import givens, homework, library, paper
+from ..server import tikz
 
 
 def load_agent(repo):
@@ -185,7 +186,9 @@ def load_problem(repo, st=None):
     `{set, rel, label, pinned, labels, stated, card, givens}`. `label` is
     session.json `problem`, else the next problem once it is stated
     (`homework.current`), else None with the picker's labels still there.
-    None when nothing is pinned. Cached on the file's mtime and size.
+    Each given carries `fig`, the digest of its typeset figure for the slate
+    (`figure_jobs` compiles it). None when nothing is pinned. Cached on the
+    file's mtime and size.
     """
     st = repo.state() if st is None else st
     found = _pinned_set(repo, st)
@@ -222,8 +225,24 @@ def load_problem(repo, st=None):
     got = parsed[label]
     if got:
         out.update(stated=got["stated"], card=got["card"],
-                   givens=[dict(g) for g in got["givens"]])
+                   givens=[dict(g, fig=tikz.digest("latex", givens.figure_source(g["tex"]),
+                                                   repo.root))
+                           for g in got["givens"]])
     return out
+
+
+def figure_jobs(repo, problem):
+    """The compile jobs, `(digest, kind, source)`, for every given whose
+    figure is neither in the session's figure cache nor failed there."""
+    jobs = []
+    for g in (problem or {}).get("givens") or []:
+        fig = g.get("fig")
+        if not fig:
+            continue
+        done = [os.path.exists(os.path.join(repo.tikz, fig + ext)) for ext in (".svg", ".err")]
+        if not any(done):
+            jobs.append((fig, "latex", givens.figure_source(g["tex"])))
+    return jobs
 
 
 def load_reading(repo):

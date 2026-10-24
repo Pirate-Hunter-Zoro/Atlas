@@ -10,6 +10,10 @@ files, and the same figure in two sessions on one subject is compiled once.
 
     TikzWorker(repo)        one session's handle: submit, dirty, start, stop
     digest(kind, src, root) a figure's name in the cache
+
+A kind-`latex` figure (a card's ```latex fence, a given placed on the slate)
+is also written as `<name>.png` by dvipng where it is installed: the slate
+draws that instead when an SVG would taint its canvas (`web/slate-core.js`).
 """
 
 import hashlib
@@ -213,6 +217,28 @@ def _fail(cache, name, msg):
     os.replace(tmp, os.path.join(cache, name + ".err"))
 
 
+# The PNG's resolution: at 259 dpi a pixel is half a CSS pixel of the SVG
+# dvisvgm draws at zoom 1.35, which is the size the slate places it at.
+PNG_DPI = 259
+
+
+def _png(work, dvi, env, dest):
+    """The DVI as a cropped, transparent PNG at `dest`, when dvipng is here.
+    Written before the SVG, so a figure whose SVG exists has its PNG too."""
+    if not shutil.which("dvipng"):
+        return
+    made = os.path.join(work, "fig.png")
+    try:
+        proc = subprocess.run(
+            ["dvipng", "-q", "-T", "tight", "-D", str(PNG_DPI), "-bg", "Transparent",
+             "-o", made, dvi],
+            cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=90)
+    except (OSError, subprocess.SubprocessError):
+        return
+    if proc.returncode == 0 and os.path.exists(made):
+        os.replace(made, dest)
+
+
 def compile_figure(cache, root, name, kind, src):
     """Compile one figure with `root`'s macros into `<cache>/<name>.svg`,
     or write `<name>.err` saying why not."""
@@ -262,6 +288,8 @@ def compile_figure(cache, root, name, kind, src):
         if proc.returncode != 0 or not os.path.exists(made):
             _fail(cache, name, proc.stdout.decode("utf-8", "replace")[-800:])
             return
+        if kind == "latex":
+            _png(work, dvi, env, os.path.join(cache, name + ".png"))
         os.replace(made, os.path.join(cache, name + ".svg"))
     finally:
         shutil.rmtree(work, ignore_errors=True)

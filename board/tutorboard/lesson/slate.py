@@ -17,6 +17,45 @@ def page_number(name):
     return int(m.group(1)) if m else None
 
 
+# A typeset given placed on a page (`web/slate-core.js` `placeTex`):
+# {id, kind: "tex", tex, fig, x, y, w, h}. What a browser sends is checked
+# field by field, and anything else is dropped.
+OBJECTS_MAX = 64
+_FIG = re.compile(r"\A[0-9a-f]{6,40}\Z")
+
+
+def clean_objects(raw):
+    """The typeset givens a save carries, each whole or not at all."""
+    out = []
+    for o in raw if isinstance(raw, list) else []:
+        if not isinstance(o, dict) or o.get("kind") != "tex":
+            continue
+        fig = str(o.get("fig") or "")
+        try:
+            box = [float(o.get(k)) for k in ("x", "y", "w", "h")]
+        except (TypeError, ValueError):
+            continue
+        if not _FIG.match(fig) or box[2] <= 0 or box[3] <= 0 \
+                or any(v != v or abs(v) > 1e7 for v in box):
+            continue
+        out.append({"id": str(o.get("id") or "given")[:40], "kind": "tex",
+                    "tex": str(o.get("tex") or "")[:4000], "fig": fig,
+                    "x": box[0], "y": box[1], "w": box[2], "h": box[3]})
+        if len(out) >= OBJECTS_MAX:
+            break
+    return out
+
+
+def stored_objects(path):
+    """The typeset givens on the page saved at `path`, or []."""
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            rec = json.load(fh)
+    except (OSError, ValueError):
+        return []
+    return clean_objects(rec.get("objects")) if isinstance(rec, dict) else []
+
+
 def read_slate_pages(repo):
     """Full stroke data for every page, each with its number and ordered by
     it (`page-100` sorts before `page-99` by name)."""

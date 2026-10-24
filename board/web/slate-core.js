@@ -175,6 +175,113 @@ function inPolygon(x, y, poly) {
   return inside;
 }
 
+/* ------------------------------------------------------- typeset givens */
+/* A page carries `objects`, [{id, kind: "tex", tex, fig, x, y, w, h}]: a given
+   from the problem bar (web/problem.js), typeset by the server
+   (`server/tikz.py`, kind `latex`) as /figure/<fig>.svg. Drawn under the ink,
+   on the glass and in the picture a send carries, in the paper's ink colour.
+
+   An SVG drawn into a canvas taints it on some Safari builds, and a tainted
+   canvas has no picture to send. So the first SVG to arrive is drawn into a
+   scrap canvas and read back; if that throws, every figure is fetched as the
+   server's PNG of the same digest instead (/figure/<fig>.png, dvipng), which
+   never taints. */
+var FIGS = {};                /* url -> {state, img, w, h, tints, png, at} */
+var figWatchers = [];         /* each surface's repaint, for a figure arriving */
+var serverPng = false;
+var taintKnown = false;
+/* CSS pixels per pixel of the server's PNG: dvisvgm at zoom 1.35 against
+   dvipng at 259 dpi (`server/tikz.py`), so a figure is one size either way. */
+var PNG_CSS = 0.5;
+/* How long a figure the server did not have yet is left before asking again:
+   it is compiled when the problem is, and may still be on its way. */
+var FIG_RETRY_MS = 3000;
+/* Device pixels per CSS pixel a tinted figure is kept at: sharp at the zoom
+   anybody writes at, and a few hundred kilobytes a figure. */
+var FIG_SCALE = 3;
+
+function figTainted(img) {
+  try {
+    var c = document.createElement("canvas");
+    c.width = c.height = 4;
+    var g = c.getContext("2d");
+    if (!g) return false;
+    g.drawImage(img, 0, 0, 4, 4);
+    c.toDataURL("image/png");
+    return false;
+  } catch (e) { return true; }
+}
+
+function figTell(f) {
+  figWatchers.slice().forEach(function (fn) {
+    try { fn(f); } catch (e) { /* one surface's fault is its own */ }
+  });
+}
+
+/* The figure for digest `fig` under `base` (a session's /figure/), loading
+   it the first time it is asked for. */
+function figure(base, fig) {
+  var url = base + fig + (serverPng ? ".png" : ".svg");
+  var f = FIGS[url];
+  if (f && !(f.state === "error" && Date.now() - f.at > FIG_RETRY_MS)) return f;
+  f = FIGS[url] = { state: "loading", img: null, w: 0, h: 0, tints: {},
+                    png: serverPng, at: Date.now() };
+  var img = new Image();
+  img.onload = function () {
+    if (!f.png && !taintKnown) {
+      taintKnown = true;
+      if (figTainted(img)) {
+        serverPng = true;
+        f.state = "error";
+        f.at = 0;
+        figTell(f);
+        return;
+      }
+    }
+    var k = f.png ? PNG_CSS : 1;
+    f.img = img;
+    f.w = (img.naturalWidth || img.width || 0) * k;
+    f.h = (img.naturalHeight || img.height || 0) * k;
+    f.state = f.w > 0 && f.h > 0 ? "ready" : "error";
+    f.at = Date.now();
+    figTell(f);
+  };
+  img.onerror = function () {
+    f.state = "error";
+    f.at = Date.now();
+    figTell(f);
+  };
+  img.src = url;
+  return f;
+}
+
+/* A figure in one ink colour, kept: the server's figure is black glyphs, and
+   black on black paper is nothing. */
+function figTint(f, colour) {
+  if (f.tints[colour]) return f.tints[colour];
+  var c = document.createElement("canvas");
+  c.width = Math.max(1, Math.ceil(f.w * FIG_SCALE));
+  c.height = Math.max(1, Math.ceil(f.h * FIG_SCALE));
+  var g = c.getContext("2d");
+  if (!g) return null;
+  g.drawImage(f.img, 0, 0, c.width, c.height);
+  g.globalCompositeOperation = "source-in";
+  g.fillStyle = colour;
+  g.fillRect(0, 0, c.width, c.height);
+  f.tints[colour] = c;
+  return c;
+}
+
+function objBox(o) {
+  return { x0: o.x, y0: o.y, x1: o.x + o.w, y1: o.y + o.h };
+}
+
+/* An object as it is saved: its fields and nothing a surface hung on it. */
+function stripObj(o) {
+  return { id: o.id, kind: "tex", tex: o.tex, fig: o.fig,
+           x: o.x, y: o.y, w: o.w, h: o.h };
+}
+
 /* ------------------------------------------------------------------ create */
 function create(opts) {
   opts = opts || {};
@@ -189,6 +296,10 @@ function create(opts) {
 
   var api = {};
   var pages = [];
+  /* Where a typeset given's figure is fetched from: the session's /figure/,
+     beside its /slate/save. */
+  var figBase = opts.figureBase
+    || String(opts.saveUrl || "/slate/save").replace(/slate\/save$/, "figure/");
   /* Whether `pages` is what the server has, or the one blank sheet that stands
      in until it answers. See `settled` below. */
   var loaded = false;
@@ -530,6 +641,16 @@ function create(opts) {
   /* ----------------------------------------------------------- the model */
   function page() { return pages[current]; }
 
+  /* A page's typeset givens, made an empty list on a page from before them. */
+  function objs(p) {
+    if (!p) return [];
+    if (!Array.isArray(p.objects)) p.objects = [];
+    return p.objects;
+  }
+
+  /* A figure arriving repaints whatever shows it. */
+  figWatchers.push(function () { invalidateInk(); });
+
   /* A page's number is its name on disk, carried, never counted from its
      position: saved pages have gaps, and an index would save onto a
      neighbour's sheet (see `lesson/slate.py`). The index is presentation. */
@@ -551,6 +672,7 @@ function create(opts) {
       w: Math.round(wrap.clientWidth || 900),
       h: Math.round(wrap.clientHeight || 520),
       strokes: [],
+      objects: [],
     };
   }
 
@@ -575,17 +697,22 @@ function create(opts) {
      place: anything that would change one (dragging, recolouring) replaces it
      with a copy first (`fork` below). `dense` and `_bb` are caches and may be
      dropped at any time. Break that rule and undo silently stops undoing. */
+  /* The page's typeset givens ride with it, under the same rule: an object is
+     never moved in place either (`forkObj`). */
   function snapshot() {
-    undoStack.push(page().strokes.slice());
+    undoStack.push({ s: page().strokes.slice(), o: objs(page()).slice() });
     if (undoStack.length > UNDO_DEPTH) undoStack.shift();
     redoStack.length = 0;
   }
 
   function restoreFrom(from, to) {
     if (!from.length) return;
-    to.push(page().strokes.slice());
-    page().strokes = from.pop();
+    to.push({ s: page().strokes.slice(), o: objs(page()).slice() });
+    var was = from.pop();
+    page().strokes = was.s;
+    page().objects = was.o;
     clearSelection();
+    dropInk();
     invalidateInk();
     markDirty();
   }
@@ -600,6 +727,16 @@ function create(opts) {
     var c = { c: s.c, w: s.w, hl: !!s.hl,
               pts: s.pts.map(function (q) { return q.slice(); }) };
     p.strokes[i] = c;
+    return c;
+  }
+
+  /* The same for a typeset given. */
+  function forkObj(i) {
+    var list = objs(page());
+    var o = list[i];
+    if (!o) return null;
+    var c = stripObj(o);
+    list[i] = c;
     return c;
   }
 
@@ -885,12 +1022,41 @@ function create(opts) {
     c.restore();
   }
 
+  /* A page's typeset givens, under its ink, in `colour`. One whose figure has
+     not arrived is a dashed box on the glass (`pending`) and nothing in a
+     picture; the arrival repaints. */
+  function paintObjects(g, p, box, colour, pending) {
+    var list = (p && p.objects) || [];
+    for (var i = 0; i < list.length; i++) {
+      var o = list[i];
+      if (box && (o.x > box.x1 || o.x + o.w < box.x0 || o.y > box.y1 || o.y + o.h < box.y0)) {
+        continue;
+      }
+      var f = o.fig ? figure(figBase, o.fig) : null;
+      var c = f && f.state === "ready" ? figTint(f, colour) : null;
+      if (c) {
+        g.drawImage(c, o.x, o.y, o.w, o.h);
+      } else if (pending) {
+        g.save();
+        g.strokeStyle = colour;
+        g.globalAlpha = 0.35;
+        g.lineWidth = 1 / Math.max(view.k, 0.01);
+        g.setLineDash([4 / Math.max(view.k, 0.01), 4 / Math.max(view.k, 0.01)]);
+        g.strokeRect(o.x, o.y, o.w, o.h);
+        g.restore();
+      }
+    }
+  }
+
+  function inkColour() { return PAPERS[tool.paper].ink; }
+
   function rebuildCache() {
     var p = page(), d = dpr();
     cacheCtx.setTransform(1, 0, 0, 1, 0, 0);
     cacheCtx.clearRect(0, 0, cache.width, cache.height);
     cacheCtx.setTransform(d * view.k, 0, 0, d * view.k, d * view.ox, d * view.oy);
     paintPaper(cacheCtx, p, view.k);
+    paintObjects(cacheCtx, p, seenBox(), inkColour(), true);
     paintStrokes(cacheCtx, p, seenBox(), tool.paper === "black");
     cacheValid = true;
     cacheStale = false;
@@ -1032,6 +1198,7 @@ function create(opts) {
     cacheCtx.clip();
     cacheCtx.setTransform(d * at.k, 0, 0, d * at.k, d * at.ox, d * at.oy);
     paintPaper(cacheCtx, p, at.k);
+    paintObjects(cacheCtx, p, box, inkColour(), true);
     paintStrokes(cacheCtx, p, box, tool.paper === "black");
     cacheCtx.restore();
     return true;
@@ -1158,8 +1325,13 @@ function create(opts) {
   /* The bar is offered when it can do something, and Paste can with nothing
      selected: so it also appears with the lasso in hand and something on the
      clipboard, and every control says whether it applies. */
+  /* Is anything looped: strokes, typeset givens or both. */
+  function picked() {
+    return !!(sel && ((sel.idx && sel.idx.length) || (sel.obj && sel.obj.length)));
+  }
+
   function paintSelbar() {
-    var has = !!(sel && sel.idx.length);
+    var has = picked();
     var held = !!(window.InkClip && window.InkClip.has());
     selbar.hidden = !(has || (tool.mode === "lasso" && held));
     for (var i = 0; i < selButtons.length; i++) {
@@ -1171,8 +1343,16 @@ function create(opts) {
   }
 
   function bounds() {
-    if (!sel || !sel.idx.length) return null;
+    if (!picked()) return null;
     var p = page(), x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    (sel.obj || []).forEach(function (i) {
+      var o = objs(p)[i];
+      if (!o) return;
+      if (o.x < x0) x0 = o.x;
+      if (o.y < y0) y0 = o.y;
+      if (o.x + o.w > x1) x1 = o.x + o.w;
+      if (o.y + o.h > y1) y1 = o.y + o.h;
+    });
     sel.idx.forEach(function (i) {
       p.strokes[i].pts.forEach(function (q) {
         if (q[0] < x0) x0 = q[0];
@@ -1228,8 +1408,24 @@ function create(opts) {
       }
       return true;
     });
+    /* A typeset given goes whole, like a stroke, when the sweep reaches its box. */
+    var objsBefore = objs(p).length;
+    p.objects = objs(p).filter(function (o) {
+      var cx = Math.max(o.x, Math.min(o.x + o.w, pt.x));
+      var cy = Math.max(o.y, Math.min(o.y + o.h, pt.y));
+      var ax = Math.max(o.x, Math.min(o.x + o.w, a.x));
+      var ay = Math.max(o.y, Math.min(o.y + o.h, a.y));
+      if (distToSeg(cx, cy, a.x, a.y, pt.x, pt.y) < r * r
+          || distToSeg(ax, ay, a.x, a.y, pt.x, pt.y) < r * r) {
+        var b = objBox(o);
+        took = took ? { x0: Math.min(took.x0, b.x0), y0: Math.min(took.y0, b.y0),
+                        x1: Math.max(took.x1, b.x1), y1: Math.max(took.y1, b.y1) } : b;
+        return false;
+      }
+      return true;
+    });
     rubbedFrom = pt;
-    if (p.strokes.length !== before) {
+    if (p.strokes.length !== before || p.objects.length !== objsBefore) {
       /* Only where the ink was. `repairBox` is drained once a frame, not once a
          sample, so a swipe that reports twenty samples costs one repaint of the
          area it covered rather than twenty repaints of the page. */
@@ -1377,6 +1573,12 @@ function create(opts) {
         s._bb = null;                 /* it has moved; so has its box */
         for (var n = 0; n < s.pts.length; n++) { s.pts[n][0] += dx; s.pts[n][1] += dy; }
       });
+      (sel.obj || []).forEach(function (i) {
+        var o = dragging.forked ? objs(page())[i] : forkObj(i);
+        if (!o) return;
+        o.x += dx;
+        o.y += dy;
+      });
       dragging.forked = true;
       invalidateInk();
       return;
@@ -1467,17 +1669,21 @@ function create(opts) {
     if (ev && ev.pointerType === "pen") delete palms[ev.pointerId];
     /* fall through: a contact that was never a palm ends normally */
     if (ev) forgetContact(ev.pointerId);
-    if (dragging) { dragging = null; markDirty(); invalidateInk(); return; }
+    if (dragging) { dragging = null; dropInk(); markDirty(); invalidateInk(); return; }
     if (lasso) {
       if (lasso.length > 4) {
-        var poly = lasso, p = page(), idx = [];
+        var poly = lasso, p = page(), idx = [], obj = [];
         p.strokes.forEach(function (s, i) {
           var hits = 0;
           s.pts.forEach(function (q) { if (inPolygon(q[0], q[1], poly)) hits++; });
           if (hits > s.pts.length * 0.6) idx.push(i);
         });
-        sel = idx.length ? { idx: idx } : null;
-        if (!idx.length) toast("nothing inside the loop");
+        /* A typeset given is inside when its middle is. */
+        objs(p).forEach(function (o, i) {
+          if (inPolygon(o.x + o.w / 2, o.y + o.h / 2, poly)) obj.push(i);
+        });
+        sel = idx.length || obj.length ? { idx: idx, obj: obj } : null;
+        if (!sel) toast("nothing inside the loop");
       }
       lasso = null;
       schedule();
@@ -1667,8 +1873,10 @@ function create(opts) {
     "delete": function () {
       snapshot();
       var drop = {}; sel.idx.forEach(function (i) { drop[i] = true; });
+      var gone = {}; (sel.obj || []).forEach(function (i) { gone[i] = true; });
       page().strokes = page().strokes.filter(function (_, i) { return !drop[i]; });
-      clearSelection(); invalidateInk(); markDirty();
+      page().objects = objs(page()).filter(function (_, i) { return !gone[i]; });
+      clearSelection(); dropInk(); invalidateInk(); markDirty();
     },
     done: function () { clearSelection(); schedule(); },
   };
@@ -1676,7 +1884,9 @@ function create(opts) {
     b.onclick = function () {
       var act = ACTIONS[b.dataset.act];
       if (!act) return;
-      if (["paste", "done"].indexOf(b.dataset.act) === -1 && !(sel && sel.idx.length)) return;
+      if (["paste", "done"].indexOf(b.dataset.act) === -1 && !picked()) return;
+      /* Cut, copy, duplicate and recolour are the ink's; a given has its chip. */
+      if (["delete", "paste", "done"].indexOf(b.dataset.act) === -1 && !sel.idx.length) return;
       act();
       paintSelbar();
     };
@@ -1713,7 +1923,7 @@ function create(opts) {
     var cmd = e.metaKey || e.ctrlKey;
     var k = (e.key || "").toLowerCase();
     if (!cmd) {
-      if ((k === "delete" || k === "backspace") && sel && sel.idx.length) {
+      if ((k === "delete" || k === "backspace") && picked()) {
         e.preventDefault();
         ACTIONS["delete"]();
         paintSelbar();
@@ -1766,9 +1976,18 @@ function create(opts) {
      current one -- toPNG is handed the page to export and the cache belongs to
      whichever page is on screen. */
   function inkBoxOf(p) {
-    if (!p || !p.strokes || !p.strokes.length) return null;
+    if (!p || ((!p.strokes || !p.strokes.length) && !(p.objects && p.objects.length))) {
+      return null;
+    }
     var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    p.strokes.forEach(function (st) {
+    /* A typeset given is on the page like ink: the crop and the plane cover it. */
+    (p.objects || []).forEach(function (o) {
+      if (o.x < x0) x0 = o.x;
+      if (o.y < y0) y0 = o.y;
+      if (o.x + o.w > x1) x1 = o.x + o.w;
+      if (o.y + o.h > y1) y1 = o.y + o.h;
+    });
+    (p.strokes || []).forEach(function (st) {
       var pad = (st.w || 1) * (st.hl ? 3 : 1);
       for (var i = 0; i < st.pts.length; i++) {
         var q = st.pts[i];
@@ -1781,7 +2000,7 @@ function create(opts) {
     return x1 > x0 ? { x0: x0, y0: y0, x1: x1, y1: y1 } : null;
   }
 
-  function toPNG(p, edge) {
+  function toPNG(p, edge, bare) {
     var box = pngBox(p, edge);
     var c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(box.w * box.s));
@@ -1808,6 +2027,8 @@ function create(opts) {
       }
       g.stroke();
     }
+    /* The givens under the ink, dark on white like it. */
+    if (!bare) paintObjects(g, p, null, "#16171a", false);
     var order = p.strokes.filter(function (s) { return s.hl; })
                  .concat(p.strokes.filter(function (s) { return !s.hl; }));
     order.forEach(function (s) {
@@ -1816,7 +2037,19 @@ function create(opts) {
       paintStroke(g, s, false);        /* the PNG is white, always */
       s.c = swapped;
     });
-    return c.toDataURL("image/png");
+    try {
+      return c.toDataURL("image/png");
+    } catch (e) {
+      /* A figure tainted the canvas after all. Every figure goes to the
+         server's PNG from now on, and this picture goes without them rather
+         than not at all. */
+      if (bare) throw e;
+      serverPng = true;
+      taintKnown = true;
+      figTell(null);
+      toast("the givens are missing from this picture; the next one has them");
+      return toPNG(p, edge, true);
+    }
   }
 
   /* ---------------------------------------------------------------- save */
@@ -1943,6 +2176,7 @@ function create(opts) {
     if (!p.n) p.n = nextPageNo();
     var body = { page: p.n, w: p.w, h: p.h,
                  strokes: p.strokes.map(stripDense),
+                 objects: objs(p).map(stripObj),
                  png: withPicture ? toPNG(p, send ? 0 : PNG_IDLE_EDGE) : "",
                  send: !!send,
                  pages: pages.length };
@@ -2307,7 +2541,7 @@ function create(opts) {
   /* How much is looped. The clipboard is shared between surfaces, so a test
      about "copy here, paste there" has to be able to ask each of them what it is
      holding -- and the bar's own buttons are the only other way in. */
-  api.picked = function () { return sel ? sel.idx.length : 0; };
+  api.picked = function () { return sel ? sel.idx.length + (sel.obj || []).length : 0; };
   api.selbar = selbar;
   /* The plane, the crop and the finger rule, so all three can be asserted --
      none of them is visible from the outside otherwise, and the last time a
@@ -2394,6 +2628,7 @@ function create(opts) {
     if (!p) return false;
     snapshot();
     p.strokes = (data && data.strokes) || [];
+    p.objects = ((data && data.objects) || []).map(stripObj);
     p.strokes.forEach(function (s) { s.dense = null; });
     if (data && data.w) p.w = data.w;
     if (data && data.h) p.h = data.h;
@@ -2475,6 +2710,7 @@ function create(opts) {
       c.pts = st.pts.map(function (q) { return q.slice(); });
       return c;
     });
+    copy.objects = objs(src).map(stripObj);
     if (at < 0) { pages.push(copy); at = pages.length - 1; }
     goTo(at);
     invalidateInk();
@@ -2521,8 +2757,10 @@ function create(opts) {
      the same code on the same paper, a frozen board is indistinguishable from
      a live one, which is the rule this file's boards are built on. */
   api.previewInk = function (ink, cssW, cssH) {
-    if (!ink || !ink.strokes || !ink.strokes.length) return "";
-    var p = { w: ink.w || cssW, h: ink.h || cssH, strokes: ink.strokes };
+    if (!ink || ((!ink.strokes || !ink.strokes.length)
+                 && !(ink.objects && ink.objects.length))) return "";
+    var p = { w: ink.w || cssW, h: ink.h || cssH, strokes: ink.strokes || [],
+              objects: ink.objects || [] };
     var url = shoot(p, cssW, cssH);
     p.strokes.forEach(function (st) { st.dense = null; });
     return url;
@@ -2571,6 +2809,7 @@ function create(opts) {
       }
       g.stroke();
     }
+    paintObjects(g, p, { x0: x0, y0: y0, x1: x1, y1: y1 }, skin.ink, false);
     paintStrokes(g, p, { x0: x0, y0: y0, x1: x1, y1: y1 }, tool.paper === "black");
     var url = "";
     try { url = c.toDataURL("image/png"); } catch (e) { url = ""; }
@@ -2596,6 +2835,7 @@ function create(opts) {
       c.pts = (st.pts || []).map(function (q) { return q.slice(); });
       return c;
     });
+    copy.objects = ((ink && ink.objects) || []).map(stripObj);
     pages.push(copy);
     goTo(pages.length - 1);
     markDirty();
@@ -2632,10 +2872,54 @@ function create(opts) {
     if (!p) return;
     snapshot();
     p.strokes = [];
+    p.objects = [];
     dropInk();
     clearSelection();
     invalidateInk();
   };
+  /* A typeset given onto the page in hand: `{id, tex, fig}` from the problem
+     bar. It lands in the middle of what is on the glass, at its typeset size
+     (shrunk to fit the view, never enlarged), looped and with the lasso in
+     hand, so it can be dragged where it is wanted. Resolves true once it is
+     on the page, false when its figure cannot be had. */
+  api.placeTex = function (given) {
+    var g = given || {};
+    if (!g.fig || !/^[0-9a-f]{6,40}$/.test(String(g.fig))) return Promise.resolve(false);
+    return new Promise(function (resolve) {
+      var tries = 0;
+      function land() {
+        var f = figure(figBase, g.fig);
+        if (f.state === "loading" || (f.state === "error" && !f.at)) {
+          if (++tries > 200) return resolve(false);
+          return setTimeout(land, 50);
+        }
+        if (f.state !== "ready") {
+          toast("that given is still being typeset; try again in a moment");
+          return resolve(false);
+        }
+        var p = page();
+        if (!p) return resolve(false);
+        var v = viewBox();
+        var vw = v.x1 - v.x0, vh = v.y1 - v.y0;
+        var k = Math.min(1, (vw * 0.9) / f.w, (vh * 0.9) / f.h);
+        var w = f.w * k, h = f.h * k;
+        snapshot();
+        objs(p).push({ id: String(g.id || "given"), kind: "tex", tex: String(g.tex || ""),
+                       fig: String(g.fig), x: (v.x0 + v.x1) / 2 - w / 2,
+                       y: (v.y0 + v.y1) / 2 - h / 2, w: w, h: h });
+        sel = { idx: [], obj: [objs(p).length - 1] };
+        if (tool.mode !== "lasso") api.tool("lasso");
+        dropInk();
+        invalidateInk();
+        markDirty();
+        paintSelbar();
+        resolve(true);
+      }
+      land();
+    });
+  };
+  /* The typeset givens on the page in hand, as saved. */
+  api.objects = function () { return objs(page()).map(stripObj); };
   api.root = root;
   return api;
 }

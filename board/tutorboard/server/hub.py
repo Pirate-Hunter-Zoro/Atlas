@@ -128,6 +128,11 @@ class Hub:
             # strip.
         board_state["mode"] = config.mode_of(board_state)
         board_state["stance_now"] = board_state["mode"]
+        # Each given's figure for the slate is compiled like a card's.
+        problem = _safe(state.load_problem, repo, board_state)
+        figures = _safe(state.figure_jobs, repo, problem) or []
+        if figures:
+            self.worker.submit(figures)
         ink, ink_sent = notes.card_ink(repo, [c["id"] for c in on_board])
         data = {
             "state": board_state,
@@ -153,7 +158,7 @@ class Hub:
             "hw": _safe(state.load_hw, repo, board_state),
             # The problem on their screen: its statement as a card and its
             # givens, from the pinned set (`state.load_problem`).
-            "problem": _safe(state.load_problem, repo, board_state),
+            "problem": problem,
             "writeups": _safe(writeups.waiting, repo),
             # The subject's macros, so KaTeX matches LaTeX.
             "macros": coursemacros.for_workspace(repo.root),

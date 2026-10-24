@@ -9,6 +9,8 @@
                            environment or `\\left(...\\right)` tuple. `calc` is
                            math.js text (`P = [1/2, 1/3; 0, 1]`), null when an
                            entry is symbolic.
+    figure_source(tex)     the kind-`latex` source a given is typeset from on
+                           the slate
 
 The constraint: nothing inside mathematics is rewritten. Math is parked
 before any text rule runs and put back after, so a rule can never reach it.
@@ -556,6 +558,14 @@ def givens(body):
                         "name": name, "tex": tex,
                         "calc": _calc(ident, kind, inner)})
     return out
+
+
+def figure_source(tex):
+    """What a given is typeset from on the slate: `server/tikz.py`'s kind
+    `latex` figure of this source, named by its digest. One unbreakable box,
+    since the figure's page is as narrow as its content, and no page style,
+    since a course's preamble may set a running head."""
+    return "\\thispagestyle{empty}\\mbox{$\\displaystyle %s$}" % tex
 
 
 def problem(text, label):

@@ -4,7 +4,7 @@
    The payload's `problem` (`lesson/state.load_problem`) is the problem the
    session has pinned, or the next one once it is stated: its label, every
    label in the set, its statement as card markdown and its givens, each
-   `{id, name, tex, calc}`.
+   `{id, name, tex, calc, fig}`, `fig` naming its typeset figure.
 
    #probbar sits in #chrome under #hwbar: the label, which opens and closes
    the whole statement in one tap, a picker over every problem in the set
@@ -16,10 +16,12 @@
      to calculator      Calc.enter(calc) defines it; absent while calc is null
      into typed answer  `$tex$` at #saybox's caret
      copy TeX           the TeX on the clipboard
+     onto the page      typeset on the writing surface (`hooks.place`), where
+                        the lasso moves it and a send carries it
 
    board.js owns the page and hands over what this needs (`init`): its
-   session fetch, its markdown and KaTeX and the course's macros. Loaded
-   before board.js.
+   session fetch, its markdown and KaTeX, the course's macros and the
+   writing surface. Loaded before board.js.
    ========================================================================== */
 
 (function () {
@@ -40,7 +42,7 @@ function init(h) {
     pick: $("prob-pick"), chips: $("prob-chips"),
     panel: $("probpanel"), body: $("probpanel-body"), shut: $("probpanel-close"),
     menu: $("probmenu"), head: $("probmenu-head"), calc: $("probmenu-calc"),
-    say: $("probmenu-say"), copy: $("probmenu-copy"),
+    say: $("probmenu-say"), copy: $("probmenu-copy"), page: $("probmenu-page"),
     said: $("probmenu-said"), chrome: $("chrome"),
   };
   if (!els.bar) return;
@@ -58,6 +60,7 @@ function init(h) {
   els.calc.onclick = function () { act(toCalculator); };
   els.say.onclick = function () { act(intoTyped); };
   els.copy.onclick = function () { act(copyTex); };
+  if (els.page) els.page.onclick = function () { act(ontoPage); };
   /* A tap anywhere else lets the menu go; Escape does too. */
   document.addEventListener("pointerdown", function (e) {
     if (els.menu.hidden) return;
@@ -204,6 +207,7 @@ function openMenu(g, chip) {
   menuFor = g;
   typesetInto(els.head, g.tex);
   els.calc.hidden = !g.calc;
+  if (els.page) els.page.hidden = !(hooks.place && g.fig);
   els.said.textContent = "";
   els.menu.hidden = false;
   var r = chip.getBoundingClientRect();
@@ -280,6 +284,19 @@ function legacyCopy(text) {
   document.body.removeChild(t);
 }
 
+/* The surface answers when the figure has landed, or why it could not. */
+function ontoPage(g) {
+  if (!hooks.place) return "no page here";
+  var said = hooks.place(g);
+  if (said && typeof said.then === "function") {
+    said.then(function (msg) {
+      if (typeof msg === "string" && els.said) els.said.textContent = msg;
+    });
+    return "placing " + g.id + "…";
+  }
+  return typeof said === "string" ? said : null;
+}
+
 window.Problem = {
   init: init,
   paint: paint,
@@ -291,7 +308,7 @@ window.Problem = {
     var g = ((problem && problem.givens) || []).filter(function (x) { return x.id === id; })[0];
     if (!g) return null;
     menuFor = g;
-    return { calc: toCalculator, say: intoTyped, copy: copyTex }[what](g);
+    return { calc: toCalculator, say: intoTyped, copy: copyTex, page: ontoPage }[what](g);
   },
 };
 

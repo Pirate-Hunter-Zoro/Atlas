@@ -102,68 +102,6 @@ Sections 1 and 2 are done: every zip and bundle in `~/LIBR-handoff-2026-10-23/` 
 waits for the owner's section 5b.
 
 
-## 11. The problem stays on screen, and its givens go anywhere in one tap
-
-Today a problem statement lives only in a card that scrolls away. Nothing records the current
-problem, and the owner hand-copies every matrix. Ship this as three merges.
-
-- **A. The current problem.**
-  - `session.json` gains `problem` (a label).
-  - `board writeup pose <label>` takes the statement on stdin and calls a new
-    `homework.pose(tex, label, statement)`. That writes the statement only where the label is
-    absent, a `\todo` or empty, adds an empty SOLUTION marker pair, and never touches a region or
-    a transcribed statement. It then pins the label.
-  - `POST /s/<id>/problem {label}` lets the panel switch problems, with a non-waking
-    `[problem]` line.
-  - With nothing pinned, the panel falls back to `hw.next` when that problem is stated.
-  - The homework branch of `sense._session_sense` keys on a `session.json` `session` that stored
-    sessions lack, so it never fires. Key it on `homework.bound(root, st)`.
-  - `WRITEUP_SENSE` says to pose before teaching a homework problem.
-- **B. The statement and its givens.**
-  - Add `board/tutorboard/course/givens.py`:
-    - `statement(tex, label)`;
-    - `to_card(body)`, which turns `\textit`, `\emph`, `\textbf`, `\par` and enumerate/itemize
-      into markdown and leaves math alone;
-    - `givens(body)` returning `[{id, name, tex, calc}]`. `calc` is math.js text for a matrix
-      environment or a `\left(...\right)` tuple, with `\frac`/`\tfrac` turned into `a/b`, and
-      null when an entry is symbolic.
-  - `lesson/state.load_problem` is mtime-cached and reads only the pinned set. `hub.py` adds
-    `problem` to the payload.
-  - Add `test/givens.py`:
-    - hw04 problem 5 gives P with calc `P = [1/2, 1/3, 1/6; 0, 1/3, 2/3; 1/2, 0, 1/2]`, and p with
-      calc `p = [1/4, 1/4, 1/2]`;
-    - hw04 problem 14 gives four matrices;
-    - Galois ch07 problem 17 renders (a)-(d).
-- **C. The panel and the calculator.**
-  - New `web/problem.js`, loaded before `board.js` and listed in `sw.js`'s shell.
-  - `#probbar` sits in `#chrome` after `#hwbar`. It holds the label with a picker, and one KaTeX
-    chip per given.
-  - `#probpanel` is position fixed outside `#chrome`, about 45vh with its own scroll, and shows
-    the whole statement. A scroller inside sticky `#chrome` does not scroll on WebKit.
-  - A chip menu offers:
-    - to calculator: a new `Calc.enter(text)` defines the variable;
-    - into typed answer: inserts `$tex$` at the `#saybox` caret;
-    - copy TeX.
-  - `calc-core.js` `fracHint` covers matrices element by element, so pP³ shows
-    `[[59/144, 43/216, 169/432]]`.
-- **D. Typeset givens on the slate.**
-  - Page JSON gains `objects: [{id, kind:'tex', tex, fig, x, y, w, h}]`, where `fig` is the
-    digest of `server/tikz.py`'s kind-`latex` SVG at `/figure/<digest>.svg`.
-  - `slate-core.js`:
-    - `placeTex` lands at the view centre;
-    - objects draw under the ink, live and in `toPNG`;
-    - `pngBox` covers them;
-    - lasso moves them, the eraser deletes them, and undo covers them.
-  - `/slate/save` keeps stored objects when a payload has no `objects` key.
-  - The `[slate]` line names placed givens, so the tutor does not credit them as working.
-  - If iPad Safari taints the canvas, fall back to a server PNG.
-
-Done when, in a hw04 session pinned to problem 5:
-- Chips P and p show without scrolling, and the statement opens and closes in one tap.
-- P to the calculator, then `p*P^3`, shows fractions.
-- P onto the page moves with the lasso and appears in the sent PNG.
-- Galois ch07 shows problem 17 whole.
-
 ## 12. Free boards and any PDF, saved to Random lessons or a subject
 
 These already exist:
@@ -397,6 +335,11 @@ These are built but not yet used for real. Strike each one after an evening on t
 - **A textbook:** "+ new course" with a PDF ends in a `[textbook]` card, with the readings and
   chapter notes on disk and `chapters.tsv` committed. The library shows the book's line, or
   "Add the textbook".
+- **The problem on screen:** in a hw04 session pinned to problem 5,
+  - chips P and p show without scrolling, and the statement opens and closes in one tap;
+  - P to the calculator, then `p*P^3`, shows fractions;
+  - P onto the page moves with the lasso and appears in the sent PNG;
+  - Galois ch07 shows problem 17 whole.
 - **Typing:** with the full keyboard up, the answer box sits on the keys, the lesson scrolls
   behind it, and the ⤢ key makes the box tall.
 - **Laptop coding:**

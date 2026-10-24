@@ -4,7 +4,9 @@ The slate saves constantly and sends deliberately, and the difference
 between those two is most of what these routes are about.
 
     GET  /slate/state       session    the slate's pages
-    POST /slate/save        session    a slate page, saved or sent
+    POST /slate/save        session    a slate page, saved or sent; its
+                                       typeset givens (`objects`) kept as
+                                       stored when the save has no such key
     POST /annotate/save     subject?   ink on a card or a document page, saved
                                        or sent. Unprefixed (the library, with
                                        `?subject=` or without) it saves
@@ -40,6 +42,22 @@ from ...course import repo as course_repo
 from ...lesson import notes
 from ...lesson import slate
 from ...lesson import turns
+
+
+def placed_says(objects):
+    """What the `[slate]` line says of the typeset givens on a page: they
+    are the problem's data, placed from the panel, and not their working."""
+    names = []
+    for o in objects or []:
+        if o.get("id") not in names:
+            names.append(o.get("id"))
+    if not names:
+        return ""
+    return (" The typeset %s (%s) %s placed from the problem's givens: the "
+            "problem's data, not their working. Credit only what they wrote "
+            "around %s." % ("given" if len(names) == 1 else "givens",
+                             ", ".join(names), "was" if len(names) == 1 else "were",
+                             "it" if len(names) == 1 else "them"))
 
 
 def get(h, repo, path):
@@ -328,9 +346,14 @@ def post(h, repo, path):
             return h.send_json({"ok": False, "error": "bad page"}, status=400)
         stem = os.path.join(repo.slate, "page-%02d" % n)
 
+        # The typeset givens on the page: what the save carries, or what the
+        # page already had when it carries no `objects` key (an older client).
+        objects = (slate.clean_objects(payload.get("objects")) if "objects" in payload
+                   else slate.stored_objects(stem + ".json"))
         with open(stem + ".json", "w", encoding="utf-8") as fh:
             json.dump({"page": n, "w": payload.get("w"), "h": payload.get("h"),
-                       "strokes": payload.get("strokes") or []}, fh)
+                       "strokes": payload.get("strokes") or [],
+                       "objects": objects}, fh)
 
         png = payload.get("png") or ""
         marker = "base64,"
@@ -356,7 +379,7 @@ def post(h, repo, path):
             with open(os.path.join(repo.answers, base + ".json"), "w",
                       encoding="utf-8") as fh:
                 json.dump({"w": payload.get("w"), "h": payload.get("h"),
-                           "strokes": strokes}, fh)
+                           "strokes": strokes, "objects": objects}, fh)
             record = {
                 "id": tid, "rev": rev, "kind": "ink",
                 "answers": payload.get("answers") or turns.newest_question(repo),
@@ -378,8 +401,8 @@ def post(h, repo, path):
                            "assessed; one carried over from their last page "
                            "was answered by your last card. A direction on it "
                            "-- move on, stop, focus on -- binds. Do not mark a "
-                           "question wrong."
-                           % (tid, rev, len(strokes)))
+                           "question wrong.%s"
+                           % (tid, rev, len(strokes), placed_says(objects)))
             msg["slate"] = os.path.join(repo.answers, base + ".png")
             with open(repo.messages_path, "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(msg) + "\n")

@@ -101,6 +101,20 @@ Object.defineProperty(window.navigator, 'clipboard', {
   value: { writeText: (t) => { copied = t; return Promise.resolve(); } }, configurable: true,
 });
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
+// A figure loads as a 134 by 75 picture, whatever its digest.
+window.Image = function () {
+  const img = { naturalWidth: 0, naturalHeight: 0 };
+  Object.defineProperty(img, 'src', {
+    get: () => img.__src,
+    set: (u) => {
+      img.__src = u;
+      setTimeout(() => { img.naturalWidth = 134; img.naturalHeight = 75; img.onload && img.onload(); }, 1);
+    },
+  });
+  return img;
+};
+Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', { get: () => 900 });
+Object.defineProperty(window.HTMLElement.prototype, 'clientHeight', { get: () => 500 });
 
 for (const f of ['katex/katex.min.js', 'typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js',
                  'slate-core.js', 'mathjs/math.js', 'calc-core.js', 'calc.js', 'problem.js']) {
@@ -210,8 +224,28 @@ try {
     : fail('picker posted ' + JSON.stringify(last));
 } catch (e) { fail('problem bar: ' + (e.stack || e.message)); }
 
+// Onto the page: the given, typeset, on the open answer's surface.
 setTimeout(() => {
-  console.log(errors.length ? '\n' + errors.length + ' FAILURES'
-                            : '\nthe problem stays on screen, and its givens go anywhere');
-  process.exit(errors.length ? 1 : 0);
-}, 50);
+  try {
+    window.__render(frame(problem));
+    const chip = d.querySelector('#prob-chips .prob-chip');
+    d.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    chip.click();
+    const page = d.getElementById('probmenu-page');
+    page && !page.hidden ? ok('a chip with a figure offers "onto the page"')
+                         : fail('no "onto the page" in the chip menu');
+    page.click();
+    setTimeout(() => {
+      const said = d.getElementById('probmenu-said').textContent;
+      /P is on the page/.test(said) && window.__writerDebug
+        ? ok('and it lands on the writing surface: ' + said)
+        : fail('onto the page said: ' + said);
+      console.log(errors.length ? '\n' + errors.length + ' FAILURES'
+                                : '\nthe problem stays on screen, and its givens go anywhere');
+      process.exit(errors.length ? 1 : 0);
+    }, 300);
+  } catch (e) {
+    fail('onto the page: ' + (e.stack || e.message));
+    process.exit(1);
+  }
+}, 100);

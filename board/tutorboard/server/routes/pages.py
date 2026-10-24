@@ -9,7 +9,7 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
               GET /manifest.webmanifest  /sw.js  /static/*
     subject   under `/s/<id>/` for the session's subject, or unprefixed with
               `?subject=<id>` (the library page): GET /result/<id>
-    session   under `/s/<id>/` only: GET /figure/<digest>.svg  /uploads/<name>
+    session   under `/s/<id>/` only: GET /figure/<digest>.svg|.png  /uploads/<name>
               /answers/<name>
     subject?  under `/s/<id>/`, or unprefixed with `?subject=<id>` or over the
               Atlas root: GET /source/<path>?from=&to=
@@ -114,8 +114,12 @@ def get(h, repo, path):
                             else "text/plain", status=status)
 
     if path.startswith("/figure/"):
-        digest = multipart.safe_filename(path[len("/figure/"):]).replace(".svg", "")
-        return h.send_file(os.path.join(repo.tikz, digest + ".svg"), cache=True)
+        # The SVG, or a kind-latex figure's PNG (`tikz._png`) for a slate whose
+        # canvas an SVG would taint.
+        name = multipart.safe_filename(path[len("/figure/"):])
+        ext = ".png" if name.endswith(".png") else ".svg"
+        digest = name[:-len(ext)] if name.endswith(ext) else name
+        return h.send_file(os.path.join(repo.tikz, digest + ext), cache=True)
 
     if path.startswith("/result/"):
         # A pipeline's figure, by id: `library.find_result` is the whole check,
