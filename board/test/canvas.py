@@ -20,8 +20,10 @@ TUTOR.md with `board memo`.
   5. End `{transcribe: false}` on a taught canvas commits the filed pages and
      runs the wrap-up, which writes TUTOR.md (`_wrap`); on an untaught one it
      queues nothing and commits `docs/<slug>/notes.md` with
-     `handwritten/page-*.png`; with no subject and no transcription it commits
-     nothing. `/give` on an ended canvas reopens it and wakes one turn; that
+     `handwritten/page-*.png`; a page erased after filing loses its picture
+     and its section of notes.md, and a stored `canvas.dir` not this
+     session's is not written into; with no subject and no transcription it
+     commits nothing. `/give` on an ended canvas reopens it and wakes one turn; that
      canvas ended from its board (no `transcribe`) gets its wrap-up and no
      transcription.
   6. The brief of a canvas names its pages and `board slate --all`.
@@ -383,6 +385,53 @@ try:
            "courses/Random/docs/lecture-9/handwritten/page-01.png",
            "courses/Random/docs/lecture-9/handwritten/page-02.png"}
           <= set(committed_since(before)), committed_since(before))
+
+    # A page erased after "Save to": its picture and its section of
+    # notes.md go, and End commits neither.
+    s4 = server.js("/sessions/new", {"view": "slate", "title": "Erased"})[1]["id"]
+    write_pages(server, s4, 3)
+    server.js("/s/%s/bind" % s4, {"subject": "courses/Random"})
+    e_dir = os.path.join(random_dir, "docs", "erased")
+    e_notes = os.path.join(e_dir, "notes.md")
+    with open(e_notes, "w") as fh:
+        fh.write("# Erased\n\n![page 1](handwritten/page-01.png)\n\nfirst words\n\n"
+                 "![page 2](handwritten/page-02.png)\n\nsecond words\n\n"
+                 "![page 3](handwritten/page-03.png)\n\nthird words\n")
+    server.js("/s/%s/slate/save" % s4, {"page": 3, "w": 800, "h": 600,
+                                         "png": PNG, "strokes": []})
+    before = head()
+    status, got = server.js("/s/%s/end" % s4, {"transcribe": False})
+    kept = open(e_notes).read()
+    check("a page erased after filing loses its picture at End",
+          status == 200 and sorted(os.listdir(os.path.join(e_dir, "handwritten")))
+          == ["page-01.png", "page-02.png"], got)
+    check("and its section of notes.md, the others' words kept",
+          "page-03" not in kept and "third words" not in kept
+          and "first words" in kept and "second words" in kept, kept)
+    check("End commits no erased page",
+          "courses/Random/docs/erased/handwritten/page-02.png" in committed_since(before)
+          and "courses/Random/docs/erased/handwritten/page-03.png"
+          not in committed_since(before), committed_since(before))
+
+    # A stored canvas.dir is used only while its doc.json lists the session.
+    s5 = server.js("/sessions/new", {"view": "slate", "title": "Elsewhere"})[1]["id"]
+    write_pages(server, s5, 1)
+    server.js("/s/%s/bind" % s5, {"subject": "courses/Random"})
+    before_notes = open(e_notes).read()
+    rec5 = sessions.get(s5, atlas)
+    rec5["canvas"] = {"subject": "courses/Random", "dir": "docs/erased"}
+    sessions._save(sessions.path(s5, atlas), rec5)
+    got = sessions.file_canvas(s5, atlas)
+    check("a canvas.dir whose doc.json names another session is not written into",
+          got and got != "docs/erased" and open(e_notes).read() == before_notes
+          and json.load(open(os.path.join(e_dir, "doc.json"))).get("sessions") == [s4],
+          got)
+    for bad in ("docs/../docs/erased", "docs/erased/handwritten"):
+        rec5 = sessions.get(s5, atlas)
+        rec5["canvas"] = {"subject": "courses/Random", "dir": bad}
+        sessions._save(sessions.path(s5, atlas), rec5)
+        check("a canvas.dir of %r is not used" % bad,
+              sessions.file_canvas(s5, atlas) != bad)
 
     # Keep it unfiled: nothing committed, nothing queued, the pages stay.
     s3 = server.js("/sessions/new", {"view": "slate", "title": "Loose"})[1]["id"]

@@ -743,18 +743,48 @@ def _page_link(n):
     return "![page %d](%s/page-%02d.png)" % (n, CANVAS_HAND, n)
 
 
+def _page_links(text):
+    """notes.md's image lines as `[(page, start, end)]`: each page's section
+    runs from its image line to the next image line, or to the end."""
+    found = [(int(m.group(1)), m.start()) for m in _PAGE_LINE.finditer(text)]
+    return [(n, at, found[i + 1][1] if i + 1 < len(found) else len(text))
+            for i, (n, at) in enumerate(found)]
+
+
+_PAGE_LINE = re.compile(r"^!\[page (\d+)\]\(%s/page-\d+\.png\)[ \t]*$"
+                        % CANVAS_HAND, re.M)
+
+
+def _canvas_dir(root, held_, subject, sid):
+    """The filed directory session.json `canvas` names, relative to `root`,
+    when it is still this session's: `docs/<slug>` exactly, for this
+    subject, its doc.json listing `sid`. Else None."""
+    from . import artifacts                              # local: artifacts imports this
+    rel = held_.get("dir") if held_.get("subject") == subject else None
+    parts = str(rel or "").split("/")
+    if not (len(parts) == 2 and parts[0] == artifacts.DOCS
+            and artifacts.SLUG_RE.match(parts[1])):
+        return None
+    doc = artifacts.read(os.path.join(root, *parts)) or {}
+    listed = doc.get("sessions") if isinstance(doc.get("sessions"), list) else []
+    return rel if sid in listed else None
+
+
 def file_canvas(sid, base=None):
     """File canvas `sid`'s inked pages into its bound subject:
     `<subject>/docs/<slug>/handwritten/page-NN.png`, each the picture the
     canvas saved (drawn at the send cap), beside a `notes.md` with one image
     link per page and a `doc.json` naming the session (`artifacts.create`).
     `<slug>` is the title's, kept in session.json `canvas` so a second filing
-    -- every bind and every End files it -- writes into the same directory.
-    Pictures are written over; notes.md keeps what was written under them
-    and gains a link for a page it lacks. Nothing is committed here: End's
-    `_kept` commits the directory. The directory relative to the subject, or
-    None for an unbound canvas or one with no ink. Refused for a session
-    that is not a canvas."""
+    -- every bind and every End files it -- writes into the same directory,
+    used only while its doc.json lists this session. Pictures are written
+    over; notes.md keeps what was written under them and gains a link for a
+    page it lacks. A page erased since the last filing loses its picture and
+    its section of notes.md, from its image line to the next. Nothing is
+    committed here: End's `_kept` commits the directory, a removed page
+    included. The directory relative to the subject, or None for an unbound
+    canvas, or one with no ink and nothing filed. Refused for a session that
+    is not a canvas."""
     from . import artifacts                              # local: artifacts imports this
     base = base or subjects.root()
     where = _need(sid, base)
@@ -769,15 +799,11 @@ def file_canvas(sid, base=None):
         m = re.search(r"page-(\d+)\.png\Z", png)
         if m:
             pngs.append((int(m.group(1)), png))
-    if not pngs:
-        return None
     root = found["root"]
     held_ = rec.get("canvas") if isinstance(rec.get("canvas"), dict) else {}
-    rel = held_.get("dir") if held_.get("subject") == found["id"] else None
-    if rel and not (artifacts.SLUG_RE.match(rel.split("/")[-1])
-                    and rel.startswith(artifacts.DOCS + "/")
-                    and os.path.isfile(os.path.join(root, rel, artifacts.DOC_JSON))):
-        rel = None
+    rel = _canvas_dir(root, held_, found["id"], sid)
+    if not pngs and not rel:
+        return None
     if not rel:
         title = rec.get("title") or "Canvas %s" % rec.get("opened", "")[:10]
         art = artifacts.create(root, title, sid, source=CANVAS_NOTES)
@@ -787,16 +813,26 @@ def file_canvas(sid, base=None):
     d = os.path.join(root, *rel.split("/"))
     hand = os.path.join(d, CANVAS_HAND)
     os.makedirs(hand, exist_ok=True)
+    inked = set(n for n, _png in pngs)
     for n, png in pngs:
         shutil.copyfile(png, os.path.join(hand, "page-%02d.png" % n))
+    for name in os.listdir(hand):
+        m = re.match(r"page-(\d+)\.png\Z", name)
+        if m and int(m.group(1)) not in inked:
+            os.remove(os.path.join(hand, name))
     notes = os.path.join(d, CANVAS_NOTES)
     try:
         with open(notes, "r", encoding="utf-8") as fh:
-            text = fh.read()
+            text = was = fh.read()
     except OSError:
+        text = was = None
+    if text is None:
         text = "# %s\n" % (rec.get("title") or "Canvas")
+    for n, at, end in reversed(_page_links(text)):
+        if n not in inked:
+            text = text[:at] + text[end:]
     missing = [n for n, _png in pngs if _page_link(n) not in text]
-    if missing or not os.path.isfile(notes):
+    if missing or text != was:
         text = text.rstrip("\n") + "\n"
         for n in missing:
             text += "\n%s\n" % _page_link(n)
