@@ -97,12 +97,6 @@ waiting.
   vendor checkouts and any retired project that holds only caches. One holding anything else
   is kept and named: move what is the owner's out of it, then delete it.
 
-## Loose ends in the code
-
-- `ai-config/adapters/claude_code.py` is a no-op hook kept for Claude Code sessions started
-  before 2026-10-24, which still run it through `~/.claude/hooks/block-phi.py`. Once every
-  session has restarted, delete both, and `A_LEFTOVER` in `assistants/claude_code.sh`.
-
 ## On the glass
 
 These are built but not yet used for real. Strike each one after an evening on the iPad.
