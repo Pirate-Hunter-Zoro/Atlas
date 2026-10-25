@@ -273,7 +273,7 @@ decl(draw, 'top') === null
     // has stopped running, which is worse than one that fails. `#notepick` is
     // at 98, the storey under the menu.
     const others = ['#drawbar', '.annbar', '.notesend', '#notepick', '.jump',
-                    '#history', '#panic, #findink', '#scratch, #trace',
+                    '#panic, #findink', '#scratch, #trace',
                     '.drop', '#viewer', '#paper']
       .map((sel) => ({ sel, z: zOf(sel) }))
       .filter((r) => r.z !== null);

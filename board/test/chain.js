@@ -116,10 +116,8 @@ window.localStorage.setItem('board.pages.n:Galois Theory:Ch 2:2026-02-10 19:00',
 // AND TWO RECORDS UNDER TONIGHT'S OWN KEY THAT NAME NO BOARD.
 //
 // The sweep cannot reach these and must not: they are this sitting's key, which
-// is where they were written. A past lesson read in this page load puts them
-// there -- it renders through the same code with the archive's card numbers,
-// and those start at 0001 too -- and so does a question card that leaves the
-// payload for a frame.
+// is where they were written. A question card that leaves the payload for a
+// frame puts them there.
 //
 // Nothing draws them, because nothing draws a board for a question the lesson
 // does not have. What they do is own a page. 0091#0 owns the sheet the FIRST
