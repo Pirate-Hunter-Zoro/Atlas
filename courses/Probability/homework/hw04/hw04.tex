@@ -295,6 +295,65 @@ If $X_0=1$,
 \end{enumerate}
 \end{problem}
 % ===== SOLUTION 60 =====
+For part (a), let $u_i=\Pr(3\text{ before }4\mid \text{start at }i)$, with states $1$--$4$. Then
+\[
+u_3=1,\qquad u_4=0.
+\]
+The first-step equations are
+\[
+u_2=0.2u_1+0.2u_2+0.2,\qquad u_1=0.4u_1+0.3u_2+0.2.
+\]
+Rearranging,
+\[
+0.2u_1-0.8u_2=-0.2,\qquad -0.6u_1+0.3u_2=-0.2,
+\]
+or, after scaling,
+\[
+u_1-4u_2=-1,\qquad -6u_1+3u_2=-2.
+\]
+The first gives $u_1=4u_2-1$, so the second becomes
+\[
+-6(4u_2-1)+3u_2=-2 \;\Longleftrightarrow\; -21u_2=-8,
+\]
+hence
+\[
+u_2=\frac{8}{21},\qquad u_1=\frac{32}{21}-\frac{21}{21}=\frac{11}{21}.
+\]
+
+For part (b), let $n_i$ be the expected number of transitions until state $3$ or state $4$ is entered, given that the chain starts at $i$, with states $1$--$4$. Then
+\[
+n_3=0,\qquad n_4=0.
+\]
+A transition out of state $1$ or state $2$ is taken with certainty, so one step is charged on every branch, plus the steps remaining after it:
+\[
+n_1=0.4(n_1+1)+0.3(n_2+1)+0.2\cdot1+0.1\cdot1,\qquad
+n_2=0.2(n_1+1)+0.2(n_2+1)+0.2\cdot1+0.4\cdot1.
+\]
+Collecting the constants, using $0.4+0.3+0.2+0.1=1$ and $0.2+0.2+0.2+0.4=1$, gives
+\[
+n_1=0.4n_1+0.3n_2+1,\qquad n_2=0.2n_1+0.2n_2+1,
+\]
+that is,
+\[
+0.6n_1-0.3n_2=1,\qquad -0.2n_1+0.8n_2=1.
+\]
+Scaling both lines by $10$,
+\[
+6n_1-3n_2=10,\qquad -2n_1+8n_2=10.
+\]
+Three times the second line added to the first gives $21n_2=40$, hence
+\[
+n_2=\frac{40}{21},\qquad n_1=\frac{10+3\cdot\frac{40}{21}}{6}=\frac{55}{21}.
+\]
+Starting at state $1$, the mean number of transitions until state $3$ or state $4$ is entered is $\frac{55}{21}\approx2.619$. Starting at state $2$ it is $\frac{40}{21}\approx1.905$.
 % ===== END SOLUTION 60 =====
+
+\begin{problem}{76}
+On a chessboard compute the expected number of plays it takes a knight, starting in one of the four corners of the chessboard, to return to its initial position if we assume that at each play it is equally likely to choose any of its legal moves. (No other pieces are on the board.)
+
+Hint: make use of Example 4.36.
+\end{problem}
+% ===== SOLUTION 76 =====
+% ===== END SOLUTION 76 =====
 
 \end{document}

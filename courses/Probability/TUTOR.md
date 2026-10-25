@@ -9,20 +9,16 @@
 
 ## Now
 
-hw04, nine problems: 2, 3, 5, 14, 34, 40 and 52 are closed and written up; 60 and 76 remain. Problem 14's region carries the four transition diagrams (TikZ, credited to DeepSeek) beside its classifications. The PDF builds, 3 pdflatex runs.
+hw04, nine problems: 2, 3, 5, 14, 34, 40, 52 and 60 closed and written up. 76 is open and on their screen; it is the last one, due October 26.
+
+Problem 60(b) closed at card 0027. Their two lines were right: $1+0.4n_1+0.3n_2$ and $1+0.2n_1+0.2n_2$, from one step charged on every branch plus the steps after it. $n_1=55/21\approx2.62$, $n_2=40/21\approx1.90$, now in the tex under part (a). Page t0002-r19 filed as handwritten/hw04-60b.png; the part (a) page stays at hw04-60.png.
+
+Problem 76 is the knight's expected return time; the answer is 168, not yet said. Card 0027 gave the graph data -- corner degree 2, 168 unordered knight pairs, $\sum_i d_i=336$ -- and asked for the corner's limiting probability from Example 4.36 plus the name of the result that turns it into a mean return time (equation 4.13). When that lands: $1/\pi=336/2=168$, write it up, and the set is complete.
 
 Standing instruction (2026-10-24): they will not do algebra. Give every arithmetic step, simplification, matrix product or numeric value exactly and directly, in the card, without asking them for it. Ask only for reasoning: which object, which argument, which symmetry.
-
-Problem 52 closed (card 0021; page t0002-r15 filed as handwritten/hw04-52.png). Their page: states are the pickup zone, $P=\begin{pmatrix}.6&.4\\.3&.7\end{pmatrix}$; profit table $AA\to6$, $BB\to8$, $AB\to12$, $BA\to12$; stationarity $[p_A\ p_B]P=[p_A\ p_B]$; $E=6p(AA)+8p(BB)+12p(AB)+12p(BA)$, written out as $6p_A(0.6)+8p_B(0.7)+12p_A(0.4)+12p_B(0.3)$. They asked me to solve it and then move on. $\pi=(3/7,4/7)$, $E=62/7\approx8.857$, both in region 52.
-
-Problem 60 posed (card 0021), region 60 in hw04.tex. $P$ rows $.4\ .3\ .2\ .1$ / $.2\ .2\ .2\ .4$ / $.25\ .25\ .5\ 0$ / $.2\ .1\ .4\ .3$; $X_0=1$. Card 0021 introduced $u_i$, the chance 3 is entered before 4 starting at $i$, and asks for the equation row 1 gives for $u_1$ once $u_3,u_4$ are set. Answer: $u_3=1$, $u_4=0$, then $u_1=.4u_1+.3u_2+.2$ and $u_2=.2u_1+.2u_2+.2$; solution $u_1=3/5$. Part (b) is $g_i=1+\sum_jP_{ij}g_j$ with $g_3=g_4=0$. Those values are mine when they ask.
-
-Then 76, statement from `board textbook find "Ch 4 #76"`; pose with `board writeup pose 76` first.
-
-Do not reopen 5, 14, 34, 40.
 
 ## Open decisions
 
 ## Done recently
 
-Problem 52 transcribed into homework/hw04/hw04.tex with their profit table, stationarity equation and expectation sum, plus the computed $\pi=(3/7,4/7)$ and $E=62/7$; page t0002-r15 filed as handwritten/hw04-52.png; PDF rebuilt twice at card 0021. Problem 60 posed with `board writeup pose 60`, statement written and empty region added. Exercise 34 transcribed in full earlier at card 0017; exercise 14 from t0002-r5.
+Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, and both parts now sit in the SOLUTION 60 region; PDF rebuilt. Page t0002-r19 filed as handwritten/hw04-60b.png. Problem 76 posed at card 0027, statement written into hw04.tex with an empty region. Part (a) transcribed at card 0024 with their $u_3=1$, $u_4=0$, both first-step equations, the scaling and $u_2=8/21$, $u_1=11/21$; page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
