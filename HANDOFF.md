@@ -78,9 +78,10 @@ waiting.
 
 ## The owner's
 
-- **The small iPad keyboard is the floating keyboard.** Pinch it outward with two fingers, or drag
-  it to the bottom edge. A thin bar instead of keys means a hardware keyboard or Scribble is
-  active.
+- **For the full keyboard every time, turn Scribble off** in Settings > Apple Pencil, then
+  force-quit Safari or the home-screen app. A Pencil tap on the answer box hands it to Scribble:
+  the thin bar is Scribble's toolbar, and its Show Keyboard opens a mini keyboard that ignores
+  the pinch. The page cannot choose the keyboard. Pencil ink on the board is unaffected.
 - **Speech.** This Mac has `whisper-cpp`, `espeak-ng`, the whisper model and the Azure key.
   `setup-mac.sh` installs the first three on any other Mac.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
