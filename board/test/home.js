@@ -205,7 +205,7 @@ async function stubbed() {
                                json: () => Promise.resolve(JSON.parse(JSON.stringify(got))) });
     };
     if (!opts.errorsOk) w.addEventListener('error', (e) => fail('home: uncaught: ' + e.message));
-    for (const f of ['typeface.js', 'address.js', 'recentre.js', 'who.js', 'home.js']) {
+    for (const f of ['typeface.js', 'keyguard.js', 'address.js', 'recentre.js', 'who.js', 'home.js']) {
       if ((opts.skip || []).indexOf(f) >= 0) continue;
       let src = fs.readFileSync(path.join(WEB, f), 'utf8');
       if (f === 'home.js') src = patched(src);
@@ -624,7 +624,7 @@ async function stubbed() {
     const html = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
     const tags = html.match(/<script src="\/static\/[^"]+"[^>]*>/g) || [];
     check('every script the page loads records itself when it does not arrive',
-          tags.length === 5 && tags.every((t) => /onerror="\(window\.bootMissed/.test(t)));
+          tags.length === 6 && tags.every((t) => /onerror="\(window\.bootMissed/.test(t)));
     check('and the check comes after them all',
           html.lastIndexOf('<script>') > html.indexOf('<script src="/static/home.js"'));
     const fine = load('', { boot: true });

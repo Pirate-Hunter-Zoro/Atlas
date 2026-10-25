@@ -35,6 +35,16 @@
 
 function $(id) { return document.getElementById(id); }
 
+/* Every focus this page gives a text field goes through keyguard.js, which
+   refuses it after an Apple Pencil touch: on an iPad a keyboard opened from a
+   Pencil gesture is Scribble's small one. Where keyguard.js did not load, a
+   plain focus. */
+function focusField(el) {
+  if (window.KeyGuard) return window.KeyGuard.focus(el);
+  el.focus();
+  return document.activeElement === el;
+}
+
 var els = {
   dot: $("dot"),
   said: $("said"),
@@ -736,7 +746,7 @@ function paintDropCheck(got) {
     if (got.slug) els.dropperSlug.textContent = got.slug;
     els.dropperWhy.textContent = "Nothing is open on it.";
     els.dropperAsk.hidden = false;
-    try { els.dropperName.focus(); } catch (e) { /* a page without focus */ }
+    try { focusField(els.dropperName); } catch (e) { /* a page without focus */ }
   }
   paintDropper();
 }
@@ -914,7 +924,7 @@ function openArtmaker(s) {
   artSay("");
   paintArtmaker();
   els.artmaker.hidden = false;
-  try { els.artmakerAbout.focus(); } catch (e) { /* a page without focus */ }
+  try { focusField(els.artmakerAbout); } catch (e) { /* a page without focus */ }
 }
 
 function closeArtmaker() { els.artmaker.hidden = true; }
@@ -988,7 +998,7 @@ function openMaker(kind, then) {
   els.makerSaid.hidden = true;
   paintMaker();
   els.maker.hidden = false;
-  try { els.makerName.focus(); } catch (e) { /* a page without focus */ }
+  try { focusField(els.makerName); } catch (e) { /* a page without focus */ }
 }
 
 function closeMaker() { makerThen = null; els.maker.hidden = true; }

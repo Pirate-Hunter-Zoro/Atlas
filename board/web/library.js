@@ -52,6 +52,16 @@ function libUrl(path) {
 
 function libFetch(path, init) { return fetch(libUrl(path), init); }
 
+/* Every focus this page gives a text field goes through keyguard.js, which
+   refuses it after an Apple Pencil touch: on an iPad a keyboard opened from a
+   Pencil gesture is Scribble's small one. Where keyguard.js did not load, a
+   plain focus. */
+function focusField(el) {
+  if (window.KeyGuard) return window.KeyGuard.focus(el);
+  el.focus();
+  return document.activeElement === el;
+}
+
 /* One origin serves every session and subject, so what this device remembers
    about a library is kept per session, or per subject outside one. `scoped`
    adds that to a key; with neither, the key is as written. */
@@ -1285,7 +1295,7 @@ function say(doc, page) {
      on with, and otherwise "send it" is what is in front of them. */
   if (noteAsk === "revise" && (els.noteText.value.trim()
       || (!inkWaiting(doc) && !reopenedOn(doc)))) {
-    els.noteText.focus();
+    focusField(els.noteText);
   }
 }
 
@@ -1388,7 +1398,7 @@ function setAsk(which) {
   els.noteSend.textContent = noteAsk === "rework" ? "overhaul it" : "send it";
   paintMarksLine();
   paintSend();
-  if (noteAsk === "rework") els.purpose.focus();
+  if (noteAsk === "rework") focusField(els.purpose);
   if (noteFor && !els.note.hidden) askSplit();
 }
 

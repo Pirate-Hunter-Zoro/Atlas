@@ -78,10 +78,10 @@ waiting.
 
 ## The owner's
 
-- **For the full keyboard every time, turn Scribble off** in Settings > Apple Pencil, then
-  force-quit Safari or the home-screen app. A Pencil tap on the answer box hands it to Scribble:
-  the thin bar is Scribble's toolbar, and its Show Keyboard opens a mini keyboard that ignores
-  the pinch. The page cannot choose the keyboard. Pencil ink on the board is unaffected.
+- **The full keyboard.** The board's text fields are out of the Pencil's reach, so Scribble
+  cannot take one, and a finger tap gives the full keyboard. Scribble can stay on. Once, after
+  the board updates: force-quit the home-screen app and Safari, because the mini-keyboard state
+  sticks to the running app. If the system keyboard itself is floating, pinch it out once.
 - **Speech.** This Mac has `whisper-cpp`, `espeak-ng`, the whisper model and the Azure key.
   `setup-mac.sh` installs the first three on any other Mac.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
@@ -147,8 +147,10 @@ These are built but not yet used for real. Strike each one after an evening on t
   - P to the calculator, then `p*P^3`, shows fractions;
   - P onto the page moves with the lasso and appears in the sent PNG;
   - Galois ch07 shows problem 17 whole.
-- **Typing:** with the full keyboard up, the answer box sits on the keys, the lesson scrolls
-  behind it, and the ⤢ key makes the box tall.
+- **Typing:** a finger tap on the answer box gives the full keyboard every time, and the box sits
+  on the keys. A Pencil tap on the box does nothing; any Pencil touch puts an open keyboard
+  away. A card landing or a pinch-zoom while typing leaves the keyboard up. The ⤢ key makes the
+  box tall.
 - **Laptop coding:**
   - In an iPad session bound to a subject with code, run the header's command on the laptop and
     edit one file. A `[code] step` card shows within a minute.

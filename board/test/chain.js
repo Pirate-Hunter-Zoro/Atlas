@@ -396,8 +396,19 @@ await sleep(40);
 
 // ------------------------------------------ and any of them can be written on
 {
+  // With the answer box focused, too: the box holds back a move a card would
+  // make, and a touch on a board is not a card. The surface is under the board
+  // before the stroke is handed on, in the same task, and the box lets go.
+  const say = doc.getElementById('saybox');
+  say.focus();
   const first = boards()[0];
   first.dispatchEvent(new window.MouseEvent('pointerdown', { bubbles: true }));
+  doc.querySelector('[data-card="0001"]').nextElementSibling === writer()
+    && doc.activeElement !== say
+    ? ok('touching a board with the answer box focused moves the surface there at once, '
+         + 'and the box lets go')
+    : fail('with the box focused, touching a board left the surface where it was '
+           + '(box focused: ' + (doc.activeElement === say) + ')');
   await sleep(40);
   !writer().hidden && slate.at() === 1
     ? ok('touching an earlier attempt opens the real surface on that page')
@@ -426,8 +437,34 @@ await sleep(40);
   // the person decides.
   const followUp = card('0002', 'question', 'contrapositive or contradiction?', 6);
   const dealtFrom = slate.pages();
+  // Typing in the box under the earlier board when it lands: the surface waits
+  // for the box to let go, so the keyboard stays up, and then goes.
+  const say = doc.getElementById('saybox');
+  let moves = 0;
+  const watch = new window.MutationObserver((records) => {
+    records.forEach((r) => {
+      if (Array.prototype.indexOf.call(r.addedNodes, writer()) !== -1) moves++;
+    });
+  });
+  watch.observe(doc.getElementById('cards'), { childList: true, subtree: true });
+  say.focus();
   es.onmessage({ data: lesson(run3.concat([followUp]), sent2) });
-  await sleep(40);
+  // Long enough for the card to finish typing out, so the move made after the
+  // blur is the blur's own and not the end of the typing.
+  await sleep(1000);
+  const heldUnder = writer().previousElementSibling;
+  moves === 0 && doc.activeElement === say
+    ? ok('a question landing while the box is focused leaves the surface, and the '
+         + 'keyboard, where they are')
+    : fail('a question landing moved the surface ' + moves + ' times out from under the '
+           + 'focused box (focus on ' + doc.activeElement.id + ')');
+  say.blur();
+  await sleep(20);
+  watch.disconnect();
+  moves > 0 && writer().previousElementSibling !== heldUnder
+    ? ok('and the box letting go makes the move it owed')
+    : fail('after the box let go the surface stayed where it was held (' + moves
+           + ' moves)');
 
   // ONE SHEET FOR ONE BOARD. The sheet a new board is dealt is page 4, and
   // 0092#0 -- a record for a question this lesson has never asked -- names page

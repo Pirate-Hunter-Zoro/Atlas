@@ -238,6 +238,15 @@ tree gets a `doc.json` written in place, so its ids hold.
   a cached lesson is a stale one. A 5xx counts as a failed fetch, so a cached shell file
   answers instead. The install asks for 4 files at a time. The server writes its `VERSION` as
   a hash of the shell files, so a shell edit installs a new worker by itself.
+- **Fingers type, the Pencil draws** (`web/keyguard.js`, before the page scripts on every
+  page). On a touch device every text field is readonly while it does not have the focus,
+  because Scribble skips a readonly field and its mini keyboard is what the Pencil would open.
+  A finger unlocks every field within reach of it before the tap focuses one, because a field
+  focused while still locked gets no keyboard at all; while one field has the focus, all are
+  open. The Pencil on a field is refused, and anywhere else it blurs the focused one and locks
+  them all. Only a field's own listener is non-passive, so a finger elsewhere scrolls freely.
+  A field readonly in its markup is never unlocked. Every programmatic focus goes through `KeyGuard.focus`, which refuses after a
+  Pencil contact.
 - **`POST /client-error`** `{page, what, src, msg, stack, ua}` writes one `client:` line to
   the server's log, each field cut to 300 characters and at most 20 a minute. A request the
   proxy dropped never shows as a request line, so the page reports it.

@@ -48,6 +48,16 @@ var PAGE_REF = 1240;
    disc is 3.2cqw across, so 3.6 leaves a hair between them. */
 var PIP_GAP = 0.036;
 var RAIL = "(min-width: 56rem) and (orientation: landscape)";
+
+/* Every focus this page gives a text field goes through keyguard.js, which
+   refuses it after an Apple Pencil touch: on an iPad a keyboard opened from a
+   Pencil gesture is Scribble's small one. Where keyguard.js did not load, a
+   plain focus. */
+function focusField(el) {
+  if (window.KeyGuard) return window.KeyGuard.focus(el);
+  el.focus();
+  return document.activeElement === el;
+}
 var SVG = "http://www.w3.org/2000/svg";
 
 function el(tag, cls, text) {
@@ -677,11 +687,11 @@ function make(opts) {
         }));
       acts.appendChild(button(item.state === "reopened" ? "not fixed ↺" : "not fixed",
         "lg-back-btn" + (item.state === "reopened" ? " on" : ""), function () {
-          if (reason.hidden) { reason.hidden = false; reason.focus(); return; }
+          if (reason.hidden) { reason.hidden = false; focusField(reason); return; }
           var why = reason.value.trim();
           if (why.length < 3) {
             say(msg, "Say in a line what is still wrong.", true);
-            reason.focus();
+            focusField(reason);
             return;
           }
           setState(r, item, "reopened", why, msg);

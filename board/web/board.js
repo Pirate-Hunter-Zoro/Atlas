@@ -25,6 +25,16 @@ var SESSION = BASE ? decodeURIComponent(BASE.slice(3)) : "";
 
 function api(path, init) { return fetch(BASE + path, init); }
 
+/* Every focus this page gives a text field goes through keyguard.js, which
+   refuses it after an Apple Pencil touch: on an iPad a keyboard opened from a
+   Pencil gesture is Scribble's small one. Where keyguard.js did not load, a
+   plain focus. */
+function focusField(el) {
+  if (window.KeyGuard) return window.KeyGuard.focus(el);
+  el.focus();
+  return document.activeElement === el;
+}
+
 /* A leading-slash URL the server wrote (`/answers/...`, `/doc/<id>/<n>.png`,
    `/slate/page-...`), under this session. Idempotent, so a sink can apply it to
    a URL somebody already prefixed. */
@@ -4301,7 +4311,7 @@ function startMaking(kind) {
   els.subjpickForm.hidden = false;
   els.subjpickName.placeholder = kind === "project" ? "the project's name" : "the course's name";
   pickSaid("");
-  try { els.subjpickName.focus(); } catch (e) { /* not focusable here */ }
+  try { focusField(els.subjpickName); } catch (e) { /* not focusable here */ }
 }
 
 document.getElementById("subjpick-course").onclick = function (e) {
@@ -4850,6 +4860,7 @@ function carryHere(key) {
   pinCarried = true;
   pinHeld = false;
   carryOver(key);
+  boxLetGo();
   if (lastLive) render(lastLive);
 }
 
@@ -5160,6 +5171,7 @@ function boardSlot(key, qid) {
     reopenedFor = null;
     pinCarried = false;
     pinHeld = false;
+    boxLetGo();
     if (lastLive) render(lastLive);
     if (!writer) return;
     /* Lay the real canvas out now rather than on the next frame: a pen is
@@ -5983,6 +5995,7 @@ function placeWriter(owed, questionNode, hold) {
      card types out below it, and the surface comes down under the card in one
      move when the last character lands; `typeOut` renders once more to do it. */
   var host = questionNode && questionNode.parentNode;
+  writerMoveOwed = false;
   if (hold) {
     /* HELD -- BUT ONLY AGAINST THE CARD THAT IS TYPING. The surface comes down as
        far as the first card still being typed and no further, so the receipt and
@@ -5996,12 +6009,12 @@ function placeWriter(owed, questionNode, hold) {
       if (passed && cardArriving(kids[k])) { below = kids[k]; break; }
     }
     if (below && below.previousElementSibling !== els.writer) {
-      els.cards.insertBefore(els.writer, below);
+      moveWriter(els.cards, below);
     }
   } else if (host && questionNode.nextSibling !== els.writer) {
-    host.insertBefore(els.writer, questionNode.nextSibling);
+    moveWriter(host, questionNode.nextSibling);
   } else if (!host && els.writer.parentNode !== els.cards) {
-    els.cards.appendChild(els.writer);
+    moveWriter(els.cards, null);
   }
 
   if (!makeWriter(restoreAnswer) && writer) {
@@ -6009,6 +6022,32 @@ function placeWriter(owed, questionNode, hold) {
     restoreAnswer();
   }
 }
+
+/* NOT WHILE SOMEBODY IS TYPING IN IT. Moving the surface moves the answer box
+   inside it, and a focused element that moves loses the focus: the keyboard
+   would drop mid-word because a card landed. So the move waits for the box to
+   lose the focus, and the placement after that makes it. */
+var writerMoveOwed = false;
+
+function moveWriter(parent, before) {
+  if (document.activeElement === els.saybox) { writerMoveOwed = true; return; }
+  parent.insertBefore(els.writer, before || null);
+}
+
+/* A move asked for by hand is not held. Touching a board, or carrying working
+   onto one, is asking to write there now, so the box lets go of the focus (and
+   the keyboard goes) before the render that moves the surface. */
+function boxLetGo() {
+  if (document.activeElement === els.saybox) els.saybox.blur();
+}
+
+els.saybox.addEventListener("blur", function () {
+  if (!writerMoveOwed) return;
+  setTimeout(function () {
+    if (!writerMoveOwed || document.activeElement === els.saybox) return;
+    if (!typingNow && lastLive) render(lastLive);
+  }, 0);
+});
 
 /* The one place the surface is built. Returns whether it started building one --
    `false` means there is already one, or this browser has no Slate at all. */
@@ -6425,7 +6464,7 @@ function correctSaid() {
   autosize();
   saveTextDraft();
   paintSay();
-  els.saybox.focus();
+  focusField(els.saybox);
 }
 
 els.said.addEventListener("click", correctSaid);
@@ -6445,7 +6484,7 @@ function wrapMath() {
   if (typeof a !== "number") { a = box.value.length; b = a; }
   var chosen = box.value.slice(a, b);
   box.value = box.value.slice(0, a) + "$" + chosen + "$" + box.value.slice(b);
-  box.focus();
+  focusField(box);
   /* Between the pair when there was nothing to wrap; past the closing dollar
      when there was, because the wrapping is the whole edit in that case. */
   var caret = chosen ? b + 2 : a + 1;
@@ -6480,17 +6519,31 @@ function autosize() {
    does not shrink. The floating keyboard takes less than 120px of the window's
    height, so it leaves the box where it is.
 
+   The keys are what the window lost, with the visual viewport scaled back up
+   by the pinch first (`keysHeight`): zoomed in, the visible part is shorter by
+   the zoom alone, and that is no keyboard. The window is the larger of
+   `innerHeight` and the layout viewport's height, because Safari on the iPad
+   shrinks `innerHeight` with the pinch and Chrome does not, and the layout
+   viewport moves with neither the pinch nor the keys.
+
    The textarea is never moved to another parent: moving a focused element
    closes the keyboard. Only its box changes how it is positioned. */
 var sayDocked = false;
 var sayHold = null;
+
+function keysHeight() {
+  var vv = window.visualViewport;
+  if (!vv) return 0;
+  var whole = Math.max(window.innerHeight, document.documentElement.clientHeight || 0);
+  return Math.max(0, whole - vv.height * (vv.scale || 1));
+}
 
 function dockSay() {
   var vv = window.visualViewport;
   var box = els.typebox;
   var want = !!vv && !box.hidden && !els.writer.hidden
     && document.activeElement === els.saybox
-    && window.innerHeight - vv.height > 120;
+    && keysHeight() > 120;
   if (!want) { undockSay(); return; }
   if (!sayDocked) {
     sayHold = document.createElement("div");
@@ -6527,9 +6580,7 @@ function undockSay() {
    scrolled above them. */
 function padDock() {
   if (!sayDocked) return;
-  var vv = window.visualViewport;
-  var keys = vv ? Math.max(0, window.innerHeight - vv.height) : 0;
-  document.body.style.paddingBottom = (els.typebox.offsetHeight + keys) + "px";
+  document.body.style.paddingBottom = (els.typebox.offsetHeight + keysHeight()) + "px";
 }
 
 /* Coalesced to one placement a frame, as `placeMenuSoon` is: the visual
@@ -6560,7 +6611,7 @@ if (els.sayGrow) {
     var tall = els.typebox.classList.toggle("say-tall");
     els.sayGrow.classList.toggle("on", tall);
     els.sayGrow.title = tall ? "shorter box" : "taller box";
-    els.saybox.focus();
+    focusField(els.saybox);
     autosize();
   };
 }

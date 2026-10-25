@@ -296,6 +296,7 @@
 
 <!-- A script that does not arrive says so: its own error records it, and
      the check after them all shows the Retry line when home.js never ran. -->
+<script src="/static/keyguard.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script src="/static/address.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script src="/static/recentre.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script src="/static/who.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>

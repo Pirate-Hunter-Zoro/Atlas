@@ -35,6 +35,7 @@ var SHELL = [
   "/static/home.css",
   "/static/home.js",
   "/static/recentre.js",
+  "/static/keyguard.js",
   "/static/address.js",
   "/static/who.js",
   "/static/typeface.css",
