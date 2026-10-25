@@ -16,10 +16,10 @@ const vm = require('vm');
 
 const WEB = path.join(__dirname, '..', 'web');
 const PAGES = [
-  ['home.html', ['home.js']],
-  ['board.html', ['macros.js', 'ink-clip.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'board.js']],
-  ['slate.html', ['ink-clip.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'slate.js']],
-  ['library.html', ['inkkeep.js', 'ledger.js', 'library.js']],
+  ['home.html', ['keyguard.js', 'home.js']],
+  ['board.html', ['keyguard.js', 'macros.js', 'ink-clip.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'board.js']],
+  ['slate.html', ['keyguard.js', 'ink-clip.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'slate.js']],
+  ['library.html', ['keyguard.js', 'inkkeep.js', 'ledger.js', 'library.js']],
 ];
 
 let fails = 0;

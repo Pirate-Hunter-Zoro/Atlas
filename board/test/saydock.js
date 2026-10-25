@@ -4,7 +4,10 @@
 // scrolled away from them. While `#saybox` has the focus and the keys take more
 // than 120px of the window, `#typebox` is fixed to the top of the keys and the
 // lesson scrolls behind it; it can be made tall; and the textarea is never
-// moved, because moving a focused element closes the keyboard.
+// moved, because moving a focused element closes the keyboard. A pinch-zoom
+// shortens the visual viewport too, and that is no keyboard. Nor does the
+// surface move under a card while the box has the focus: the move waits for
+// the blur.
 //
 // jsdom has no visual viewport and no keyboard, so both are faked: the
 // keyboard is the visual viewport getting shorter than the window.
@@ -53,6 +56,7 @@ window.fetch = (u) => (/slate\/state/.test(String(u))
 window.renderMathInElement = () => {};
 window.requestAnimationFrame = (fn) => setTimeout(fn, 0);
 window.EventSource = function () {
+  window.__es = this;
   this.readyState = 1; this.close = function () {}; this.addEventListener = function () {};
 };
 window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
@@ -60,7 +64,10 @@ window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 // An iPad in portrait: the window is 1366 tall, and the keyboard is the visual
 // viewport getting shorter than it.
 const H = 1366;
-Object.defineProperty(window, 'innerHeight', { value: H, configurable: true });
+Object.defineProperty(window, 'innerHeight', { value: H, configurable: true, writable: true });
+// The layout viewport, which moves with neither the pinch nor the keys.
+let layoutH = H;
+Object.defineProperty(doc.documentElement, 'clientHeight', { get: () => layoutH });
 const vv = new window.EventTarget();
 vv.width = 1024; vv.height = H; vv.offsetLeft = 0; vv.offsetTop = 0; vv.scale = 1;
 Object.defineProperty(window, 'visualViewport', { value: vv, configurable: true });
@@ -160,12 +167,14 @@ const px = (v) => parseFloat(v || '0');
   vv.height = 1024 - 400;
   vv.offsetTop = 0;
   Object.defineProperty(window, 'innerHeight', { value: 1024, configurable: true });
+  layoutH = 1024;
   window.dispatchEvent(new window.Event('orientationchange'));
   await sleep(10);
   check(typebox.style.width === '1366px' && typebox.style.top === '624px',
         'turning the iPad re-docks it on the new keys',
         'after turning the dock is ' + typebox.style.cssText);
-  Object.defineProperty(window, 'innerHeight', { value: H, configurable: true });
+  Object.defineProperty(window, 'innerHeight', { value: H, configurable: true, writable: true });
+  layoutH = H;
   vv.width = 1024;
   await keys(400);
 
@@ -188,6 +197,47 @@ const px = (v) => parseFloat(v || '0');
   typebox.hidden = false;
   saybox.blur();
 
+  // ------------------------------------------- a pinch-zoom is not a keyboard
+  // Zoomed to 1.5, the visible part is two thirds of the window by the zoom
+  // alone; scaled back up it is the whole window, and nothing docks.
+  vv.scale = 1.5;
+  saybox.focus();
+  vv.height = H / 1.5;
+  vv.dispatchEvent(new window.Event('resize'));
+  await sleep(10);
+  check(!docked() && doc.body.style.paddingBottom === '',
+        'zoomed to 1.5 with no keyboard, the box does not dock and the body is not padded',
+        'a pinch-zoom docked the box (' + docked() + ') or padded the body "'
+        + doc.body.style.paddingBottom + '"');
+  vv.height = (H - 400) / 1.5;
+  vv.dispatchEvent(new window.Event('resize'));
+  await sleep(10);
+  check(docked() && px(doc.body.style.paddingBottom) === 180 + 400,
+        'zoomed with the full keyboard up, it docks and pads by the keys alone',
+        'zoomed with a 400px keyboard: docked ' + docked() + ', body "'
+        + doc.body.style.paddingBottom + '"');
+  // Safari on the iPad shrinks innerHeight with the pinch as well; Chrome, as
+  // above, does not. Both have to read the same keys.
+  window.innerHeight = H / 1.5;
+  vv.height = H / 1.5;
+  vv.dispatchEvent(new window.Event('resize'));
+  await sleep(10);
+  check(!docked() && doc.body.style.paddingBottom === '',
+        'with Safari\'s innerHeight shrunk by the zoom too, no keyboard still docks nothing',
+        'Safari\'s zoom docked the box (' + docked() + ') or padded the body "'
+        + doc.body.style.paddingBottom + '"');
+  vv.height = (H - 400) / 1.5;
+  vv.dispatchEvent(new window.Event('resize'));
+  await sleep(10);
+  check(docked() && px(doc.body.style.paddingBottom) === 180 + 400,
+        'and the full keyboard docks it there, padded by the keys alone',
+        'Safari zoomed with a 400px keyboard: docked ' + docked() + ', body "'
+        + doc.body.style.paddingBottom + '"');
+  saybox.blur();
+  window.innerHeight = H;
+  vv.scale = 1;
+  await keys(0);
+
   // --------------------------------------------------------- the CSS
   {
     const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
@@ -202,8 +252,73 @@ const px = (v) => parseFloat(v || '0');
           'the textarea\'s font is at least 16px, so iOS does not zoom on focus',
           'the textarea\'s font-size is ' + (size ? size[1] : 'unset'));
     check(saybox.tagName === 'TEXTAREA' && !saybox.hasAttribute('inputmode'),
-          'and it is the system keyboard\'s textarea, with dictation and Scribble',
+          'and it is the system keyboard\'s textarea, with dictation',
           'the answer box asks for a keyboard of its own');
+  }
+
+  // ------------------------------- the surface does not move under the box
+  // A typed answer and the reply to it each move the surface down the lesson,
+  // and a move would take the focus off the box and the keyboard down
+  // mid-word. Focused, the surface stays put and the new cards land above it,
+  // which is where it would have gone anyway. A sitting doing the work opens
+  // on the box.
+  {
+    const t0 = Date.now() / 1000 - 3600;
+    const q = (id, at) => ({ id: id, kind: 'question', title: 'Exercise ' + id,
+                             body: 'and the tower law', mtime: at });
+    const note = (id, at) => ({ id: id, kind: 'note', title: 'N' + id, body: 'aside',
+                                mtime: at });
+    const typed = (id, at, text) => ({ id: id, rev: 1, kind: 'text', answers: '0002',
+                                       t: at, text: text });
+    const frame = (cards, turns) => ({ data: JSON.stringify({
+      state: { course: 'Speech-Lab', opened: '2026-09-17 19:55', session: 'lecture',
+               aim: 'build', stance: 'do', stance_now: 'do', declared_stance: 'do' },
+      cards: cards, turns: turns || [], messages: [], uploads: [], slate: [],
+      agent: { agent: 'claude', state: 'listening' } }) });
+    const under = () => {
+      const p = writer.previousElementSibling;
+      return (p && p.dataset && p.dataset.card) || '-';
+    };
+    let moves = 0;
+    new window.MutationObserver((records) => {
+      records.forEach((r) => {
+        if (Array.prototype.indexOf.call(r.addedNodes, writer) !== -1) moves++;
+      });
+    }).observe(doc.getElementById('cards'), { childList: true });
+    // Long enough for a card to type out and the surface to come down after it.
+    const settle = () => sleep(3000);
+    const es = window.__es;
+    const Q = [q('0001', t0), q('0002', t0 + 60)];
+    const one = [typed('t0010', t0 + 90, 'x')];
+    const two = one.concat([typed('t0011', t0 + 130, 'y')]);
+
+    es.onmessage(frame(Q));
+    await settle();
+    moves = 0;
+    es.onmessage(frame(Q, one));
+    await settle();
+    es.onmessage(frame(Q.concat([note('0003', t0 + 120)]), one));
+    await settle();
+    check(moves > 0 && under() === '0003',
+          'unfocused, an answer and its reply move the surface (' + moves
+          + ' moves) to under the reply',
+          'unfocused: ' + moves + ' moves, under ' + under());
+
+    saybox.focus();
+    moves = 0;
+    es.onmessage(frame(Q.concat([note('0003', t0 + 120)]), two));
+    await settle();
+    es.onmessage(frame(Q.concat([note('0003', t0 + 120), note('0004', t0 + 140)]), two));
+    await settle();
+    check(moves === 0 && under() === '0004' && doc.activeElement === saybox
+          && saybox.parentNode === sayrow,
+          'focused, the same never moves the surface: the cards land above it, and the '
+          + 'box keeps the focus',
+          'focused: the surface moved ' + moves + ' times, is under ' + under()
+          + ', focus on ' + doc.activeElement.id);
+    // The move a blur makes, and a touch on a board moving it at once, are in
+    // chain.js, which has earlier boards to go back to.
+    saybox.blur();
   }
 
   console.log(errors.length ? errors.length + ' failed' : 'the answer box docks on the keys');
