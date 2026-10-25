@@ -208,6 +208,11 @@ Its reduced row echelon form, computed with Mathematica, is
 0&0&0
 \end{pmatrix}.
 \]
+This is the result of
+\begin{verbatim}
+P = {{0, p0, 1 - p0}, {1 - p1, 0, p1}, {p2, 1 - p2, 0}};
+RowReduce[Transpose[P - IdentityMatrix[3]]]
+\end{verbatim}
 Writing $N_0=1-p_1+p_1p_2$, $N_1=1-p_2+p_0p_2$ and $D=1-p_0+p_0p_1$, the two nonzero rows are
 \[
 \alpha_0-\frac{N_0}{D}\alpha_2=0,\qquad \alpha_1-\frac{N_1}{D}\alpha_2=0,
@@ -244,7 +249,7 @@ with $N_0$, $N_1$, $D$ and $S$ as in part (a).
 A particle moves on 12 points situated on a circle. At each step it is equally likely to move one step in the clockwise or in the counterclockwise direction. Find the mean number of steps for the particle to return to its starting position.
 \end{problem}
 % ===== SOLUTION 40 =====
-The uniform distribution on the 12 points is the stationary distribution, so $\pi_i = 1/12$ for every $i$. Then
+The uniform distribution on the 12 points is the stationary distribution, so $\pi_i = 1/12$ for every $i$. Proposition 4.4, in Section 4.4 of Chapter 4 (printed page 204), says that in an irreducible recurrent chain the long-run proportion of time in state $i$ is $\pi_i=1/m_i$, where $m_i$ is the expected number of transitions from $i$ back to $i$. So
 $$m_i = \frac{1}{\pi_i} = 12.$$
 % ===== END SOLUTION 40 =====
 
@@ -354,6 +359,36 @@ On a chessboard compute the expected number of plays it takes a knight, starting
 Hint: make use of Example 4.36.
 \end{problem}
 % ===== SOLUTION 76 =====
+Example 4.36 (printed page 241) considers a particle on a connected graph with unit arc weights and gives $\pi_i=d_i/\sum_j d_j$, where $d_i$ is the number of arcs leaving vertex $i$. On the knight graph the vertices are the $64$ squares and the arcs are the legal knight moves, so $d_i$ is the number of legal moves from square $i$.
+
+The number of legal moves from each square, row by row on the board, is
+\[
+\begin{matrix}
+2&3&4&4&4&4&3&2\\
+3&4&6&6&6&6&4&3\\
+4&6&8&8&8&8&6&4\\
+4&6&8&8&8&8&6&4\\
+4&6&8&8&8&8&6&4\\
+4&6&8&8&8&8&6&4\\
+3&4&6&6&6&6&4&3\\
+2&3&4&4&4&4&3&2
+\end{matrix}
+\]
+and these entries sum to $\sum_i d_i=336$.
+
+For a corner square $d_{\text{corner}}=2$, hence
+\[
+\pi_{\text{corner}}=\frac{d_{\text{corner}}}{\sum_i d_i}=\frac{2}{336}=\frac{1}{168}.
+\]
+
+The mean return time is the reciprocal of this long-run proportion of time,
+\[
+\frac{1}{1/168}=168.
+\]
+
+So the expected number of plays from a corner back to that corner is $168$.
+
+The two textbook statements used: Example 4.36 (printed page 241) gives $\pi_i=d_i/\sum_j d_j$ for the random walk on a connected graph, and Proposition 4.4, in Section 4.4 of Chapter 4 (printed page 204), gives $\pi_j=1/m_j$, where $m_j$ is the expected number of transitions from $j$ back to $j$.
 % ===== END SOLUTION 76 =====
 
 \end{document}

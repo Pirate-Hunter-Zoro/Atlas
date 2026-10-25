@@ -9,16 +9,26 @@
 
 ## Now
 
-hw04, nine problems: 2, 3, 5, 14, 34, 40, 52 and 60 closed and written up. 76 is open and on their screen; it is the last one, due October 26.
+hw04 is closed. All nine problems -- 2, 3, 5, 14, 34, 40, 52, 60, 76 -- are answered and written up; due October 26.
 
-Problem 60(b) closed at card 0027. Their two lines were right: $1+0.4n_1+0.3n_2$ and $1+0.2n_1+0.2n_2$, from one step charged on every branch plus the steps after it. $n_1=55/21\approx2.62$, $n_2=40/21\approx1.90$, now in the tex under part (a). Page t0002-r19 filed as handwritten/hw04-60b.png; the part (a) page stays at hw04-60.png.
+Turn t0002-r24 directed that the "168 pairs" sentence be deleted from Problem 76; card 0033 reports it done and the PDF rebuilt. Its region now ends the degree table at $\sum_i d_i=336$, and the only use of $336$ is $2/336=1/168$ for the corner. No third Proposition 4.4 citation was named, so 40 and 76 are the two.
 
-Problem 76 is the knight's expected return time; the answer is 168, not yet said. Card 0027 gave the graph data -- corner degree 2, 168 unordered knight pairs, $\sum_i d_i=336$ -- and asked for the corner's limiting probability from Example 4.36 plus the name of the result that turns it into a mean return time (equation 4.13). When that lands: $1/\pi=336/2=168$, write it up, and the set is complete.
+Earlier, turn t0002-r23 asked for three write-up changes, all in hw04.tex and rebuilt: Proposition 4.4 cited in 40 and 76 (Section 4.4, printed p. 204); a verbatim Mathematica block in Problem 34 producing its RREF; d_i defined in 76. Mathematica is not installed here, so that snippet is unrun; the RREF it prints was checked by exact rational row reduction.
+
+Standing direction (2026-10-25): keep the knight-graph argument to the degree table and $\sum_i d_i=336$; no pair-count or double-count sentence.
 
 Standing instruction (2026-10-24): they will not do algebra. Give every arithmetic step, simplification, matrix product or numeric value exactly and directly, in the card, without asking them for it. Ask only for reasoning: which object, which argument, which symmetry.
+
+Standing pattern: when they ask "can you google this", they want the fact checked. Verify it by computing or enumerating, and say that is how it was checked.
 
 ## Open decisions
 
 ## Done recently
 
-Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, and both parts now sit in the SOLUTION 60 region; PDF rebuilt. Page t0002-r19 filed as handwritten/hw04-60b.png. Problem 76 posed at card 0027, statement written into hw04.tex with an empty region. Part (a) transcribed at card 0024 with their $u_3=1$, $u_4=0$, both first-step equations, the scaling and $u_2=8/21$, $u_1=11/21$; page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
+Problem 76 closed at card 0031, written up from t0002-r22 (handwritten/hw04-76.png). Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, both parts in the SOLUTION 60 region; page t0002-r19 is handwritten/hw04-60b.png, and the part (a) page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
+
+## Open decisions
+
+## Done recently
+
+Turn t0002-r23 asked for citations and justification in hw04.tex; card 0032 reports them. Problem 76 closed at card 0031 and was written up from t0002-r22 (handwritten/hw04-76.png). Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, both parts in the SOLUTION 60 region; page t0002-r19 is handwritten/hw04-60b.png, and the part (a) page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
