@@ -5,8 +5,10 @@
 2. Otherwise a command that needs a session refuses, creating nothing, and one
    that reads only the subject gets a sessionless Repo over `find_repo()`.
 3. `Repo` requires a session directory: a workspace has no default `live/`.
-4. `find_repo` never answers with the Atlas root: `board status` there exits
+4. `find_repo` never answers with the Atlas root: `board next` there exits
    non-zero and creates nothing.
+5. `board status` with no session prints the server line alone and exits 0,
+   anywhere, creating nothing.
 """
 
 import os
@@ -90,9 +92,14 @@ try:
           and os.path.basename(r.session) == course_repo.NONE)
     check("which makes nothing", not os.path.exists(r.session)
           and not os.path.exists(os.path.join(ws, "live")))
-    code, out = run(["status"], ws)
-    check("`board status` in a workspace with no session exits non-zero, "
+    code, out = run(["next", "probe"], ws)
+    check("`board next` in a workspace with no session exits non-zero, "
           "creating nothing", code != 0 and "TUTORBOARD_SESSION" in out
+          and not os.path.exists(os.path.join(ws, "live")))
+    code, out = run(["status"], ws)
+    check("`board status` there prints the server line alone and exits 0",
+          code == 0 and out.startswith("server:  ")
+          and len(out.strip().splitlines()) == 1
           and not os.path.exists(os.path.join(ws, "live")))
 
     sess = os.path.join(base, "sessions", "20261008-120000")
@@ -118,9 +125,14 @@ try:
               isinstance(got, str) and "not a workspace" in got)
 
     before = listing(ATLAS)
-    code, out = run(["status"], ATLAS)
-    check("`board status` at the Atlas root exits non-zero",
+    code, out = run(["next", "probe"], ATLAS)
+    check("`board next` at the Atlas root exits non-zero",
           code != 0 and ("not a workspace" in out or "TUTORBOARD_SESSION" in out))
+    check("and creates nothing", listing(ATLAS) == before)
+    code, out = run(["status"], ATLAS)
+    check("`board status` at the Atlas root prints the server line alone",
+          code == 0 and out.startswith("server:  ")
+          and len(out.strip().splitlines()) == 1)
     check("and creates nothing", listing(ATLAS) == before)
 
     proc = subprocess.run([sys.executable, BOARD, "write", "note", "probe"],
