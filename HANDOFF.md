@@ -99,9 +99,6 @@ waiting.
 
 ## Loose ends in the code
 
-- The past-lessons path is unreachable: `openHistory`, `showSession` and `#history` in
-  `board/web/board.js`, and `GET /archive` in `board/tutorboard/server/routes/lesson.py`. Wire it
-  to home's Past sessions, or delete it.
 - `ai-config/adapters/claude_code.py` is a no-op hook kept for Claude Code sessions started
   before 2026-10-24, which still run it through `~/.claude/hooks/block-phi.py`. Once every
   session has restarted, delete both, and `A_LEFTOVER` in `assistants/claude_code.sh`.

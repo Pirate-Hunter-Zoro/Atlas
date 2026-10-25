@@ -94,7 +94,7 @@ const ink = { id: 't0054', rev: 1, kind: 'ink', answers: '0001', t: t0 + 60,
 
 const frame = (cards, turns) => JSON.stringify({
   state: { course: 'Galois Theory', session: 'lecture' },
-  cards: cards, turns: turns, history: 0,
+  cards: cards, turns: turns,
   agent: { agent: 'claude', state: 'listening' },
 });
 

@@ -82,7 +82,7 @@ from tutorboard import brief, sense, sessions                        # noqa: E40
 from tutorboard import mode as session_mode                          # noqa: E402
 from tutorboard.course import config                                 # noqa: E402
 from tutorboard.course import repo as course_repo                    # noqa: E402
-from tutorboard.lesson import archive, turns                         # noqa: E402
+from tutorboard.lesson import turns                                  # noqa: E402
 from tutorboard.runner import turn as runturn                        # noqa: E402
 from tutorboard.server import handler, hub, tikz              # noqa: E402
 from tutorboard.runner import service as runner_service  # noqa: E402
@@ -218,7 +218,8 @@ try:
     check("and changes session.json", on_disk.get("mode") == "do", on_disk)
     check("and leaves every card untouched", tree(repo.cards) == cards_before)
     check("and archives nothing, replaces no tutor, wakes no turn",
-          not archive.list_archive(bound) and not replaced and not woken)
+          not (os.path.isdir(bound.archive) and os.listdir(bound.archive))
+          and not replaced and not woken)
     got = turns.load_turns(bound)
     check("one transcript turn",
           len(got) == turns_before + 1 and got[-1].get("signal") == "mode"

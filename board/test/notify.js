@@ -87,7 +87,7 @@ const frame = (papers, extra) => JSON.stringify(Object.assign({
   cards: [{ id: '0001', kind: 'lesson', title: '', body: 'A field is a ring.',
             mtime: t0 - 600 }],
   turns: [], agent: { agent: 'claude', state: 'listening', turns: 2 },
-  waiting: null, history: 0, writeups: papers || null,
+  waiting: null, writeups: papers || null,
 }, extra || {}));
 
 // Nothing asked for: nothing to say, and saying something anyway is furniture.

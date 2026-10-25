@@ -59,7 +59,7 @@ const VIEW = {
 const LIVE = {
   state: { course: 'Cohort-Study', session: 'lecture', mode: 'research' },
   cards: [], turns: [], messages: [], uploads: [], notes: {}, notes_sent: {},
-  push: null, agent: null, history: 1,
+  push: null, agent: null,
 };
 
 const vc = new VirtualConsole();

@@ -26,7 +26,6 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from tutorboard import sense
 from tutorboard.course import repo as course_repo
-from tutorboard.lesson import archive
 from tutorboard.lesson import git
 from tutorboard.lesson import notes
 from tutorboard.lesson import turns
@@ -249,7 +248,7 @@ try:
           repo.state().get("chapter") == "Ch 02 — Second chapter")
     check("and the cards stay where they are",
           "0009-mid-lesson.md" in os.listdir(repo.cards)
-          and not archive.list_archive(repo))
+          and not os.listdir(repo.archive))
 
     status, _ = post("/session", {"session": "lecture", "chapter": "Ch 99 — Invented"})
     check("a chapter this course does not have is refused", status == 400)

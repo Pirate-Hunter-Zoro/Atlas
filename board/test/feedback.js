@@ -782,30 +782,6 @@ const farDown = Object.assign({}, withNew, {
       : fail('the line is there and pressing it does nothing');
   }
 
-  // The picture is the only record there is on a lesson nobody can write on, so
-  // it comes straight back.
-  const same = Object.assign({}, lesson, {
-    cards: [card('0031', 'question', 'Problem 1', 1),
-            card('0032', 'note', 'take P of both sides', 2),
-            card('0033', 'question', 'Problem 2 — Bonferroni', 3),
-            card('0034', 'correct', 'that is the proof', 4)],
-    turns: [{ id: 't0009', rev: 4, kind: 'ink', answers: '0033', t: t0 + 450,
-              iso: '2026-08-31 10:02:00', png: '/answers/t0009-r4.png',
-              ink: '/answers/t0009-r4.json' }],
-  });
-  const filed = Object.assign({}, same, { archived: true });
-  es.onmessage({ data: JSON.stringify(filed) });
-  await sleep(20);
-  const filedTurn = doc.querySelector('[data-turn="t0009"]');
-  filedTurn && filedTurn.querySelector('.slate-shot')
-    ? ok('a filed lesson keeps the frozen picture, having no surface to offer')
-    : fail('a past lesson now shows neither the working nor a way to reach it');
-  !doc.querySelector('[data-board]')
-    ? ok('and paints no boards at all, since nothing there can be written on')
-    : fail('a filed lesson is offering a writing surface');
-
-  es.onmessage({ data: JSON.stringify(same) });
-  await sleep(20);
 }
 
 // 6c6. The surface is usable before the network answers, and for that half

@@ -93,7 +93,7 @@ const frame = (agent, waiting) => JSON.stringify({
   turns: [{ id: 't0001', rev: 1, kind: 'ink', answers: '0001', t: t0 - 120,
             page: 1, strokes: 67, png: '/answers/t0001-r1.png',
             ink: '/answers/t0001-r1.json' }],
-  agent: agent, waiting: waiting || null, history: 0,
+  agent: agent, waiting: waiting || null,
 });
 
 const busy = () => doc.getElementById('busy');
@@ -267,7 +267,7 @@ await sleep(40);
               html: '<p>About to split it in two.</p>', mtime: t0 - 5 }],
     turns: [{ id: 't0009', rev: 1, kind: 'text', answers: null, t: t0 - 20,
               signal: 'begin', text: '' }],
-    agent: agent, waiting: null, history: 0,
+    agent: agent, waiting: null,
   });
   es.onmessage({ data: doing({ agent: 'claude', state: 'working', turns: 9,
                                turn_started: t0 - 40 }) });
@@ -303,7 +303,7 @@ await sleep(40);
       turns: [],
       agent: { agent: 'claude', state: 'working', turns: 11,
                turn_started: t0 - 40 },
-      waiting: null, history: 0,
+      waiting: null,
     });
     es.onmessage({ data: noAim });
     await sleep(40);
@@ -365,7 +365,7 @@ await sleep(40);
               signal: 'direction', text: 'Drop the bake-off.' }],
     agent: { agent: 'claude', state: 'working', turns: 1,
              turn_started: t0 - 40, turn_signal: 'direction' },
-    waiting: null, history: 0,
+    waiting: null,
   });
   const opening = { id: '0001', kind: 'lesson', title: '',
                     body: 'Re-planning now.', mtime: t0 - 30 };
@@ -394,7 +394,7 @@ await sleep(40);
     cards: [{ id: '0001', kind: 'lesson', title: '',
               body: 'The plan is rewritten. First step: calibrate.',
               mtime: t0 - 1 }],
-    turns: [], history: 0,
+    turns: [],
     agent: { agent: 'claude', state: 'listening', turns: 1 },
     waiting: null,
   }) });
@@ -413,7 +413,7 @@ await sleep(40);
 {
   es.onmessage({ data: JSON.stringify({
     state: { course: 'Speech-Lab', session: 'lecture' },
-    cards: [], turns: [], history: 0,
+    cards: [], turns: [],
     agent: { agent: 'claude', state: 'stopped', turns: 4 },
     waiting: { since: t0 - 30, count: 1, signal: 'direction' },
   }) });
@@ -442,7 +442,7 @@ await sleep(40);
              stance: 'do', declared_stance: 'teach' },
     cards: [{ id: '0001', kind: 'lesson', title: 'opening',
               html: '<p>About to run the four typists.</p>', mtime: t0 - 900 }],
-    turns: [], history: 0, unsaved: 8,
+    turns: [], unsaved: 8,
     agent: { agent: 'claude', state: 'listening', turns: 1,
              failure: { error: 'timed out', at: t0 - 600 } },
   }) });
@@ -477,7 +477,7 @@ await sleep(40);
                   body: 'assemble the sum', mtime: t0 - 600 };
   const pending = (turns, cards) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture' },
-    cards: cards || [asked], turns: turns, history: 0,
+    cards: cards || [asked], turns: turns,
     agent: { agent: 'claude', state: 'working', turns: 2,
              turn_started: t0 - 20 },
   });

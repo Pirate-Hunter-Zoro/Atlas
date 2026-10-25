@@ -609,7 +609,7 @@ function paint(data) {
   subject = st.subject || st.course || "";
   paintAuto();
   decorate();
-  if (!data.archived) speakNew(data.cards || []);
+  speakNew(data.cards || []);
   var newest = null;
   (data.turns || []).forEach(function (t) {
     if (t.kind === "speech" && (!newest || (t.t || 0) >= (newest.t || 0))) newest = t;

@@ -138,7 +138,6 @@ es.onmessage({ data: JSON.stringify({
   turns: [{ id: 't0001', rev: 1, kind: 'ink', answers: '0001', t: t0 + 200,
             page: 9, strokes: 9, png: '/answers/t0001-r1.png',
             ink: '/answers/t0001-r1.json' }],
-  history: 0,
 }) });
 await sleep(80);
 

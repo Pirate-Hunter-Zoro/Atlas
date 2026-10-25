@@ -28,7 +28,6 @@ from tutorboard.course import walk            # noqa: E402
 from tutorboard.course import config          # noqa: E402
 from tutorboard import brief, sense, subjects # noqa: E402
 from tutorboard.course import repo as course_repo   # noqa: E402
-from tutorboard.lesson import archive         # noqa: E402
 from tutorboard.server import handler, hub, tikz    # noqa: E402
 from http.server import ThreadingHTTPServer   # noqa: E402
 
@@ -286,7 +285,7 @@ try:
             "session": "walk", "over": ["speech_lab.evaluate.grade.grade"]})
         check("the board no longer opens a walkthrough sitting", status == 400)
         check("and the lesson it would have interrupted is untouched",
-              not archive.list_archive(repo))
+              not os.listdir(repo.archive))
         status, _ = post("/session", {"session": "lecture", "stance": "do"})
         check("a stance sent with a sitting is ignored",
               status == 200 and not repo.state().get("stance")

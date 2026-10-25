@@ -33,7 +33,7 @@ sys.path.insert(0, ROOT)
 from tutorboard import sense, sessions, writeups
 from tutorboard.course import library
 from tutorboard.course import repo as course_repo
-from tutorboard.lesson import archive, turns
+from tutorboard.lesson import turns
 from tutorboard.runner import turn as runturn
 from tutorboard.server import handler, hub, tikz
 from tutorboard.runner import service as runner_service  # noqa: E402
@@ -187,7 +187,8 @@ try:
           status == 200 and body.get("ok") is True and body.get("card") == "0003")
     check("THE SESSION IS STILL IN TEACH MODE",
           repo.state().get("mode") == "teach")
-    check("the lesson is not filed away", not archive.list_archive(repo))
+    check("the lesson is not filed away",
+          not (os.path.isdir(repo.archive) and os.listdir(repo.archive)))
     check("the cards are all still on the board",
           len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
     check("the tutor is not replaced", not replaced)
@@ -261,7 +262,8 @@ try:
           and body.get("make") == "deck" and body.get("id"))
     asked = body
     check("THE SESSION'S STATE HAS NOT MOVED", repo.state() == before_state)
-    check("the lesson is not filed away", not archive.list_archive(repo))
+    check("the lesson is not filed away",
+          not (os.path.isdir(repo.archive) and os.listdir(repo.archive)))
     check("the cards are all still on the board",
           len([n for n in os.listdir(repo.cards) if n.endswith(".md")]) == 3)
     check("the tutor is not replaced", not replaced)

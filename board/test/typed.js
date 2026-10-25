@@ -116,7 +116,7 @@ const frame = (cards, agent) => JSON.stringify({
   cards: cards,
   turns: [],
   agent: agent || { agent: 'claude', state: 'listening', turns: 3 },
-  waiting: null, history: 0,
+  waiting: null,
 });
 
 const opening = { id: '0007', kind: 'lesson', title: '', body: OPENING,
@@ -286,7 +286,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
                  ink: '/answers/t0001-r1.json' };
   const f2 = (cards) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture' },
-    cards: cards, turns: [sent], history: 0,
+    cards: cards, turns: [sent],
     agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 } });
 
   es2.onmessage({ data: f2([asked]) });
@@ -384,7 +384,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
                     t: u0 + 240, text: 'the second one' };
     es2.onmessage({ data: JSON.stringify({
       state: { course: 'Galois Theory', session: 'lecture' },
-      cards: [asked, yes1, q2, yes2], turns: [sent, sent2], history: 0,
+      cards: [asked, yes1, q2, yes2], turns: [sent, sent2],
       agent: { agent: 'claude', state: 'listening', turns: 3 } }) });
     await sleep(80);
     bandOf('0004') === 'correct' && markOf('0004') === 'correct'
@@ -638,7 +638,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
                   body: 'show gamma is algebraic', mtime: v0 };
   es3.onmessage({ data: JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture' },
-    cards: [asked], turns: [], history: 0,
+    cards: [asked], turns: [],
     agent: { agent: 'claude', state: 'listening', turns: 1 } }) });
   for (let i = 0; i < 60 && d3.getElementById('writer').hidden; i++) await sleep(50);
   d3.getElementById('tab-type').click();

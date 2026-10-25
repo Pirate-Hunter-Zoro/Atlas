@@ -273,7 +273,7 @@ decl(draw, 'top') === null
     // has stopped running, which is worse than one that fails. `#notepick` is
     // at 98, the storey under the menu.
     const others = ['#drawbar', '.annbar', '.notesend', '#notepick', '.jump',
-                    '#history', '#panic, #findink', '#scratch, #trace',
+                    '#panic, #findink', '#scratch, #trace',
                     '.drop', '#viewer', '#paper']
       .map((sel) => ({ sel, z: zOf(sel) }))
       .filter((r) => r.z !== null);
@@ -301,7 +301,6 @@ decl(draw, 'top') === null
 // page behind takes the drag instead.
 //
 [['#scratch-list', 'the scratch drawer'],
- ['#history-list', 'past lessons'],
  ['#trace-list', 'what just happened'],
  ['#notepick-list', 'the annotations picker']].forEach(([sel, what]) => {
   const b = block(sel);

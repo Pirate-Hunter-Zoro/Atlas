@@ -43,7 +43,6 @@ sys.path.insert(0, ROOT)
 from tutorboard import sense
 from tutorboard.course import library
 from tutorboard.course import repo as course_repo
-from tutorboard.lesson import archive
 from tutorboard.lesson import notes as lesson_notes
 from tutorboard.server import handler, hub, tikz
 from tutorboard.runner import service as runner_service  # noqa: E402
@@ -517,7 +516,7 @@ try:
     check("no card was written",
           [n for n in sorted(os.listdir(repo.cards)) if n.endswith(".md")]
           == ["0001-lesson.md"])
-    check("and the lesson was not filed away", not archive.list_archive(repo))
+    check("and the lesson was not filed away", not os.listdir(repo.archive))
 
     with open(repo.messages_path, encoding="utf-8") as fh:
         lines = [json.loads(l) for l in fh if l.strip()]

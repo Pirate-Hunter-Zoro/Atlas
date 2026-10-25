@@ -2219,8 +2219,7 @@ window.Annotate = {
      of that is that the store outlives the lesson: card numbers start again at
      0001 in every sitting, so a page held open across an archive went on
      holding last night's ink under key `0001` and drew it over tonight's card
-     1. Same for a past sitting opened from the history -- the live lesson's
-     marks were laid over cards they were never made on.
+     1.
 
      So the store is dropped when the sitting changes, and only then. Never on
      a payload: a lesson hears one four times a second. `board.js` owns that

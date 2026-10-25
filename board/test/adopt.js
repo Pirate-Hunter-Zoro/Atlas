@@ -213,7 +213,6 @@ function surface(saved, onPages) {
       turns: [{ id: 't0002', rev: 1, kind: 'ink', answers: '0005', t: t0 + 400,
                 page: 4, strokes: 12, png: '/answers/t0002-r1.png',
                 ink: '/answers/t0002-r1.json' }],
-      history: 0,
     }) });
     await sleep(60);
 
@@ -306,7 +305,6 @@ function surface(saved, onPages) {
               { id: 't0002', rev: 1, kind: 'ink', answers: '0005', t: t0 + 400,
                 page: 4, strokes: 12, png: '/answers/t0002-r1.png',
                 ink: '/answers/t0002-r1.json' }],
-      history: 0,
     }) });
     await sleep(60);
     let filed = {};

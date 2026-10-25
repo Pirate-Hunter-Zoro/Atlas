@@ -2907,27 +2907,6 @@ function create(opts) {
      on it: the stroke is handed to this so its first sample is not lost. */
   api.sheet = function () { return sheet; };
 
-  /* The sitting this slate belonged to has been filed: drop every page and
-     open one blank sheet. Deliberately not a save, because the debounced save
-     would write the filed pages back into `live/slate/` under their old
-     numbers and a new board would open on old working. The archive has the
-     copy. The array is emptied first so `nextPageNo` starts again at 1. */
-  api.reset = function () {
-    pages = [];
-    pages = [blankPage()];
-    current = 0;
-    undoStack = [];
-    redoStack = [];
-    clearSelection();
-    dropInk();
-    for (var k in dirtyPages) delete dirtyPages[k];
-    for (var q in pictureOwed) delete pictureOwed[q];
-    dirty = false;
-    layout();
-    fitPage();
-    invalidateInk();
-    return noOf(current);
-  };
   api.clear = function () {
     var p = page();
     if (!p) return;

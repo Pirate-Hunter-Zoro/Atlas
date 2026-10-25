@@ -8,9 +8,6 @@
 // so a page held open across an archive went on holding last night's ink under
 // the key tonight's card 1 now answers to.
 //
-// The other half of the same defect is a past lesson opened from the history:
-// the live lesson's marks were laid over cards they were never made on.
-//
 // The store is therefore dropped when the SITTING changes, and only then. Only
 // then matters as much as the rule does: a lesson takes a payload several times
 // a second, and a store dropped on any of them is ink vanishing under the nib.
@@ -115,16 +112,6 @@ function frame(opened, chapter, notes, extra) {
     ? ok('a section filed and the next one opened starts with a clean card 1')
     : fail('last night\'s ink is on tonight\'s card 1 — the reported defect: '
            + JSON.stringify(marked()));
-
-  // ------------------------------------------------- and a past lesson's own
-  window.__render(frame('2026-01-01 10:00', 'Chapter 7', { '0001': INK }));
-  await sleep(40);
-  window.__render(Object.assign(
-    frame('2026-01-01 10:00', 'Chapter 7', {}), { archived: true }));
-  await sleep(40);
-  marked().length === 0
-    ? ok('and a past lesson shows its own marks, not the live lesson\'s')
-    : fail('the live lesson\'s ink was laid over a filed sitting\'s cards');
 
   window.close();
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
