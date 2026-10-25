@@ -100,11 +100,201 @@ $$\mathbf{P}_3=\begin{pmatrix}\tfrac12&0&\tfrac12&0&0\\[2pt]\tfrac14&\tfrac12&\t
 % ===== SOLUTION 14 =====
 For $\mathbf{P}_1$ the class is $\{0,1,2\}$, and all its states are recurrent.
 
+\begin{center}
+\begin{tikzpicture}[>={Stealth},shorten >=1pt,every node/.style={circle,draw,minimum size=7mm,inner sep=0pt,font=\small}]
+\node (n0) at (150:1.4) {$0$};
+\node (n1) at (30:1.4) {$1$};
+\node (n2) at (270:1.4) {$2$};
+\draw[->] (n0) to[bend left=18] (n1);
+\draw[->] (n1) to[bend left=18] (n0);
+\draw[->] (n1) to[bend left=18] (n2);
+\draw[->] (n2) to[bend left=18] (n1);
+\draw[->] (n2) to[bend left=18] (n0);
+\draw[->] (n0) to[bend left=18] (n2);
+\end{tikzpicture}
+\end{center}
+
 For $\mathbf{P}_2$ the class is $\{0,1,2,3\}$, and all its states are recurrent.
+
+\begin{center}
+\begin{tikzpicture}[>={Stealth},shorten >=1pt,every node/.style={circle,draw,minimum size=7mm,inner sep=0pt,font=\small}]
+\node (n0) at (-1.5,1.0) {$0$};
+\node (n1) at (1.2,1.0) {$1$};
+\node (n2) at (-0.9,-1.1) {$2$};
+\node (n3) at (1.5,-0.4) {$3$};
+\draw[->] (n0) -- (n3);
+\draw[->] (n1) -- (n3);
+\draw[->] (n2) -- (n0);
+\draw[->] (n2) -- (n1);
+\draw[->] (n3) -- (n2);
+\end{tikzpicture}
+\end{center}
 
 For $\mathbf{P}_3$ the classes are $\{0,2\}$ and $\{3,4\}$, both recurrent, and $\{1\}$, transient.
 
+\begin{center}
+\begin{tikzpicture}[>={Stealth},shorten >=1pt,every node/.style={circle,draw,minimum size=7mm,inner sep=0pt,font=\small}]
+\node (n0) at (-1.7,0.5) {$0$};
+\node (n1) at (0,1.4) {$1$};
+\node (n2) at (1.7,0.5) {$2$};
+\node (n3) at (-0.7,-1.1) {$3$};
+\node (n4) at (0.7,-1.1) {$4$};
+\draw[->] (n0) to[bend left=25] (n2);
+\draw[->] (n2) to[bend left=25] (n0);
+\draw[->] (n1) -- (n0);
+\draw[->] (n1) -- (n2);
+\draw[->] (n0) to[loop left] (n0);
+\draw[->] (n1) to[loop above] (n1);
+\draw[->] (n2) to[loop right] (n2);
+\draw[->] (n3) to[bend left=20] (n4);
+\draw[->] (n4) to[bend left=20] (n3);
+\draw[->] (n3) to[loop left] (n3);
+\draw[->] (n4) to[loop right] (n4);
+\end{tikzpicture}
+\end{center}
+
 For $\mathbf{P}_4$ the classes are $\{0,1\}$ and $\{2\}$, both recurrent, and $\{3\}$ and $\{4\}$, both transient. State $2$ is recurrent because when you are in it you will always return to it.
+
+\begin{center}
+\begin{tikzpicture}[>={Stealth},shorten >=1pt,every node/.style={circle,draw,minimum size=7mm,inner sep=0pt,font=\small}]
+\node (n0) at (-1.8,0.8) {$0$};
+\node (n1) at (0,0.8) {$1$};
+\node (n2) at (1.8,0.8) {$2$};
+\node (n4) at (-1.4,-1.2) {$4$};
+\node (n3) at (0.6,-1.2) {$3$};
+\draw[->] (n0) to[bend left=20] (n1);
+\draw[->] (n1) to[bend left=20] (n0);
+\draw[->] (n0) to[loop left] (n0);
+\draw[->] (n1) to[loop above] (n1);
+\draw[->] (n2) to[loop above] (n2);
+\draw[->] (n3) -- (n2);
+\draw[->] (n3) to[loop below] (n3);
+\draw[->] (n4) to[bend left=35] (n0);
+\end{tikzpicture}
+\end{center}
+
+The transition diagrams are my hand-drawn graphs, set in \LaTeX\ written with DeepSeek.
 % ===== END SOLUTION 14 =====
+
+\begin{problem}{34}
+A flea moves around the vertices of a triangle in the following manner: whenever it is at vertex $i$ it moves to its clockwise neighbor vertex with probability $p_i$ and to the counterclockwise neighbor with probability $q_i=1-p_i$, $i=1,2,3$.
+
+(a) Find the proportion of time that the flea is at each of the vertices.
+
+(b) How often does the flea make a counterclockwise move that is then followed by five consecutive clockwise moves?
+\end{problem}
+% ===== SOLUTION 34 =====
+Let $\alpha$ be the stationary distribution, so $\alpha P=\alpha$ with
+\[
+P=\begin{pmatrix}0&p_0&1-p_0\\ 1-p_1&0&p_1\\ p_2&1-p_2&0\end{pmatrix}.
+\]
+Writing out $\alpha P=\alpha$ gives
+\[
+\alpha_1(1-p_1)+\alpha_2p_2=\alpha_0,\qquad
+\alpha_0p_0+\alpha_2(1-p_2)=\alpha_1,\qquad
+\alpha_0(1-p_0)+\alpha_1p_1=\alpha_2,
+\]
+and carrying the right-hand sides across turns this into the homogeneous system
+\[
+\begin{pmatrix}-1&1-p_1&p_2\\ p_0&-1&1-p_2\\ 1-p_0&p_1&-1\end{pmatrix}
+\begin{pmatrix}\alpha_0\\ \alpha_1\\ \alpha_2\end{pmatrix}
+=\begin{pmatrix}0\\ 0\\ 0\end{pmatrix}.
+\]
+Its reduced row echelon form, computed with Mathematica, is
+\[
+\begin{pmatrix}
+1&0&-\dfrac{1-p_1+p_1p_2}{1-p_0+p_0p_1}\\[8pt]
+0&1&-\dfrac{1-p_2+p_0p_2}{1-p_0+p_0p_1}\\[8pt]
+0&0&0
+\end{pmatrix}.
+\]
+Writing $N_0=1-p_1+p_1p_2$, $N_1=1-p_2+p_0p_2$ and $D=1-p_0+p_0p_1$, the two nonzero rows are
+\[
+\alpha_0-\frac{N_0}{D}\alpha_2=0,\qquad \alpha_1-\frac{N_1}{D}\alpha_2=0,
+\]
+so $\alpha_2=\alpha_0D/N_0$ and $\alpha_1=\alpha_0N_1/N_0$. The normalising condition then reads
+\[
+\alpha_0\left(1+\frac{N_1}{N_0}+\frac{D}{N_0}\right)=1,
+\]
+that is $\alpha_0=N_0/(N_0+N_1+D)$. With $S=N_0+N_1+D=3-p_0-p_1-p_2+p_0p_1+p_1p_2+p_2p_0$,
+\[
+\alpha_0=\frac{1-p_1+p_1p_2}{S},\qquad
+\alpha_1=\frac{1-p_2+p_0p_2}{S},\qquad
+\alpha_2=\frac{1-p_0+p_0p_1}{S}.
+\]
+These are the proportions of time the flea spends at vertices $0$, $1$ and $2$.
+
+For part (b), condition on the vertex that the counterclockwise move leaves. At vertex $i$ the move is counterclockwise with probability $q_i=1-p_i$, after which the flea sits at $i-1$. The five clockwise moves then run
+\[
+i-1\to i\to i+1\to i-1\to i\to i+1,
+\]
+with probabilities $p_{i-1},p_i,p_{i+1},p_{i-1},p_i$, indices modulo $3$. The walk repeats its pattern after three steps, so the product of these five probabilities is $p_{i-1}^2p_i^2p_{i+1}$. Summing over the starting vertex gives the long-run fraction of moves that open such a run:
+\[
+\sum_i\alpha_i(1-p_i)p_{i-1}^2p_i^2p_{i+1}
+=\alpha_0(1-p_0)p_0^2p_2^2p_1+\alpha_1(1-p_1)p_1^2p_0^2p_2+\alpha_2(1-p_2)p_2^2p_1^2p_0.
+\]
+Substituting $\alpha_i=N_i/S$ and factoring $p_0p_1p_2$ out of each product leaves
+\[
+\frac{p_0p_1p_2}{S}\Bigl(N_0p_0p_2(1-p_0)+N_1p_1p_0(1-p_1)+Dp_2p_1(1-p_2)\Bigr),
+\]
+with $N_0$, $N_1$, $D$ and $S$ as in part (a).
+% ===== END SOLUTION 34 =====
+
+\begin{problem}{40}
+A particle moves on 12 points situated on a circle. At each step it is equally likely to move one step in the clockwise or in the counterclockwise direction. Find the mean number of steps for the particle to return to its starting position.
+\end{problem}
+% ===== SOLUTION 40 =====
+The uniform distribution on the 12 points is the stationary distribution, so $\pi_i = 1/12$ for every $i$. Then
+$$m_i = \frac{1}{\pi_i} = 12.$$
+% ===== END SOLUTION 40 =====
+
+\begin{problem}{52}
+A taxi driver provides service in two zones of a city. Fares picked up in zone A will have destinations in zone A with probability $0.6$ or in zone B with probability $0.4$. Fares picked up in zone B will have destinations in zone A with probability $0.3$ or in zone B with probability $0.7$. The driver's expected profit for a trip entirely in zone A is $6$; for a trip entirely in zone B is $8$; and for a trip that involves both zones is $12$. Find the taxi driver's average profit per trip.
+\end{problem}
+% ===== SOLUTION 52 =====
+With states $A$ and $B$ the pickup zone, the trips give
+\[
+P=\begin{pmatrix}0.6&0.4\\0.3&0.7\end{pmatrix},
+\]
+and the four profits are
+\[
+AA\to 6,\qquad BB\to 8,\qquad AB\to 12,\qquad BA\to 12.
+\]
+So
+\[
+E[\text{profit}]=6\,p(AA)+8\,p(BB)+12\,p(AB)+12\,p(BA),
+\]
+and with $p(AA)=p_A(0.6)$, $p(BB)=p_B(0.7)$, $p(AB)=p_A(0.4)$ and $p(BA)=p_B(0.3)$,
+\[
+E[\text{profit}]=6\,p_A\cdot 0.6+8\,p_B\cdot 0.7+12\,p_A\cdot 0.4+12\,p_B\cdot 0.3.
+\]
+The stationary distribution solves $[\,p_A\ \ p_B\,]P=[\,p_A\ \ p_B\,]$, that is
+\[
+0.6p_A+0.3p_B=p_A,\qquad 0.4p_A+0.7p_B=p_B,
+\]
+whose solution is
+\[
+p_A=\frac{3}{7},\qquad p_B=\frac{4}{7}.
+\]
+Substituting,
+\[
+E[\text{profit}]=6\cdot\frac37\cdot\frac35+8\cdot\frac47\cdot\frac{7}{10}+12\cdot\frac37\cdot\frac25+12\cdot\frac47\cdot\frac{3}{10}
+=\frac{54+112+72+72}{35}=\frac{310}{35}=\frac{62}{7}\approx 8.857.
+\]
+% ===== END SOLUTION 52 =====
+
+\begin{problem}{60}
+The following is the transition probability matrix of a Markov chain with states $1,2,3,4$:
+\[
+P=\begin{pmatrix}.4&.3&.2&.1\\ .2&.2&.2&.4\\ .25&.25&.5&0\\ .2&.1&.4&.3\end{pmatrix}.
+\]
+If $X_0=1$,
+\begin{enumerate}
+\item[(a)] find the probability that state 3 is entered before state 4;
+\item[(b)] find the mean number of transitions until either state 3 or state 4 is entered.
+\end{enumerate}
+\end{problem}
+% ===== SOLUTION 60 =====
+% ===== END SOLUTION 60 =====
 
 \end{document}
