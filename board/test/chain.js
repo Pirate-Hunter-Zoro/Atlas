@@ -61,21 +61,11 @@ window.Element.prototype.releasePointerCapture = function () {};
 // touched again. A past board is DRAWN from it, so a harness that cannot answer
 // for it cannot see what a past board looks like.
 const frozen = {};
-// A finished lesson, as `/archive` lists it and `/archive/<id>` serves it. Set
-// when the test reaches the one assertion that reads one; until then the list
-// is empty and nothing can be opened.
-let archived = null;
 const reply = (body) => Promise.resolve({ json: () => Promise.resolve(body) });
 window.fetch = (u) => {
   const url = String(u);
   if (/slate\/state/.test(url)) {
     return reply({ pages: [] });
-  }
-  if (url === '/archive') {
-    return reply({ sessions: archived ? [archived.row] : [] });
-  }
-  if (archived && url === '/archive/' + encodeURIComponent(archived.row.id)) {
-    return reply(archived.body);
   }
   if (frozen[url]) {
     return reply(frozen[url]);
@@ -224,7 +214,7 @@ const lift = () => {
 const lesson = (cards, turns) => JSON.stringify({
   state: { course: 'Galois Theory', session: 'lecture', mode: 'math',
            opened: OPENED },
-  cards, turns: turns || [], history: 0,
+  cards, turns: turns || [],
 });
 const q1 = card('0001', 'question', 'Exercise 1.3', 1);
 
@@ -1133,79 +1123,6 @@ const mapping = records;
     : fail('there is still no board between one response and the next');
 }
 
-
-// ----------------------------------------------------------------------------
-// AND READING A FINISHED LESSON DOES NOT WRITE THIS ONE'S MAPPING.
-//
-// A past lesson goes through the same renderer, carrying the archive's own card
-// numbers -- which start at 0001, the numbers tonight is using. Left to run, the
-// chain mints a record for every question of the archive this mapping lacks, the
-// repair gives it a page off the archive's turns, and both are saved under the
-// LIVE key. One lesson read is then a handful of records naming boards that are
-// on no screen, owning pages this sitting is about to reach; and the next tap on
-// a real board finds its sheet shared and copies itself off it.
-{
-  // The board this lesson is sitting on, and the page under it. The archive's
-  // turn names that same page -- which is the ordinary case, not a contrivance:
-  // both sittings number their pages from 1, and the live slate is the only
-  // slate there is.
-  const target = '0201#0';
-  const targetPage = (records()[target] || {}).p;
-  archived = {
-    row: { id: 'galois-0209', chapter: 'Galois Theory', session: 'lecture',
-           opened: '2026-02-09 19:00', cards: 1, turns: 1 },
-    body: { state: { course: 'Galois Theory', session: 'lecture',
-                     opened: '2026-02-09 19:00' },
-            cards: [card('0077', 'question', 'last week, part (b)', 1)],
-            turns: [{ id: 't0077', rev: 1, kind: 'ink', answers: '0077',
-                      t: t0 - 900, page: targetPage, strokes: 1,
-                      png: '/answers/t0077-r1.png' }] },
-  };
-  const before = JSON.stringify(records());
-  const pagesBefore = slate.pages();
-
-  doc.getElementById('btn-history').hidden = false;
-  doc.getElementById('btn-history').onclick();
-  await sleep(80);
-  const row = doc.querySelector('#history-list .session-row');
-  if (!row) {
-    fail('the archive list did not open, so no past lesson could be read');
-  } else {
-    row.click();
-    await sleep(100);
-    doc.getElementById('reading-back').onclick();
-    await sleep(100);
-
-    JSON.stringify(records()) === before
-      ? ok('reading a finished lesson leaves this one\'s mapping exactly as it '
-           + 'was')
-      : fail('the archive wrote into the live sitting: ' + before + ' -> '
-             + JSON.stringify(records()));
-
-    // And the sheet the live board is on is still its own. This is what the
-    // pollution actually costs: a record nobody can see owning page 1 makes the
-    // board that is really on page 1 copy itself off it on the next tap.
-    const mine1 = doc.querySelector('[data-slot="' + target + '"]');
-    if (!mine1) {
-      fail('the lesson came back without the board that was on screen');
-    } else {
-      const p1 = (records()[target] || {}).p;
-      const tap = new window.Event('pointerdown', { bubbles: true, cancelable: true });
-      Object.assign(tap, { pointerId: 91, pointerType: 'pen', pressure: 0.5,
-                           clientX: 200, clientY: 200, isPrimary: true });
-      tap.getCoalescedEvents = () => [tap];
-      mine1.dispatchEvent(tap);
-      await sleep(100);
-      slate.pages() === pagesBefore && (records()[target] || {}).p === p1
-        ? ok('and a board tapped afterwards stays on the sheet it was written on')
-        : fail('the board copied itself off its own sheet to get away from a '
-               + 'record the archive left behind (page ' + p1 + ' -> '
-               + ((records()[target] || {}).p) + ', ' + pagesBefore + ' -> '
-               + slate.pages() + ' pages)');
-      lift();
-    }
-  }
-}
 
 console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                           : '\nan exercise is a chain of boards, and every one of them stays');

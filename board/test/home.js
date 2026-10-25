@@ -277,6 +277,14 @@ async function stubbed() {
         past.length === 10 && /Old one/.test(past[0].textContent)
         && past[0].title === 'read only'
         && past.every((a) => !/Rings|ch07/.test(a.textContent)));
+  // An ended session is read on its own board, which is read only once it has
+  // ended. The board keeps no second reader of past sittings behind a menu.
+  const boardHtml = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
+  const boardJs = fs.readFileSync(path.join(WEB, 'board.js'), 'utf8');
+  check('a past row opens that session\'s own board, the one way to read it',
+        past[0] && past[0].getAttribute('href') === '/s/20260901-100000/board'
+        && !/id="(history|btn-history|reading)"/.test(boardHtml)
+        && !/["']\/archive\b/.test(boardJs));
   check('with "show all (12)" under them',
         !d.getElementById('past-more').hidden
         && d.getElementById('past-more').textContent === 'show all (12)');

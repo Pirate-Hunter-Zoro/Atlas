@@ -8,9 +8,6 @@ session's Repo and nothing else (`handler.UNPREFIXED` lists none of them).
     GET  /board.json          session   the payload, once
     GET  /cards?before=<n>    session   the 40 cards below card n, and their ink
     GET  /subject.json        session   the subject's sets and results
-    GET  /archive             session   the session's filed lessons
-    GET  /archive/<name>[/answers/<file>]
-                              session   one of them, read only
     POST /mode                session   teach or do, from now on
     POST /bind                session   bind the session to a subject, from its chip
     POST /problem             session   the write-up's problem on their screen
@@ -43,13 +40,11 @@ import urllib.parse
 from . import NOT_MINE
 from ...course import homework
 from .. import hub
-from .. import multipart
 from ... import sessions
 from ... import subjects
 from ... import mode as session_mode
 from ... import sense
 from ...course import config
-from ...lesson import archive
 from ...lesson import cards
 from ...lesson import inbox
 from ...lesson import turns
@@ -76,24 +71,6 @@ def get(h, repo, path):
 
     if path == "/subject.json":
         return h.send_json(hub.subject_info(repo))
-
-    if path.startswith("/archive/"):
-        # A past lesson, read only.
-        rel = path[len("/archive/"):].strip("/")
-        if not rel:
-            return h.send_json({"sessions": archive.list_archive(repo)})
-        name = multipart.safe_filename(rel.split("/")[0])
-        folder = os.path.join(repo.archive, name)
-        if not os.path.isdir(folder):
-            return h.send_json({"ok": False, "error": "no such session"}, status=404)
-        rest = rel.split("/")[1:]
-        if rest and rest[0] == "answers" and len(rest) > 1:
-            return h.send_file(os.path.join(folder, "answers",
-                                               multipart.safe_filename(rest[1])))
-        return h.send_json(archive.archived_session(repo, name))
-
-    if path == "/archive":
-        return h.send_json({"sessions": archive.list_archive(repo)})
 
     if path == "/canvas.pdf":
         return _canvas_pdf(h, repo)

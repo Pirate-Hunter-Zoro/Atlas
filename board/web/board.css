@@ -1408,51 +1408,6 @@ body.tools-out .jump { bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
 .mine .signal[data-signal="help"]     { background: color-mix(in srgb, var(--bad) 18%, var(--paper)); color: var(--bad); }
 .mine .signal[data-signal="confused"] { background: color-mix(in srgb, var(--note, var(--accent)) 18%, var(--paper)); }
 
-/* ---------- past lessons ---------- */
-#history {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;
-  width: min(26rem, 94vw);
-  background: var(--paper); border-left: 1px solid var(--rule);
-  display: flex; flex-direction: column;
-  box-shadow: -8px 0 26px rgba(0,0,0,.16);
-  font-family: var(--ui); font-size: .85rem;
-}
-#history-list { flex: 1; overflow-y: auto; padding: .5rem; }
-.session-line {
-  display: flex; align-items: stretch; gap: .35rem; margin-bottom: .4rem;
-}
-.session-row {
-  display: block; flex: 1; min-width: 0; text-align: left; cursor: pointer;
-  font: inherit; color: var(--ink);
-  padding: .6rem .7rem;
-  border: 1px solid var(--rule); border-radius: .5rem; background: var(--paper);
-}
-.session-row:hover { background: var(--paper-2); }
-.session-name { display: block; font-weight: 650; }
-.session-sub { display: block; margin-top: .15rem; font-size: .72rem; color: var(--ink-3); }
-
-/* Reading an old lesson: say so, plainly, and give one way back. */
-/* `width: max-content` on every pill centred with `left: 50%` and a translate:
-   without it the box is sized to the half of the screen right of `left` and
-   the transform never gives the other half back, so it could not be wider
-   than 50vw whatever its `max-width` said. */
-#reading {
-  position: fixed; left: 50%; transform: translateX(-50%);
-  width: max-content; max-width: calc(100vw - 1.5rem);
-  bottom: calc(1.2rem + env(safe-area-inset-bottom)); z-index: 45;
-  display: flex; align-items: center; gap: .7rem;
-  padding: .5rem .5rem .5rem .9rem;
-  border-radius: 2rem; border: 1px solid var(--rule);
-  background: var(--paper-2); box-shadow: 0 6px 22px rgba(0,0,0,.22);
-  font: 600 .8rem var(--ui);
-}
-#reading-what { color: var(--ink-2); min-width: 0; }
-#reading-back {
-  font: inherit; cursor: pointer; padding: .35rem .7rem;
-  border-radius: 1.4rem; border: 1px solid var(--accent);
-  background: var(--accent); color: var(--paper);
-}
-
 /* The composer lived here: a docked bar of three signal buttons, shown only in
    a `code` course, plus rules for a #say/#send pair whose markup had already
    gone. Both the mode and the buttons are gone, and so is the height the page

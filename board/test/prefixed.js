@@ -118,7 +118,7 @@ function strays(asked, prefix) {
       cards: [{ id: '0001', kind: 'lesson', title: 'A figure', body: BODY,
                 mtime: now - 600 }],
       turns: [], agent: { agent: 'claude', state: 'listening', turns: 1 },
-      waiting: null, history: 0,
+      waiting: null,
     }) });
   } else {
     fail('board.js never opened a stream');

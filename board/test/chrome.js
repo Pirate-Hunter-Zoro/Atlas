@@ -301,7 +301,6 @@ decl(draw, 'top') === null
 // page behind takes the drag instead.
 //
 [['#scratch-list', 'the scratch drawer'],
- ['#history-list', 'past lessons'],
  ['#trace-list', 'what just happened'],
  ['#notepick-list', 'the annotations picker']].forEach(([sel, what]) => {
   const b = block(sel);

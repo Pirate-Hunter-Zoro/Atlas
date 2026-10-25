@@ -89,7 +89,7 @@ const steps = [
 
 const frame = (mode, extra) => JSON.stringify(Object.assign({
   state: { course: 'Harness', session: 'lecture', mode: mode, stance_now: mode },
-  cards: steps, turns: [], history: 0,
+  cards: steps, turns: [],
   agent: { agent: 'claude', state: 'listening' },
 }, extra || {}));
 
@@ -142,14 +142,6 @@ await sleep(60);
 taps().length === 0
   ? ok('a session in do, whose tutor already writes the code, has nothing to hand over')
   : fail('the tap showed up in a session in do');
-
-// A past lesson is read-only. Handing over a step of an evening that is already
-// filed away is not a thing that can happen.
-es.onmessage({ data: frame('teach', { archived: true }) });
-await sleep(60);
-taps().length === 0
-  ? ok('a filed lesson offers nothing to hand over')
-  : fail('a past lesson offered a step');
 
 // And the transcript says what was done, in words rather than a bare tag.
 es.onmessage({ data: frame('teach', { turns: [

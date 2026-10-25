@@ -844,24 +844,15 @@ function reconcile(host, wanted) {
 function render(data) {
   /* Any settle still running belongs to a card this payload supersedes. */
   settleEnd(false);
-  /* A live frame that arrives while a past lesson is open is kept, not shown.
-     Being yanked out of what you are reading because the tutor wrote something
-     is worse than finding it when you come back. */
-  if (!data.archived) {
-    lastLive = data;
-    if (!pagesLoaded) { pagesLoaded = true; loadPages(); }
-    document.getElementById("btn-history").hidden = !(data.history > 0);
-    if (reading) { els.jump.hidden = false; return; }
-  }
+  lastLive = data;
+  if (!pagesLoaded) { pagesLoaded = true; loadPages(); }
   var state = data.state || {};
 
-  /* WHICH TRANSCRIPT IS ON SCREEN, AND THE MARKS THAT BELONG TO IT. The
+  /* WHICH SITTING IS ON SCREEN, AND THE MARKS THAT BELONG TO IT. The
      annotation store is keyed by card number, and `0001` names a different card
-     in a past lesson -- so the store is dropped at the boundary. The live one is
-     named by its stamp and label; a past one by the archive's own id. */
-  var sitting = data.archived
-    ? "past:" + (reading || "")
-    : "live:" + (state.opened || "") + "|" + (state.chapter || "");
+     in another sitting -- so the store is dropped at the boundary. A sitting is
+     named by its stamp and label. */
+  var sitting = "live:" + (state.opened || "") + "|" + (state.chapter || "");
   if (sittingKey !== null && sitting !== sittingKey && window.Annotate) {
     window.Annotate.forget();
   }
@@ -871,8 +862,8 @@ function render(data) {
   /* A review's label is "Test review — Ch 1, Ch 7", which the strip underneath
      already says in full and in the course's own words. Repeating it here costs
      the bar the width that the chapter line exists to have, and the bar is the
-     one row on this page that cannot grow. The label still goes into the state,
-     because a filed lesson needs a name in the history. */
+     one row on this page that cannot grow. The label still goes into the state;
+     only the bar leaves it out. */
   var reviewing = (state.session || "") === "review";
   els.chapter.textContent = (state.chapter && !reviewing) ? "· " + state.chapter : "";
   document.title = (state.course || "Board") + (state.chapter ? " · " + state.chapter : "");
@@ -920,9 +911,6 @@ function render(data) {
   /* And the one a board was asked for on, which has no answer against it yet --
      that first send is exactly the moment there is nothing to go on. */
   if (reopenedFor && at[reopenedFor] !== undefined) isQuestion[reopenedFor] = true;
-  /* A filed lesson and a past one are read-only: no surface is built for either,
-     so the frozen picture is the only record there is and it stays. */
-  var live = !data.archived && !reading;
 
   /* ------------------------------------------- one step, handed over */
   /* THE WAY OUT OF ONE STEP OF COACHING, WITHOUT LEAVING IT: "you do this step".
@@ -932,16 +920,16 @@ function render(data) {
      the payload repeats it, `stance_now`, as `doingTurn` reads it. `/handover`
      names the card and leaves the session as it is (`_handover` in
      `routes/lesson.py`). */
-  var coaching = live && (state.stance_now || "teach") !== "do";
+  var coaching = (state.stance_now || "teach") !== "do";
   var thisStep = ordered.length ? ordered[ordered.length - 1].id : "";
 
   /* Whether a written answer already has a board carrying the same ink. Every
      question owns a page and nothing is wiped, so the frozen picture and the
      board are two copies of the same ink, and the board is the answer. The
-     picture comes back when there is no board to replace it: a filed or past
-     lesson, a browser that never held the page, a surface not built yet. */
+     picture comes back when there is no board to replace it: a browser that
+     never held the page, a surface not built yet. */
   function onABoard(m) {
-    if (!(live && !!writer && m.kind === "ink" && !!m.png
+    if (!(writer && m.kind === "ink" && !!m.png
           && !!m.answers && !!isQuestion[m.answers])) return false;
     var found = false;
     slotsOf(m.answers).forEach(function (k) {
@@ -1325,26 +1313,17 @@ function render(data) {
   paintSession(state, data.push, data.agent, data.export,
                (data.hw && data.hw.build) || null);
   paintHomework(data.hw);
-  /* The problem on their screen, and its givens (web/problem.js). A past
-     lesson has none. */
-  if (window.Problem) window.Problem.paint(data.archived ? null : data.problem);
+  /* The problem on their screen, and its givens (web/problem.js). */
+  if (window.Problem) window.Problem.paint(data.problem);
   if (!started) paintWaiting(data);
   seedTextDrafts(data);
   paintNotesSend();
   paintSent();
   /* The save count and results are the subject's, and arrive from
      `/subject.json` rather than on this frame; a frame that still carries
-     one (a past lesson, a test) is honoured. */
+     one (a test) is honoured. */
   if (data.unsaved !== undefined) paintSave(data.unsaved);
   paintOlder();
-  /* THE LESSON WAS FILED WHILE THIS PAGE WAS OPEN: `history` rose. Only when the
-     field is there (a frame built by hand has none, and a missing field is not
-     zero), and never off an archived frame. What goes, goes in both halves: the
-     pages the archive renamed away, and the board-to-page mapping. */
-  if (typeof data.history === "number" && !data.archived) {
-    if (pastCount !== null && data.history > pastCount) lessonWasFiled();
-    pastCount = data.history;
-  }
   land();
 
   var lastQuestion = 0, lastSent = 0, newestQ = null;
@@ -1375,7 +1354,7 @@ function render(data) {
      all current -- which is what it takes to tell a board with working on it
      nobody has handed in from a board with nothing on it. */
   if (reopenedFor !== null && reopenedFor !== (newestQ || "")) reopenedFor = null;
-  if (reopenedFor !== null && !data.archived) owed = true;
+  if (reopenedFor !== null) owed = true;
 
   pinnedTo = owed ? newestQ : null;
 
@@ -1399,9 +1378,9 @@ function render(data) {
   var qids = ordered.filter(function (c) { return !!isQuestion[c.id]; })
                     .map(function (c) { return c.id; });
   /* And the running census of what this lesson has asked, which is what tells a
-     board from a leftover record. It only ever grows, and only a live frame with
-     a question in it adds to it -- see `seenQs`. */
-  if (!data.archived && qids.length) {
+     board from a leftover record. It only ever grows, and only a frame with a
+     question in it adds to it -- see `seenQs`. */
+  if (qids.length) {
     seenAny = true;
     qids.forEach(function (q) { seenQs[q] = true; });
   }
@@ -1419,21 +1398,14 @@ function render(data) {
   /* Before anything reads the mapping: bring the chain of boards up to date with
      the transcript, and let the surface -- which may know more about where this
      lesson's working actually is than this browser does -- correct it. */
-  /* THE BOARD-TO-PAGE MAPPING BELONGS TO THE LIVE LESSON, AND ONLY IT MAY
-     WRITE. A past lesson's card ids start at 0001 too; left to run, `syncSlots`,
-     `repairPages` and `savePages` would write its records under the live key.
-     Nothing is drawn from the mapping on an archived frame anyway. */
-  if (!data.archived) {
-    lastTurns = data.turns || [];
-    syncSlots(qids, runEndOf, lastTurns);
-    repairPages();
-    /* And the order boards stand in, which is read off the same mapping and so
-       means nothing on a frame that is not this sitting's. */
-    slotOrder = [];
-    qids.forEach(function (q) {
-      slotsOf(q).forEach(function (k) { slotOrder.push(k); });
-    });
-  }
+  lastTurns = data.turns || [];
+  syncSlots(qids, runEndOf, lastTurns);
+  repairPages();
+  /* And the order boards stand in, which is read off the same mapping. */
+  slotOrder = [];
+  qids.forEach(function (q) {
+    slotsOf(q).forEach(function (k) { slotOrder.push(k); });
+  });
 
   /* Which BOARD is being written on. Usually the attempt in hand on the newest
      question; whichever they picked, if they went back to an earlier one. A
@@ -1441,9 +1413,8 @@ function render(data) {
      going back to add a line to the proof on it is ordinary work. */
   /* A NEW QUESTION LETS GO OF THE PIN, UNLESS THERE IS WORKING UNDER IT. Only a
      pin a CARRY set, and only while what was carried is unsent: one question's
-     grace, counted by `pinHeld`. Questions that arrive while a past lesson is
-     open are not counted (the live frame is not drawn then). */
-  if (!data.archived && workingOn && workingOnAt !== (newestQ || "")) {
+     grace, counted by `pinHeld`. */
+  if (workingOn && workingOnAt !== (newestQ || "")) {
     if (pinCarried && !pinHeld && unsentInk(workingOn)) {
       pinHeld = true;
       workingOnAt = newestQ || "";
@@ -1454,10 +1425,8 @@ function render(data) {
       pinCarried = false;
     }
   }
-  /* An archived frame's `qids` are the ARCHIVE's question ids, so a pinned
-     board's question is missing from them for reasons that have nothing to do
-     with this sitting. Only a live frame may say a board has gone. */
-  if (!data.archived && workingOn
+  /* A pinned board whose question has left the transcript has gone. */
+  if (workingOn
       && (!boardPage[workingOn]
           || qids.indexOf(slotQ(workingOn)) === -1)) {
     workingOn = null;
@@ -1480,7 +1449,7 @@ function render(data) {
        it was answered with and carry the answer back for correction. */
     latest: latestMine.length ? latestMine[latestMine.length - 1] : null,
   };
-  if (workingOn) owed = !data.archived;
+  if (workingOn) owed = true;
 
   /* The writing surface goes at the END of the transcript, under the tutor's
      feedback. While an answer is waiting to be read it stays where it is
@@ -1505,18 +1474,12 @@ function render(data) {
       }
     }
   }
-  /* A past lesson is read only: no pen, no box, nothing to send into a session
-     that has already been filed. So `liveKey` on an archived frame names a board
-     of the ARCHIVE, and writing it down would point the pen -- and `restoreAnswer`
-     with it -- at somebody else's lesson the moment the reader comes back. The
-     live sitting's answer to this stands until a live frame changes it. */
-  if (!data.archived) liveSlot = liveKey;
+  liveSlot = liveKey;
   /* THE HOLD IS ON THE BOARD FOLLOWING A CARD, NEVER ON A TAP.
      Somebody who touches an earlier board is asking for the surface to go there
      now, and a request made by hand outranks an animation. `workingOn` and
      `reopenedFor` are what a tap sets; with either of them the surface moves. */
-  placeWriter(owed && !data.archived, qNode, live,
-              replyArriving() && !workingOn && reopenedFor === null);
+  placeWriter(owed, qNode, replyArriving() && !workingOn && reopenedFor === null);
   /* The boards do not come and go with the answer panel: a `correct` card shuts
      the panel and the boards stay, as places to carry on working. The one board
      not drawn is the one the live surface stands in for. */
@@ -1525,12 +1488,11 @@ function render(data) {
      is standing in for -- so a surface held shut for the two seconds a card is
      typing had its dormant photograph drawn in its place, which is the next
      board showing up early wearing a different hat. See `writerHeldShut`. */
-  paintBoards(qids, (els.writer.hidden && !writerHeldShut) ? null : liveKey, !live);
+  paintBoards(qids, (els.writer.hidden && !writerHeldShut) ? null : liveKey);
   /* Offered exactly when there is no surface to write on: the tutor has written
      something, and nothing is owed. */
   if (els.reopen) {
-    els.reopen.hidden = !!data.archived || !!reading
-                        || !(data.cards || []).length
+    els.reopen.hidden = !(data.cards || []).length
                         || !els.writer.hidden;
   }
   paintBusy(data);
@@ -2879,88 +2841,9 @@ function renderScratch(uploads) {
   });
 }
 
-/* ------------------------------------------------------------ past lessons */
-/* Reading an old lesson is reading the same transcript, so it goes through the
-   same renderer. The live stream is what is suspended, not the page: whatever
-   arrives while you are reading is still there when you come back. */
-var reading = null;
+/* The newest payload: what a repaint after a change made on this page renders
+   again, and what an address is resolved against. */
 var lastLive = null;
-/* How many sittings this subject has filed, as of the last frame that said.
-   `null` until one does: "it went up" has no answer before there is a number
-   to compare with. */
-var pastCount = null;
-
-function openHistory() {
-  var panel = document.getElementById("history");
-  var list = document.getElementById("history-list");
-  panel.hidden = false;
-  list.innerHTML = '<p class="name">looking…</p>';
-  api("/archive").then(function (r) { return r.json(); }).then(function (d) {
-    var sessions = d.sessions || [];
-    if (!sessions.length) {
-      list.innerHTML = '<p class="name">no finished lessons yet.</p>';
-      return;
-    }
-    list.innerHTML = "";
-    sessions.forEach(function (s) {
-      var row = document.createElement("div");
-      row.className = "session-line";
-
-      var b = document.createElement("button");
-      b.type = "button";
-      b.className = "session-row";
-      b.innerHTML = '<span class="session-name"></span>'
-                  + '<span class="session-sub"></span>';
-      b.querySelector(".session-name").textContent =
-        s.chapter || s.course || s.id;
-      b.querySelector(".session-sub").textContent =
-        [s.session, s.opened, s.cards + " cards",
-         s.turns + " of yours"].filter(Boolean).join(" · ");
-      b.addEventListener("click", function () { showSession(s.id); });
-      row.appendChild(b);
-
-      list.appendChild(row);
-    });
-  }).catch(function () {
-    list.innerHTML = '<p class="name">could not read the archive.</p>';
-  });
-}
-
-/* `then` is handed the sitting once it is on screen, or `null` if there was
-   none to show. An address naming a card inside a past sitting has to wait for
-   the sitting itself before it can ask whether that card is in it, and asking
-   the server twice for the same lesson to find out is a second request for an
-   answer already in hand. */
-function showSession(id, then) {
-  api("/archive/" + encodeURIComponent(id))
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      if (!d || d.ok === false) { if (then) then(null); return; }
-      document.getElementById("history").hidden = true;
-      reading = id;
-      seenIds = {};
-      firstPaint = true;
-      var bar = document.getElementById("reading");
-      bar.hidden = false;
-      document.getElementById("reading-what").textContent =
-        (d.state && (d.state.chapter || d.state.course)) || id;
-      /* Its own marks, not the lesson's. `render` drops whatever the previous
-         sitting left in the store before this lands. */
-      render({ state: d.state || {}, cards: d.cards || [], turns: d.turns || [],
-               notes: d.notes || {}, uploads: [], messages: [],
-               archived: true });
-      if (then) then(d);
-    })
-    .catch(function () { if (then) then(null); /* else stay where we are */ });
-}
-
-function backToLesson() {
-  reading = null;
-  seenIds = {};
-  firstPaint = true;
-  document.getElementById("reading").hidden = true;
-  if (lastLive) render(lastLive);
-}
 
 /* ------------------------------------------------------------- the viewer */
 /* Built once, on first use, and closed by three separate gestures, because the
@@ -3617,9 +3500,7 @@ function addrArrived(a) {
 /* Everything over the lesson goes, because an address is somebody saying where
    they want to be and a drawer left open is a drawer sitting on top of it. */
 function addrShut() {
-  [els.scratch, document.getElementById("history")].forEach(function (p) {
-    if (p) p.hidden = true;
-  });
+  if (els.scratch) els.scratch.hidden = true;
   if (paperOpen) closeReader();
   closeViewer();
 }
@@ -3648,7 +3529,6 @@ function addrHolds(card) {
 function addrSessionCard(a) {
   if (addrHolds(a.card)) {
     addrShut();
-    if (reading) backToLesson();
     window.setTimeout(function () {
       if (addrToCard(a.card)) addrArrived(a);
       else addrDead(a, "card " + a.card + " is not in this session");
@@ -3682,7 +3562,6 @@ function addrGo(a) {
   }
 
   addrShut();
-  if (reading) backToLesson();
 
   if (a.surface === "doc") {
     /* A PDF handed to the session, else any document of its subject, found
@@ -4685,7 +4564,7 @@ function frame() {
 
 function paintOlder() {
   if (!els.older) return;
-  var n = (model && !reading) ? olderLeft : 0;
+  var n = model ? olderLeft : 0;
   els.older.hidden = !n;
   els.older.disabled = olderBusy;
   els.older.textContent = olderBusy ? "fetching earlier cards…"
@@ -4755,7 +4634,7 @@ function subjectSoon() {
 function takeSubject(got) {
   subjectInfo = got;
   if (got.unsaved !== undefined) paintSave(got.unsaved);
-  if (lastLive && !lastLive.archived) {
+  if (lastLive) {
     try { paintBusy(lastLive); } catch (e) { /* and so does the strip */ }
   }
 }
@@ -4895,27 +4774,6 @@ function dropOtherSittings() {
     }
     doomed.forEach(function (k) { localStorage.removeItem(k); });
   } catch (e) { /* a full or locked store is not worth losing the lesson over */ }
-}
-
-/* The sitting was filed. Everything keyed to it goes with it.
-
-   Called only on a rise in `history` -- see the guards where that is read. The
-   slate's half is `Slate.reset`, which DROPS its pages rather than saving them:
-   they are in the archive already, and writing them back into `live/slate/` is
-   the whole of what this repairs. */
-function lessonWasFiled() {
-  boardPage = {};
-  /* And the census of what was asked. The next sitting numbers its cards from
-     0001 again, so every id in it means something else from now on. */
-  seenQs = Object.create(null);
-  seenAny = false;
-  savePages();
-  loadedTurn = null;
-  reclaimSeen = null;
-  reclaimOwed = null;
-  if (writer && writer.reset) {
-    try { writer.reset(); } catch (e) { /* a blank board beats a broken one */ }
-  }
 }
 
 function savePages() {
@@ -5372,7 +5230,7 @@ function paintCarry(btn, key) {
   }
 }
 
-function paintBoards(qids, liveKey, off) {
+function paintBoards(qids, liveKey) {
   /* The answer each question actually handed in, newest revision. A slate page
      is live (written again, cleared, cloned, reused); what was handed in is
      written once into live/answers/ and cannot move. So a board whose page no
@@ -5412,11 +5270,11 @@ function paintBoards(qids, liveKey, off) {
     /* The board being written on has the real surface, so its picture goes --
        leaving it would show the board twice, once alive and once as a
        photograph of a moment ago. */
-    if (off || !live[node.dataset.slot] || node.dataset.slot === liveKey) {
+    if (!live[node.dataset.slot] || node.dataset.slot === liveKey) {
       node.remove();
     }
   });
-  if (off || !writer) return;
+  if (!writer) return;
 
   all.forEach(function (it) {
     if (it.key === liveKey) return;                /* the real one goes here */
@@ -5510,7 +5368,7 @@ function paintBoards(qids, liveKey, off) {
 }
 
 /* Two of these can still be SENT -- begin and skip -- and the other three only
-   ever appear in a transcript written before the signals went. A lesson filed in
+   ever appear in a transcript written before the signals went. A session from
    May is still read on this board, and a turn whose whole content was a tap has
    nothing else to render, so the labels stay. */
 var SIGNAL_LABEL = { done: "ready to check", help: "needs help", confused: "confused",
@@ -5725,14 +5583,13 @@ function failWord(err) {
 function paintBusy(data) {
   if (!els.busy) return;
   var st = data.agent || null;
-  var working = !!st && st.state === "working" && !data.archived;
+  var working = !!st && st.state === "working";
   /* The tutor has picked it up, or given up waiting for it to be picked up. */
   if (working || Date.now() - sendingAt > SENDING_FOR) { sendingAt = 0; sendingWord = ""; }
   if (!working) {
     /* No turn, no turn's words. The ticker fires without a payload. */
     busySignal = "";
-    var stalled = data.archived ? null
-      : stalledWord(st, data.waiting, unsaved || 0);
+    var stalled = stalledWord(st, data.waiting, unsaved || 0);
     if (stalled) {
       els.busy.hidden = false;
       els.busy.classList.toggle("busy-bad", !!stalled.bad);
@@ -5749,7 +5606,7 @@ function paintBusy(data) {
     }
     busyStalled = null;
     els.busy.classList.remove("busy-bad");
-    if (sendingAt && !data.archived) {
+    if (sendingAt) {
       /* Not "the tutor is writing" -- it has not been handed anything yet, and
          saying so would be the board guessing. This is the half-second of the
          send that belongs to the wire. */
@@ -6072,7 +5929,7 @@ var writerHeldShut = false;
    change rather than the state four times a second. */
 var traceHeld = false;
 
-function placeWriter(owed, questionNode, live, hold) {
+function placeWriter(owed, questionNode, hold) {
   /* A BOARD THAT IS NOT OPEN YET DOES NOT OPEN WHILE A CARD IS STILL TYPING. A
      surface that was never open has no tool bar to take away, so it simply
      arrives a beat later, under a finished response. `typeOut` renders once more
@@ -6111,11 +5968,10 @@ function placeWriter(owed, questionNode, live, hold) {
     /* The panel is shut and the pages behind it are still the lesson's: every
        dormant board is a picture drawn from them, so with no surface built there
        is nothing to draw and the transcript comes back as photographs of sent
-       answers alone. Build it anyway on a live lesson -- hidden, unlaid-out and
-       costing what one surface has always cost -- and re-render once, now that
-       there is something to take pictures with. A filed lesson and a past one
-       build nothing: there is no writing to be done in either. */
-    if (live) makeWriter(function () { if (lastLive) render(lastLive); });
+       answers alone. Build it anyway -- hidden, unlaid-out and costing what one
+       surface has always cost -- and re-render once, now that there is
+       something to take pictures with. */
+    makeWriter(function () { if (lastLive) render(lastLive); });
     return;
   }
 
@@ -7261,11 +7117,6 @@ document.getElementById("btn-scratch").onclick = function () {
   if (!els.scratch.hidden) loadMaterials();
 };
 document.getElementById("btn-scratch-close").onclick = function () { els.scratch.hidden = true; };
-document.getElementById("btn-history").onclick = openHistory;
-document.getElementById("btn-history-close").onclick = function () {
-  document.getElementById("history").hidden = true;
-};
-document.getElementById("reading-back").onclick = backToLesson;
 els.jump.onclick = function () {
   revealNewest(true);
   els.jump.hidden = true;

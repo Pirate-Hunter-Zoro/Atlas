@@ -138,8 +138,3 @@ def write_turn(repo, rec):
         fh.write(json.dumps(rec) + "\n")
     # So the counter survives this lesson being filed away.
     bump_turn_hwm(repo, rec.get("id"))
-
-
-# ---------------------------------------------------------------------------
-# past lessons
-# ---------------------------------------------------------------------------

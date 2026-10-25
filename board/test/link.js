@@ -1797,7 +1797,7 @@ if (es) {
   else fail('the overflow menu is missing or always open');
 
   ['btn-smaller', 'btn-bigger', 'btn-face', 'btn-theme', 'btn-scratch',
-   'btn-history', 'btn-print', 'btn-reload'].forEach(function (id) {
+   'btn-print', 'btn-reload'].forEach(function (id) {
     var el = doc.getElementById(id);
     if (el && menu.contains(el)) return;
     fail(id + ' is not in the overflow menu — it is back in the bar');

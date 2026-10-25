@@ -116,7 +116,7 @@ const ELSEWHERE = (kind) =>
 
 const frame = (state, cards, turns) => JSON.stringify({
   state: state, cards: cards, turns: turns || [], messages: [], uploads: [],
-  slate: [], history: 0, agent: { agent: 'claude', state: 'listening' },
+  slate: [], agent: { agent: 'claude', state: 'listening' },
 });
 
 const question = (id, at) => ({ id: id, kind: 'question', title: 'Exercise ' + id,
