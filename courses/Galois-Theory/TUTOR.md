@@ -12,13 +12,13 @@ Chapter 7 worksheet, problems 13-19, in session 20261009-193922. `chapters/ch07-
 
 Still open:
 
+- 14(d): posed at card 0120. Their page (t0220) draws both lattices correctly: four nodes each, the subgroup lattice upside down with the trivial subgroup at the top, the correct field-to-subgroup matches, and the field edges labelled 2,3,3,2. Missing: the four subgroup-lattice edges are unlabelled. Card 0121 asks for those indices. Write 14(d) up only once the labels are on the page.
 - 13(c): the $p=13$ subgroup list. The owner chose to answer it with the $p=7$ case on their early pages (cards 0011-0026); write it up as 13(c) from those pages, never re-pose $p=13$.
 - 15(a): complex conjugation restricted to $K$. Set aside for 14, never answered; 15(b)-(d) are written up without it.
-- 14(d): posed at card 0120, unanswered. The lattice, four nodes each, edges labelled.
 - 16(d): the smallest extension of $\QQ(\alpha)$ Galois over $\QQ$. Never posed.
-- 17, 18, 19: not started.
+- 17, 18, 19: not started. 17 is the next new problem.
 
-Standing directions: no small cases, examples or subgroup lists once they are working a proof ("Focus on the proof", t0191); "move on" means move on, and a dropped problem stays dropped until they reopen it; never write the proof for them (t0192). A request to read files, transcribe or compile is done, not taught (t0219).
+Standing directions: no small cases, examples or subgroup lists once they are working a proof ("Focus on the proof", t0191); "move on" means move on, and a dropped problem stays dropped until they reopen it; never write the proof for them (t0192). A request to read files, transcribe or compile is done, not taught (t0219). A computation they ask for is given exactly in the card, with no next step attached.
 
 ## Open decisions
 

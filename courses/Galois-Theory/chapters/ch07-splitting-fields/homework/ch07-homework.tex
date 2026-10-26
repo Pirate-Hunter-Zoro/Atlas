@@ -55,142 +55,33 @@ Since $G$ is cyclic, every subgroup is normal, so $H\unlhd G$. Hence $K_d=K^H$ i
 \end{proof}
 % Part (c) is not written up yet: its answer is the p=7 work of the early pages.
 \noindent\textbf{(d)}
-\textbf{The case $p=13$, $d=2$.} Let $H=\{1,3,4,9,10,12\}$ be the nonzero squares mod $13$ and $N=\{2,5,6,7,8,11\}$ the nonsquares, with $\eta_H=\sum_{a\in H}\zeta^a$ and $\eta_N=\sum_{b\in N}\zeta^b$.
+\begin{center}
+\begin{tikzpicture}[scale=1, every node/.style={inner sep=2pt}, font=\small]
+  \node (K) at (0,3)      {$\QQ(\zeta_{7})$};
+  \node (P) at (-2.8,1.5) {$\QQ(\zeta_{7}+\zeta_{7}^{-1})$};
+  \node (R) at (2.8,1.5)  {$\QQ(\sqrt{-7})$};
+  \node (Q) at (0,0)      {$\QQ$};
+  \draw (K) -- node[above left] {$2$} (P);
+  \draw (K) -- node[above right] {$3$} (R);
+  \draw (P) -- node[below left] {$3$} (Q);
+  \draw (R) -- node[below right] {$2$} (Q);
 
-Since $3\in H$ and $H$ is a subgroup, multiplication by $3$ permutes $H$, so $\sigma_3(\eta_H)=\eta_H$. Since $2\notin H$, $\sigma_2(\eta_H)=\eta_N$: the exponents $2,6,8,18,20,24$ reduce to $2,6,8,5,7,11$, which is $N$. And $\sigma_2^2=\sigma_4$ with $4\in H$, so $\sigma_2^2(\eta_H)=\eta_H$. The stabilizer of $\eta_H$ is therefore exactly $H$, and its orbit is $\{\eta_H,\eta_N\}$.
+  \node (S1) at (7.6,2.7)  {$\langle\sigma_{1}\rangle$};
+  \node (S6) at (5.6,0.8)  {$\langle\sigma_{6}\rangle$};
+  \node (S2) at (9.6,0.8)  {$\langle\sigma_{2}\rangle$};
+  \node (S3) at (7.6,-1.0) {$\langle\sigma_{3}\rangle=\operatorname{Gal}(\QQ(\zeta_{7})/\QQ)$};
+  \draw (S1) -- node[above left] {index $2$} (S6);
+  \draw (S1) -- node[above right] {index $3$} (S2);
+  \draw (S6) -- node[below left] {index $3$} (S3);
+  \draw (S2) -- node[below right] {index $2$} (S3);
 
-The two periods are distinct. If $\eta_H=\eta_N$, the difference has coefficient $+1$ on $\zeta^a$ for $a\in H$ and $-1$ for $a\in N$; those twelve coefficients are rational and not all zero, so the difference cannot vanish, because $\zeta,\dots,\zeta^{12}$ is a $\QQ$-basis of $K$.
-
-The orbit has size $[G:H]=2$, so $[\QQ(\eta_H):\QQ]=2$. Since $\eta_H$ is fixed by $H$, $\QQ(\eta_H)\subseteq K^H$, and both have degree $2$ over $\QQ$; hence $\QQ(\eta_H)=K^H=K_2$. This proves the claim for $p=13$, $d=2$.
-
-The concrete case also gives $\eta_H+\eta_N=-1$, since $H\cup N=\{1,\dots,12\}$ and $\sum_{i=1}^{12}\zeta^i=-1$, and $3N=N$ because $3\in H$. For the product, $m_0=0$ and $m_1=3$; the map $(a,b)\mapsto(2b,2a)$ sends $S_t$ one-to-one onto $S_{2t}$ with inverse $(c,d)\mapsto(7d,7c)$, so $m_{2t}=m_t$. Since $2$ has order $12$ mod $13$, every nonzero $t$ has $m_t=3$, and the $36$ pairs are accounted for. Hence $\eta_H\eta_N=3\sum_{i=1}^{12}\zeta^i=-3$, and $\eta_H,\eta_N$ are the roots of $x^2+x-3$.
-
-\begin{proof}
-Let $H\le G$ have index $d$ and put $\eta_H=\sum_{a\in H}\zeta^{a}$; for a coset $aH$ write $\eta_{aH}=\sum_{h\in H}\zeta^{ah}$, so that $\sigma_a(\eta_H)=\eta_{aH}$.
-
-The periods $\eta_{aH}$, as $aH$ runs over $G/H$, are pairwise distinct. Suppose $\eta_{aH}=\eta_{bH}$ with $aH\ne bH$, and let
-\[ P(x)=\sum_{h\in H}x^{ah}-\sum_{h\in H}x^{bh}. \]
-Then $P(\zeta)=0$, and the coefficients of $P$ are $+1$ on the exponents in $aH$, $-1$ on those in $bH$, and $0$ elsewhere. Since $\Phi_p$ is the minimal polynomial of $\zeta$ over $\QQ$, $\Phi_p$ divides $P$; both have degree at most $p-1$, so $P=c\,\Phi_p$ for some constant $c$. The cosets $aH$ and $bH$ are disjoint and nonempty, so $P$ has a coefficient $+1$ and a coefficient $-1$; hence $P\ne0$ and $c\ne0$. But every coefficient of $c\,\Phi_p$ equals $c$, which cannot be both $+1$ and $-1$. So distinct cosets give distinct periods.
-
-Let $m(x)=\prod_{aH\in G/H}(x-\eta_{aH})$. Its coefficients are the elementary symmetric functions of the periods. Each $\sigma\in G$ permutes the periods, so it fixes every coefficient, and the coefficients lie in $K^{G}$. Since $K/\QQ$ is Galois, $[K:K^{G}]=|G|=p-1$, so $K^{G}=\QQ$; hence $m\in\QQ[x]$, monic of degree $d$, with $m(\eta_H)=0$.
-
-Suppose $m=fg$ with $f,g\in\QQ[x]$ monic of positive degree, and let $\alpha$ be a period with $f(\alpha)=0$. Every period is $\sigma(\alpha)$ for some $\sigma\in G$. A field automorphism fixing $\QQ$ commutes with evaluation of a rational-coefficient polynomial, so $f(\sigma(\alpha))=\sigma(f(\alpha))=0$: every period is a root of $f$. Hence $\deg f\ge d$, while $f\mid m$ gives $\deg f\le d$. So $f=m$ and $g$ is constant, and $m$ is irreducible over $\QQ$.
-
-Therefore $[\QQ(\eta_H):\QQ]=d$. Since $\eta_H$ is fixed by $H$, $\QQ(\eta_H)\subseteq K^{H}=K_d$, and both have degree $d$ over $\QQ$, so $\QQ(\eta_H)=K_d$.
-\end{proof}
-% ===== END SOLUTION 13 =====
-
-\begin{problem}{14}
-  \textit{The lattice for $\QQ(\zeta_7)$}\par
-  Let $\zeta=\zeta_7$ and $K=\QQ(\zeta)$.
-  \begin{enumerate}[label=(\alph*)]
-    \item Show that $3$ is a primitive root modulo $7$, and deduce that $\operatorname{Gal}(K/\QQ)=\langle\sigma\rangle$ where $\sigma(\zeta)=\zeta^3$.
-    \item Let $\alpha=\zeta+\zeta^2+\zeta^4$ and $\beta=\zeta^3+\zeta^5+\zeta^6$. Show that $\alpha+\beta=-1$ and $\alpha\beta=2$, and deduce that the unique quadratic subfield of $K$ is $\QQ(\sqrt{-7})$.
-    \item Let $\eta=\zeta+\zeta^{-1}=2\cos(2\pi/7)$. Show that the minimal polynomial of $\eta$ over $\QQ$ is $x^3+x^2-2x-1$, and that $\QQ(\eta)$ is the unique cubic subfield of $K$.
-    \item Draw the lattice of intermediate fields of $K/\QQ$, and beside it the lattice of subgroups of $\operatorname{Gal}(K/\QQ)$ drawn \emph{upside down} (trivial subgroup at the top). Label every edge with the degree or index it represents, and match each subgroup with its fixed field.
-  \end{enumerate}
-\end{problem}
-% ===== SOLUTION 14 =====
-\noindent\textbf{(a)}
-\begin{proof}
-The cyclic subgroup generated by each residue modulo $7$ is
-\[
-\langle 2\rangle=\{2,4,1\},\qquad \langle 3\rangle=\{3,2,6,4,5,1\},\qquad \langle 5\rangle=\{5,4,6,2,3,1\}.
-\]
-So $2$ has order $3$ and is not a primitive root, while $3$ and $5$ have order $6$.
-
-Take $\sigma(\zeta)=\zeta^{3}$. Since $3$ has order $6$, the powers $\sigma,\sigma^{2},\dots,\sigma^{6}$ send $\zeta$ to $\zeta^{3},\zeta^{2},\zeta^{6},\zeta^{4},\zeta^{5},\zeta^{1}$ respectively, which is exactly the six elements $\sigma_{3},\sigma_{2},\sigma_{6},\sigma_{4},\sigma_{5},\sigma_{1}$ of $\operatorname{Gal}(K/\QQ)$. Hence $\langle\sigma\rangle=\operatorname{Gal}(K/\QQ)$.
-\end{proof}
-\noindent\textbf{(b)}
-\begin{proof}
-Between them, $\alpha$ and $\beta$ list each of $\zeta,\zeta^{2},\dots,\zeta^{6}$ exactly once, so
-\[
-\alpha+\beta=\zeta+\zeta^{2}+\cdots+\zeta^{6}=-1,
-\]
-because $\zeta$ is a root of $\Phi_7=x^{6}+x^{5}+\cdots+x+1$ and $\zeta\neq1$.
-
-Expanding $\alpha\beta$ gives nine products, with exponents reduced modulo $7$:
-\[
-\zeta^{4},\ \zeta^{6},\ 1,\ \zeta^{5},\ 1,\ \zeta,\ 1,\ \zeta^{2},\ \zeta^{3}.
-\]
-Three of the nine are $\zeta^{7}=1$, and the other six are exactly $\alpha+\beta$. Hence
-\[
-\alpha\beta=3+(\alpha+\beta)=3-1=2.
-\]
-
-Since $\alpha+\beta=-1$ and $\alpha\beta=2$, the monic quadratic with roots $\alpha$ and $\beta$ is
-\[
-(x-\alpha)(x-\beta)=x^{2}-(\alpha+\beta)x+\alpha\beta=x^{2}+x+2.
-\]
-The quadratic formula with $a=1$, $b=1$, $c=2$ gives
-\[
-x=\frac{-1\pm\sqrt{1-8}}{2}=\frac{-1\pm\sqrt{-7}}{2},
-\]
-so the two roots are $\frac{-1+\sqrt{-7}}{2}$ and $\frac{-1-\sqrt{-7}}{2}$. Either may be called $\alpha$; taking $\alpha$ to be the root with positive imaginary part matches the observation that the sines in $\alpha=\zeta+\zeta^{2}+\zeta^{4}$ have positive sum. Since $\sqrt{-7}\notin\QQ$, the polynomial is irreducible and $\QQ(\alpha)=\QQ(\sqrt{-7})$ has degree $2$ over $\QQ$.
-
-Finally, $\QQ(\sqrt{-7})$ is the only subfield of $K$ of degree $2$ over $\QQ$. By 14(a), $G=\operatorname{Gal}(K/\QQ)=\langle\sigma\rangle$ is cyclic of order $6$, and a cyclic group has at most one subgroup of a given order. So $G$ has exactly one subgroup of order $3$, namely $\{e,\sigma^{2},\sigma^{4}\}$. A subfield $L$ with $\QQ\subseteq L\subseteq K$ and $[L:\QQ]=2$ corresponds by the Galois correspondence to a subgroup $H\le G$ with $[G:H]=2$, that is $|H|=3$. There is only one such $H$, so there is only one such field, and $\QQ(\sqrt{-7})$ is it.
-\end{proof}
-\noindent\textbf{(c)}
-\begin{proof}
-The six values $\sigma^{k}(\eta)$, with exponents reduced modulo $7$, are
-\[
-\sigma^{0}(\eta)=\zeta+\zeta^{6},\quad
-\sigma^{1}(\eta)=\zeta^{3}+\zeta^{4},\quad
-\sigma^{2}(\eta)=\zeta^{2}+\zeta^{5},
-\]
-\[
-\sigma^{3}(\eta)=\zeta^{6}+\zeta,\quad
-\sigma^{4}(\eta)=\zeta^{4}+\zeta^{3},\quad
-\sigma^{5}(\eta)=\zeta^{5}+\zeta^{2}.
-\]
-The rule behind them is $\sigma^{k}(\zeta)=\zeta^{3^{k}}$ with $3^{k}$ then reduced modulo $7$: $3^{3}=27\equiv6$, so $\sigma^{3}(\zeta)=\zeta^{6}$. Since $\sigma$ fixes $\QQ$ and respects inverses, $\sigma^{k}(\eta)=\sigma^{k}(\zeta)+(\sigma^{k}(\zeta))^{-1}$.
-
-The list collapses to three elements, each occurring twice: $\eta=\zeta+\zeta^{6}$ at $k=0,3$; $\zeta^{3}+\zeta^{4}$ at $k=1,4$; $\zeta^{2}+\zeta^{5}$ at $k=2,5$. So the stabilizer of $\eta$ in $G$ is $\{\sigma^{0},\sigma^{3}\}$, of order $2$, and $[\QQ(\eta):\QQ]=6/2=3$. The three distinct values are the conjugates of $\eta$.
-
-The three conjugates between them contain each of $\zeta,\zeta^{2},\dots,\zeta^{6}$ exactly once, so
-\[
-\eta+\sigma(\eta)+\sigma^{2}(\eta)=\zeta+\zeta^{2}+\cdots+\zeta^{6}=-1,
-\]
-because $\zeta$ is a root of $\Phi_7=x^{6}+\cdots+x+1$ and $\zeta\ne1$. The sum of the roots is $-1$, so the coefficient of $x^{2}$ in the cubic is $1$.
-
-The first pairwise product is
-\[
-\eta\,\sigma(\eta)=(\zeta+\zeta^{6})(\zeta^{3}+\zeta^{4})=\zeta^{4}+\zeta^{5}+\zeta^{9}+\zeta^{10}=\zeta^{2}+\zeta^{3}+\zeta^{4}+\zeta^{5},
-\]
-four distinct powers, so no terms combine.
-
-The second is
-\[
-\eta\,\sigma^{2}(\eta)=(\zeta+\zeta^{6})(\zeta^{2}+\zeta^{5})=\zeta^{3}+\zeta^{6}+\zeta^{8}+\zeta^{11}=\zeta+\zeta^{3}+\zeta^{4}+\zeta^{6},
-\]
-and the third is
-\[
-\sigma(\eta)\,\sigma^{2}(\eta)=(\zeta^{3}+\zeta^{4})(\zeta^{2}+\zeta^{5})=\zeta^{5}+\zeta^{8}+\zeta^{6}+\zeta^{9}=\zeta+\zeta^{2}+\zeta^{5}+\zeta^{6}.
-\]
-Adding the three products term by term, each of $\zeta,\zeta^{2},\dots,\zeta^{6}$ occurs exactly twice, so
-\[
-\eta\sigma(\eta)+\eta\sigma^{2}(\eta)+\sigma(\eta)\sigma^{2}(\eta)=2(\zeta+\zeta^{2}+\cdots+\zeta^{6})=-2,
-\]
-and the coefficient of $x$ is $-2$.
-
-The product of all three is
-\[
-\eta\eta_1\eta_2=(\zeta+\zeta^{6})(\zeta^{5}+\zeta+\zeta^{6}+\zeta^{2})
-=\zeta^{6}+\zeta^{2}+1+\zeta^{3}+\zeta^{4}+1+\zeta^{5}+\zeta
-=2+(\zeta+\zeta^{2}+\cdots+\zeta^{6})=2-1=1.
-\]
-Two of those eight products are $\zeta^{7}=1$; the other six are exactly $\zeta,\zeta^{2},\dots,\zeta^{6}$, whose sum is $-1$. So the product is $1$ and the constant term is $-1$. The minimal polynomial is therefore
-\[
-x^{3}-(\eta+\sigma(\eta)+\sigma^{2}(\eta))x^{2}+(\eta\sigma(\eta)+\eta\sigma^{2}(\eta)+\sigma(\eta)\sigma^{2}(\eta))x-\eta\sigma(\eta)\sigma^{2}(\eta)
-=x^{3}+x^{2}-2x-1.
-\]
-
-It remains to show that $\QQ(\eta)$ is the only cubic subfield. Let $L\subseteq K$ be a subfield with $[L:\QQ]=3$, and let $N$ be the subgroup of $G$ that fixes $L$. Then
-\[
-[L:\QQ]=[G:N]=3.
-\]
-There is only one subgroup of $G$ of index $3$, namely $H=\langle\sigma^{3}\rangle=\{\sigma_1,\sigma_6\}$, so $N=H$ and $L=K^{H}=\QQ(\eta)$. Hence every cubic subfield of $K$ is $\QQ(\eta)$.
-\end{proof}
+  \draw[dashed] (K) -- (S1);
+  \draw[dashed] (P) -- (S6);
+  \draw[dashed] (R) -- (S2);
+  \draw[dashed] (Q) -- (S3);
+  \node[font=\scriptsize] at (0,-0.55) {fixed by all of $\operatorname{Gal}(\QQ(\zeta_{7})/\QQ)$};
+\end{tikzpicture}
+\end{center}
 % ===== END SOLUTION 14 =====
 
 \begin{problem}{15}
