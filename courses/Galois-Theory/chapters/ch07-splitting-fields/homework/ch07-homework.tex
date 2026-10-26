@@ -370,7 +370,42 @@ With $\alpha$ and $i$ both in $L$, we get $\QQ(\alpha,i)\subseteq L$. So every G
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 17 =====
-% TODO(mferguson): your work goes here.
+\noindent\textbf{(a)}
+\begin{proof}
+For existence, $\alpha$ and $i\alpha$ are both roots of $x^{4}-2$. Put $K=\QQ(i)$, so $E=K(\alpha)$ is the splitting field of $x^{4}-2$ over $K$ and
+\[
+[K(\alpha):K]=\frac{[E:\QQ]}{[\QQ(i):\QQ]}=\frac{8}{2}=4.
+\]
+The polynomial $x^{4}-2$ is monic of degree $4$ over $K$ and vanishes at $\alpha$, so it is the minimal polynomial of $\alpha$ over $K$, hence irreducible there. Corollary 2 of Theorem 7.5 gives an automorphism $\sigma$ of $E$ fixing $K$ with $\sigma(\alpha)=i\alpha$. It fixes $i$ and it fixes $\QQ$, so it lies in $\operatorname{Gal}(E/\QQ)$.
+
+Now $\sigma^{4}(\alpha)=i^{4}\alpha=\alpha$ and $\sigma^{4}(i)=i$, and $\alpha$ and $i$ generate $E$, so $\sigma^{4}=e$. Since
+\[
+\sigma^{2}(\alpha)=i^{2}\alpha=-\alpha,
+\]
+$\sigma^{2}\ne e$, and so $|\sigma|=4$.
+
+Complex conjugation $\tau$ satisfies $\tau^{2}=e$, and $\tau\ne e$ because $\tau(i)=-i$; hence $|\tau|=2$. As $\tau^{-1}=\tau$,
+\[
+\tau\sigma\tau^{-1}(i)=\tau\sigma(-i)=\tau(-i)=i=\sigma^{-1}(i),
+\]
+and
+\[
+\tau\sigma\tau^{-1}(i\alpha)=\tau\sigma(-i\alpha)=\tau\bigl(\sigma(-i)\sigma(\alpha)\bigr)=\tau\bigl((-i)(i\alpha)\bigr)=\tau(\alpha)=\alpha=\sigma^{-1}(i\alpha).
+\]
+The elements $i$ and $i\alpha$ generate $E$, because $\alpha=(i\alpha)/i$, so $\tau\sigma\tau^{-1}=\sigma^{-1}$.
+
+A word in $\sigma$ and $\tau$ reduces, using $\tau\sigma\tau^{-1}=\sigma^{-1}$, to one of the eight forms $\sigma^{a}\tau^{b}$ with $0\le a<4$ and $0\le b<2$. These eight are distinct. If $\sigma^{a}\tau^{b}=\sigma^{a'}\tau^{b'}$, then evaluating at $i$ gives
+\[
+(-1)^{b}i=\sigma^{a}\tau^{b}(i)=\sigma^{a'}\tau^{b'}(i)=(-1)^{b'}i,
+\]
+so $b\equiv b'\pmod 2$; and evaluating at $\alpha$ gives
+\[
+i^{a}\alpha=\sigma^{a}\tau^{b}(\alpha)=\sigma^{a'}\tau^{b'}(\alpha)=i^{a'}\alpha,
+\]
+so $a\equiv a'\pmod 4$.
+
+Finally, send $r$ to $\sigma$ and $s$ to $\tau$, where $D_{4}=\langle r,s\mid r^{4}=s^{2}=1,\ srs=r^{-1}\rangle$. The relations hold, so this is a homomorphism $D_{4}\to\operatorname{Gal}(E/\QQ)$, and its image contains the eight distinct elements above. Since $|D_{4}|=|\operatorname{Gal}(E/\QQ)|=8$, it is an isomorphism.
+\end{proof}
 % ===== END SOLUTION 17 =====
 
 \begin{problem}{18}
