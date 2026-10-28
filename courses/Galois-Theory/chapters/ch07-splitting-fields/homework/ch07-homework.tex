@@ -406,6 +406,61 @@ so $a\equiv a'\pmod 4$.
 
 Finally, send $r$ to $\sigma$ and $s$ to $\tau$, where $D_{4}=\langle r,s\mid r^{4}=s^{2}=1,\ srs=r^{-1}\rangle$. The relations hold, so this is a homomorphism $D_{4}\to\operatorname{Gal}(E/\QQ)$, and its image contains the eight distinct elements above. Since $|D_{4}|=|\operatorname{Gal}(E/\QQ)|=8$, it is an isomorphism.
 \end{proof}
+\noindent\textbf{(b)}
+\begin{proof}
+For $H=\langle\sigma\rangle$: $\sigma(i)=i$, so $i$ is fixed by $\sigma$ and $\QQ(i)\subseteq E^{H}$.
+
+For $H=\langle\sigma^{2},\tau\rangle$: an element is $\sigma^{2k}\tau^{j}$, and
+\[
+\sigma^{2k}\tau^{j}(\sqrt2)=\sigma^{2k}(\sqrt2)=\bigl(\sigma^{2k}(\alpha)\bigr)^{2}=(i^{2k}\alpha)^{2}=i^{4k}\sqrt2=\sqrt2,
+\]
+so $\sqrt2$ is fixed and $\QQ(\sqrt2)\subseteq E^{H}$.
+
+For $H=\langle\sigma^{2},\sigma\tau\rangle$: an element is $\sigma^{2k}(\sigma\tau)^{j}=\sigma^{2k+j}\tau^{j}$ with $j=0$ or $1$, and
+\[
+\sigma^{2k+j}\tau^{j}(i\sqrt2)=(-1)^{j}i^{1+4k+2j}\sqrt2=i\sqrt2,
+\]
+because $i^{4k}=1$ and $i^{2j}=(-1)^{j}$, so the two signs cancel. Hence $i\sqrt2$ is fixed and $\QQ(i\sqrt2)=\QQ(\sqrt{-2})\subseteq E^{H}$.
+
+Each $H$ has order $4$, so $[E:E^{H}]=|H|=4$ and therefore $[E^{H}:\QQ]=8/4=2$. Each of $\QQ(i)$, $\QQ(\sqrt2)$ and $\QQ(\sqrt{-2})$ has degree $2$ over $\QQ$, with minimal polynomials $x^{2}+1$, $x^{2}-2$ and $x^{2}+2$. A containment between fields of the same finite degree is an equality.
+\end{proof}
+\noindent\textbf{(d)}
+\par\medskip
+\begin{center}
+\usetikzlibrary{shapes.geometric}
+\begin{tikzpicture}[scale=0.75, font=\small]
+\tikzset{galois/.style={draw=green!50!black, ellipse, thick, inner sep=2pt}}
+\node[galois] (E) at (-1.4,6) {$E$};
+\node[galois] (ia2) at (-8,4.2) {$\QQ(i,\alpha^2)$};
+\node (a) at (-4.8,4.2) {$\QQ(\alpha)$};
+\node (ia) at (-1.6,4.2) {$\QQ(i\alpha)$};
+\node (pia) at (1.9,4.2) {$\QQ((1+i)\alpha)$};
+\node (mia) at (5.7,4.2) {$\QQ((1-i)\alpha)$};
+\node[galois] (i) at (-7.3,2.3) {$\QQ(i)$};
+\node[galois] (a2) at (-2.6,2.3) {$\QQ(\alpha^2)$};
+\node[galois] (ia22) at (2.6,2.3) {$\QQ(i\alpha^2)$};
+\node[galois] (Q) at (-1.9,0.5) {$\QQ$};
+\draw (E) -- node[above,font=\scriptsize]{$2$} (ia2);
+\draw (E) -- node[above,font=\scriptsize]{$2$} (a);
+\draw (E) -- node[above,font=\scriptsize]{$2$} (ia);
+\draw (E) -- node[above,font=\scriptsize]{$2$} (pia);
+\draw (E) -- node[above,font=\scriptsize]{$2$} (mia);
+\draw (ia2) -- node[above,font=\scriptsize]{$2$} (i);
+\draw (ia2) -- node[above,font=\scriptsize]{$2$} (a2);
+\draw (a) -- node[above,font=\scriptsize]{$2$} (a2);
+\draw (ia) -- node[above,font=\scriptsize]{$2$} (a2);
+\draw (pia) -- node[above,font=\scriptsize]{$2$} (ia22);
+\draw (mia) -- node[above,font=\scriptsize]{$2$} (ia22);
+\draw (i) -- node[below,font=\scriptsize]{$2$} (Q);
+\draw (a2) -- node[right,font=\scriptsize]{$2$} (Q);
+\draw (ia22) -- node[below,font=\scriptsize]{$2$} (Q);
+\end{tikzpicture}
+\end{center}
+All ten intermediate fields appear, every edge joins fields whose degrees differ by $2$, and the green ellipses mark the fields Galois over $\QQ$.
+
+The four quartics are not Galois. They are fixed by $\langle\tau\rangle$, $\langle\sigma^{2}\tau\rangle$, $\langle\sigma\tau\rangle$ and $\langle\sigma^{3}\tau\rangle$ respectively, and none of these subgroups of order $2$ is normal in $D_{4}$. The other six are fixed by $\langle\sigma\rangle$, $\langle\sigma^{2},\tau\rangle$, $\langle\sigma^{2},\sigma\tau\rangle$, $\langle\sigma^{2}\rangle$, the trivial subgroup and $D_{4}$ itself, all of them normal.
+
+In particular $\QQ(\alpha)$ is not Galois over $\QQ$, although $E$ is Galois over $\QQ$ and over $\QQ(\alpha)$. Of the fields on the diagram that contain $\QQ(\alpha)$, only $\QQ(\alpha)$ and $E$ do, and only $E$ is Galois over $\QQ$. So the smallest Galois extension of $\QQ$ containing $\QQ(\alpha)$ is $E=\QQ(\alpha,i)$, which is the conclusion of Problem 16(d).
 % ===== END SOLUTION 17 =====
 
 \begin{problem}{18}

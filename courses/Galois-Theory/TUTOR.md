@@ -8,19 +8,13 @@
 
 ## Now
 
-Chapter 7 worksheet, problems 13-19, in session 20261009-193922. `chapters/ch07-splitting-fields/homework/ch07-homework.tex` holds 13(a)(b)(d), 14(a)-(d), 15(b)-(d), 16(a)-(d) and now 17(a). The PDF rebuilt clean at 17:49 and the board reads 5 of 7.
+Chapter 7 worksheet, problems 13-19, in session 20261009-193922. `chapters/ch07-splitting-fields/homework/ch07-homework.tex` holds 13(a)(b)(d), 14(a)-(d), 15(b)-(d), 16(a)-(d), 17(a)(b)(d), and an empty 18; the PDF rebuilt clean. `handwritten/ch07-17.png` is t0241.
 
-Problem 17(a) is closed. t0232 finished it: at $i$, $b\equiv b'\pmod 2$; at $\alpha$, $a\equiv a'\pmod 4$; so the eight $\sigma^{a}\tau^{b}$ are distinct, and with $[E:\QQ]=8$ they are all of $\operatorname{Gal}(E/\QQ)\cong D_{4}$. Written up under label 17; the page is `handwritten/ch07-17.png` (t0232).
+17 closed on t0241: the lattice with the six Galois fields circled, and the note that $\QQ(\alpha)$ is not Galois over $\QQ$ though $E$ is Galois over $\QQ$ and over $\QQ(\alpha)$. Label 17 was rewritten with (a), (b) and (d), the lattice as a TikZ picture; (c) stays out per the t0235 direction, never re-pose it.
 
-Card 0133 poses 17(b) in full and asks the first move: $H=\langle\sigma\rangle$, which field $\sigma$ fixes and why $E^{H}$ has degree $2$ over $\QQ$. Then $\langle\sigma^{2},\tau\rangle$ with $\QQ(\sqrt2)$ and $\langle\sigma^{2},\sigma\tau\rangle$ with $\QQ(\sqrt{-2})$. After 17(b): 17(c) (five order-$2$ subgroups, hint is a fixed-field plus degree check), 17(d) (lattice of ten, which are Galois, reconcile with 16), then 18 and 19.
+Now on Problem 18 (Gauss sums). Card 0142 posed all four parts and asked 18(a): the number of subgroups of index $2$ in the cyclic group of order $p-1$. 18(a) uses $\operatorname{Gal}(\QQ(\zeta_p)/\QQ)\cong(\ZZ/p\ZZ)^\times$ from 13(a); 18(b) introduces $\sigma_a$, 18(c) is the double-sum computation, 18(d) names $\QQ(\sqrt{p^*})$ and needs $p=7$ against 14, then $p=5$ and $p=13$. Then 19.
 
-Still open:
-
-- 13(c): the $p=13$ subgroup list. Write it up from the $p=7$ work on the early pages (cards 0011-0026); never re-pose $p=13$.
-- 15(a): complex conjugation restricted to $K$. Set aside for 14, never answered; 15(b)-(d) are written up without it.
-- 17(c), 17(d), 18, 19: not started.
-
-Standing directions: no small cases, examples or subgroup lists once they are working a proof ("Focus on the proof", t0191); "move on" means move on, and a dropped problem stays dropped until they reopen it; never write the proof for them (t0192). A request to read files, transcribe or compile is done, not taught (t0219). A definition they ask for is stated in full first (t0229 asked for $D_4$). A computation they ask for is given exactly in the card, with no next step attached.
+Still open: 13(c) (the $p=13$ subgroup list) and 15(a) (conjugation on $K$, set aside).
 
 ## Open decisions
 
