@@ -484,6 +484,55 @@ If $H\le G$ fixes $K$ with $\QQ\subseteq K\subseteq\QQ(\zeta_p)$, then $[G:H]=[K
 
 So only one such $K$ exists for each extension degree, since only one such $H\le G$ exists, as $G$ is cyclic because $p$ is prime.
 \end{proof}
+
+\noindent\textbf{(b)}
+\begin{proof}
+Recall $g=\sum_{k=1}^{p-1}\left(\frac{k}{p}\right)\zeta^{k}$ and $\sigma_a(\zeta)=\zeta^{a}$. Then
+\[
+\sigma_a(g)=\sum_{k=1}^{p-1}\sigma_a\!\left(\frac{k}{p}\right)\sigma_a(\zeta^{k})=\sum_{k=1}^{p-1}\left(\frac{k}{p}\right)\zeta^{ka}.
+\]
+Substituting $l=ak$, so that $k=a^{-1}l$:
+\[
+\sigma_a(g)=\sum_{l=1}^{p-1}\left(\frac{a^{-1}l}{p}\right)\zeta^{l}=\sum_{l=1}^{p-1}\left(\frac{a^{-1}}{p}\right)\left(\frac{l}{p}\right)\zeta^{l}=\left(\frac{a^{-1}}{p}\right)g,
+\]
+the factor coming out because the symbols commute with the powers of $\zeta$.
+
+Finally
+\[
+\left(\frac{a^{-1}}{p}\right)=\left(\frac{a}{p}\right)^{-1}=\left(\frac{a}{p}\right),
+\]
+since the symbol is a homomorphism from $\ZZ/p\ZZ$ into $\{1,-1\}$. Hence $\sigma_a(g)=\left(\frac{a}{p}\right)g$.
+\end{proof}
+\noindent\textbf{(c)}
+\begin{proof}
+The claim is that $g^{2}=\left(\frac{-1}{p}\right)p=(-1)^{(p-1)/2}p$. Write $g$ as a product of two sums and substitute $l=km$:
+\[
+g^{2}=\sum_{k=1}^{p-1}\left(\frac{k}{p}\right)\zeta^{k}\sum_{m=1}^{p-1}\left(\frac{m}{p}\right)\zeta^{m}=\sum_{k=1}^{p-1}\left(\frac{k}{p}\right)\zeta^{k}\sum_{m=1}^{p-1}\left(\frac{km}{p}\right)\zeta^{km}.
+\]
+For fixed $k$, multiplication by $k$ permutes the nonzero residues modulo $p$, so this changes nothing. The symbols multiply, giving $\left(\frac{km}{p}\right)=\left(\frac{k}{p}\right)\left(\frac{m}{p}\right)$, and $\zeta^{k}\zeta^{km}=\zeta^{k(1+m)}$:
+\[
+g^{2}=\sum_{k=1}^{p-1}\left(\frac{k}{p}\right)^{2}\sum_{m=1}^{p-1}\left(\frac{m}{p}\right)\zeta^{k(1+m)}=\sum_{k=1}^{p-1}\sum_{m=1}^{p-1}\left(\frac{m}{p}\right)\zeta^{k(1+m)},
+\]
+because the symbol takes only the values $\pm1$. Summing over $k$ first,
+\[
+g^{2}=\sum_{m=1}^{p-1}\left(\frac{m}{p}\right)\sum_{k=1}^{p-1}\zeta^{k(1+m)}.
+\]
+When $m=p-1$ the inner sum is $p-1$, since every term is $1$. Otherwise it is $-1$.
+\end{proof}
+\noindent\textbf{(d)}
+\begin{proof}
+$g^{2}=p^{*}$, and 18(b) gives $\sigma_a(g)=\left(\frac ap\right)g$ for every $a\in(\ZZ/p\ZZ)^\times$.
+
+If $g\in\QQ$ then $\sigma_a(g)=g$ for every $a$, so $\left(\frac ap\right)=1$ for every $a$: every nonzero $a$ would be a square modulo $p$.
+
+That is not so. For odd $p$ exactly half of $1,\dots,p-1$ are squares, so some $a$ has $\left(\frac ap\right)=-1$, and then $\sigma_a(g)=-g\neq g$. Hence $g\notin\QQ$.
+
+So $[\QQ(g):\QQ]=2$: $g^{2}-p^{*}=0$ gives at most $2$, and $g\notin\QQ$ rules out $1$.
+
+By 18(a) $\QQ(\zeta_p)$ has only one quadratic subfield, and $\QQ(g)\subseteq\QQ(\zeta_p)$ because $g$ is a sum of powers of $\zeta$. So $\QQ(g)$ is that subfield.
+
+Since $g^{2}=p^{*}$, $\QQ(g)=\QQ(\sqrt{p^{*}})$.
+\end{proof}
 % ===== END SOLUTION 18 =====
 
 \begin{problem}{19}
