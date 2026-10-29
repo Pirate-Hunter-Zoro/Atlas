@@ -60,6 +60,27 @@ function focusField(el) {
 }
 var SVG = "http://www.w3.org/2000/svg";
 
+/* THE TUTOR'S OWN SENTENCES ARE TYPESET: a reply or a "did" line says
+   `$[L:K]=2$` as a card would, and KaTeX sets it here as the board does. A
+   diff and the full wording are words of the .tex file and stay its source.
+   No KaTeX (not yet loaded, or failed) leaves the words as written. */
+function mathIn(node) {
+  if (!window.renderMathInElement) return node;
+  try {
+    window.renderMathInElement(node, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "\\[", right: "\\]", display: true },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "$", right: "$", display: false }
+      ],
+      macros: Object.assign({}, window.BOARD_MACROS || {}),
+      throwOnError: false, strict: false, trust: false
+    });
+  } catch (e) { /* a bad formula leaves its words */ }
+  return node;
+}
+
 function el(tag, cls, text) {
   var e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -595,7 +616,7 @@ function make(opts) {
       p.appendChild(el("span", "lg-tag", item.answer.disposition === "pushed back"
         ? "Pushed back" : "Not done"));
       p.appendChild(document.createTextNode(" " + item.reply));
-      box.appendChild(p);
+      box.appendChild(mathIn(p));
     }
     if (item.diff && item.diff.length) {
       var d = el("p", "lg-diff");
@@ -607,7 +628,7 @@ function make(opts) {
       });
       box.appendChild(d);
     } else if (!item.reply) {
-      box.appendChild(el("p", "lg-did", item.answer.did || "(no sentence given)"));
+      box.appendChild(mathIn(el("p", "lg-did", item.answer.did || "(no sentence given)")));
     }
     return box;
   }
@@ -650,7 +671,7 @@ function make(opts) {
   function more(r, item) {
     var box = el("div", "lg-more");
     if (item.answer && item.answer.did && !item.reply && item.diff && item.diff.length) {
-      box.appendChild(el("p", "lg-did", item.answer.did));
+      box.appendChild(mathIn(el("p", "lg-did", item.answer.did)));
     }
     (item.problems || []).forEach(function (p) {
       box.appendChild(el("p", "lg-note lg-bad", "But " + p + "."));

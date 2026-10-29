@@ -108,6 +108,46 @@ check("itemize is a list, enumerate a numbered one",
       == "- one\n\n- two"
       and givens.to_card("\\begin{enumerate}\\item one\\item two\\end{enumerate}")
       == "1. one\n\n2. two")
+# --- what the card's renderer would otherwise show raw -------------------------
+check("A $ INSIDE BRACES DOES NOT CLOSE THE MATH: hw01's `P(\\text{$E$ before $F$})` "
+      "is one span, as KaTeX's auto-render reads it",
+      givens.split_math("so $P(\\text{$E$ before $F$})$ holds")
+      == [(False, "so "), (True, "$P(\\text{$E$ before $F$})$"), (False, " holds")])
+check("font declarations say nothing: hw01's `\\upshape\\emph{Hint:}` is *Hint:*",
+      givens.to_card("\\upshape\\emph{Hint:} Use it. {\\bf bold} {\\itshape it} {\\small s}")
+      == "*Hint:* Use it. **bold** *it* s")
+check("an escaped dollar keeps its backslash, so the card parks it rather than "
+      "pairing it with the next one into a formula",
+      givens.to_card("A ticket costs \\$5 and a meal \\$10 when $x>0$.")
+      == "A ticket costs \\$5 and a meal \\$10 when $x>0$.")
+check("TeX accents are the letter, and an escaped quote is the quote",
+      givens.to_card("L'H\\^opital, G\\\"odel, \\'{e}t\\'e and \\\"so\\\" it\\'s")
+      == "L'Hôpital, Gödel, été and \"so\" it's")
+check("a TeX single quote is a pair of quotes (ch06's `duplicating the cube')",
+      givens.to_card("(impossibility of `duplicating the cube')")
+      == "(impossibility of ‘duplicating the cube’)")
+check("a proof is its run-in head and one box; a theorem is bold with its note",
+      givens.to_card("\\begin{proof}[Proof that {$[L:K]=2$}] Done. \\qed \\end{proof}"
+                     "\\begin{lemma}[Tower] X. \\end{lemma}")
+      == "*Proof that $[L:K]=2$.* Done. ∎\n\n**Lemma (Tower).** X.")
+check("run-in headings are bold where they stand",
+      givens.to_card("\\paragraph{(a) The tower.} Then \\section*{Part} next")
+      == "**(a) The tower.** Then **Part** next")
+check("\\qedhere is the box's place, said once; \\dots before a star keeps the star",
+      givens.to_card("\\begin{proof} Done.\\qedhere\\end{proof} \\dots*x* and \\section*{A}")
+      == "*Proof.* Done. ∎\n\n…*x* and **A**")
+check("a label holding $[L:K]$ is one label",
+      givens.to_card("\\begin{itemize}\\item[{$[L:K]=2$}] degree two\\end{itemize}")
+      == "**$[L:K]=2$** degree two")
+check("a code span ending in a prime is code, not a TeX quote",
+      givens.to_card("Use \\texttt{foldl'} instead of \\texttt{foldl}, `the cube')")
+      == "Use `foldl'` instead of `foldl`, ‘the cube’)")
+check("an address, \\verb and \\ensuremath reach the card as written, untouched by "
+      "the dash and tie rules, for the card's renderer to set",
+      givens.to_card("\\url{https://x.org/~me--a} \\href{https://y.org/a--b}{the \\textbf{site}} "
+                     "\\verb|x--1| \\ensuremath{a--b}")
+      == "\\url{https://x.org/~me--a} \\href{https://y.org/a--b}{the **site**} "
+         "\\verb|x--1| \\ensuremath{a--b}")
 sym = givens.givens("$$A=\\begin{bmatrix} a & 1 \\\\ 0 & \\tfrac{3}{4} \\end{bmatrix}$$ "
                     "and $v=\\left(-\\frac{1}{2}, .5\\right)$")
 check("a symbolic entry keeps the given and leaves calc null",

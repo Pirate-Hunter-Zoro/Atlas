@@ -19,7 +19,14 @@
 <link rel="stylesheet" href="/static/reader.css">
 <link rel="stylesheet" href="/static/library.css">
 <link rel="stylesheet" href="/static/ledger.css">
+<link rel="stylesheet" href="/static/katex/katex.min.css">
 <script src="/static/typeface.js" defer></script>
+<!-- KaTeX and the board's macros, for the ledger's replies (`ledger.js`
+     `mathIn`). Deferred: a reply typeset a moment late is still typeset, and
+     one that arrives before them stays words. -->
+<script src="/static/katex/katex.min.js" defer></script>
+<script src="/static/katex/auto-render.min.js" defer></script>
+<script src="/static/macros.js" defer></script>
 </head>
 <body>
 

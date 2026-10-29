@@ -123,11 +123,35 @@ self.addEventListener("install", function (e) {
   );
 });
 
+/* KATEX AND THE FONTS OUTLIVE A VERSION. They never change under one name, and
+   the reload that takes an update is the moment the install's own fetch of
+   them may have met a 502 -- after which the page had no KaTeX and every card
+   stood as raw `$...$`. So whatever RUNTIME file the new cache lacks is
+   carried over from the old one before the old one is deleted. */
+function carryRuntime(old) {
+  return caches.open(old).then(function (from) {
+    return from.keys().then(function (reqs) {
+      return caches.open(VERSION).then(function (to) {
+        return Promise.all(reqs.filter(function (r) {
+          try { return RUNTIME.test(new URL(r.url).pathname); } catch (err) { return false; }
+        }).map(function (r) {
+          return to.match(r).then(function (have) {
+            if (have) return null;
+            return from.match(r).then(function (res) { return res ? to.put(r, res) : null; });
+          });
+        }));
+      });
+    });
+  }).catch(function () {});
+}
+
 self.addEventListener("activate", function (e) {
   e.waitUntil(
     caches.keys().then(function (keys) {
-      return Promise.all(keys.filter(function (k) { return k !== VERSION; })
-                             .map(function (k) { return caches.delete(k); }));
+      var old = keys.filter(function (k) { return k !== VERSION; });
+      return Promise.all(old.map(carryRuntime)).then(function () {
+        return Promise.all(old.map(function (k) { return caches.delete(k); }));
+      });
     }).then(function () { return self.clients.claim(); })
   );
 });
@@ -149,6 +173,10 @@ self.addEventListener("fetch", function (e) {
             caches.open(VERSION).then(function (c) { c.put(req, copy); });
           }
           return res;
+        }).catch(function () {
+          /* Unreachable: a real failure, never an undefined that is a
+             network error with no status (see the shell's own fallback). */
+          return new Response("", { status: 504, statusText: "board unreachable" });
         });
       })
     );

@@ -80,7 +80,10 @@ function init(h) {
 
 function paint(p) {
   if (!els.bar) return;
-  var blob = JSON.stringify(p || null);
+  /* The macro table is part of what was painted: the statement and the chips
+     are typeset against it, and a new one (a course macro added mid-session,
+     or KaTeX loading late) must set them again. */
+  var blob = JSON.stringify(p || null) + "|" + (hooks.macrosGen ? hooks.macrosGen() : 0);
   if (blob === shown) { hang(); return; }
   shown = blob;
   problem = p && p.labels && p.labels.length ? p : null;
@@ -123,7 +126,8 @@ function typesetInto(node, tex) {
   try {
     window.katex.render(tex, node, {
       throwOnError: false, strict: false,
-      macros: hooks.macros ? hooks.macros() : {},
+      /* a copy: KaTeX writes a `\gdef` into the table it is handed */
+      macros: Object.assign({}, hooks.macros ? hooks.macros() : {}),
     });
   } catch (e) { node.textContent = tex; }
 }

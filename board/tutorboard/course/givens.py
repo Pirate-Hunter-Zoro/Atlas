@@ -18,6 +18,7 @@ before any text rule runs and put back after, so a rule can never reach it.
 """
 
 import re
+import unicodedata
 
 # Mathematics, in the order it is looked for at each position.
 _MATH_ENVS = ("equation", "equation*", "align", "align*", "gather", "gather*",
@@ -62,6 +63,25 @@ def _escaped(text, i):
     return n % 2 == 1
 
 
+def _math_end(text, at, close):
+    """Where the math opened before `at` closes on `close`, or -1: KaTeX
+    auto-render's `findEndOfMath`, which a close inside braces does not end,
+    so `$P(\\text{$E$ before $F$})$` is one span (board.js `mathEnd`)."""
+    depth, i, n = 0, at, len(text)
+    while i < n:
+        if depth <= 0 and text.startswith(close, i):
+            return i
+        c = text[i]
+        if c == "\\":
+            i += 1
+        elif c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        i += 1
+    return -1
+
+
 def split_math(text):
     """`[(is_math, piece)]` covering `text`. A math piece keeps its
     delimiters: `$...$`, `$$...$$`, `\\[...\\]`, `\\(...\\)` and the display
@@ -78,15 +98,11 @@ def split_math(text):
         end = -1
         if c == "$" and not _escaped(text, i):
             if text.startswith("$$", i):
-                close = text.find("$$", i + 2)
-                while close >= 0 and _escaped(text, close):
-                    close = text.find("$$", close + 1)
+                close = _math_end(text, i + 2, "$$")
                 end = close + 2 if close >= 0 else -1
             else:
-                close = i + 1
-                while close < n and (text[close] != "$" or _escaped(text, close)):
-                    close += 1
-                end = close + 1 if close < n else -1
+                close = _math_end(text, i + 1, "$")
+                end = close + 1 if close >= 0 else -1
         elif c == "\\" and text.startswith("\\[", i) and not _escaped(text, i):
             close = text.find("\\]", i + 2)
             end = close + 2 if close >= 0 else -1
@@ -142,6 +158,33 @@ def _group(text, at):
     return None
 
 
+def _option(text, at):
+    """`(inside, end)` of the `[...]` option at `at`, spaces before it
+    allowed and braces counted, so `[Proof that {$[L:K]=2$}]` is one
+    option; or None (board.js `texOption`)."""
+    j = at
+    while j < len(text) and text[j] in " \t":
+        j += 1
+    if j >= len(text) or text[j] != "[":
+        return None
+    depth, k = 0, j + 1
+    while k < len(text) and k < j + 400:
+        c = text[k]
+        if c == "\\":
+            k += 2
+            continue
+        if text.startswith("\n\n", k):
+            return None
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        elif c == "]" and depth <= 0:
+            return text[j + 1:k], k + 1
+        k += 1
+    return None
+
+
 # A command with one argument, and what its argument becomes.
 _WRAP = {
     "textit": "*%s*", "emph": "*%s*", "textsl": "*%s*",
@@ -149,13 +192,66 @@ _WRAP = {
     "underline": "%s", "textrm": "%s", "textsf": "%s", "textup": "%s",
     "mbox": "%s", "text": "%s", "ref": "%s", "eqref": "(%s)",
     "footnote": " (%s)",
+    # run-in headings: bold where they stand (board.js TEX_WRAP)
+    "section": "**%s**", "section*": "**%s**", "subsection": "**%s**",
+    "subsection*": "**%s**", "subsubsection": "**%s**", "subsubsection*": "**%s**",
+    "paragraph": "**%s**", "paragraph*": "**%s**", "subparagraph": "**%s**",
 }
+# The starred forms there are (board.js TEX_STARRED).
+_STARRED = {"section*", "subsection*", "subsubsection*", "paragraph*",
+            "subparagraph*", "vspace*", "hspace*"}
 # Commands that say nothing on a card.
 _DROP_ARG = ("label", "cite", "index", "vspace", "vspace*", "hspace", "hspace*")
+# A declaration that switches a font, a size or the page: hw01's hints open
+# `\upshape\emph{Hint:}`. Scoping a group, `{\bf X}`, the ones in _FONT_SET set
+# the group instead (board.js TEX_DROP, TEX_FONT).
 _DROP = ("noindent", "medskip", "smallskip", "bigskip", "hfill", "centering",
-         "indent", "relax", "nobreak", "allowbreak")
+         "indent", "relax", "nobreak", "allowbreak",
+         "upshape", "itshape", "slshape", "scshape", "bfseries", "mdseries",
+         "normalfont", "rmfamily", "sffamily", "ttfamily", "em", "bf", "it", "sl",
+         "rm", "sf", "tt", "tiny", "scriptsize", "footnotesize", "small",
+         "normalsize", "large", "Large", "LARGE", "huge", "Huge", "raggedright",
+         "raggedleft", "newpage", "clearpage", "vfill")
+_FONT_SET = {"bf": "**%s**", "bfseries": "**%s**", "it": "*%s*", "itshape": "*%s*",
+         "em": "*%s*", "sl": "*%s*", "slshape": "*%s*"}
 _WORDS = {"ldots": "…", "dots": "…", "quad": " ", "qquad": " ", "newline": "\n",
-          "LaTeX": "LaTeX", "TeX": "TeX", "S": "§", "P": "¶", "par": "\n\n"}
+          "LaTeX": "LaTeX", "TeX": "TeX", "S": "§", "P": "¶", "par": "\n\n",
+          "qed": " ∎", "qedsymbol": "∎", "qedhere": ""}
+# A theorem or a proof as its run-in head; `\end{proof}` is the box
+# (board.js TEX_HEADS).
+_HEADS = {"proof": ("*%s*", "Proof"), "theorem": ("**%s**", "Theorem"),
+          "proposition": ("**%s**", "Proposition"), "lemma": ("**%s**", "Lemma"),
+          "corollary": ("**%s**", "Corollary"), "definition": ("**%s**", "Definition"),
+          "example": ("**%s**", "Example"), "exercise": ("**%s**", "Exercise"),
+          "construction": ("**%s**", "Construction"), "remark": ("**%s**", "Remark"),
+          "note": ("**%s**", "Note"), "warning": ("**%s**", "Warning"),
+          "claim": ("**%s**", "Claim"), "booktheorem": ("**%s**", "Theorem"),
+          "booktheoremstar": ("**%s**", "Theorem")}
+# TeX's accents as the combining mark after the letter, composed (NFC):
+# `L'H\^opital` is one ô (board.js TEX_ACCENTS).
+_ACCENTS = {'"': "\u0308", "'": "\u0301", "`": "\u0300", "^": "\u0302",
+            "~": "\u0303", "=": "\u0304", ".": "\u0307", "H": "\u030B",
+            "c": "\u0327", "v": "\u030C", "u": "\u0306", "r": "\u030A",
+            "k": "\u0328"}
+_ACCENT = re.compile(r"""\\(["'`^~=.]|[Hcvurk](?=\s*\{))(?:\s*\{([A-Za-z])\}|([A-Za-z]))?""")
+
+
+def _accent(text, i):
+    """`(letter, length)` for a TeX accent at `text[i]`, or None. Braced,
+    `\\"{o}`, anywhere; unbraced, `G\\"odel`, only between letters and only
+    where the pair composes into one character, and an acute or grave only
+    on a vowel: `it\\'s` is a quote left escaped, not an accent."""
+    m = _ACCENT.match(text, i)
+    if not m or not (m.group(2) or m.group(3)):
+        return None
+    got = unicodedata.normalize("NFC", (m.group(2) or m.group(3)) + _ACCENTS[m.group(1)])
+    if m.group(2):
+        return got, m.end() - i
+    if (i > 0 and text[i - 1].isalpha() and text[i - 1].isascii()
+            and not m.group(1).isalpha() and len(got) == 1
+            and (m.group(1) not in "'`" or m.group(3) in "aeiouyAEIOUY")):
+        return got, m.end() - i
+    return None
 
 
 def _commands(text):
@@ -164,15 +260,61 @@ def _commands(text):
     out, i, n = [], 0, len(text)
     while i < n:
         c = text[i]
+        if c == "{" and text.startswith("\\", i + 1):
+            # A group scoping a declaration, `{\bf X}`: set, braces gone.
+            d = re.match(r"\{\\([A-Za-z]+)(?![A-Za-z])[ \t]*", text[i:])
+            got = _group(text, i) if d and d.group(1) in _DROP else None
+            if got:
+                inner = _commands(text[i + d.end():got[1] - 1]).strip()
+                how = _FONT_SET.get(d.group(1), "%s")
+                out.append(how % inner if inner else "")
+                i = got[1]
+                continue
         if c != "\\":
             out.append(c)
             i += 1
             continue
-        m = re.match(r"\\([A-Za-z]+\*?)\s*", text[i:])
+        acc = _accent(text, i)
+        if acc:
+            out.append(acc[0])
+            i += acc[1]
+            continue
+        m = re.match(r"\\([A-Za-z]+)(\*?)\s*", text[i:])
+        if m and m.group(2) and m.group(1) + "*" not in _STARRED:
+            # A star after a name with no starred form is the text's own:
+            # `\dots*x*` opens an emphasis (board.js TEX_STARRED).
+            m = re.match(r"\\([A-Za-z]+)()", text[i:])
+        if m and m.group(1) in ("begin", "end"):
+            env = re.match(r"\\(begin|end)\s*\{([A-Za-z]+\*?)\}", text[i:])
+            if env and env.group(2) in _HEADS:
+                how, word = _HEADS[env.group(2)]
+                past = i + env.end()
+                if env.group(1) == "end":
+                    # one box: a `\qed` before it has drawn it already
+                    boxed = env.group(2) == "proof" and not "".join(out).rstrip().endswith("∎")
+                    out.append(" ∎\n\n" if boxed else "\n\n")
+                    i = past
+                    continue
+                note = _option(text, past)
+                if note and word != "Proof":
+                    says = "%s (%s)." % (word, note[0])
+                else:
+                    says = (re.sub(r"[.:]\s*$", "", note[0]) if note else word) + "."
+                out.append("\n\n" + how % _commands(says) + " ")
+                i = note[1] if note else past
+                while i < n and text[i] in " \t\n":
+                    i += 1
+                continue
         if not m:
-            # A control symbol: \% \& \_ \# \$ \{ \} and spacing.
+            # A control symbol: \% \& \_ \# \{ \} and spacing. `\$` keeps
+            # its backslash: the card's renderer parks it as a dollar, where a
+            # bare `$` would pair with the next one into a formula.
             sym = text[i + 1:i + 2]
-            if sym in "%&_#${}":
+            if sym == "$":
+                out.append("\\$")
+            elif sym in ('"', "'"):
+                out.append(sym)
+            elif sym in "%&_#{}":
                 out.append(sym)
             elif sym in (",", ";", ":", "!", " ", "/", "@"):
                 out.append(" " if sym in (",", ";", ":", " ") else "")
@@ -186,7 +328,7 @@ def _commands(text):
                 out.append(text[i:i + 2])
             i += 2
             continue
-        name = m.group(1)
+        name = m.group(1) + m.group(2)
         after = i + m.end()
         if name in _WRAP:
             got = _group(text, after)
@@ -259,7 +401,8 @@ def _list_end(text, start, env):
 def _items(body):
     """The top-level `\\item`s of a list body: `[(label or None, text)]`."""
     out, depth, i, cur = [], 0, 0, None
-    for m in re.finditer(r"\\begin\{(?:enumerate|itemize)\}|\\end\{(?:enumerate|itemize)\}"
+    for m in re.finditer(r"\\begin\{(?:enumerate|itemize|description)\}"
+                         r"|\\end\{(?:enumerate|itemize|description)\}"
                          r"|\\item\b\s*(?:\[([^\]]*)\])?", body):
         tok = m.group(0)
         if tok.startswith("\\begin"):
@@ -352,9 +495,52 @@ def _comments(text):
     return "\n".join(re.sub(r"(?<!\\)%.*$", "", line) for line in text.split("\n"))
 
 
+_TEX_QUOTE = re.compile(r"`([A-Za-z][A-Za-z0-9 ,.\-]{0,79})'(?![A-Za-z(`*])")
+
+
 def _dashes(text):
-    return (text.replace("---", "—").replace("--", "–").replace("``", "“")
+    text = (text.replace("---", "—").replace("--", "–").replace("``", "“")
             .replace("''", "”").replace("~", " "))
+
+    # A TeX single quote, `words': ch06's `duplicating the cube'. A backtick
+    # left in was a stray tick on the glass, and two made a code span of the
+    # prose between. A span its next backtick closes with no space between,
+    # `\texttt{foldl'}`, is code (board.js `protect`).
+    def quote(m):
+        tick = text.find("`", m.end())
+        if tick != -1 and not re.search(r"\s", text[m.end():tick]):
+            return m.group(0)
+        return "‘%s’" % m.group(1)
+    return _TEX_QUOTE.sub(quote, text)
+
+
+# Commands whose argument is an address or verbatim, parked as written for the
+# card's renderer (board.js `protect`), so no dash, tie or comment rule reaches
+# into a URL: `\verb|x|`, `\url{u}`, `\href{u}` (its words are prose) and
+# `\ensuremath{x}`, which is mathematics.
+_VERBATIM = re.compile(r"\\verb\*?([^A-Za-z\s*])|\\(url|href|ensuremath)\s*(?=\{)")
+
+
+def _verbatim(text, park):
+    out, at = [], 0
+    for m in _VERBATIM.finditer(text):
+        if m.start() < at:
+            continue
+        if m.group(1):
+            end = text.find(m.group(1), m.end())
+            if end == -1 or "\n" in text[m.end():end]:
+                continue
+            end += 1
+        else:
+            got = _group(text, m.end())
+            if not got:
+                continue
+            end = got[1]
+        out.append(text[at:m.start()])
+        out.append(park(text[m.start():end]))
+        at = end
+    out.append(text[at:])
+    return "".join(out)
 
 
 def to_card(body):
@@ -366,8 +552,10 @@ def to_card(body):
         parked.append(piece)
         return _PARK % (len(parked) - 1)
 
-    text = "".join(park(p) if math else p
+    text = "".join(park(p) if math else _verbatim(p, park)
                    for math, p in split_math(_comments(body or "")))
+    # `{$...$}`, a group TeX needs only to hide a `]` in an option: the math.
+    text = re.sub("\\{(\x00\\d+\x00)\\}", "\\1", text)
     text = _lists(text)
     text = _commands(text)
     text = _dashes(text)

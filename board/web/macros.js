@@ -49,6 +49,7 @@ window.BOARD_MACROS = {
   "\\Frac": "\\operatorname{Frac}",
   "\\cont": "\\operatorname{cont}",
   "\\hcf": "\\operatorname{hcf}",
+  "\\lcm": "\\operatorname{lcm}",
   "\\ideal": "\\left(#1\\right)",
   "\\units": "#1^{\\times}",
 

@@ -153,6 +153,8 @@ for phrase, why in [
 for phrase, blocks, why in [
     ("mathematics in a card is tex, not ascii", [sense.PLAIN_SENSE],
      "every card's mathematics is TeX"),
+    ("the rest of a card is markdown", [sense.PLAIN_SENSE],
+     "a card's prose is Markdown, never \\textbf"),
     ("fix the module that produces it and run it again", [sense.RULE_SENSE],
      "fix the rule, never its output"),
     # hw04 5: "the multiplication is the exercise", in teach mode.

@@ -50,6 +50,16 @@ function atSession(url) {
 var SESSION_URL = /^\/(result|doc|figure|answers|slate|source)\//;
 function mdUrl(url) { return BASE && SESSION_URL.test(url) ? BASE + url : url; }
 
+/* WHERE A CARD MAY LINK: the web (http, https, mailto), or a path in this
+   origin. A card is text a model wrote, and a `javascript:` or `data:` link
+   would run in the board's own origin. `null` for anything else. */
+function safeHref(url) {
+  var u = String(url || "").replace(/[\u0000-\u0020]/g, "");
+  var scheme = /^([A-Za-z][A-Za-z0-9+.\-]*):/.exec(u);
+  if (scheme && !/^(https?|mailto)$/i.test(scheme[1])) return null;
+  return u;
+}
+
 /* The page's own links to the session's other surfaces. */
 if (BASE) {
   Array.prototype.forEach.call(
@@ -215,9 +225,285 @@ function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function protect(src, store) {
+/* TEXT-MODE TeX IN PROSE IS SET, NEVER SHOWN AS ITS SOURCE. A tutor that has
+   just been editing a write-up carries `\textbf{...}`, `\texttt{...}` and
+   `Problem~16` into a card, and KaTeX sets only what sits inside a math
+   delimiter -- so these reached the glass as backslashes. The table is
+   `tutorboard/course/givens.py`'s (`_WRAP`, `_DROP_ARG`, `_DROP`, `_WORDS`),
+   so a problem's statement and a card agree on what a command becomes. Every
+   tag comes from this table and never from the text: a model's words do not
+   become markup. A command not here, or one whose `{group}` is not
+   well-formed, is left exactly as written -- which is what `bareCommand`
+   complains about. */
+var TEX_WRAP = {
+  textbf: ["strong"], textit: ["em"], emph: ["em"], textsl: ["em"],
+  underline: [""], textrm: [""], textsf: [""], textup: [""], textnormal: [""],
+  mbox: [""], text: [""], ref: [""], eqref: ["", "(", ")"],
+  footnote: ["", " (", ")"], textsc: [""], textsuperscript: ["sup"],
+  textsubscript: ["sub"],
+  /* a write-up's run-in headings (`\paragraph{(a) The tower.}`): bold where
+     they stand, never a heading, since one can sit mid-line */
+  section: ["strong"], subsection: ["strong"], subsubsection: ["strong"],
+  paragraph: ["strong"], subparagraph: ["strong"]
+};
+var TEX_DROP_ARG = { label: 1, cite: 1, index: 1, vspace: 1, hspace: 1, color: 1 };
+/* The commands that have a starred form. Any other name leaves a `*` after it
+   alone: in `\dots*x*` the star opens an emphasis. */
+var TEX_STARRED = { section: 1, subsection: 1, subsubsection: 1, paragraph: 1,
+                    subparagraph: 1, vspace: 1, hspace: 1 };
+/* Environments that only place their words, `center` and `quote`: a
+   paragraph of their own, the wrapper gone. */
+var TEX_BLOCKS = { center: 1, quote: 1, quotation: 1, flushleft: 1, flushright: 1 };
+/* Declarations that switch a font, a size or the page, and say nothing on a
+   card: hw01's hints open `\upshape\emph{Hint:}`. Scoped by a group, as in
+   `{\bf X}` or `{\itshape X}`, the ones in TEX_FONT set their group instead. */
+var TEX_DROP = { noindent: 1, medskip: 1, smallskip: 1, bigskip: 1, hfill: 1,
+                 centering: 1, indent: 1, relax: 1, nobreak: 1, allowbreak: 1,
+                 upshape: 1, itshape: 1, slshape: 1, scshape: 1, bfseries: 1,
+                 mdseries: 1, normalfont: 1, rmfamily: 1, sffamily: 1,
+                 ttfamily: 1, em: 1, bf: 1, it: 1, sl: 1, rm: 1, sf: 1, tt: 1,
+                 tiny: 1, scriptsize: 1, footnotesize: 1, small: 1,
+                 normalsize: 1, large: 1, Large: 1, LARGE: 1, huge: 1, Huge: 1,
+                 raggedright: 1, raggedleft: 1, newpage: 1, clearpage: 1,
+                 vfill: 1 };
+var TEX_FONT = { bf: "strong", bfseries: "strong", it: "em", itshape: "em",
+                 em: "em", sl: "em", slshape: "em" };
+var TEX_WORDS = { ldots: "…", dots: "…", quad: " ", qquad: " ",
+                  LaTeX: "LaTeX", TeX: "TeX", S: "§", P: "¶",
+                  par: "\n\n", qed: " ∎", qedsymbol: "∎", qedhere: "",
+                  textbackslash: "\\" };
+
+/* DISPLAY ENVIRONMENTS ARE MATH, parked whole like `\[...\]`. The tutor
+   transcribes a write-up's `align*` into a card, and left in the prose its
+   `\\` rows became <br>, its `&` was escaped and nothing delimited it for
+   KaTeX. The value is the environment KaTeX is handed: the same one where
+   KaTeX has it, else the nearest one it has. The keys are
+   `givens._MATH_ENVS`, plus `alignat`. */
+var TEX_MATH_ENVS = {
+  "equation": "equation", "equation*": "equation*", "align": "align",
+  "align*": "align*", "gather": "gather", "gather*": "gather*",
+  "alignat": "alignat", "alignat*": "alignat*", "multline": "gather*",
+  "multline*": "gather*", "eqnarray": "align*", "eqnarray*": "align*",
+  "displaymath": "["
+};
+
+/* A THEOREM OR A PROOF IS ITS RUN-IN HEAD. `\begin{proof}` is *Proof.*, a
+   `[note]` after it the head's own words, and `\end{proof}` the box. These
+   are the environments the two courses' `coursemacros.sty` declare
+   (`givens._HEADS`). */
+var TEX_HEADS = {
+  proof: ["em", "Proof"], theorem: ["strong", "Theorem"],
+  proposition: ["strong", "Proposition"], lemma: ["strong", "Lemma"],
+  corollary: ["strong", "Corollary"], definition: ["strong", "Definition"],
+  example: ["strong", "Example"], exercise: ["strong", "Exercise"],
+  construction: ["strong", "Construction"], remark: ["strong", "Remark"],
+  note: ["strong", "Note"], warning: ["strong", "Warning"],
+  claim: ["strong", "Claim"], booktheorem: ["strong", "Theorem"],
+  booktheoremstar: ["strong", "Theorem"]
+};
+
+/* TeX's accents, `\^o` and `\"{o}`, as the combining mark after the letter,
+   composed (NFC) so `L'H\^opital` is one ô (`givens._ACCENTS`). */
+var TEX_ACCENTS = { "\"": "̈", "'": "́", "`": "̀", "^": "̂",
+                    "~": "̃", "=": "̄", ".": "̇", H: "̋",
+                    c: "̧", v: "̌", u: "̆", r: "̊", k: "̨" };
+
+/* A TeX single quote, `words' (`protect`; `givens._dashes`). */
+var TEX_QUOTE = /^`([A-Za-z][A-Za-z0-9 ,.\-]{0,79})'(?![A-Za-z(`*])/;
+
+/* Private-use mark on a line a nested `\begin{itemize}` made, so the item
+   holding it folds its own prose and keeps the line (`givens._KEEP`). */
+var LIST_KEEP = "";
+/* `\%` and the rest are their own character. `\$` is not among them: it is
+   parked on its own, see `restore`. */
+var TEX_SYMBOLS = "%&_#{}";
+
+/* Where a blank line starts at or after `from` in `src`, or -1. A span that
+   crosses one has run into the next paragraph and is not a span. */
+function blankAfter(src, from, to) {
+  var m = /\n[ \t]*\n/.exec(src.slice(from, to));
+  return m ? from + m.index : -1;
+}
+
+/* The index of the brace closing the `{` at `at`, or -1: escape-aware, nested,
+   and refused across a blank line (`givens._group`). */
+function texGroup(src, at) {
+  if (src[at] !== "{") return -1;
+  var depth = 0;
+  for (var j = at; j < src.length; j++) {
+    var c = src[j];
+    if (c === "\\") { j++; continue; }
+    if (c === "\n" && /^\n[ \t]*\n/.test(src.slice(j, j + 64))) return -1;
+    if (c === "{") depth++;
+    else if (c === "}" && --depth === 0) return j;
+  }
+  return -1;
+}
+
+/* What the line holding `i` says before and after the run [i, end): a dash
+   that is the whole line is a rule or a table's separator, not punctuation. */
+function midLine(src, i, end) {
+  var from = src.lastIndexOf("\n", i - 1) + 1;
+  var to = src.indexOf("\n", end);
+  var line = src.slice(from, to === -1 ? src.length : to);
+  return !/^[\s|:\-]*$/.test(line)
+    && src.slice(from, i).trim() !== "" && src.slice(end, to === -1 ? src.length : to).trim() !== "";
+}
+
+/* Where a math span opened at `from` closes on `close`, or -1: auto-render's
+   own `findEndOfMath`, which a close inside braces does not end. So
+   `$P(\text{$E$ before $F$})$` is one span, as KaTeX reads it, and not
+   `$P(\text{$` with the rest left in the prose. The close is looked for
+   BEFORE an escape is stepped over: `\)` and `\]` start with a backslash. */
+function mathEnd(src, from, close) {
+  var depth = 0;
+  for (var j = from; j < src.length; j++) {
+    if (depth <= 0 && src.startsWith(close, j)) return j;
+    var c = src[j];
+    if (c === "\\") j++;
+    else if (c === "{") depth++;
+    else if (c === "}") depth--;
+  }
+  return -1;
+}
+
+/* The `[...]` option at `at` (spaces before it allowed), brace- and
+   math-aware, so `[Proof that {$[L:K]=2$}]` and `[$[L:K]=2$]` are each one
+   option: `{text, end}` or null. */
+function texOption(src, at) {
+  var j = at;
+  while (src[j] === " " || src[j] === "\t") j++;
+  if (src[j] !== "[") return null;
+  var depth = 0;
+  for (var k = j + 1; k < src.length && k < j + 400; k++) {
+    var c = src[k];
+    var math = c === "$" ? (src[k + 1] === "$" ? "$$" : "$")
+      : c === "\\" && src[k + 1] === "(" ? "\\)" : "";
+    if (math) {
+      var open = math === "\\)" ? 2 : math.length;
+      var shut = mathEnd(src, k + open, math);
+      if (shut !== -1 && blankAfter(src, k, shut) === -1) { k = shut + math.length - 1; continue; }
+    }
+    if (c === "\\") { k++; continue; }
+    if (c === "\n" && src[k + 1] === "\n") return null;
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === "]" && depth <= 0) return { text: src.slice(j + 1, k), end: k + 1 };
+  }
+  return null;
+}
+
+/* An enumerate's label for item `k` (from 0), from its `[...]` options, or
+   null for a plain numbered list: `givens._label_maker`. `label=(\alph*)`
+   and the short `[(a)]` both give (a), (b), ... */
+var ROMAN = ["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii"];
+function listLabel(opts, k) {
+  var m = /label\s*=\s*\{?([^,\]}]*\\(?:alph|Alph|roman|Roman|arabic)\*[^,\]}]*)\}?/.exec(opts || "");
+  var pattern;
+  if (m) pattern = m[1].trim();
+  else {
+    var bare = (opts || "").trim();
+    if (!bare || bare.indexOf("=") !== -1) return null;
+    var s = /^(.*?)(a|A|i|I|1)(.*)$/.exec(bare);
+    if (!s) return null;
+    pattern = s[1] + "\\" + { a: "alph", A: "Alph", i: "roman", I: "Roman", "1": "arabic" }[s[2]]
+      + "*" + s[3];
+  }
+  return pattern.replace(/\\(alph|Alph|roman|Roman|arabic)\*/g, function (_, how) {
+    var r = k < ROMAN.length ? ROMAN[k] : String(k + 1);
+    return { alph: String.fromCharCode(97 + k % 26), Alph: String.fromCharCode(65 + k % 26),
+             roman: r, Roman: r.toUpperCase(), arabic: String(k + 1) }[how];
+  });
+}
+
+/* The `\end{...}` closing the list whose body starts at `from`, counting every
+   list inside it: `{start, stop}` of that `\end`, or null. */
+function listEnd(src, from) {
+  var re = /\\(begin|end)\{(?:enumerate|itemize|description)\}/g;
+  re.lastIndex = from;
+  var depth = 1, m;
+  while ((m = re.exec(src))) {
+    depth += m[1] === "begin" ? 1 : -1;
+    if (depth === 0) return { start: m.index, stop: re.lastIndex };
+  }
+  return null;
+}
+
+/* A list body's top-level `\item`s: `[{label, text}]`, `label` null for a
+   bare `\item` (`givens._items`). */
+function listItems(body) {
+  var re = /\\begin\{(?:enumerate|itemize|description)\}|\\end\{(?:enumerate|itemize|description)\}|\\item(?![A-Za-z])/g;
+  var out = [], depth = 0, cur = null, m;
+  while ((m = re.exec(body))) {
+    if (m[0].indexOf("\\begin") === 0) depth++;
+    else if (m[0].indexOf("\\end") === 0) depth--;
+    else if (depth === 0) {
+      if (cur) out.push({ label: cur.label, text: body.slice(cur.from, m.index) });
+      /* the label read as TeX reads it: `\item[{$[L:K]=2$}]` is one label */
+      var own = texOption(body, re.lastIndex);
+      if (own) re.lastIndex = own.end;
+      cur = { label: own ? own.text : null, from: re.lastIndex };
+    }
+  }
+  if (cur) out.push({ label: cur.label, text: body.slice(cur.from) });
+  return out;
+}
+
+function protect(src, store, depth) {
   var out = "";
   var i = 0;
+  depth = depth || 0;
+
+  function sentinel(item) {
+    store.push(item);
+    return SENT_OPEN + (store.length - 1) + SENT_CLOSE;
+  }
+  function park(item) { out += sentinel(item); }
+  function wrapped(tag, words) {
+    return sentinel({ kind: "wrap", tag: tag, before: "", after: "",
+                      body: protect(words, store), text: words });
+  }
+
+  /* ENUMERATE AND ITEMIZE ARE MARKDOWN LISTS, as `givens._lists` makes them
+     for the problem view: the tutor transcribes a statement whole, and a
+     statement is an `enumerate[label=(\alph*)]`. A labelled item is a
+     paragraph led by its bold label, `**(a)** Show that...`; an unlabelled
+     one a `1.` or `-` line. Each item's words are protected on their own
+     (math parked, commands set) and folded onto its line. Returns where the
+     list ends, or -1 when it never closes (then it is left as written). */
+  function list(at, env, opened) {
+    var from = at + opened.length;
+    var opts = "";
+    var o = /^\s*\[([^\]]*)\]/.exec(src.slice(from, from + 200));
+    if (o) { opts = o[1]; from += o[0].length; }
+    var shut = listEnd(src, from);
+    if (!shut) return -1;
+    var pad = new Array(depth + 1).join("  ");
+    var lines = [];
+    listItems(src.slice(from, shut.start)).forEach(function (item, k) {
+      var mark = null;
+      if (item.label !== null) mark = wrapped("strong", item.label.trim());
+      else if (env === "enumerate") {
+        var lab = listLabel(opts, k);
+        mark = lab !== null ? wrapped("strong", lab) : (k + 1) + ".";
+      }
+      var prose = [], kept = [];
+      protect(item.text, store, depth + 1).split("\n").forEach(function (ln) {
+        if (ln[0] === LIST_KEEP) kept.push(ln.slice(1));
+        else if (!kept.length) prose.push(ln);
+        else if (ln.trim()) kept.push(pad + "    " + ln.trim());
+      });
+      var words = prose.join(" ").replace(/\s+/g, " ").trim();
+      var labelled = mark !== null && mark[0] === SENT_OPEN;
+      lines.push(labelled && depth === 0 ? mark + " " + words
+        : pad + (mark === null || labelled ? "- " : "") + (mark !== null ? mark + " " : "") + words);
+      kept.forEach(function (ln) { lines.push(ln); });
+    });
+    if (depth) out += "\n" + lines.map(function (ln) { return LIST_KEEP + ln; }).join("\n") + "\n";
+    else out += "\n\n" + lines.join("\n\n") + "\n\n";
+    return shut.stop;
+  }
+
   while (i < src.length) {
     var ch = src[i];
 
@@ -225,56 +511,356 @@ function protect(src, store) {
     if (src.startsWith("```", i) && (i === 0 || src[i - 1] === "\n")) {
       var fenceEnd = src.indexOf("\n```", i + 3);
       var stop = fenceEnd === -1 ? src.length : fenceEnd + 4;
-      store.push({ kind: "fence", text: src.slice(i, stop) });
-      out += SENT_OPEN + (store.length - 1) + SENT_CLOSE;
+      park({ kind: "fence", text: src.slice(i, stop) });
       i = stop;
       continue;
     }
 
-    /* inline code */
+    /* TeX quotes, before inline code: a double backtick is an opening quote
+       when its two apostrophes come before the next double backtick and the
+       paragraph ends. Taken as code it was an empty <code> and a stray tick. */
+    if (src.startsWith("``", i) && src[i + 2] !== "`" && src[i - 1] !== "`") {
+      var shut = src.indexOf("''", i + 2);
+      var again = src.indexOf("``", i + 2);
+      var gap = blankAfter(src, i + 2, shut);
+      if (shut !== -1 && (again === -1 || shut < again) && gap === -1) {
+        var said = protect(src.slice(i + 2, shut), store);
+        park({ kind: "wrap", tag: "", before: "“", after: "”", body: said,
+               text: src.slice(i, shut + 2) });
+        i = shut + 2;
+        continue;
+      }
+    }
+
+    /* A TeX single quote, `words': a backtick, then words on one line (letters,
+       digits, spaces, `-`, `,`, `.`), then an apostrophe with no letter or
+       `(` after it. Taken as code, ch06's `duplicating the cube') left a
+       stray tick, and two of them made a code span of the prose between.
+       Code fails the test and stays code: `don't`, `f'(x)`,
+       `--format='%h'`, and a span its next backtick closes with no space
+       between, `foldl'` or `A'*B`. */
+    if (ch === "`" && /[A-Za-z]/.test(src[i + 1] || "")) {
+      var q = TEX_QUOTE.exec(src.slice(i, i + 84));
+      if (q) {
+        var tick = src.indexOf("`", i + q[0].length);
+        if (tick !== -1 && !/\s/.test(src.slice(i + q[0].length, tick))) q = null;
+      }
+      if (q) {
+        park({ kind: "wrap", tag: "", before: "‘", after: "’",
+               body: protect(q[1], store), text: q[0] });
+        i += q[0].length;
+        continue;
+      }
+    }
+
+    /* inline code, inside its paragraph: a lone backtick is a backtick, not
+       the start of a span that swallows the math of the paragraphs after it */
     if (ch === "`") {
       var tickEnd = src.indexOf("`", i + 1);
-      if (tickEnd !== -1) {
-        store.push({ kind: "code", text: src.slice(i + 1, tickEnd) });
-        out += SENT_OPEN + (store.length - 1) + SENT_CLOSE;
+      if (tickEnd !== -1 && blankAfter(src, i + 1, tickEnd) === -1) {
+        park({ kind: "code", text: src.slice(i + 1, tickEnd) });
         i = tickEnd + 1;
         continue;
       }
     }
 
-    /* escaped dollar */
-    if (ch === "\\" && src[i + 1] === "$") { out += "\\$"; i += 2; continue; }
+    /* A group that scopes a declaration, `{\bf X}`, `{\itshape X}` or
+       `{\small X}`: the group is set (TEX_FONT) or plain, and its braces go. */
+    if (ch === "{" && src[i + 1] === "\\") {
+      var decl = /^\{\\([A-Za-z]+)(?![A-Za-z])[ \t]*/.exec(src.slice(i, i + 40));
+      var group = decl && (TEX_DROP[decl[1]] || decl[1] === "color") ? texGroup(src, i) : -1;
+      var declEnd = group === -1 ? -1 : i + decl[0].length;
+      /* `{\color{red} x}`: the colour's own `{red}` goes with it */
+      if (group !== -1 && decl[1] === "color") {
+        var hue = texGroup(src, declEnd);
+        declEnd = hue !== -1 && hue < group ? hue + 1 : -1;
+        if (declEnd === -1) group = -1;
+      }
+      if (group !== -1) {
+        park({ kind: "wrap", tag: TEX_FONT[decl[1]] || "", before: "", after: "",
+               body: protect(src.slice(declEnd, group), store),
+               text: src.slice(i, group + 1) });
+        i = group + 1;
+        continue;
+      }
+    }
 
-    /* math */
+    /* `{$...$}`, a group TeX needs only to hide a `]` in an option: the
+       math, without the braces. */
+    if (ch === "{" && src[i + 1] === "$") {
+      var shell = texGroup(src, i);
+      if (shell !== -1 && src[shell - 1] === "$" && shell - i > 3) {
+        var held = src.slice(i + 1, shell);
+        if (mathEnd(held, held[1] === "$" ? 2 : 1, held[1] === "$" ? "$$" : "$")
+            === held.length - (held[1] === "$" ? 2 : 1)) {
+          out += protect(held, store);
+          i = shell + 1;
+          continue;
+        }
+      }
+    }
+
+    if (ch === "\\") {
+      var nx = src[i + 1];
+
+      /* escaped dollar: a dollar sign, parked so nothing pairs it */
+      if (nx === "$") { park({ kind: "dollar", text: "$" }); i += 2; continue; }
+
+      /* `\%`, `\&`, `\_`, `\#`, `\{`, `\}`, and a control space */
+      if (nx && TEX_SYMBOLS.indexOf(nx) !== -1) {
+        park({ kind: "lit", text: nx });
+        i += 2;
+        continue;
+      }
+      if (nx === " ") { out += " "; i += 2; continue; }
+      /* TeX's spacing symbols: `10\,000` and `a\;b` a space, `\!`, the italic
+         correction `\/` and `\@` nothing (`givens._commands`). */
+      if (nx === "," || nx === ";" || nx === ":") { out += " "; i += 2; continue; }
+      if (nx === "!" || nx === "/" || nx === "@") { i += 2; continue; }
+
+      /* AN ACCENT, OR A QUOTE LEFT ESCAPED. `\^o` between letters
+         (`L'H\^opital`, `G\"odel`) and `\"{o}` anywhere are the accented
+         letter. Anything else after `\"` or `\'` is the quote itself: a
+         model's JSON or shell escaping, as card 0048's
+         `\"how does this help.\"`, which a letter after it (`\"how`) must
+         not turn into an umlaut -- hence the letter BEFORE as well, and a
+         letter that composes with the accent into one character. An
+         unbraced acute or grave takes only a vowel: `it\'s` is a quote. */
+      var acc = /^\\(["'`^~=.]|[Hcvurk](?=\s*\{))(?:\s*\{([A-Za-z])\}|([A-Za-z]))?/.exec(src.slice(i, i + 8));
+      var accented = acc && (acc[2] || acc[3])
+        ? ((acc[2] || acc[3]) + TEX_ACCENTS[acc[1]]).normalize("NFC") : "";
+      /* Unbraced, only the umlaut, acute, grave and circumflex: `\.`, `\~` and
+         `\=` are as often Markdown's escapes (`example\.com`), so they take
+         braces, `\~{n}`. */
+      if (acc && accented && (acc[2] || (/[A-Za-z]/.test(src[i - 1] || "")
+            && /^["'`^]$/.test(acc[1]) && accented.length === 1
+            && (/[^'`]/.test(acc[1]) || /[aeiouyAEIOUY]/.test(acc[3]))))) {
+        out += accented;
+        i += acc[0].length;
+        continue;
+      }
+      if (nx === "\"" || nx === "'") { out += nx; i += 2; continue; }
+      /* Markdown's own escapes, `\.`, `\*`, `\~`: the character, parked so it
+         is not emphasis or a tie. `\-` between letters is TeX's hyphenation
+         hint, and says nothing. */
+      if (nx === "-" && /[A-Za-z]/.test(src[i - 1] || "") && /[A-Za-z]/.test(src[i + 2] || "")) {
+        i += 2;
+        continue;
+      }
+      if (nx && ".*~=+-|<>".indexOf(nx) !== -1) {
+        park({ kind: "lit", text: nx });
+        i += 2;
+        continue;
+      }
+
+      /* `\\` at the end of a line, with a `[2pt]`-style length after it */
+      if (nx === "\\" && (i + 2 === src.length || /[\s\[]/.test(src[i + 2]))) {
+        var len = /^\[\s*-?[\d.]+\s*(pt|em|ex|mm|cm|in|bp|mu)\s*\]/.exec(src.slice(i + 2));
+        park({ kind: "br", text: "\n" });
+        i += 2 + (len ? len[0].length : 0);
+        continue;
+      }
+
+      /* `\verb|x_1|`: the words between the two marks, as code */
+      var verb = /^\\verb\*?([^A-Za-z\s*])/.exec(src.slice(i, i + 8));
+      if (verb) {
+        var verbEnd = src.indexOf(verb[1], i + verb[0].length);
+        var eol = src.indexOf("\n", i);
+        if (verbEnd !== -1 && (eol === -1 || verbEnd < eol)) {
+          park({ kind: "code", text: src.slice(i + verb[0].length, verbEnd) });
+          i = verbEnd + 1;
+          continue;
+        }
+      }
+
+      /* a named command from the table */
+      var cmd = /^\\([A-Za-z]+)(\*?)/.exec(src.slice(i, i + 40));
+      if (cmd) {
+        var name = cmd[1];
+        var after = i + 1 + name.length + (cmd[2] && TEX_STARRED[name] ? 1 : 0);
+        var at = after;
+        while (src[at] === " " || src[at] === "\t") at++;
+        /* where a command's `{argument}` may start: one line break before it
+           is still the same paragraph (`\textbf` at a line's end) */
+        var argAt = src[at] === "\n" ? at + 1 : at;
+        while (src[argAt] === " " || src[argAt] === "\t") argAt++;
+        var env = (name === "begin" || name === "end")
+          && /^\\(?:begin|end)\s*\{([A-Za-z]+\*?)\}/.exec(src.slice(i, i + 60));
+        if (env && name === "begin" && TEX_MATH_ENVS[env[1]]) {
+          var closer = "\\end{" + env[1] + "}";
+          var bodyAt = i + env[0].length;
+          var envEnd = src.indexOf(closer, bodyAt);
+          if (envEnd !== -1) {
+            var as = TEX_MATH_ENVS[env[1]];
+            var inner = src.slice(bodyAt, envEnd);
+            park({ kind: "math", display: true,
+                   text: as === "[" ? "\\[" + inner + "\\]"
+                     : "\\begin{" + as + "}" + inner + "\\end{" + as + "}" });
+            i = envEnd + closer.length;
+            continue;
+          }
+        } else if (env && name === "begin" && (env[1] === "enumerate" || env[1] === "itemize"
+                                               || env[1] === "description")) {
+          var listed = list(i, env[1], env[0]);
+          if (listed !== -1) { i = listed; continue; }
+        } else if (env && TEX_BLOCKS[env[1]]) {
+          out += "\n\n";
+          i += env[0].length;
+          continue;
+        } else if (env && TEX_HEADS[env[1]]) {
+          var head = TEX_HEADS[env[1]];
+          var past = i + env[0].length;
+          if (name === "end") {
+            /* one box: a `\qed` before it has drawn it already */
+            out += env[1] === "proof" && !/∎\s*$/.test(out) ? " ∎\n\n" : "\n\n";
+            i = past;
+            continue;
+          }
+          var note = texOption(src, past);
+          var says = note && head[1] !== "Proof" ? head[1] + " (" + note.text + ")."
+                   : (note ? note.text.replace(/[.:]\s*$/, "") : head[1]) + ".";
+          out += "\n\n" + wrapped(head[0], says) + " ";
+          i = note ? note.end : past;
+          while (src[i] === " " || src[i] === "\t" || src[i] === "\n") i++;
+          continue;
+        } else if (name === "item") {
+          /* An `\item` outside any list: its label in bold, else a bullet. */
+          var own = texOption(src, i + 5);
+          if (own) { out += wrapped("strong", own.text.trim()); i = own.end; continue; }
+          out += /(^|\n)[ \t]*$/.test(out) ? "- " : "• ";
+          i = at;
+          continue;
+        }
+        if (name === "url" || name === "href" || name === "textcolor") {
+          /* `\url{u}`, `\href{u}{words}`: a link where the address is the web
+             (`safeHref`), else the words; `\textcolor{c}{words}` the words */
+          var first = texGroup(src, argAt);
+          var second = -1, nextAt = -1;
+          if (first !== -1 && name !== "url") {
+            nextAt = first + 1;
+            while (src[nextAt] === " " || src[nextAt] === "\t") nextAt++;
+            second = texGroup(src, nextAt);
+          }
+          if (first !== -1 && (name === "url" || second !== -1)) {
+            var addr = src.slice(argAt + 1, first);
+            var shown = name === "url" ? null : src.slice(nextAt + 1, second);
+            var href = name === "textcolor" ? null
+              : safeHref(addr.replace(/\\([%&_#~$])/g, "$1"));
+            if (shown === null) {
+              park({ kind: "link", href: href, text: addr.replace(/\\([%&_#~$])/g, "$1") });
+            } else {
+              var words = protect(shown, store);
+              park(href === null
+                ? { kind: "wrap", tag: "", before: "", after: "", body: words, text: shown }
+                : { kind: "link", href: href, body: words, text: shown });
+            }
+            i = (second !== -1 ? second : first) + 1;
+            continue;
+          }
+        } else if (name === "ensuremath") {
+          var mathClose = texGroup(src, argAt);
+          if (mathClose !== -1) {
+            park({ kind: "math", display: false,
+                   text: "\\(" + src.slice(argAt + 1, mathClose) + "\\)" });
+            i = mathClose + 1;
+            continue;
+          }
+        }
+        if (TEX_WRAP[name] || name === "texttt" || TEX_DROP_ARG[name]) {
+          var close = texGroup(src, argAt);
+          if (close !== -1) {
+            var arg = src.slice(argAt + 1, close);
+            if (name === "texttt") {
+              park({ kind: "code", text: arg.replace(/\\([%&_#{}$])/g, "$1") });
+            } else if (TEX_WRAP[name]) {
+              var how = TEX_WRAP[name];
+              var body = protect(arg, store);
+              park({ kind: "wrap", tag: how[0], before: how[1] || "",
+                     after: how[2] || "", body: body, text: src.slice(i, close + 1) });
+            }
+            i = close + 1;
+            continue;
+          }
+        } else if (TEX_DROP[name]) {
+          i = at;
+          continue;
+        } else if (TEX_WORDS.hasOwnProperty(name)
+                   && ((name !== "S" && name !== "P") || /^($|[\s\d~{])/.test(src.slice(after, after + 1)))) {
+          /* `\S 3` is a section sign; `\S+` in a regex is not */
+          out += TEX_WORDS[name];
+          i = src.startsWith("{}", after) ? after + 2 : after;
+          continue;
+        } else if (name === "newline") {
+          park({ kind: "br", text: "\n" });
+          i = after;
+          continue;
+        }
+      }
+    }
+
+    /* math, closed where auto-render closes it (`mathEnd`). An inline span
+       never crosses a blank line, which TeX refuses too: `It costs $5.` and a
+       `$x$` two paragraphs on are not one formula of everything between. A
+       `$` that opens nothing is parked as a dollar, so auto-render cannot
+       pair it later either. */
     var matched = false;
     for (var p = 0; p < MATH_PATTERNS.length; p++) {
       var pat = MATH_PATTERNS[p];
       if (!src.startsWith(pat.open, i)) continue;
       var from = i + pat.open.length;
-      var end = -1;
-      var j = from;
-      while (j < src.length) {
-        if (src[j] === "\\") { j += 2; continue; }
-        if (src.startsWith(pat.close, j)) { end = j; break; }
-        j++;
+      var end = mathEnd(src, from, pat.close);
+      if (end !== -1 && !pat.display && blankAfter(src, from, end) !== -1) {
+        if (pat.open === "$") { park({ kind: "dollar", text: "$" }); i++; matched = true; break; }
+        end = -1;
       }
       if (end === -1) continue;
-      store.push({
+      park({
         kind: "math",
         text: pat.open + src.slice(from, end) + pat.close,
         display: pat.display
       });
-      out += SENT_OPEN + (store.length - 1) + SENT_CLOSE;
       i = end + pat.close.length;
       matched = true;
       break;
     }
     if (matched) continue;
 
+    /* TeX's typography, where it cannot be anything else: a tie from a word
+       to a number or a reference (`Problem~16`, `Fig.~2`, `Theorem~\ref`),
+       never `X~N(0,1)`, `HEAD~1`, `~5 min`, `~~struck~~` or a path's `a/b~c`;
+       an en dash between two numbers, and an em dash inside a line (never a
+       rule, a table's separator or an arrow). Neither dash reaches into a URL,
+       whose `--` is its own. */
+    var lineSoFar = ch === "~" || ch === "-" ? src.slice(Math.max(0, i - 200), i) : "";
+    if (ch === "~" && src[i - 1] !== "~" && src[i + 1] !== "~"
+        && /[a-z.]/.test(src[i - 1] || "") && /[0-9$\\]/.test(src[i + 1] || "")
+        && !/\/\S*$/.test(lineSoFar)) {
+      out += " ";
+      i++;
+      continue;
+    }
+    var inUrl = ch === "-" && /(:\/\/|\]\()\S*$/.test(lineSoFar);
+    if (ch === "-" && !inUrl && src.startsWith("---", i) && src[i + 3] !== "-" && src[i - 1] !== "-"
+        && !/[<>|:]/.test((src[i - 1] || "") + (src[i + 3] || "")) && midLine(src, i, i + 3)) {
+      out += "—";
+      i += 3;
+      continue;
+    }
+    if (ch === "-" && !inUrl && src[i + 1] === "-" && /\d/.test(src[i - 1] || "") && /\d/.test(src[i + 2] || "")) {
+      out += "–";
+      i += 2;
+      continue;
+    }
+
     out += ch;
     i++;
   }
   return out;
+}
+
+/* Prose escaped as `renderMarkdown` escapes it, for a parked span's own words. */
+function proseEscape(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 }
 
 function restore(html, store) {
@@ -283,6 +869,23 @@ function restore(html, store) {
     if (!item) return "";
     if (item.kind === "code") return "<code>" + escapeHtml(item.text) + "</code>";
     if (item.kind === "fence") return renderFence(item.text);
+    if (item.kind === "lit") return escapeHtml(item.text);
+    if (item.kind === "br") return "<br>";
+    /* A dollar in an element of its own: auto-render pairs delimiters only
+       within one run of text, so this one can never open a formula. */
+    if (item.kind === "dollar") return '<span class="tex-dollar">$</span>';
+    if (item.kind === "wrap") {
+      var inner = item.before + restore(inline(proseEscape(item.body)), store) + item.after;
+      return item.tag ? "<" + item.tag + ">" + inner + "</" + item.tag + ">" : inner;
+    }
+    /* `\url` and `\href`: `href` is null where the address is not the web */
+    if (item.kind === "link") {
+      var said = item.body === undefined ? escapeHtml(item.text)
+        : restore(inline(proseEscape(item.body)), store);
+      return item.href === null ? said
+        : '<a href="' + escapeHtml(item.href).replace(/"/g, "&quot;")
+          + '" target="_blank" rel="noopener">' + said + "</a>";
+    }
     /* math: escaped text, KaTeX walks the text node and replaces it */
     var span = item.display ? "div" : "span";
     return "<" + span + ' class="math-raw">' + escapeHtml(item.text) + "</" + span + ">";
@@ -290,12 +893,20 @@ function restore(html, store) {
 }
 
 /* Escaped prose with its parked math and code put back as their own source,
-   for an attribute: a `say` phrase's words, which the take is aimed at. */
+   for an attribute: a `say` phrase's words, which the take is aimed at. A
+   wrapped span gives its words, never its command. */
 function attrText(s, store) {
-  return s.replace(SENT_RE, function (_, n) {
-    var item = store[+n];
-    return item ? escapeHtml(item.text) : "";
-  }).replace(/"/g, "&quot;");
+  function words(t) {
+    return t.replace(SENT_RE, function (_, n) {
+      var item = store[+n];
+      if (!item) return "";
+      if (item.kind === "wrap") return item.before + words(proseEscape(item.body)) + item.after;
+      if (item.kind === "link" && item.body !== undefined) return words(proseEscape(item.body));
+      if (item.kind === "br") return " ";
+      return escapeHtml(item.text);
+    });
+  }
+  return words(s).replace(/"/g, "&quot;");
 }
 
 /* A CODE FENCE KEEPS ITS INFO STRING. "```py board/x.py#L40-58" is Python,
@@ -335,19 +946,35 @@ function renderFence(text) {
     + CV.body(body, lang, at.from || 1) + "</code></pre></figure>";
 }
 
+/* The store `renderMarkdown` is filling, so `inline` can make an attribute's
+   parked items words (`attrText`) rather than markup inside its quotes. */
+var inlineStore = null;
+
+/* An address or alt text as an attribute value: parked items as their words,
+   every quote escaped, so nothing in it can close the attribute. */
+function attrValue(s) {
+  return inlineStore ? attrText(s, inlineStore)
+    : s.replace(/[\uE000-\uE002]/g, "").replace(/"/g, "&quot;");
+}
+
 function inline(s) {
   return s
     /* `card-img` is what fits it to the card. A result figure is a 300-dpi PNG
        two thousand pixels wide, and an <img> with no rule on it is drawn at that
        size, so a graph put on the board ran off the glass. */
     .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (all, alt, src) {
-      return '<img class="card-img" alt="' + alt + '" src="' + mdUrl(src) + '">';
+      var at = safeHref(attrValue(src).replace(/&quot;/g, ""));
+      return at === null ? alt
+        : '<img class="card-img" alt="' + attrValue(alt) + '" src="' + mdUrl(at) + '">';
     })
     /* AN ADDRESS STAYS IN THIS PAGE. Every other link is the web, and the web
        opens in its own tab so that a tap on a citation is not the lesson
        leaving the glass. An address is the opposite thing: it is this board
-       being asked to go somewhere, and a second tab is a second board. */
+       being asked to go somewhere, and a second tab is a second board. A
+       `javascript:` address is no link at all (`safeHref`). */
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (all, text, href) {
+      href = safeHref(attrValue(href));
+      if (href === null) return text;
       href = mdUrl(href);
       return href.indexOf("#/") === 0
         ? '<a href="' + href + '">' + text + "</a>"
@@ -368,6 +995,12 @@ function splitRow(line) {
 
 function renderMarkdown(src) {
   var store = [];
+  var outer = inlineStore;
+  inlineStore = store;
+  try { return renderStored(src, store); } finally { inlineStore = outer; }
+}
+
+function renderStored(src, store) {
   var text = protect(src.replace(/\r\n/g, "\n"), store);
   /* Prose is escaped now that math and code are safely parked in the store.
      `>` is deliberately left alone so blockquote lines still match. */
@@ -560,17 +1193,38 @@ function renderList(lines, start, store) {
    this must not be a fresh object each time. */
 var boardMacros = null;
 var courseMacrosRaw = null;
+/* Which table that is, counted. It is in every card's key (`render`): a card
+   kept because its key had not moved keeps the vocabulary it was typeset
+   against, and auto-render cannot be run again over math it has replaced. */
+var macrosGen = 0;
 
 function setCourseMacros(got) {
   var next = JSON.stringify(got || {});
   if (next === courseMacrosRaw) return;
   courseMacrosRaw = next;
   boardMacros = null;
+  macrosGen++;
 }
+
+/* A WRITE-UP'S FURNITURE, which a tutor copies into a card with the display
+   math around it: `\qedhere`, `\qedsymbol` and `\label{eq:x}` are LaTeX's own
+   (so not `macros.js`, which the TeX side reads) and KaTeX knows none of them,
+   so each was a red error. `\label` eats its argument. Under the course's and
+   the board's own, which win. */
+var KATEX_FURNITURE = {
+  "\\qedhere": "",
+  "\\qed": "\\quad\\square",
+  "\\qedsymbol": "\\square",
+  "\\label": { tokens: [], numArgs: 1 },
+  /* a card has no numbers to point at: the key, as the prose shows it */
+  "\\ref": "\\text{#1}",
+  "\\eqref": "(\\text{#1})"
+};
 
 function courseMacros() {
   if (boardMacros) return boardMacros;
   boardMacros = {};
+  for (var f in KATEX_FURNITURE) boardMacros[f] = KATEX_FURNITURE[f];
   var base = window.BOARD_MACROS || {};
   for (var k in base) if (base.hasOwnProperty(k)) boardMacros[k] = base[k];
   var mine = courseMacrosRaw ? JSON.parse(courseMacrosRaw) : {};
@@ -578,23 +1232,68 @@ function courseMacros() {
   return boardMacros;
 }
 
+/* What auto-render pairs: the four `protect` parks, then the display
+   environments KaTeX sets whole (`TEX_MATH_ENVS`), so an `align*` that
+   reaches a surface `renderMarkdown` did not touch is set as well. */
+var TYPESET_DELIMITERS = [
+  { left: "$$", right: "$$", display: true },
+  { left: "\\[", right: "\\]", display: true },
+  { left: "\\(", right: "\\)", display: false },
+  { left: "$", right: "$", display: false }
+];
+["equation", "equation*", "align", "align*", "gather", "gather*", "alignat", "alignat*"]
+  .forEach(function (e) {
+    TYPESET_DELIMITERS.push({ left: "\\begin{" + e + "}", right: "\\end{" + e + "}",
+                              display: true });
+  });
+
+/* KATEX THAT DID NOT LOAD IS LOADED, and every card is set again. The two
+   <script> tags in board.html are the usual path; on the reload that takes an
+   update the service worker's cache is new and the proxy in front of the board
+   can answer them 502, and then every card stood as raw `$...$` for the life
+   of the page, since nothing typeset it again. Once both scripts arrive the
+   macro generation moves, which is in every card's key (`render`) and the
+   problem panel's (`Problem.paint`), so all of it is rebuilt and typeset. */
+var katexLoading = false;
+function loadKatex(tries) {
+  if (katexLoading || window.renderMathInElement) return;
+  katexLoading = true;
+  function script(src, then) {
+    var tag = document.createElement("script");
+    tag.src = src;
+    tag.onload = then;
+    tag.onerror = function () {
+      katexLoading = false;
+      if ((tries || 0) < 5) setTimeout(function () { loadKatex((tries || 0) + 1); }, 4000);
+    };
+    try { (document.head || document.body).appendChild(tag); }
+    catch (e) { katexLoading = false; }
+  }
+  function arrived() {
+    katexLoading = false;
+    if (!window.renderMathInElement) return;
+    macrosGen++;
+    if (!typingNow && lastLive) render(lastLive);
+  }
+  function autoRender() { script("/static/katex/auto-render.min.js", arrived); }
+  if (window.katex) autoRender();
+  else script("/static/katex/katex.min.js", autoRender);
+}
+
 function typeset(root) {
-  if (!window.renderMathInElement) return;
+  if (!window.renderMathInElement) { loadKatex(0); return; }
   try {
     window.renderMathInElement(root, {
-      delimiters: [
-        { left: "$$", right: "$$", display: true },
-        { left: "\\[", right: "\\]", display: true },
-        { left: "\\(", right: "\\)", display: false },
-        { left: "$", right: "$", display: false }
-      ],
+      delimiters: TYPESET_DELIMITERS,
       /* The board's vocabulary, with THIS COURSE'S OWN over the top. A course
          defines what it writes in and the board fills the gaps -- the same rule
          the TeX side has always had through `\providecommand`, which is the
          point: the two engines render the same source the same way. A course
          that redefines a board macro at a different arity is not a clash to
          resolve here, it is the course being right about its own notation. */
-      macros: courseMacros(),
+      /* A COPY, every time: KaTeX writes a `\gdef` into the table it is
+         handed, and one card's `\gdef\QQ{...}` was every later card's `\QQ`. */
+      macros: Object.assign({}, courseMacros()),
       throwOnError: false,
       errorColor: "#9a2020",
       strict: false,
@@ -856,6 +1555,12 @@ function render(data) {
   settleEnd(false);
   lastLive = data;
   if (!pagesLoaded) { pagesLoaded = true; loadPages(); }
+  /* WHAT THIS COURSE WRITES IN, first, before a single card is built or
+     typeset: a card rendered against the wrong vocabulary is the defect this
+     carries -- `\E[...]` drawn as its own source, and `\EE{X}` drawn at the
+     board's arity as a bare E with the brackets gone. Both engines take the
+     course's own definition first. See `tutorboard/coursemacros.py`. */
+  if (data.macros !== undefined) setCourseMacros(data.macros);
   var state = data.state || {};
 
   /* WHICH SITTING IS ON SCREEN, AND THE MARKS THAT BELONG TO IT. The
@@ -1102,8 +1807,10 @@ function render(data) {
        card's version, as `rev` is a turn's, so the overwrite is fresh: it types
        out, `anythingNew` is true, and `typingCards` holds the surface until the
        last character lands. */
+    /* The exact mtime: rounded to the second, a card written twice inside one
+       second kept the first body, half-written or not, until it moved again. */
     var stamp = item.key + (item.turn ? ":r" + (item.turn.rev || 1)
-                                      : ":m" + Math.round(item.card.mtime));
+                                      : ":m" + item.card.mtime);
     var fresh = !firstPaint && !seenIds[stamp];
     /* NEWS IS A CARD. YOUR OWN ANSWER IS NOT NEWS. `anythingNew` leads only to
        `revealNewest`, the top of the tutor's newest card, which sits above the
@@ -1148,7 +1855,9 @@ function render(data) {
         + (run > 1 ? ":s" + run : "")
         + (making ? ":p" + making : "")
       : (onBoard ? ":b" : "") + (says ? ":v" + says : "")
-        + (nth ? ":n" + nth + "/" + oneOf.length : ""));
+        + (nth ? ":n" + nth + "/" + oneOf.length : ""))
+      /* and the macro table it was typeset against (`macrosGen`) */
+      + ":x" + macrosGen;
     if (onScreen[wantKey]) {
       wanted.push({ key: wantKey, node: null });     /* keep what is there */
       return;
@@ -1277,14 +1986,17 @@ function render(data) {
      an unchanged card is left exactly where it is, with its typesetting, scroll
      position and selection. */
   reconcile(els.cards, wanted);
-  paintSuperseded(superseded);
-  paintHandover(coaching ? thisStep : "");
-
-  /* KaTeX walks the DOM it is handed. Handing it the whole lesson every frame
-     re-renders mathematics that was already rendered; hand it only what was
-     just inserted. */
-  freshNodes.forEach(typeset);
-  freshNodes.length = 0;
+  try {
+    paintSuperseded(superseded);
+    paintHandover(coaching ? thisStep : "");
+  } finally {
+    /* KaTeX walks the DOM it is handed. Handing it the whole lesson every
+       frame re-renders mathematics that was already rendered; hand it only
+       what was just inserted. In a `finally`: a card inserted above is kept by
+       its key, so one left untypeset by a throw stayed raw `$...$` for good. */
+    freshNodes.forEach(typeset);
+    freshNodes.length = 0;
+  }
   /* After the typesetting, never before: KaTeX measures what it renders, and it
      cannot measure what is display:none. And before `placeWriter`, which asks
      `typingCards()` to decide whether to hold the surface: on the frame the
@@ -1309,13 +2021,6 @@ function render(data) {
   /* THE MAC'S SYNC HEALTH, the same for every session: not synced
      (`sync.health`). */
   if (data.sync !== undefined) paintHealth(data.sync);
-
-  /* WHAT THIS COURSE WRITES IN. Before anything is typeset below, because a
-     card rendered against the wrong vocabulary is the defect this carries:
-     `\E[...]` drawn as its own source, and `\EE{X}` drawn at the board's arity
-     as a bare E with the brackets gone. Both engines take the course's own
-     definition first now. See `tutorboard/coursemacros.py`. */
-  if (data.macros !== undefined) setCourseMacros(data.macros);
 
   /* WHICH OF THE SESSION'S OWN DOCUMENTS EXIST: what the banner's buttons
      are enabled from, and what `warmPaper`, `inHand` and `saveCopy` read. */
@@ -3013,6 +3718,8 @@ if (window.Problem) {
     markdown: renderMarkdown,
     typeset: typeset,
     macros: courseMacros,
+    /* which table that is, so a new one (or KaTeX arriving late) repaints */
+    macrosGen: function () { return macrosGen; },
     ended: function () { return !!(headerState && headerState.ended); },
     /* Onto the page under the pen, typeset, looped for the lasso. The
        surface is the open answer's; with none open there is nowhere to put
@@ -6393,6 +7100,8 @@ var TEX_LIKE = /\$|\\\(|\\\[|\\[A-Za-z]/;
 function bareCommand(src) {
   var store = [];
   var left = protect(String(src || "").replace(/\r\n/g, "\n"), store);
+  /* The words inside a `\textbf{...}` are prose too, parked whole. */
+  store.forEach(function (item) { if (item.kind === "wrap" || (item.kind === "link" && item.body !== undefined)) left += " " + item.body; });
   var m = /\\([A-Za-z]+)/.exec(left);
   return m ? m[0] : null;
 }
@@ -7307,6 +8016,11 @@ if ("serviceWorker" in navigator && window.isSecureContext) {
       document.addEventListener("visibilitychange", check);
       window.addEventListener("pageshow", check);
       window.addEventListener("focus", check);
+      /* And every few minutes while it is on screen: a board left open in the
+         foreground never comes back to the foreground, so it never asked, and
+         a deploy stayed invisible until it was put down. A new worker found
+         this way is offered in the strip, as any other. */
+      setInterval(check, 5 * 60 * 1000);
     }).catch(function () {});
   });
 }
