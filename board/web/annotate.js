@@ -269,13 +269,14 @@ function layerOf(card) {
   return c;
 }
 
-/* The zone round the last stroke: the only part of a card that refuses a
-   native pan while the latch is shut (`.card > .ann-zone` in `board.css`).
+/* The zone round the last stroke: the only part of a card or a document's
+   page that refuses a native pan while the latch is shut (`.card > .ann-zone`
+   in `board.css`, `.lib-page > .ann-zone` in `reader.css`).
    The latch serves the next stroke of the same word, which lands beside the
    last, so only the stroke's box plus `ZONE_REACH` refuses; a finger anywhere
    else keeps the browser's own scroll, with momentum.
 
-   Cards only: a document's pages keep their own latch on `#reader-pages`. A
+   Cards and a reader's pages, nothing else that carries ink. A
    pen landing on the zone begins a stroke on its card as the layer would;
    `begin` captures the pointer to the layer for the rest of the stroke. */
 var ZONE = "ann-zone";
@@ -283,6 +284,17 @@ var ZONE = "ann-zone";
    rests below and beside the nib, lands inside it and is refused, and near
    enough that a swipe elsewhere on the card still scrolls natively. */
 var ZONE_REACH = 200;
+/* A DOCUMENT'S PAGE IS WRITTEN IN LINES, SO ITS ZONE IS A BAND. The next
+   stroke after a line written out to the right margin lands at the left one,
+   far past `ZONE_REACH`, and a stroke landing off the zone in `PEN_GAP` is
+   kept only by a `touchstart` refusal that loses the race exactly then -- a
+   line's first letter stolen as a pan, every line. So on a `.lib-page` the
+   zone spans the page's whole width, `ZONE_REACH` above the stroke and
+   `PAGE_BELOW` under it, where the next line goes and the heel of the hand
+   rests. A palm landing past that in the gap is refused at `touchstart` only
+   (`readerzoom.js`, `palm`), and a fingertip there scrolls, natively: that is
+   the trade for a swipe on the rest of the page keeping its momentum. */
+var PAGE_BELOW = 400;
 
 function zoneOf(card) {
   var z = card.querySelector(":scope > ." + ZONE);
@@ -300,7 +312,8 @@ function zoneOf(card) {
    still shut, so a word written stroke by stroke stays covered. */
 function zoneAt(d, ev) {
   var card = d.card;
-  if (!card || isPage(card) || !card.classList || !card.classList.contains("card")) return;
+  if (!card || !card.classList
+      || !(card.classList.contains("card") || card.classList.contains("lib-page"))) return;
   var cv = d.canvas;
   var b = null;
   var add = function (p) {
@@ -318,8 +331,11 @@ function zoneAt(d, ev) {
   if (z._box && z.classList.contains("on")) b = grow(b, z._box);
   z._box = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
   var all = boxOf(cv);
-  var x0 = Math.max(all.x0, b.x0 - ZONE_REACH), x1 = Math.min(all.x1, b.x1 + ZONE_REACH);
-  var y0 = Math.max(all.y0, b.y0 - ZONE_REACH), y1 = Math.min(all.y1, b.y1 + ZONE_REACH);
+  var page = card.classList.contains("lib-page");
+  var x0 = page ? all.x0 : Math.max(all.x0, b.x0 - ZONE_REACH);
+  var x1 = page ? all.x1 : Math.min(all.x1, b.x1 + ZONE_REACH);
+  var y0 = Math.max(all.y0, b.y0 - ZONE_REACH);
+  var y1 = Math.min(all.y1, b.y1 + (page ? PAGE_BELOW : ZONE_REACH));
   /* Canvas pixels to the card's: the layer hangs `_pl`/`_pt` off its card. */
   z.style.left = Math.round(x0 - (cv._pl || 0)) + "px";
   z.style.top = Math.round(y0 - (cv._pt || 0)) + "px";
@@ -1336,8 +1352,8 @@ var PEN_GAP = 600;
 var penTimer = null;
 var liftAt = 0;
 
-/* The CSS latch: with it on, the zone round the last stroke on a card and a
-   document's scroller refuse a one-finger pan; with it off, the zones go. That is
+/* The CSS latch: with it on, the zone round the last stroke on a card or a
+   document's page refuses a one-finger pan; with it off, the zones go. That is
    half of "I cannot scroll" and the other half is `onTouchStart`, so the two are
    recorded separately and each says which it is.
 
@@ -1514,8 +1530,8 @@ function penProbe(ev) {
    iOS fixes `touch-action` for a whole multi-touch gesture from its FIRST
    touch, and a gesture lasts until every contact has lifted. So a finger is
    refused natively whenever the gesture it joins began on a shut latch or was
-   cancelled at `touchstart` -- a finger landing on a card's zone in `PEN_GAP`
-   or on a document's pages, and every finger that lands while a palm put down
+   cancelled at `touchstart` -- a finger landing on a card's or a page's zone
+   in `PEN_GAP`, and every finger that lands while a palm put down
    beside a stroke is still resting.
 
    So `onTouchStart` tracks whether the gesture is shut (`gestureShut`), and a
@@ -1638,19 +1654,22 @@ function freshGesture(ev) {
 }
 
 /* Where the latch refuses a pan natively: the zone round the last stroke on a
-   card (`.ann-zone`), and a zoomable reader's whole scroller (`#reader-pages`
-   in `reader.css`), whose bare strips are then
-   scrolled by `handPan` too. The rest of a card's layer keeps its native pan. */
+   card or a document's page (`.ann-zone`). The rest of a layer, and a reader's
+   bare strips, keep their native pan. */
 function onLayer(ev) {
   var t = ev && ev.target;
-  return !!(t && t.closest
-            && t.closest("." + ZONE + ".on, #reader-pages"));
+  return !!(t && t.closest && t.closest("." + ZONE + ".on"));
 }
 
 function onTouchStart(ev) {
   if (!on) return;
+  /* Shut too is a gesture somebody refused before this heard it: a palm
+     `readerzoom.js` turned away at `touchstart` (`palm`, in capture, so first),
+     off the zone round the stroke. iOS gives a fingertip joining it no pan of
+     its own while the palm rests, so it is moved by hand like one on the zone. */
   if (freshGesture(ev)) {
-    gestureShut = document.body.classList.contains("pen-writing") && onLayer(ev);
+    gestureShut = document.body.classList.contains("pen-writing")
+      && (onLayer(ev) || ev.defaultPrevented);
   }
   if (onControl(ev)) return;
   /* A contact landing with the latch closed and the nib UP is either a palm or
@@ -2074,6 +2093,20 @@ window.Annotate = {
        card, over the whole reading column, permanently, is what made scrolling
        and pinching stutter. */
     draw(card);
+  },
+  /* ONE NODE MEASURED AGAIN, AND REPAINTED ONLY IF THAT MOVED IT: the resize
+     observer's own rule, for a change the observer cannot see. A document's
+     page picture arriving is that change: its box already has the page's
+     shape (`reader.js` sizes it before the picture comes), so nothing resizes,
+     but old ink waits on the decoded picture to be `lift`ed onto it. Not
+     `redrawAll`, which measures every node on the page and repaints every
+     marked layer: once per picture is a burst of main-thread work while the
+     pages are being scrolled, and the reader's touch listeners make every
+     scroll wait on the main thread to start. */
+  relayout: function (card) {
+    if (!card || !card._annotated) return;
+    if (drawing && drawing.card === card) { card._annGrew = true; return; }
+    if (size(card, layerOf(card))) draw(card, true);
   },
   redrawAll: function () {
     var cards = allNodes();

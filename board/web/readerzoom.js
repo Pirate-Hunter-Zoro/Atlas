@@ -14,9 +14,10 @@
    AND A PALM DOES NOT SCROLL, BUT A FINGER DOES. With the pen on or off, one
    finger scrolls and two pan and pinch. What is refused is a hand writing: a
    contact wider than a fingertip, anything landing while the Pencil is on the
-   glass, or anything landing while the nib has only just lifted (`pen-writing`,
-   `annotate.js`'s latch, which also sets `touch-action: none` on the pages in
-   `reader.css`). A hand writing is never a pinch either.
+   glass, or anything landing, while the nib has only just lifted
+   (`pen-writing`, `annotate.js`'s latch), in the zone round the last stroke,
+   which also refuses the pan in CSS (`.lib-page > .ann-zone` in `reader.css`).
+   A hand writing is never a pinch either.
 
    AND SAFARI NEVER GETS A PINCH WHILE A DOCUMENT IS OPEN. A pinch the reader
    does not take is Safari's, and a shut it takes bounces the whole page. A
@@ -189,6 +190,20 @@ function writing(ev) {
   }
   return (window.Annotate && window.Annotate.busy && window.Annotate.busy())
     || document.body.classList.contains("pen-writing");
+}
+
+/* The palm's narrower question: the Pencil on the glass, a stroke under way,
+   or this contact landing in the zone round the stroke just lifted. Not
+   `pen-writing` alone, which is the whole document for most of a second
+   after every stroke. */
+function nibNear(ev) {
+  for (var i = 0; i < ev.touches.length; i++) {
+    if (ev.touches[i].touchType === "stylus") return true;
+  }
+  if (window.Annotate && window.Annotate.busy && window.Annotate.busy()) return true;
+  var t = ev.target;
+  return !!(document.body.classList.contains("pen-writing")
+            && t && t.closest && t.closest(".ann-zone.on"));
 }
 
 function spread(a, b) {
@@ -543,12 +558,15 @@ function make(opts) {
     palm(ev, f);
   }
 
-  /* The palm: with the pen on, a contact wider than a fingertip, or anything
-     landing beside a nib that is down or only just lifted, moves nothing. A
-     fingertip on its own is a scroll. */
+  /* The palm: with the pen on, a contact wider than a fingertip, anything
+     landing beside a nib that is down, or anything landing in the zone round
+     a stroke only just lifted (`.ann-zone.on`, where the heel of the writing
+     hand comes down), moves nothing. A fingertip anywhere else is a scroll,
+     the browser's own, latch or no latch: refused here, it could only be
+     moved by hand (`annotate.js`, `handPan`), with no momentum. */
   function palm(ev, f) {
     if (!el.contains(ev.target)) return;
-    if (penIsOn() && (writing(ev) || !f.length)) refuse(ev, "palm");
+    if (penIsOn() && (nibNear(ev) || !f.length)) refuse(ev, "palm");
   }
 
   /* A control's contact lifting is a tap if every move on the way kept it

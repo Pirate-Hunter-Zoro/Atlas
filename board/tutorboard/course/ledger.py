@@ -20,7 +20,6 @@ import json
 import os
 import re
 import shutil
-import struct
 import subprocess
 import time
 import unicodedata
@@ -293,17 +292,6 @@ def _page_size(pdf, page):
     return 0.0, 0.0
 
 
-def _png_size(path):
-    try:
-        with open(path, "rb") as fh:
-            head = fh.read(24)
-        if head[:8] == b"\x89PNG\r\n\x1a\n":
-            return struct.unpack(">II", head[16:24])
-    except OSError:
-        pass
-    return 0, 0
-
-
 def _padded(box):
     return [max(0.0, box[0] - PAD), max(0.0, box[1] - PAD),
             min(1.0, box[2] + PAD), min(1.0, box[3] + PAD)]
@@ -393,7 +381,7 @@ def _crop(repo, pdf, current, builds, item, where):
         files = paper.cached(drawn)
         if 0 < page <= len(files):
             src = paper.page_file(files[page - 1])
-            pw, ph = _png_size(src)
+            pw, ph = paper.png_size(src)
             if pw and ph:
                 aspect = ph / float(pw)
                 try:

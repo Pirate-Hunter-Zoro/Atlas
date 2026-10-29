@@ -681,12 +681,12 @@ const named = (title) => rows().filter(
   //       out at a wider width, and with the pen on one contact moves nothing.
   {
     const scroller = doc.getElementById('reader-pages');
-    const touch = (name, pts) => {
+    const touch = (name, pts, on) => {
       const ev = new window.Event(name, { bubbles: true, cancelable: true });
       const list = pts.map(([x, y, type, r]) => ({
         clientX: x, clientY: y, touchType: type || 'direct', radiusX: r || 10 }));
       Object.defineProperty(ev, 'touches', { value: list });
-      scroller.dispatchEvent(ev);
+      (on || scroller).dispatchEvent(ev);
       return ev;
     };
     touch('touchstart', [[100, 300], [200, 300]]);
@@ -779,18 +779,36 @@ const named = (title) => rows().filter(
       ? ok('and a finger landing beside the Pencil moves nothing')
       : fail('a hand beside the Pencil scrolled the page');
     touch('touchend', []);
+    /* The nib only just lifted: the zone round its stroke (`.ann-zone.on`,
+       which `annotate.js` puts on the page) is where the heel of the hand
+       comes down, and only there is a fingertip refused. */
     doc.body.classList.add('pen-writing');
-    touch('touchstart', [[100, 300]]).defaultPrevented
-      ? ok('nor does one landing while the nib has only just lifted')
-      : fail('a palm after a stroke scrolled the page');
+    const zone = doc.createElement('div');
+    zone.className = 'ann-zone on';
+    const page1 = scroller.querySelector('.lib-page');
+    if (page1) page1.appendChild(zone);
+    page1 && touch('touchstart', [[100, 300]], zone).defaultPrevented
+      ? ok('nor does one landing, while the nib has only just lifted, in the zone round its stroke')
+      : fail('a palm in the zone round a stroke just lifted scrolled the page');
+    touch('touchend', [], zone);
+    !touch('touchstart', [[100, 300]]).defaultPrevented
+      ? ok('but a fingertip elsewhere on the pages then still scrolls, natively')
+      : fail('a fingertip away from a stroke just lifted cannot scroll the pages');
     touch('touchend', []);
+    /* The trade, pinned: off the zone, the palm is still turned away, at
+       `touchstart` only (`readerzoom.js`, `palm`). */
+    touch('touchstart', [[100, 300, 'direct', 80]]).defaultPrevented
+      ? ok('while a palm away from the stroke is still refused, at touchstart')
+      : fail('a palm away from a stroke just lifted scrolled the pages');
+    touch('touchend', []);
+    zone.remove();
     doc.body.classList.remove('pen-writing');
     window.Annotate.setOn(wasOn);
     const css = fs.readFileSync(path.join(WEB, 'reader.css'), 'utf8');
-    /body\.pen-writing #reader-pages\.zoomable \{ touch-action: none; \}/.test(css)
-      && !/body\.annotating #reader-pages\.zoomable \{ touch-action: none; \}/.test(css)
-      ? ok('and the browser is told so before the gesture starts, and only then')
-      : fail('reader.css refuses a finger its scroll with the pen on');
+    /\.lib-page > \.ann-zone \{[^}]*touch-action: none;/.test(css)
+      && !/#reader-pages\.zoomable \{ touch-action: none; \}/.test(css)
+      ? ok('and the browser is told so before the gesture starts, in the zone and only there')
+      : fail('reader.css refuses a finger its scroll on the whole of the pages');
   }
 
   // 6e2. THE INK IS KEPT, AND THE PAGE SAYS SO OUT LOUD. After a correction
@@ -1013,6 +1031,30 @@ const named = (title) => rows().filter(
     && paged.w.window.placeWanted === 3 && wanted.w.window.placeWanted === 0
     ? ok('&page=<n> opens the document to be put at that page')
     : fail('&page= asked for page ' + paged.w.window.placeWanted);
+  {
+    /* The place is somebody else's once they touch the pages, and a picture
+       whose box was sized before it came does not put them back there. */
+    const pw = paged.w.window;
+    const pdoc = pw.document;
+    const loads = (sized) => {
+      const fig = pdoc.createElement('figure');
+      const img = pdoc.createElement('img');
+      if (sized) { img.setAttribute('width', '1240'); img.setAttribute('height', '1604'); }
+      const on = [];
+      const add = img.addEventListener;
+      img.addEventListener = function (type) { on.push(type); return add.apply(this, arguments); };
+      pw.pageMade(fig, img);
+      return on.includes('load');
+    };
+    !loads(true) && loads(false)
+      ? ok('a page picture sized before it arrives does not put the place back when it lands')
+      : fail('keepPlace on a picture\'s load: sized ' + loads(true) + ', unsized ' + loads(false));
+    const ev = new pw.Event('touchstart', { bubbles: true, cancelable: true });
+    pdoc.getElementById('reader-pages').dispatchEvent(ev);
+    pw.placeWanted === 0
+      ? ok('and a touch on the pages gives the place up, so a picture landing cannot yank them back')
+      : fail('a touch on the pages left the place wanted at ' + pw.placeWanted);
+  }
 
   const home = fs.readFileSync(path.join(WEB, 'home.js'), 'utf8');
   /"\/library\?subject=" \+ enc\(s\.id\) \+ "&from=home"/.test(home)

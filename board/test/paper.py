@@ -248,6 +248,15 @@ if have_renderer:
     check("and says which document they are, by the name it downloads under",
           "ch07" in (view.get("name") or ""))
 
+    # Each page's own shape before its picture, so a page's box does not
+    # change height under a scroll when the picture lands (`reader.js`).
+    sizes = view.get("sizes") or []
+    check("and each page's pixel size beside it, off the PNG it names",
+          len(sizes) == 3
+          and all(list(s) == list(paper.png_size(paper.page_file(os.path.basename(p))))
+                  and s[0] == paper.PAGE_WIDTH and s[1] > 0
+                  for s, p in zip(sizes, view["pages"])))
+
     first = view["pages"][0]
     status, headers, png = get(PORT, first)
     check("a page comes back as a PNG",
