@@ -48,7 +48,8 @@ PLAIN_SENSE = (
     # must be TeX or it ships as ugly pseudo-TeX.
     "MATHEMATICS IN A CARD IS TeX, NOT ASCII. The board typesets `$...$` and "
     "`$$...$$`; spelled-out Greek or `sum_i` reaches the glass as ugly "
-    "source.\n"
+    "source. The rest of a card is Markdown: `**bold**`, a filename in "
+    "backticks, never `\\textbf` or `\\texttt`.\n"
     # `plain.py` enforces two of these rules; the turn is told the numbers so
     # it writes the card once rather than learning them from a refusal.
     "TWO OF THOSE ARE A DOOR, NOT A REQUEST: `board write` refuses a card "

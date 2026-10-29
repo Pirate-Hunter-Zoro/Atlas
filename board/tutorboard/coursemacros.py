@@ -6,9 +6,9 @@ rule holds on the glass: the course's own definition wins, and the board
 fills what the course did not define.
 
 The constraint: a small parser, never execution. `\\newcommand` and its
-`\\renew`/`\\provide` spellings with braces counted; anything it cannot read
-is skipped rather than guessed, because a misread macro on the glass is
-worse than a missing one. KaTeX's `throwOnError` is false, so a bad body
+`\\renew`/`\\provide` spellings, and `\\DeclareMathOperator`, with braces
+counted; anything it cannot read is skipped rather than guessed, because a
+misread macro on the glass is worse than a missing one. KaTeX's `throwOnError` is false, so a bad body
 colours one formula.
 """
 
@@ -22,6 +22,12 @@ import time
 _DEF = re.compile(
     r"\\(?:new|renew|provide)command\s*\{?\s*\\([A-Za-z]+)\s*\}?"
     r"\s*(?:\[(\d+)\])?\s*(\[[^\]]*\])?\s*\{")
+
+# `\DeclareMathOperator{\lcm}{lcm}`, starred or not. Both courses declare
+# `\lcm` this way, and KaTeX has no `\lcm`: read as `\operatorname{...}` (the
+# star is `\operatorname*`, limits below), it reaches the glass with the rest.
+_OPERATOR = re.compile(
+    r"\\DeclareMathOperator(\*?)\s*\{?\s*\\([A-Za-z]+)\s*\}?\s*\{")
 
 TTL = 30.0
 _CACHE = {}
@@ -61,6 +67,11 @@ def parse(text):
         if name in _NOT_MATHS:
             continue
         out["\\" + name] = body.strip()
+    for m in _OPERATOR.finditer(text or ""):
+        body = _body(text, m.end() - 1)
+        if body is None or not body.strip():
+            continue
+        out["\\" + m.group(2)] = "\\operatorname%s{%s}" % (m.group(1), body.strip())
     return out
 
 

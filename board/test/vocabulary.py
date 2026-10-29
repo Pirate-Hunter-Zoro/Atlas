@@ -51,6 +51,8 @@ got = coursemacros.parse(r"""
 \providecommand{\Var}{\operatorname{Var}}
 \newcommand{\set}[1]{\left\{#1\right\}}
 \newcommand{\opt}[2][d]{#1#2}
+\DeclareMathOperator{\lcm}{lcm}
+\DeclareMathOperator*{\argmax}{arg\,max}
 \newcommand{\broken}{\mathbb{E}
 """)
 check("a plain definition is read", got.get("\\E") == "\\mathbb{E}")
@@ -68,6 +70,10 @@ check("A DEFAULTED OPTIONAL ARGUMENT IS REFUSED RATHER THAN GUESSED AT. KaTeX "
       "has no equivalent, so taking it would shift every argument by one -- and "
       "a macro mis-read onto the glass is worse than one missing from it",
       "\\opt" not in got)
+check("\\DECLAREMATHOPERATOR IS A DEFINITION TOO. Both courses declare `\\lcm` "
+      "this way and KaTeX has none, so it was a red error on the glass",
+      got.get("\\lcm") == "\\operatorname{lcm}"
+      and got.get("\\argmax") == "\\operatorname*{arg\\,max}")
 check("an unbalanced body is skipped rather than half-read",
       "\\broken" not in got)
 check("nothing it could not read becomes an empty definition",
@@ -114,8 +120,9 @@ check("the payload carries them, per workspace, because the vocabulary is the "
 
 bjs = open(os.path.join(ROOT, "web", "board.js"), encoding="utf-8").read()
 check("the page takes them off the payload", "setCourseMacros(data.macros)" in bjs)
-check("and hands the merged table to KaTeX rather than the board's own",
-      "macros: courseMacros()" in bjs)
+check("and hands KaTeX a copy of the merged table rather than the board's own, so a "
+      "card's \\gdef is not every later card's",
+      "macros: Object.assign({}, courseMacros())" in bjs)
 check("the course's definition is laid OVER the board's, so a course is right "
       "about its own notation",
       bjs.index("var base = window.BOARD_MACROS") < bjs.index("courseMacrosRaw ? JSON.parse"))

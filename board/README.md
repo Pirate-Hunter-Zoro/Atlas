@@ -237,7 +237,17 @@ tree gets a `doc.json` written in place, so its ids hold.
 - **`sw.js`** caches an allowlist of shell files, fonts and KaTeX, and nothing else, because
   a cached lesson is a stale one. A 5xx counts as a failed fetch, so a cached shell file
   answers instead. The install asks for 4 files at a time. The server writes its `VERSION` as
-  a hash of the shell files, so a shell edit installs a new worker by itself.
+  a hash of the shell files, so a shell edit installs a new worker by itself. KaTeX and the
+  fonts carry over from the old cache, so an update never leaves a page without them. An open
+  board asks for a new worker every 5 minutes and shows it in the strip; it reloads by itself
+  only while hidden.
+- **Card TeX** (`renderMarkdown`, `protect` in `web/board.js`) sets what a tutor carries from
+  a write-up: text commands, font declarations, accents, lists, proof and theorem heads,
+  links, and display environments parked as math. A link goes only to http(s), mailto or a
+  relative path (`safeHref`), since a card is model-written text. Its tables mirror
+  `tutorboard/course/givens.py`, which makes a problem's statement card; change both.
+  `givens` leaves `\url`, `\href`, `\verb` and `\ensuremath` as written for `protect` to set.
+  KaTeX gets a copy of the macro table on every call, because it writes a `\gdef` into it.
 - **Fingers type, the Pencil draws** (`web/keyguard.js`, before the page scripts on every
   page). On a touch device every text field is readonly while it does not have the focus,
   because Scribble skips a readonly field and its mini keyboard is what the Pencil would open.

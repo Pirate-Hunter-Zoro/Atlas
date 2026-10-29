@@ -143,8 +143,8 @@ The reader is on a tablet and has been doing something else.
   plain words: a filename, an acronym, a function.
 - **No headings in a card under 300 words. No closing paragraph.**
 - **Mathematics in a card is TeX, not ASCII.** The board typesets `$…$` and
-  `$$…$$`. A Greek letter spelled out as a word, a sum written `sum_i`, or a
-  product written as the letter `x` reaches the glass as ugly source.
+  `$$…$$`; spelled-out Greek or `sum_i` is ugly source. The rest of a card is
+  Markdown: `**bold**`, a filename in backticks, never `\textbf` or `\texttt`.
 
 **Two of those are a door, not a request.** `board write` refuses a card over
 450 words, and one with a single paragraph over 110. Fenced code, displayed
