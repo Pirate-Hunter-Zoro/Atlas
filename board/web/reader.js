@@ -27,7 +27,7 @@
 
    `Reader.open(o)` draws one document and answers its handle. `o`:
      pagesUrl     the pages, as `/library/view` and `/view`
-                  answer: {ok, pages, truncated, ink, ink_sent, ...}
+                  answer: {ok, pages, sizes, truncated, ink, ink_sent, ...}
      id, title    the document
      inkKey       the anchor's head, `doc/<id>` unless said
      onClose(h)   after the reader has shut
@@ -162,6 +162,7 @@ function draw(h, place, at) {
   els.sub.textContent = o.wait || (place ? "re-drawing the pages…"
                                          : "drawing the pages…");
   els.pages.innerHTML = "";
+  unwatch();
   if (!place) els.pages.scrollTop = 0;
   if (o.drawing) o.drawing(h, place, at);
   fetch(o.pagesUrl, { credentials: "same-origin" })
@@ -192,11 +193,27 @@ function draw(h, place, at) {
         fig.dataset.ann = h.inkKey + "/p" + n;
         fig.setAttribute("data-ann-page", "");
         var img = document.createElement("img");
+        /* Lazily past the second: a hundred-page transcript is a hundred
+           pictures, and the person is reading page one. BEFORE `src`, because
+           WebKit decides lazy or not at the moment `src` is set and never
+           looks again: set after, every page is asked for at once, and their
+           arrivals stutter the first scroll. Read
+           off the main thread (`decoding`), so a page coming into view is not
+           a frame spent decoding it. */
+        img.setAttribute("loading", i < 2 ? "eager" : "lazy");
+        img.setAttribute("decoding", "async");
+        /* THE PAGE'S OWN SHAPE BEFORE ITS PICTURE, from the reply's `sizes`
+           (`paper.py` reads them off each PNG). A box that changes height when
+           its picture lands moves every page under it while somebody is
+           scrolling, and iOS has no scroll anchoring to hide it. `reader.css`
+           keeps the letter page for a reply without them. */
+        var wh = got.sizes && got.sizes[i];
+        if (wh && wh[0] > 0 && wh[1] > 0) {
+          img.setAttribute("width", String(wh[0]));
+          img.setAttribute("height", String(wh[1]));
+        }
         img.src = o.src ? o.src(url) : url;
         img.alt = (o.alt || "page") + " " + n;
-        /* Lazily past the second: a hundred-page transcript is a hundred
-           pictures, and the person is reading page one. */
-        img.setAttribute("loading", i < 2 ? "eager" : "lazy");
         fig.appendChild(img);
         var cap = document.createElement("figcaption");
         cap.textContent = o.caption ? o.caption(n, got) : String(n);
@@ -205,10 +222,13 @@ function draw(h, place, at) {
         if (o.page) o.page(fig, img, n);
         if (A()) {
           A().attach(fig);
-          /* A picture has no height until it has decoded, and a layer sized
-             against a zero-height box covers nothing. */
-          img.addEventListener("load", function () { A().redrawAll(); });
+          /* This page's layer, measured against the picture now it is here,
+             and repainted only if that moved it (`relayout`): old ink waits
+             on the decoded picture. A real change of height is the layer's
+             own resize observer's. */
+          img.addEventListener("load", function () { A().relayout(fig); });
         }
+        if (i >= 2) ahead(img);
       });
       /* The marks made on it before, put back with the pages: a reader holds
          no other payload to read them out of. */
@@ -227,6 +247,38 @@ function draw(h, place, at) {
     });
 }
 
+/* THE PAGES AHEAD, ASKED FOR BEFORE THEY ARRIVE. A lazy picture is fetched
+   when the browser's own observer sees it near the window, and the window is
+   the page's, not `#reader-pages`: inside a scroller of its own the page is
+   clipped to the scroller, so WebKit asks for it as it scrolls into view --
+   a white page under the finger, fetched and decoded mid-scroll. So this
+   watches the scroller itself, `NEAR` beyond each edge, and makes a page
+   eager there; a page asked for is unwatched, so it is asked for once. With
+   no observer the browser's lazy loading is all there is. */
+var NEAR = "200% 0px";
+var near = null;
+
+function ahead(img) {
+  if (!window.IntersectionObserver || !R) return;
+  if (!near) {
+    /* The observer handed to the callback, not `near`: entries already
+       queued still arrive after `unwatch` has disconnected it and let it go. */
+    near = new window.IntersectionObserver(function (entries, seen) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        seen.unobserve(e.target);
+        e.target.setAttribute("loading", "eager");
+      });
+    }, { root: R.els.pages, rootMargin: NEAR, threshold: 0 });
+  }
+  near.observe(img);
+}
+
+function unwatch() {
+  if (near) near.disconnect();
+  near = null;
+}
+
 /* Shut. Whatever is owed goes first: a page closed with ink that never
    reached disk is ink somebody drew and the board silently dropped. */
 function close() {
@@ -242,6 +294,7 @@ function close() {
   /* The pictures go with it. A hundred decoded pages held behind a closed
      reader is memory the page wants for everything else. */
   R.els.pages.innerHTML = "";
+  unwatch();
   if (h.opts.onClose) h.opts.onClose(h);
 }
 

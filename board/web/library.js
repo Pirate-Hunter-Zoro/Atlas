@@ -925,10 +925,26 @@ function drawing(h, place, at) {
   paintReaderSaid();
 }
 
+/* A picture landing moves the place only when its box had no shape before it:
+   a reply without `sizes`. With them every page is its own height from the
+   start, `drawn` lands the place once, and a load putting it back again is a
+   yank -- the reader asks for the pages ahead as somebody scrolls (`reader.js`,
+   `ahead`), so each would snap them back to the place mid-swipe. */
 function pageMade(fig, img) {
   watchLayout(fig);
-  img.addEventListener("load", keepPlace);
+  if (!img.hasAttribute("width")) img.addEventListener("load", keepPlace);
 }
+
+/* AND THE PLACE IS GIVEN UP THE MOMENT SOMEBODY TOUCHES THE PAGES. A finger,
+   the Pencil or a wheel on them is the person taking the document, and from
+   then on `holdAnchor` keeps the page they have on the glass where it is
+   rather than taking them back to the one the re-draw wanted. Passive: it
+   only forgets a number, and must not put a scroll on the main thread. */
+["touchstart", "wheel"].forEach(function (type) {
+  els.readerPages.addEventListener(type, function () {
+    if (placeWanted) { placeWanted = 0; noteAnchor(); }
+  }, { passive: true });
+});
 
 /* Marks made on this document before, put back. They came with the pages:
    this page holds no live payload to read them out of, because it opens no

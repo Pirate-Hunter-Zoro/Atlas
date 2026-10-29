@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import threading
 import time
@@ -283,8 +284,24 @@ def _manifest(kind, filename, digest, files, target):
         "n": len(files),
         "truncated": len(files) >= MAX_PAGES,
         "pages": ["/paper/" + f for f in files],
+        # Each page's pixel size, so the reader gives a page its shape before
+        # its picture arrives and nothing under it moves when it does.
+        "sizes": [list(png_size(page_file(f))) for f in files],
         "size": _size(target),
     }
+
+
+def png_size(path):
+    """(width, height) of a PNG off its header, or (0, 0) for anything that
+    is not one -- a page still being written included."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(24)
+        if len(head) == 24 and head[:8] == b"\x89PNG\r\n\x1a\n":
+            return struct.unpack(">II", head[16:24])
+    except (OSError, TypeError):
+        pass
+    return 0, 0
 
 
 def _render(tool, pdf_path, prefix, width, env):

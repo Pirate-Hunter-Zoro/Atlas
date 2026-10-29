@@ -51,6 +51,8 @@ const OLD_KEY = 'doc/paper1-cohort/p1';
 const VIEW = {
   ok: true, name: 'Paper 1', n: 2,
   pages: ['/paper/m-1.png', '/paper/m-2.png'],
+  /* A letter page and a slide: each page's box takes its own shape. */
+  sizes: [[1240, 1604], [1240, 698]],
   /* Ink as a retired reader stored it: the stroke carries the old kind
      field. It loads as ordinary ink, in place. */
   ink: { [OLD_KEY]: [JSON.parse('{"c":"#3366cc","w":2,"pg":1,"dir":1,'
@@ -166,8 +168,22 @@ function gesture(target, name) {
   const inst = mounted && window.Reader.mount();
   const instOpen = inst.open;
   inst.open = function (o) { opened.push(o); return instOpen.call(this, o); };
+  /* What each page picture carries at the moment its `src` is set: WebKit
+     decides lazy or not then, and never again. */
+  const srcAt = [];
+  const srcWas = Object.getOwnPropertyDescriptor(window.HTMLImageElement.prototype, 'src');
+  Object.defineProperty(window.HTMLImageElement.prototype, 'src', {
+    configurable: true, get: srcWas.get,
+    set: function (v) {
+      srcAt.push({ loading: this.getAttribute('loading'),
+                   decoding: this.getAttribute('decoding'),
+                   width: this.getAttribute('width'), height: this.getAttribute('height') });
+      srcWas.set.call(this, v);
+    },
+  });
   window.__openDoc('paper1-cohort', 'Paper 1');
   await sleep(20);
+  Object.defineProperty(window.HTMLImageElement.prototype, 'src', srcWas);
   inst.open = instOpen;
   window.Reader.open = realOpen;
   const pages = el('reader-pages');
@@ -181,6 +197,31 @@ function gesture(target, name) {
     && boxes[0].dataset.ann === 'doc/paper1-cohort/p1'
     ? ok('a document opens on the board in the built reader, a box per page')
     : fail('the document did not open: ' + boxes.length + ' pages');
+  srcAt.length === 2 && srcAt.every((a) => a.loading === 'eager' && a.decoding === 'async')
+    ? ok('each page picture says how it loads, and that it decodes off the main thread, '
+         + 'before its src is set')
+    : fail('a page picture had its src set before loading/decoding: ' + JSON.stringify(srcAt));
+  srcAt.length === 2 && srcAt[0].width === '1240' && srcAt[0].height === '1604'
+    && srcAt[1].width === '1240' && srcAt[1].height === '698'
+    ? ok('and each has its own page\'s size from the reply before its picture arrives, '
+         + 'so its box does not change height under a scroll')
+    : fail('the pages\' sizes did not reach their pictures: ' + JSON.stringify(srcAt));
+  {
+    /* A picture landing measures its own page, and only its own. */
+    const A0 = window.Annotate;
+    const was = { all: A0.redrawAll, one: A0.relayout };
+    let all = 0;
+    const one = [];
+    A0.redrawAll = function () { all++; return was.all.apply(this, arguments); };
+    A0.relayout = function (n) { one.push(n); return was.one.apply(this, arguments); };
+    boxes[1].querySelector('img').dispatchEvent(new window.Event('load'));
+    A0.redrawAll = was.all;
+    A0.relayout = was.one;
+    all === 0 && one.length === 1 && one[0] === boxes[1]
+      ? ok('a page picture landing lays out its own page\'s ink, not every node on the board')
+      : fail('a page picture landing: redrawAll ' + all + ' times, relayout on '
+             + one.map((n) => n && n.dataset && n.dataset.ann).join(','));
+  }
   !el('paper') && !el('paper-pages') && !el('keepwhat')
     ? ok('the board has no panel of its own: #paper and keep writing are gone')
     : fail('the old document panel is still in board.html');
@@ -509,37 +550,137 @@ function gesture(target, name) {
     : fail('palm rejection on a document: finger ' + nib.defaultPrevented + ', palm '
            + hand.defaultPrevented + ', beside the Pencil ' + beside.defaultPrevented);
 
-  /* The latch refuses a pan on the whole reader (`body.pen-writing
-     #reader-pages.zoomable`), its bare strips too, so a finger landing on one
-     of those is scrolled by hand like a finger on an ink layer. */
+  /* THE LATCH ON A PAGE IS THE ZONE ROUND THE LAST STROKE, as on a card. A
+     fingertip on the pages away from it, with the latch shut, is neither
+     refused nor driven by hand: the browser scrolls it, with momentum. One
+     landing in the zone is refused -- it is where the heel of the writing
+     hand comes down -- and a drag there still scrolls the pages, by hand. */
   {
     const sheet = doc.createElement('style');
     sheet.textContent = '#reader-pages { overflow-y: auto; }';
     doc.head.appendChild(sheet);
     Object.defineProperty(pages, 'scrollHeight', { configurable: true, value: 5000 });
     Object.defineProperty(pages, 'clientHeight', { configurable: true, value: 700 });
-    pages.scrollTop = 100;
-    doc.body.classList.add('pen-writing');
+    const fig = boxes[0];
+    const cv = fig.querySelector('canvas.ann-layer');
+    cv.setPointerCapture = function () {};
+    cv.releasePointerCapture = function () {};
+    A.setTool('pen');
+    const pen = (type, x, y) => {
+      const ev = new window.Event(type, { bubbles: true, cancelable: true });
+      Object.assign(ev, { pointerId: 5, pointerType: 'pen', isPrimary: true, pressure: 0.5,
+                          clientX: x, clientY: y });
+      ev.getCoalescedEvents = function () { return [ev]; };
+      cv.dispatchEvent(ev);
+    };
+    const stroke = () => {
+      pen('pointerdown', 20, 20);
+      pen('pointermove', 40, 30);
+      pen('pointerup', 40, 30);
+    };
     const tp = (name, target, y) => {
       const ev = new window.Event(name, { bubbles: true, cancelable: true });
-      const t = { identifier: 3, clientX: 400, clientY: y, touchType: 'direct', radiusX: 10 };
+      const t = { identifier: 3, clientX: 400, clientY: y, touchType: 'direct', radiusX: 10,
+                  target: target };
       Object.defineProperty(ev, 'touches', { value: name === 'touchend' ? [] : [t] });
       Object.defineProperty(ev, 'changedTouches', { value: [t] });
       target.dispatchEvent(ev);
+      return ev;
     };
-    tp('touchstart', pages, 400);
-    tp('touchmove', pages, 380);
-    tp('touchmove', pages, 340);
-    tp('touchend', pages, 340);
-    const moved = pages.scrollTop;
+    const swipe = (target) => {
+      pages.scrollTop = 100;
+      const s0 = tp('touchstart', target, 400);
+      tp('touchmove', target, 380);
+      tp('touchmove', target, 340);
+      tp('touchend', target, 340);
+      return { refused: s0.defaultPrevented, moved: pages.scrollTop - 100 };
+    };
+
+    stroke();
+    const zone = fig.querySelector(':scope > .ann-zone');
+    const shut = doc.body.classList.contains('pen-writing');
+    zone && zone.classList.contains('on') && shut
+      ? ok('a stroke on a document\'s page puts a zone round itself while the latch is shut')
+      : fail('a stroke on a page: zone ' + (zone ? zone.className : 'none')
+             + ', latch ' + (shut ? 'shut' : 'open'));
+    const bare = swipe(pages);
+    shut && !bare.refused && bare.moved === 0
+      ? ok('with the latch shut, a fingertip on the pages away from the stroke is the '
+           + 'browser\'s own scroll: not refused, not moved by hand')
+      : fail('a fingertip away from the stroke with the latch shut: refused '
+             + bare.refused + ', moved by hand ' + bare.moved);
+
+    stroke();
+    const inZone = fig.querySelector(':scope > .ann-zone.on');
+    const near = inZone ? swipe(inZone) : { refused: false, moved: 0 };
+    inZone && near.refused && near.moved === 60
+      ? ok('and one landing in the zone round the stroke is refused, and a drag there '
+           + 'still scrolls the pages, by hand')
+      : fail('a finger in the zone round a page\'s stroke: zone '
+             + (inZone ? 'on' : 'missing') + ', refused ' + near.refused
+             + ', scrolled ' + near.moved + ', not 60');
+
+    /* A page is written in lines: its zone is the page's whole width, so a
+       line's first stroke at the left margin after one ending at the right
+       lands in it, and it reaches further below the stroke than above. */
+    {
+      const rect = fig.getBoundingClientRect;
+      fig.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 1600,
+                                           width: 800, height: 1600, x: 0, y: 0 });
+      A.clear(fig.dataset.ann);
+      doc.body.classList.remove('pen-writing');
+      pen('pointerdown', 600, 500);
+      pen('pointermove', 640, 510);
+      pen('pointerup', 640, 510);
+      const z = fig.querySelector(':scope > .ann-zone.on');
+      const px = (v) => parseFloat(v);
+      const s = z ? z.style : {};
+      const wide = (cv._w || 0) + (cv._pl || 0) + (cv._pr || 0);
+      const above = z ? 500 - px(s.top) : 0;
+      const below = z ? px(s.top) + px(s.height) - 510 : 0;
+      z && cv._w === 800 && px(s.left) === -(cv._pl || 0) && px(s.width) === wide
+        && above === 200 && below === 400
+        ? ok('a stroke on a page puts a band the page\'s whole width round it, reaching '
+             + 'further below than above')
+        : fail('a page\'s zone: ' + (z ? s.left + ' ' + s.top + ' ' + s.width + ' '
+                                       + s.height + ' on a layer ' + wide : 'none'));
+      fig.getBoundingClientRect = rect;
+    }
+
+    /* A palm turned away off the zone shuts its gesture too: iOS gives a
+       fingertip joining it no pan of its own, so that finger is moved by hand. */
+    {
+      stroke();
+      const multi = (name, list, changed) => {
+        const ev = new window.Event(name, { bubbles: true, cancelable: true });
+        Object.defineProperty(ev, 'touches', { value: list });
+        Object.defineProperty(ev, 'changedTouches', { value: changed });
+        pages.dispatchEvent(ev);
+        return ev;
+      };
+      const palmT = { identifier: 7, clientX: 600, clientY: 600, touchType: 'direct',
+                      radiusX: 80, target: pages };
+      const tipAt = (y) => ({ identifier: 8, clientX: 300, clientY: y, touchType: 'direct',
+                              radiusX: 10, target: pages });
+      pages.scrollTop = 100;
+      const p0 = multi('touchstart', [palmT], [palmT]);
+      multi('touchstart', [palmT, tipAt(400)], [tipAt(400)]);
+      multi('touchmove', [palmT, tipAt(380)], [tipAt(380)]);
+      multi('touchmove', [palmT, tipAt(340)], [tipAt(340)]);
+      const movedBy = pages.scrollTop - 100;
+      multi('touchend', [palmT], [tipAt(340)]);
+      multi('touchend', [], [palmT]);
+      p0.defaultPrevented && movedBy === 60
+        ? ok('and a fingertip joining a palm turned away off the zone still scrolls, by hand')
+        : fail('a fingertip beside a refused palm: palm refused ' + p0.defaultPrevented
+               + ', scrolled ' + movedBy + ', not 60');
+    }
+
+    A.clear(fig.dataset.ann);
     doc.body.classList.remove('pen-writing');
     delete pages.scrollHeight; delete pages.clientHeight;
     pages.scrollTop = 0;
     sheet.remove();
-    moved === 160
-      ? ok('a finger on the panel between the pages, with the latch shut, still scrolls it')
-      : fail('a finger on the bare panel with the latch shut does not scroll: scrollTop '
-             + moved + ', not 160');
   }
   A.setOn(false);
 
@@ -615,7 +756,8 @@ function gesture(target, name) {
   const css = fs.readFileSync(path.join(WEB, 'board.css'), 'utf8');
   const rcss = fs.readFileSync(path.join(WEB, 'reader.css'), 'utf8');
   /width: calc\(min\(100%, 54rem\) \* var\(--zoom, 1\)\)/.test(rcss)
-    && /body\.pen-writing #reader-pages\.zoomable \{ touch-action: none; \}/.test(rcss)
+    && /\.lib-page > \.ann-zone \{[^}]*touch-action: none;/.test(rcss)
+    && !/#reader-pages\.zoomable \{ touch-action: none/.test(rcss)
     && !/touch-action:[^;]*pinch-zoom/.test(css + rcss)
     ? ok('reader.css lays a page out at the zoom, and nothing gives the page its pinch back')
     : fail('reader.css does not lay the reader\'s pages out at --zoom');

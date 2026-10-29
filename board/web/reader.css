@@ -84,23 +84,34 @@ body.annotating .lib-page img {
   margin: 0 auto 2.75rem; position: relative;
   width: calc(min(100%, 54rem) * var(--zoom, 1));
 }
-/* The palm: while the nib is down or only just lifted (`pen-writing`), nothing
-   the browser owns moves the pages. Otherwise a finger scrolls either way, pen
-   on or off, and the ink layer over a zoomed page lets it pan sideways too. The
-   pinch is `readerzoom.js`'s, which adds `.zoomable`. */
-body.pen-writing #reader-pages.zoomable { touch-action: none; }
-body.annotating:not(.pen-writing) #reader-pages canvas.ann-layer {
-  touch-action: pan-x pan-y;
+/* The palm: while the nib is down or only just lifted (`pen-writing`), the
+   zone round the last stroke refuses the browser's pan, as on a card
+   (`board.css`, `.card > .ann-zone`). On a page it is a band, the page's whole
+   width from above the stroke to well below it (`annotate.js`, `PAGE_BELOW`):
+   the next line's first stroke lands there, and so does the heel of the hand
+   writing it. Everywhere else a finger scrolls natively, with momentum, pen on
+   or off, and the ink layer over a zoomed page lets it pan sideways too. Not
+   the whole scroller: that makes the first swipe after every stroke a
+   hand-driven one (`handPan`), late and with no momentum. The pinch is
+   `readerzoom.js`'s, which adds `.zoomable`. */
+body.annotating #reader-pages canvas.ann-layer { touch-action: pan-x pan-y; }
+.lib-page > .ann-zone {
+  position: absolute; display: none; z-index: 3;
+  touch-action: none;
 }
+.lib-page > .ann-zone.on { display: block; }
 #reader-pages.pinching { will-change: transform; }
 .lib-page img {
   display: block; width: 100%; height: auto;
-  /* A page not yet decoded is a letter page tall rather than no height at all,
-     so the pages under it are roughly where they will be. */
-  aspect-ratio: auto 8.5 / 11;
   border: 1px solid var(--rule); border-radius: .2rem;
   background: #fff;
 }
+/* A page not yet decoded has its own shape from its `width`/`height`
+   (`reader.js`, off the reply's `sizes`), which the browser turns into its
+   ratio. Without them it is a letter page tall rather than no height at all,
+   so the pages under it are roughly where they will be. Only without them:
+   this rule would outrank the attributes' ratio. */
+.lib-page img:not([width]) { aspect-ratio: auto 8.5 / 11; }
 /* THE PAGE'S BOX IS THE PICTURE. Ink is stored in fractions of `.lib-page`,
    and a caption in flow is a fixed height added to a picture that grows with
    the zoom -- so every height fraction would name a different place on the
