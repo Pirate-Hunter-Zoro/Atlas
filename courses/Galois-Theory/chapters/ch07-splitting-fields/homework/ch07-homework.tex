@@ -474,7 +474,16 @@ In particular $\QQ(\alpha)$ is not Galois over $\QQ$, although $E$ is Galois ove
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 18 =====
-% TODO(mferguson): your work goes here.
+\noindent\textbf{(a)}
+\begin{proof}
+The Galois group is $\operatorname{Gal}(\QQ(\zeta_p)/\QQ)\cong(\ZZ/p\ZZ)^\times$, a cyclic group of order $p-1$.
+
+A cyclic group has exactly one subgroup of each index that divides its order, so there is exactly one subgroup $H\le G$ of index $2$.
+
+If $H\le G$ fixes $K$ with $\QQ\subseteq K\subseteq\QQ(\zeta_p)$, then $[G:H]=[K:\QQ]$.
+
+So only one such $K$ exists for each extension degree, since only one such $H\le G$ exists, as $G$ is cyclic because $p$ is prime.
+\end{proof}
 % ===== END SOLUTION 18 =====
 
 \begin{problem}{19}
