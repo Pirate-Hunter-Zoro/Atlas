@@ -134,12 +134,41 @@ function el(tag, cls, text) {
   return e;
 }
 
-function getJSON(url) {
-  return fetch(url, { credentials: "same-origin", cache: "no-store" })
-    .then(function (r) { return r.json(); });
+/* NO LIST IS WAITED FOR FOR EVER. The iPad's link can hold a request for
+   minutes and then deliver it; a GET not answered in WAIT_MS is abandoned
+   (aborted, where the browser can) and counts as failed, so the refresh
+   takes it up again (`refresh`) instead of the page sitting on a request
+   that may never come. `ask` makes the request, handed the signal that
+   aborts it; `read` reads the response. */
+var WAIT_MS = 10000;
+
+function waited(ask, read) {
+  var ctl = typeof AbortController === "function" ? new AbortController() : null;
+  return new Promise(function (resolve, reject) {
+    var t = setTimeout(function () {
+      if (ctl) { try { ctl.abort(); } catch (e) {} }
+      var late = new Error("the board did not answer in time");
+      late.late = true;
+      reject(late);
+    }, WAIT_MS);
+    ask(ctl ? ctl.signal : undefined).then(read).then(
+      function (v) { clearTimeout(t); resolve(v); },
+      function (e) { clearTimeout(t); reject(e); });
+  });
 }
 
-function postJSON(url, body) {
+function getJSON(url) {
+  return waited(function (signal) {
+    return fetch(url, { credentials: "same-origin", cache: "no-store", signal: signal });
+  }, function (r) { return r.json(); });
+}
+
+/* A POST is never abandoned: one the page gave up on may still land, and
+   the page would then disagree with the board. `slow`, if given, is called
+   once it has not answered in WAIT_MS, so the page can say it is still
+   waiting. */
+function postJSON(url, body, slow) {
+  var t = slow ? setTimeout(slow, WAIT_MS) : null;
   return fetch(url, {
     method: "POST",
     credentials: "same-origin",
@@ -147,6 +176,12 @@ function postJSON(url, body) {
     body: JSON.stringify(body || {})
   }).then(function (r) {
     return r.json().catch(function () { return { ok: false }; });
+  }).then(function (got) {
+    clearTimeout(t);
+    return got;
+  }, function (e) {
+    clearTimeout(t);
+    throw e;
   });
 }
 
@@ -460,7 +495,24 @@ function openAnnot() {
   els.annotBar.hidden = true;
   els.annotFile.value = "";
   els.annotUrl.value = "";
+  fillAnnotSubjects();
+  paintAnnot();
+  els.annot.hidden = false;
+  if (subjectsMissed) refresh();
+}
+
+/* With no list yet, a line that says so where the subjects will be, and the
+   choice filled in again, Random lessons preselected, once the list comes
+   (`paintPickers`). */
+function fillAnnotSubjects() {
   els.annotSubject.innerHTML = "";
+  els.annotSubject.dataset.waiting = subjectsData ? "" : "1";
+  if (!subjectsData) {
+    var wait = el("option", "", listWaiting());
+    wait.disabled = true;
+    wait.value = "-";
+    els.annotSubject.appendChild(wait);
+  }
   pickGroups((subjectsData && subjectsData.subjects) || []).forEach(function (g) {
     var host = els.annotSubject;
     if (g[0]) {
@@ -479,8 +531,6 @@ function openAnnot() {
   els.annotSubject.appendChild(none);
   els.annotSubject.value = scratchId() || "";
   if (els.annotSubject.value !== (scratchId() || "")) els.annotSubject.value = "";
-  paintAnnot();
-  els.annot.hidden = false;
 }
 
 function closeAnnot() {
@@ -579,7 +629,48 @@ function annotate() {
 }
 
 /* ---------------------------------------------------------------- subjects */
-var subjectsData = null;      /* the last /subjects.json */
+/* THE LAST LIST THAT CAME IS KEPT on this device (`board.subjects`, which
+   the canvas's picker reads and keeps too), so a picker opened before this
+   page's first refresh lands, or while the link holds it, offers the
+   subjects it offered last time rather than nothing. With nothing kept a
+   picker says it is asking, or that the list did not come and is asked for
+   again (`refresh`), with "try again". */
+var SUBJECTS_KEY = "board.subjects";
+var subjectsData = keptSubjects();   /* the last /subjects.json, or the kept one */
+var subjectsMissed = false;          /* the last refresh failed */
+
+function keptSubjects() {
+  try {
+    var got = JSON.parse(localStorage.getItem(SUBJECTS_KEY) || "null");
+    return got && Array.isArray(got.subjects) ? got : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function keepSubjects(got) {
+  if (!got || !Array.isArray(got.subjects)) return;
+  try {
+    localStorage.setItem(SUBJECTS_KEY, JSON.stringify({ scratch: got.scratch || null,
+                                                       subjects: got.subjects }));
+  } catch (e) { /* this page's copy, then */ }
+}
+
+function listWaiting() {
+  return subjectsMissed ? "The courses and projects did not come; asking again…"
+                        : "Getting the courses and projects…";
+}
+
+/* The open pickers again, once a refresh lands or fails. The annotate
+   sheet's choice is filled in again only while it was waiting, so nothing
+   chosen there is undone. */
+function paintPickers() {
+  if (!els.sender.hidden && !sending) paintSender();
+  if (!els.annot.hidden && !annotBusy && els.annotSubject.dataset.waiting === "1") {
+    fillAnnotSubjects();
+    paintAnnot();
+  }
+}
 
 function subjectRow(s, last) {
   var box = el("div", "subj");
@@ -824,6 +915,7 @@ function openSender(rec) {
   senderSay("");
   paintSender();
   els.sender.hidden = false;
+  if (subjectsMissed) refresh();
 }
 
 function closeSender() {
@@ -857,7 +949,8 @@ function paintSender() {
     });
   });
   if (!els.senderList.children.length) {
-    els.senderList.appendChild(el("p", "hint", q ? "None matches." : "No course or project yet."));
+    els.senderList.appendChild(el("p", "hint", q ? "None matches."
+      : subjectsData ? "No course or project yet." : listWaiting()));
   }
   els.senderNewCourse.disabled = sending;
   els.senderNewProject.disabled = sending;
@@ -870,7 +963,14 @@ function sendTo(subject, name) {
   els.sender.hidden = false;
   senderSay("sending it to " + name + "…");
   paintSender();
-  postJSON("/s/" + enc(rec.id) + "/send", { subject: subject }).then(function (got) {
+  /* Held until it answers, rows and all: a send the page gave up on may
+     land and queue the wrap-up, and a tap again would then be refused as
+     "wrap-up is running", which reads as not sent. */
+  postJSON("/s/" + enc(rec.id) + "/send", { subject: subject }, function () {
+    if (sending && sendFor === rec) {
+      senderSay("sending it to " + name + "… The board has not answered yet; it goes on when it does.");
+    }
+  }).then(function (got) {
     sending = false;
     if (!got || !got.ok) {
       paintSender();
@@ -1266,7 +1366,9 @@ function paintTheme() {
 /* A list the page cannot do without: a proxy's 502 (an empty body) or an
    answer that is not JSON is a failure, told to the board by its URL. */
 function needed(url) {
-  return fetch(url, { credentials: "same-origin", cache: "no-store" }).then(function (r) {
+  return waited(function (signal) {
+    return fetch(url, { credentials: "same-origin", cache: "no-store", signal: signal });
+  }, function (r) {
     if (r.status && r.status >= 400) throw new Error(url + " answered " + r.status);
     return r.json().catch(function () { throw new Error(url + " was not JSON"); });
   }).catch(function (e) {
@@ -1295,8 +1397,11 @@ function refresh() {
     retryWait = RETRY_FIRST;
     sessionsData = all[0] || { sessions: [] };
     subjectsData = all[1] || { subjects: [] };
+    subjectsMissed = false;
+    keepSubjects(subjectsData);
     paintSessions(sessionsData);
     paintSubjects(subjectsData);
+    paintPickers();
     if (all[2]) paintNotices(all[2]);
     route();
     loadHealth();
@@ -1305,6 +1410,8 @@ function refresh() {
     /* A paint that threw is this page's bug, and the board hears it too. */
     if (!e || !e.told) beacon("paint", "refresh", e && e.message, e && e.stack);
     els.dot.className = "dot dead";
+    subjectsMissed = true;
+    paintPickers();
     if (retryTimer) return;
     retryTimer = setTimeout(function () {
       retryTimer = null;

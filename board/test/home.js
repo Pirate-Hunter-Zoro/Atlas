@@ -145,7 +145,9 @@ async function stubbed() {
 
   // opts: `over` replaces answers by path; `fail` answers a path 502 with an
   // empty body for its first n asks; `skip` leaves scripts out; `errorsOk`
-  // drops the guard that fails the run on an uncaught error.
+  // drops the guard that fails the run on an uncaught error; `hold` never
+  // answers a path while `w.held[path]` is true; `kept` is this device's
+  // `board.subjects`; `wait` shortens WAIT_MS.
   function load(hash, opts) {
     opts = opts || {};
     const html = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
@@ -159,12 +161,18 @@ async function stubbed() {
     w.asked = [];
     const fails = Object.assign({}, opts.fail || {});
     const over = opts.over || {};
+    w.held = Object.assign({}, opts.hold || {});
+    if (opts.kept) w.localStorage.setItem('board.subjects', JSON.stringify(opts.kept));
     w.fetch = (u, init) => {
       const url = String(u);
       const method = (init && init.method) || 'GET';
       const body = init && init.body ? JSON.parse(init.body) : null;
       w.asked.push({ url, method, body, keepalive: !!(init && init.keepalive) });
       const where = url.split('?')[0];
+      if (w.held[where] && typeof w.held[where].then === 'function') {
+        return w.held[where].then((v) => ({ status: 200, json: () => Promise.resolve(v) }));
+      }
+      if (w.held[where]) return new Promise(() => {});
       if (fails[where]) {
         fails[where] -= 1;
         return Promise.resolve({ status: 502,
@@ -209,6 +217,9 @@ async function stubbed() {
       if ((opts.skip || []).indexOf(f) >= 0) continue;
       let src = fs.readFileSync(path.join(WEB, f), 'utf8');
       if (f === 'home.js') src = patched(src);
+      if (f === 'home.js' && opts.wait) {
+        src = src.replace('var WAIT_MS = 10000;', 'var WAIT_MS = ' + opts.wait + ';');
+      }
       try { w.eval(src); } catch (e) { fail('home: ' + f + ': ' + e.message); }
       if (f === 'recentre.js' && w.Recentre) {
         const mount = w.Recentre.mount;
@@ -859,6 +870,73 @@ async function stubbed() {
     rw.close();
   }
 
+  // A LIST THE LINK HOLDS: the iPad's link once held every request for
+  // minutes. Annotate, which opens before the first refresh lands, offers the
+  // subjects kept from last time, Random lessons preselected; with none kept
+  // it says it is asking, then that the list did not come, and reopening
+  // asks again. A /send not answered is held, never let go of.
+  {
+    const withRandom = { ok: true, scratch: 'courses/Random',
+      subjects: SUBJECTS.concat([{ id: 'courses/Random', kind: 'course', slug: 'Random',
+                                   name: 'Random lessons' }]) };
+    const kw = load('', { over: { '/subjects.json': withRandom }, kept: withRandom,
+                          hold: { '/subjects.json': true }, wait: 150 });
+    await sleep(40);
+    kw.document.getElementById('act-annotate').click();
+    const ksel = kw.document.getElementById('annot-subject');
+    check('with /subjects.json held, Annotate offers the kept list, Random lessons preselected',
+          ksel.value === 'courses/Random'
+          && ksel.querySelector('option').value === 'courses/Random'
+          && !ksel.querySelector('option[disabled]'));
+    kw.close();
+
+    const nw = load('', { over: { '/subjects.json': withRandom },
+                          hold: { '/subjects.json': true }, wait: 150 });
+    await sleep(40);
+    const nd = nw.document;
+    nd.getElementById('act-annotate').click();
+    const nsel = nd.getElementById('annot-subject');
+    const waitOpt = () => nsel.querySelector('option[disabled]');
+    check('with nothing kept, Annotate says it is asking, not nothing',
+          waitOpt() && /Getting the courses and projects/.test(waitOpt().textContent)
+          && nsel.value === '', waitOpt() && waitOpt().textContent);
+    await sleep(220);
+    check('and, not answered in WAIT_MS, that the list did not come',
+          waitOpt() && /did not come/.test(waitOpt().textContent),
+          waitOpt() && waitOpt().textContent);
+    nw.held['/subjects.json'] = false;
+    nd.getElementById('annot-close').click();
+    nd.getElementById('act-annotate').click();
+    await sleep(60);
+    check('reopened, it asks again and fills it in, Random lessons preselected',
+          !waitOpt() && nsel.value === 'courses/Random', nsel.value);
+    check('and the list that came is kept for next time',
+          JSON.parse(nw.localStorage.getItem('board.subjects')).scratch === 'courses/Random');
+    let sent;
+    nw.held['/s/' + LECT + '/send'] = new Promise((r) => { sent = r; });
+    nd.getElementById('annot-close').click();
+    nd.querySelector('[data-send-for="' + LECT + '"]').click();
+    nd.querySelector('#sender-list button[data-id="courses/Random"]').click();
+    const senderSaid = () => nd.getElementById('sender-said').textContent;
+    check('a send says it is sending, rows held',
+          /sending it to Random lessons/.test(senderSaid())
+          && nd.querySelector('#sender-list button').disabled);
+    await sleep(220);
+    check('not answered in WAIT_MS, a send is not let go of: it says the board has not '
+          + 'answered yet, rows still held, so it is never tapped twice',
+          /has not answered yet/.test(senderSaid()) && !/Tap it again/.test(senderSaid())
+          && nd.querySelector('#sender-list button').disabled
+          && nw.asked.filter((r) => r.method === 'POST' && /\/send$/.test(r.url)).length === 1,
+          senderSaid());
+    sent({ ok: true, sent: { id: 'courses/Random', kind: 'course', name: 'Random lessons' },
+           filed: [], refused: [] });
+    await sleep(40);
+    check('and the answer, when it comes, is the one the page shows',
+          nd.getElementById('sender').hidden
+          && /went to Random lessons/.test(nd.body.textContent), senderSaid());
+    nw.close();
+  }
+
   // A CANVAS'S ROW, open or past, offers "give to the tutor": a second tap
   // posts /s/<id>/give and opens the board it answers with.
   {
@@ -1076,7 +1154,9 @@ async function page(url, opts) {
   w.fetch = (u, init) => {
     const target = new URL(String(u), url);
     const o = Object.assign({}, init || {});
-    delete o.keepalive; delete o.cache; delete o.credentials;
+    // The page's signal is jsdom's, which Node's fetch refuses; the wait it
+    // carries is the page's own timer, which still runs.
+    delete o.keepalive; delete o.cache; delete o.credentials; delete o.signal;
     const rec = { url: target.pathname + target.search, method: o.method || 'GET' };
     w.__requests.push(rec);
     return fetch(target, o).then((r) => { rec.status = r.status; return r; },

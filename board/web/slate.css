@@ -87,6 +87,9 @@ body > #away {
 }
 .notes-send-said { margin: .2rem .3rem 0; color: var(--sl-dim); }
 .notes-send-said:empty { display: none; }
+/* The list being asked for, or not come: said where the rows will be. */
+.notes-send-wait { margin: .2rem .4rem; color: var(--sl-dim); }
+.notes-send button.notes-send-again { border-color: var(--sl-line); }
 body > #prompt {
   flex: none; display: flex; align-items: baseline; gap: .5rem;
   padding: .2rem .9rem .5rem; font-size: .8rem; color: var(--sl-dim);
