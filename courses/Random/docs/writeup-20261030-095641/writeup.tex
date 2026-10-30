@@ -1,0 +1,49 @@
+% ===========================================================================
+%  Writeup 20261030-095641
+%
+%  A write-up: one problem environment per question, and beneath it a marked
+%  solution region holding the agreed argument. `board writeup add <label>`
+%  writes both and rebuilds the PDF; a region stays empty until its answer is
+%  agreed. Code goes in verbatim, so nothing here needs shell-escape.
+% ===========================================================================
+\documentclass[11pt]{article}
+% The subject's own preamble when it has one (`latex/coursemacros.sty`, on
+% TEXINPUTS through `board build`), else a plain one.
+\IfFileExists{coursemacros.sty}{\usepackage{coursemacros}}{%
+  \usepackage{amsmath}\usepackage{amssymb}\usepackage{amsthm}%
+  \usepackage[margin=1in]{geometry}\usepackage{graphicx}}
+% The board's macro vocabulary, every one a \providecommand, so a card's
+% notation typesets here too and the subject's definitions still win.
+\IfFileExists{board-macros.tex}{\input{board-macros.tex}}{}
+\ifdefined\problem\else
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\fi
+\ifdefined\solution\else
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\fi
+\providecommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Writeup 20261030-095641}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per question, in the order the sheet or the
+% session posed them.
+
+\begin{problem}{m17-continuation-unknown}
+Source row M17 is one medication row, attached to encounter E4: drug sertraline, start 2025-03-01, end missing, source role unaudited. The study index is 2025-04-01. The legacy sliced JSON records this medication as start $-31$, end $0$.
+
+State, in one sentence each, what the evidence model can truthfully say about whether M17's sertraline continued past the 2025-04-01 index, and what it must refuse to say.
+\end{problem}
+% ===== SOLUTION m17-continuation-unknown =====
+I get it, so the only thing we know is when the drug started; not when or if it ended.
+% ===== END SOLUTION m17-continuation-unknown =====
+
+\end{document}
