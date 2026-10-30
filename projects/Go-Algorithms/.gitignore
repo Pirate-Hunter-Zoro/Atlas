@@ -1,0 +1,7 @@
+# Test binaries, coverage and profiles.
+*.test
+*.out
+*.prof
+
+# Local benchmark runs; a recorded doubling table in bench/*.txt stays tracked.
+/bench/*.local.txt

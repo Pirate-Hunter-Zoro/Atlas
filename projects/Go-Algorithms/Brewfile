@@ -1,0 +1,1 @@
+brew "go"            # the toolchain; go.mod's go and toolchain lines pin the version
