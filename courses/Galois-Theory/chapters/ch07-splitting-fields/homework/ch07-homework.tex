@@ -556,6 +556,34 @@ Also $\zeta_b^{\,c}=\underbrace{\zeta_b\cdot\zeta_b\cdots\zeta_b}_{c\text{ times
 
 Together, $\QQ(\zeta_a)=\QQ(\zeta_b^{\,c})\subseteq\QQ(\zeta_b)$.
 \end{proof}
+
+\noindent\textbf{(b)}
+\begin{proof}
+$\zeta_8=e^{i\pi/4}$, and $\zeta_8^2=e^{i\pi/2}=i$, so clearly $\QQ(i)\subseteq\QQ(\zeta_8)$.
+
+$(\zeta_8+\zeta_8^{-1})=\sqrt2$, so $\QQ(\sqrt2)\subseteq\QQ(\zeta_8)$.
+
+$(\zeta_8+\zeta_8^{3})=i\sqrt2=\sqrt{-2}$, so $\QQ(\sqrt{-2})\subseteq\QQ(\zeta_8)$.
+\end{proof}
+
+\noindent\textbf{(c)}
+\begin{proof}
+Write $m=\pm\prod_{p\mid m}p$. Then
+\[
+\sqrt m=i^{k}\sqrt{\prod_{p\mid m}p}=i^{k}\prod_{p\mid m}\sqrt p,
+\]
+where $k=1$ if $m<0$ and $k=0$ otherwise. Each factor lies in some $\QQ(\sqrt p)$, so it remains to put $i$ and each $\sqrt p$ inside the single field $\QQ(\zeta_N)$, with $N=4|m|$.
+
+If $n\mid N$, then $\zeta_N^{N/n}$ is a primitive $n$-th root of unity, so $\zeta_N^{N/n}=\zeta_n^{a}$ with $\gcd(a,n)=1$. Choose $t,u$ with $at=nu+1$. Then $\zeta_n=(\zeta_N^{N/n})^{t}$, so $\QQ(\zeta_n)\subseteq\QQ(\zeta_N^{N/n})$; the reverse inclusion was shown earlier, so $\QQ(\zeta_n)=\QQ(\zeta_N^{N/n})\subseteq\QQ(\zeta_N)$.
+
+Now $4\mid N$ gives $i=\zeta_4\in\QQ(\zeta_4)\subseteq\QQ(\zeta_N)$. For odd $p\mid m$ we have $p\mid N$ and $4p\mid N$. If $p\equiv1\pmod4$ then $p^{*}=p$, and 18(d) gives $\sqrt p\in\QQ(\zeta_p)\subseteq\QQ(\zeta_N)$. If $p\equiv3\pmod4$ then $p^{*}=-p$, and 18(d) gives $\sqrt{-p}\in\QQ(\zeta_p)\subseteq\QQ(\zeta_{4p})\subseteq\QQ(\zeta_N)$; since $i\in\QQ(\zeta_{4p})$, and $\sqrt p$ is one of $\pm i\sqrt{-p}$, also $\sqrt p\in\QQ(\zeta_N)$. For $p=2$, $8\mid N$ when $2\mid m$, and (b) gives $\sqrt2\in\QQ(\zeta_8)\subseteq\QQ(\zeta_N)$.
+
+Each factor of $i^{k}\prod_{p\mid m}\sqrt p$ lies in $\QQ(\zeta_N)$, and $\QQ(\zeta_N)$ is a field, so the product lies in $\QQ(\zeta_N)$. Hence $\sqrt m\in\QQ(\zeta_N)$ and $\QQ(\sqrt m)\subseteq\QQ(\zeta_N)$.
+\end{proof}
+\noindent\textbf{(d)}
+\begin{proof}
+$\sqrt3=\dfrac{\zeta_{12}^{2}}{\zeta_{12}^{3}}+\dfrac{\zeta_{12}^{4}}{\zeta_{12}^{3}}=\zeta_{12}^{-1}+\zeta_{12}=\zeta_{12}^{11}+\zeta_{12}$, which is $x^{11}+x$ at $x=\zeta_{12}$, and that equals $\sqrt3$.
+\end{proof}
 % ===== END SOLUTION 19 =====
 
 \end{document}
