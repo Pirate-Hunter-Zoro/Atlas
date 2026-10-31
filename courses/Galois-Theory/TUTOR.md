@@ -8,15 +8,11 @@
 
 ## Now
 
-Chapter 7 worksheet, problems 13-19, in session 20261009-193922. `chapters/ch07-splitting-fields/homework/ch07-homework.tex` holds 13(a)(b)(d), 14(a)-(d), 15(b)-(d), 16(a)-(d), 17(a)(b)(d), 18(a)-(d); the PDF rebuilt clean. Problem 19 is on their screen: `board writeup pose 19` pinned it, statement kept, region still their TODO.
+Chapter 7 worksheet, problems 13-19, in session 20261009-193922. `chapters/ch07-splitting-fields/homework/ch07-homework.tex` holds 13(a)(b)(d), 14(a)-(d), 15(b)-(d), 16(a)-(d), 17(a)(b)(d), 18(a)-(d), 19(a); the PDF rebuilt clean. `handwritten/ch07-19.png` is t0257.
 
-18 closed on t0250: $g^2=p^*$, $\sigma_a(g)=(a/p)g$, and $g\in\QQ$ would force $(a/p)=1$ for every $a$, which fails because exactly half the residues are squares; so $g\notin\QQ$, $[\QQ(g):\QQ]=2$, and 18(a)'s one quadratic subfield inside $\QQ(\zeta_p)$ is $\QQ(g)=\QQ(\sqrt{p^*})$. Their page wrote "so $g\in\QQ$" and card 0151 says plainly it must be $\notin$. Label 18 carries (a)-(d); the $p=5,7,13$ arithmetic was cards 0149-0150 and stays out of the tex. `handwritten/ch07-18.png` is t0250.
+19(a) closed on t0257 and is written up under label 19. Their chain: order of $\zeta_b^c$ is $a$ (t0255), so it is a primitive $a$-th root and $\QQ(\zeta_a)=\QQ(\zeta_b^c)$; $\zeta_b^c$ is $c$ copies of $\zeta_b$, so the containment. Card 0159 (on the board now) poses 19(b) and points at $\zeta_8+\zeta_8^{-1}$ via the hint in (d).
 
-Next: 19(a), the rung asks which power of $\zeta_b$ is a primitive $a$-th root. Then (b) inside $\zeta_8$, (c) $N=4|m|$, (d) $m=3$ with $\sqrt3=2\cos(\pi/6)=\zeta_{12}+\zeta_{12}^{-1}$.
-
-17 closed on t0241 (lattice, Galois fields circled); (c) stays out per t0235, never re-pose it. 16(d) closed on t0225.
-
-Still open: 13(c) (the $p=13$ subgroup list) and 15(a) (conjugation on $K$, set aside).
+Next after (b): (c) $N=4|m|$, then (d) $m=3$ with $\sqrt3=2\cos(\pi/6)=\zeta_{12}+\zeta_{12}^{-1}$. Write each up with `board writeup add 19`, including everything agreed so far.
 
 ## Open decisions
 

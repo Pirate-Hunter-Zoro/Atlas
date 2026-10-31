@@ -546,7 +546,16 @@ Since $g^{2}=p^{*}$, $\QQ(g)=\QQ(\sqrt{p^{*}})$.
   \end{enumerate}
 \end{problem}
 % ===== SOLUTION 19 =====
-% TODO(mferguson): your work goes here.
+\noindent\textbf{(a)}
+\begin{proof}
+Suppose $0<k<a$ and $\zeta_b^{\,ck}=1$. Since $a\mid b$, write $b=ac$. Then $b\mid ck$ means $ac\mid ck$, so $a\mid k$, contradicting $0<k<a$. Hence $\zeta_b^{\,c}$ has order $a$.
+
+So $\zeta_b^{\,c}$ is a primitive $a$-th root of unity, and every primitive $a$-th root generates the same field as $\zeta_a$ over $\QQ$, since the $a$-th roots of unity are exactly the powers of either. Hence $\QQ(\zeta_b^{\,c})=\QQ(\zeta_a)$.
+
+Also $\zeta_b^{\,c}=\underbrace{\zeta_b\cdot\zeta_b\cdots\zeta_b}_{c\text{ times}}$, so $\zeta_b^{\,c}\in\QQ(\zeta_b)$, and therefore $\QQ(\zeta_b^{\,c})\subseteq\QQ(\zeta_b)$.
+
+Together, $\QQ(\zeta_a)=\QQ(\zeta_b^{\,c})\subseteq\QQ(\zeta_b)$.
+\end{proof}
 % ===== END SOLUTION 19 =====
 
 \end{document}
