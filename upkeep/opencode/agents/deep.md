@@ -4,6 +4,8 @@ mode: subagent
 model: deepseek/deepseek-v4-pro
 variant: max
 permission:
+  doom_loop: allow
+  external_directory: allow
   task: allow
   todowrite: allow
 ---

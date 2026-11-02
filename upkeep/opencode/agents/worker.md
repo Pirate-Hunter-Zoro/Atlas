@@ -3,6 +3,8 @@ description: General worker subagent that may plan with todowrite and start its 
 mode: subagent
 model: deepseek/deepseek-flash
 permission:
+  doom_loop: allow
+  external_directory: allow
   task: allow
   todowrite: allow
 ---

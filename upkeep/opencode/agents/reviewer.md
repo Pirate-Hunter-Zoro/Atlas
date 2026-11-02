@@ -3,6 +3,8 @@ description: Read-only code reviewer. Finds correctness bugs in a diff or files 
 mode: subagent
 model: deepseek/deepseek-flash
 permission:
+  doom_loop: allow
+  external_directory: allow
   edit: deny
   write: deny
   apply_patch: deny

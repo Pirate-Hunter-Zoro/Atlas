@@ -2,7 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- The persistent OpenCode server. oc, ocrun and coder attach to it, and the parity plugin's
      wakeups, cron, monitors and background agents live in it. @HOME@ is substituted at install.
-     EnvironmentVariables repeat ../env (test_install.py keeps them equal). -->
+     EnvironmentVariables repeat ../env (test_install.py keeps them equal), plus PATH and
+     PARITY_PRIMARY, which marks this process as the one that adopts orphaned parity jobs. -->
 <plist version="1.0">
 <dict>
   <key>Label</key>
@@ -19,6 +20,8 @@
   <dict>
     <key>PATH</key>
     <string>@HOME@/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PARITY_PRIMARY</key>
+    <string>1</string>
     <key>OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS</key>
     <string>1</string>
     <key>OPENCODE_ENABLE_EXA</key>

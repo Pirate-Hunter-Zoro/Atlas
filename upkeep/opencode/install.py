@@ -6,7 +6,8 @@
 Copies the plugin, agents, commands and capabilities.md; merges the managed keys of
 config.json into opencode.jsonc (JSONC-aware, every other key kept); pins the plugin SDK in
 package.json; copies skills from ~/.claude/skills and ~/.agents/skills into
-~/.config/opencode/skills without deleting anything; installs ~/bin/coder. Prints one line per
+~/.config/opencode/skills (not hidden directories, not Claude-only skills) without deleting
+anything; installs ~/bin/coder. Prints one line per
 change. Exit status = number of problems. Stdlib only, Python 3.9.
 """
 import argparse
@@ -14,12 +15,17 @@ import filecmp
 import json
 import os
 import plistlib
+import re
 import shutil
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DEAD_PROVIDERS = ("openrouter", "groq", "cloudflare")
+# A skill that names a Claude-only surface would send DeepSeek after tools it does not have.
+CLAUDE_ONLY = re.compile(
+    r"mcp__claude|mcp__computer-use|mcp__Claude_Browser|mcp__remote-devices|Claude desktop app"
+    r"|Claude's memory|surface=cowork", re.I)
 SERVE_LABEL = "com.mikeyferguson.opencode-serve"
 
 
@@ -131,8 +137,23 @@ def merge_config(cfg, managed, home, cfg_dir):
     cfg.setdefault("$schema", managed.get("$schema", "https://opencode.ai/config.json"))
     for key in ("model", "small_model", "enabled_providers", "subagent_depth"):
         cfg[key] = managed[key]
+    # Top-level permission stays the string "allow" (MO's legacy opencodedoctor resets any other
+    # value every minute). doom_loop and external_directory, which default to "ask" even then,
+    # are allowed per agent in `agent`, which nothing else rewrites.
     perm = cfg.get("permission")
-    cfg["permission"] = deep_merge(perm, managed["permission"]) if isinstance(perm, dict) else dict(managed["permission"])
+    if isinstance(perm, dict):
+        if "*" not in perm:
+            cfg["permission"] = {"*": "allow", **perm}
+    elif perm is None:
+        cfg["permission"] = managed["permission"]
+    agents = cfg.get("agent") if isinstance(cfg.get("agent"), dict) else {}
+    for name, spec in managed["agent"].items():
+        if not isinstance(agents.get(name), dict):
+            agents[name] = {}
+        if not isinstance(agents[name].get("permission"), dict):
+            agents[name]["permission"] = {}
+        agents[name]["permission"].update(spec["permission"])
+    cfg["agent"] = agents
     prov = cfg.get("provider") if isinstance(cfg.get("provider"), dict) else {}
     for dead in DEAD_PROVIDERS:
         prov.pop(dead, None)
@@ -140,7 +161,12 @@ def merge_config(cfg, managed, home, cfg_dir):
     exp = cfg.get("experimental") if isinstance(cfg.get("experimental"), dict) else {}
     exp["primary_tools"] = union(exp.get("primary_tools"), managed["experimental"]["primary_tools"])
     cfg["experimental"] = exp
-    cfg["instructions"] = union(cfg.get("instructions"), [expand_home(p, home) for p in managed["instructions"]])
+    # capabilities.md reaches the model through the plugin, so `opencode --pure` never sees it.
+    if isinstance(cfg.get("instructions"), list):
+        ours = str(cfg_dir / "capabilities.md")
+        cfg["instructions"] = [p for p in cfg["instructions"] if expand_home(p, home) != ours]
+        if not cfg["instructions"]:
+            cfg.pop("instructions")
     # Plugins in plugin/ or plugins/ load automatically; naming them again loads them twice.
     if isinstance(cfg.get("plugin"), list):
         kept = []
@@ -268,6 +294,8 @@ class Installer:
             if not root.is_dir():
                 continue
             for dirpath, dirnames, filenames in os.walk(root):
+                # Hidden directories (.trash) hold deleted skills.
+                dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
                 if "SKILL.md" not in filenames:
                     continue
                 dirnames[:] = []
@@ -276,6 +304,9 @@ class Installer:
                 if name in seen:
                     continue
                 seen[name] = skill
+                text = (skill / "SKILL.md").read_text(encoding="utf-8", errors="replace")
+                if CLAUDE_ONLY.search(text):
+                    continue
                 self.copy_tree(skill, dest_root / name)
 
     def copy_tree(self, src, dst):

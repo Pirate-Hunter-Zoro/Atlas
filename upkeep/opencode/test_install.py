@@ -63,11 +63,12 @@ class FreshHome(Base):
         self.assertEqual(c["small_model"], "deepseek/deepseek-flash")
         self.assertEqual(c["enabled_providers"], ["deepseek"])
         self.assertEqual(c["subagent_depth"], 3)
-        self.assertEqual(c["permission"], {"*": "allow", "doom_loop": "allow", "external_directory": "allow"})
+        self.assertEqual(c["permission"], "allow")
+        self.assertEqual(c["agent"]["build"]["permission"], {"doom_loop": "allow", "external_directory": "allow"})
         for m in ("deepseek-flash", "deepseek-v4-pro"):
             self.assertEqual(c["provider"]["deepseek"]["models"][m]["variants"]["nothink"], {"thinking": {"type": "disabled"}})
         self.assertEqual(c["experimental"]["primary_tools"], ["wakeup", "cron_create", "cron_delete", "monitor", "workflow"])
-        self.assertEqual(c["instructions"], [str(self.home / ".config/opencode/capabilities.md")])
+        self.assertNotIn("instructions", c)
         pkg = json.loads((self.cfg / "package.json").read_text())
         self.assertEqual(pkg["dependencies"]["@opencode-ai/plugin"], "1.19.5")
         self.assertEqual(pkg["dependencies"]["@opencode-ai/sdk"], "1.19.5")
@@ -109,7 +110,35 @@ class ExistingConfig(Base):
         self.assertEqual(c["theme"], "dracula")
         self.assertEqual(list(c["provider"]), ["deepseek"])
         self.assertNotIn("plugin", c, "a plugin under plugin/ is scanned; listing it loads it twice")
-        self.assertEqual(c["permission"]["*"], "allow")
+        self.assertEqual(c["permission"], "allow", "MO's legacy doctor resets any other value")
+        for name in ("build", "plan", "general", "explore"):
+            self.assertEqual(c["agent"][name]["permission"], {"doom_loop": "allow", "external_directory": "allow"})
+        self.assertNotIn("instructions", c, "capabilities reach the model through the plugin, not instructions")
+        self.assertNotIn("mcp", c, "the browser MCP comes from the plugin, so --pure never starts it")
+
+    def test_legacy_doctor_and_install_agree(self):
+        # MO's opencodedoctor sets permission to the string "allow" whenever it is anything else.
+        self.write_cfg(LIVE_LIKE)
+        self.run_install()
+        text = (self.cfg / "opencode.jsonc").read_text()
+        data = json.loads(text)
+        self.assertEqual(data.get("permission"), "allow", "the doctor would rewrite this file")
+        rc, out, inst = self.run_install()
+        self.assertEqual(inst.changes, [], out)
+        self.assertEqual((self.cfg / "opencode.jsonc").read_text(), text)
+
+    def test_old_capabilities_instruction_removed(self):
+        self.write_cfg(json.dumps({"instructions": ["~/notes.md", "~/.config/opencode/capabilities.md"]}))
+        self.run_install()
+        self.assertEqual(self.config()["instructions"], ["~/notes.md"])
+
+    def test_agent_settings_kept(self):
+        self.write_cfg(json.dumps({"agent": {"build": {"model": "x/y", "permission": {"bash": "ask"}}, "mine": {"mode": "subagent"}}}))
+        self.run_install()
+        a = self.config()["agent"]
+        self.assertEqual(a["build"]["model"], "x/y")
+        self.assertEqual(a["build"]["permission"], {"bash": "ask", "doom_loop": "allow", "external_directory": "allow"})
+        self.assertEqual(a["mine"], {"mode": "subagent"})
 
     def test_explicit_plugin_elsewhere_is_kept(self):
         self.write_cfg('{"plugin": ["opencode-foo", "./plugin/missing.ts"]}')
@@ -123,7 +152,7 @@ class ExistingConfig(Base):
         c = self.config()
         self.assertEqual(c["theme"], "nord")
         self.assertEqual(c["mcp"]["x"]["command"], ["a"])
-        self.assertEqual(c["instructions"], ["~/notes.md", str(self.home / ".config/opencode/capabilities.md")])
+        self.assertEqual(c["instructions"], ["~/notes.md"])
         backup = self.cfg / "opencode.jsonc.before-upkeep"
         self.assertIn("// my theme", backup.read_text())
 
@@ -145,8 +174,9 @@ class ExistingConfig(Base):
         self.write_cfg('{"permission": {"bash": {"rm -rf /": "deny"}, "doom_loop": "ask"}}')
         self.run_install()
         p = self.config()["permission"]
+        self.assertEqual(list(p), ["*", "bash", "doom_loop"], "* first, so the specific rules still win")
         self.assertEqual(p["bash"], {"rm -rf /": "deny"})
-        self.assertEqual(p["doom_loop"], "allow")
+        self.assertEqual(p["doom_loop"], "ask")
 
     def test_package_json_keeps_other_deps(self):
         self.cfg.mkdir(parents=True)
@@ -196,9 +226,20 @@ class Skills(Base):
         self.assertTrue((sk / "pdf/SKILL.md").is_file())
         self.assertTrue((sk / "pdf/scripts/x.py").is_file())
         self.assertTrue((sk / "pdf/local-note.txt").is_file())
-        self.assertTrue((sk / "old-skill/SKILL.md").is_file())
+        self.assertFalse((sk / "old-skill").exists(), "skills in .trash are deleted ones")
         self.assertTrue((sk / "tool/SKILL.md").is_file())
         self.assertEqual((mine / "SKILL.md").read_text(), "mine\n")
+
+    def test_claude_only_skills_skipped(self):
+        for name, text in (("chrome-browser", "tools named mcp__claude-in-chrome__*"),
+                           ("import-memory", "into Claude's memory"),
+                           ("computer-use", "through the Claude desktop app"),
+                           ("docx", "Word documents")):
+            d = self.home / ".claude/skills/synced/x" / name
+            d.mkdir(parents=True)
+            (d / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {text}\n---\n")
+        self.run_install()
+        self.assertEqual(sorted(p.name for p in (self.cfg / "skills").iterdir()), ["docx"])
 
 
 class Templates(unittest.TestCase):
@@ -206,6 +247,7 @@ class Templates(unittest.TestCase):
         data = plistlib.loads(install.render_serve_plist("/Users/x"))
         env = dict(data["EnvironmentVariables"])
         env.pop("PATH")
+        self.assertEqual(env.pop("PARITY_PRIMARY"), "1", "the server adopts orphaned jobs")
         self.assertEqual(env, install.read_env())
         self.assertEqual(data["Label"], install.SERVE_LABEL)
         self.assertTrue(data["KeepAlive"])

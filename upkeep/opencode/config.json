@@ -4,10 +4,12 @@
   "small_model": "deepseek/deepseek-flash",
   "enabled_providers": ["deepseek"],
   "subagent_depth": 3,
-  "permission": {
-    "*": "allow",
-    "doom_loop": "allow",
-    "external_directory": "allow"
+  "permission": "allow",
+  "agent": {
+    "build": { "permission": { "doom_loop": "allow", "external_directory": "allow" } },
+    "plan": { "permission": { "doom_loop": "allow", "external_directory": "allow" } },
+    "general": { "permission": { "doom_loop": "allow", "external_directory": "allow" } },
+    "explore": { "permission": { "doom_loop": "allow", "external_directory": "allow" } }
   },
   "provider": {
     "deepseek": {
@@ -19,6 +21,5 @@
   },
   "experimental": {
     "primary_tools": ["wakeup", "cron_create", "cron_delete", "monitor", "workflow"]
-  },
-  "instructions": ["~/.config/opencode/capabilities.md"]
+  }
 }
