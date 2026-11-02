@@ -86,7 +86,7 @@ const frame = (papers, extra) => JSON.stringify(Object.assign({
   state: { course: 'Galois Theory', session: 'lecture' },
   cards: [{ id: '0001', kind: 'lesson', title: '', body: 'A field is a ring.',
             mtime: t0 - 600 }],
-  turns: [], agent: { agent: 'claude', state: 'listening', turns: 2 },
+  turns: [], agent: { agent: 'deepseek', state: 'listening', turns: 2 },
   waiting: null, writeups: papers || null,
 }, extra || {}));
 
@@ -154,7 +154,7 @@ window.asked.some((r) => r.url === '/seen' && r.how === 'POST')
   const papers = () => Array.from(doc.querySelectorAll('#writeup-list .writeup-row'));
   const paper = (over) => Object.assign({
     id: 't0021', makes: 'slides', about: '', at: t0 - 90,
-    agent: 'claude', state: 'writing', doc: '',
+    agent: 'deepseek', state: 'writing', doc: '',
   }, over || {});
 
   es.onmessage({ data: frame([paper()]) });

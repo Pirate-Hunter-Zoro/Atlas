@@ -2,15 +2,14 @@
    home.js -- the start screen.
 
    Top to bottom: the open sessions (Continue), New session and New canvas,
-   who tutors, notices, a search, the courses and the projects (most recently
+   notices, a search, the courses and the projects (most recently
    used first), past sessions (the newest ten), the actions, and settings.
 
    Everything it reads is unprefixed and one of these: GET /sessions.json,
-   /subjects.json, /notices.json, /sync.json (the sync health),
-   /assistants.json and /subject/delete?subject=<id> (whether a subject can
-   be deleted, and why not). Everything it writes is one of: POST
-   /sessions/new, /subjects/new, /subject/delete, /session/delete,
-   /default-agent,
+   /subjects.json, /notices.json, /sync.json (the sync health) and
+   /subject/delete?subject=<id> (whether a subject can be deleted, and why
+   not). Everything it writes is one of: POST /sessions/new, /subjects/new,
+   /subject/delete, /session/delete,
    /artifact?subject=<id> (a deck or a paper from a subject's row),
    /client-error (what broke on this page, for the board's log), a past
    session's /s/<id>/send (an unbound one, sent to a course or project), and
@@ -80,9 +79,6 @@ var els = {
   themeBtn: $("btn-theme"),
   themeNow: $("theme-now"),
   reload: $("btn-reload"),
-  who: $("who"),
-  whoWays: $("who-ways"),
-  whoNote: $("who-note"),
   maker: $("maker"),
   makerKind: $("maker-kind"),
   makerName: $("maker-name"),
@@ -1279,83 +1275,6 @@ function route() {
 
 window.addEventListener("hashchange", route);
 
-/* ------------------------------------------------------------------- tutor */
-/* The machine's one provider setting, set with POST /default-agent: every
-   session's next turn goes to it, or to its fallback when it cannot. Drawn by
-   `who.js`. The note under the buttons always says who takes the next turn
-   (the listing's `machine`, or its `why` when that is not the provider);
-   what a tap said stands in for it until the listing is read again, which
-   is every refresh. */
-var lastAssistants = null;
-var whoSaved = null;
-var whoTold = "";
-
-function agentLabel(assistants, name) {
-  var a = ((assistants && assistants.agents) || []).filter(function (x) {
-    return x.name === name;
-  })[0];
-  return (a && a.label) || name;
-}
-
-function sentence(s) { s = String(s || ""); return /[.!?]$/.test(s) ? s : s + "."; }
-
-function nextTurn(assistants) {
-  if (assistants.why) return sentence(assistants.why);
-  if (assistants.machine) {
-    return agentLabel(assistants, assistants.machine) + " takes the next turn in every session.";
-  }
-  return "Nobody can take a turn here right now.";
-}
-
-function paintWho(assistants) {
-  if (!window.WhoChoice || !assistants) { els.who.hidden = true; return; }
-  var have = window.WhoChoice.offerable(assistants);
-  els.who.hidden = have.length < 2;
-  if (els.who.hidden) return;
-  window.WhoChoice.draw(els.whoWays, have, whoSaved || assistants["default"], {
-    say: function (m) { whoTold = m; els.whoNote.textContent = sentence(m); },
-    pick: function (a) { setDefaultAgent(a.name); }
-  });
-  els.whoNote.textContent = whoTold ? sentence(whoTold)
-    : whoSaved ? "asking for " + agentLabel(assistants, whoSaved) + "…"
-    : nextTurn(assistants);
-}
-
-function setDefaultAgent(name) {
-  whoSaved = name;
-  whoTold = "";
-  paintWho(lastAssistants);
-  postJSON("/default-agent", { agent: name }).then(function (got) {
-    if (got && got.ok) {
-      if (got.assistants) {
-        lastAssistants = got.assistants;
-        if (lastAssistants["default"] === whoSaved) whoSaved = null;
-      } else {
-        /* Who takes the next turn: the provider, or the fallback and why. */
-        whoTold = got.why || agentLabel(lastAssistants, got.machine || name)
-          + " takes the next turn in every session";
-      }
-    } else {
-      whoSaved = null;
-      whoTold = (got && (got.detail || got.error)) || "that did not take";
-    }
-    paintWho(lastAssistants);
-  }).catch(function () {
-    whoSaved = null;
-    whoTold = "the board did not answer";
-    paintWho(lastAssistants);
-  });
-}
-
-function loadAssistants() {
-  return getJSON("/assistants.json").then(function (got) {
-    lastAssistants = (got && got.assistants) || null;
-    if (whoSaved && lastAssistants && lastAssistants["default"] === whoSaved) whoSaved = null;
-    whoTold = "";
-    paintWho(lastAssistants);
-  }).catch(function () { paintWho(lastAssistants); });
-}
-
 /* ------------------------------------------------------------------- theme */
 /* The theme is `typeface.js`'s (`Typeface.theme`); this only says which. */
 function paintTheme() {
@@ -1405,7 +1324,6 @@ function refresh() {
     if (all[2]) paintNotices(all[2]);
     route();
     loadHealth();
-    loadAssistants();
   }).catch(function (e) {
     /* A paint that threw is this page's bug, and the board hears it too. */
     if (!e || !e.told) beacon("paint", "refresh", e && e.message, e && e.stack);

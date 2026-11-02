@@ -62,7 +62,7 @@ function quiet(window) {
 }
 
 const SCRIPTS = ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js',
-                 'slate-core.js', 'annotate.js', 'annbar.js', 'who.js', 'board.js'];
+                 'slate-core.js', 'annotate.js', 'annbar.js', 'board.js'];
 
 // The scripts, with board.js's uploader handed out of its closure.
 function load(w, where) {

@@ -17,9 +17,8 @@
 <link rel="stylesheet" href="/static/home.css">
 <script src="/static/typeface.js" defer onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 </head>
-<!-- The start screen. Top to bottom: open sessions, a new one, who tutors,
-     notices, a search, the courses and projects, past sessions, three
-     actions, settings. -->
+<!-- The start screen. Top to bottom: open sessions, a new one, notices, a
+     search, the courses and projects, past sessions, three actions, settings. -->
 <body>
 
 <header id="bar">
@@ -67,15 +66,6 @@
       <span class="action-sub" id="act-notes-sub">write now; file it or give it to a tutor later</span>
     </button>
   </div>
-
-  <!-- Who takes the next turn in every session: the machine's one provider
-       setting (POST /default-agent), drawn by `who.js`. Shown when there are
-       at least two to choose between. -->
-  <section id="who" class="who" hidden>
-    <h2 class="who-lead">Tutor</h2>
-    <div id="who-ways" class="who-ways"></div>
-    <p id="who-note" class="who-note"></p>
-  </section>
 
   <section id="notices" hidden>
     <h2>Notices</h2>
@@ -299,7 +289,6 @@
 <script src="/static/keyguard.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script src="/static/address.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script src="/static/recentre.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
-<script src="/static/who.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script src="/static/home.js" onerror="(window.bootMissed=window.bootMissed||[]).push(this.src)"></script>
 <script>
 /* THE BOOT CHECK. home.js sets HomeBooted once it has asked for the lists;

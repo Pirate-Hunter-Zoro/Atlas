@@ -168,7 +168,7 @@ try {
     state: { course: 'X', mode: 'math' },
     cards: [{ id: '0001', kind: 'question', title: 'Q', body: 'hi', mtime: now }],
     messages: [], uploads: [], slate: [],
-    agent: { agent: 'claude', state: 'working', pid: 1, host: 'h', last_seen: now + 30 },
+    agent: { agent: 'deepseek', state: 'working', pid: 1, host: 'h', last_seen: now + 30 },
   });
 
   host.insertBefore = realInsert;
@@ -276,7 +276,7 @@ setTimeout(() => setTimeout(() => {
       state: { course: 'X', mode: 'math' },
       cards: [{ id: '0001', kind: 'question', title: 'Q', body: 'hi', mtime: now }],
       messages: [], uploads: [], slate: [], turns: [],
-      agent: { agent: 'claude', state: 'listening', last_seen: now },
+      agent: { agent: 'deepseek', state: 'listening', last_seen: now },
     });
     const busyEl = doc.getElementById('busy');
     const busyTxt = doc.getElementById('busy-text');

@@ -132,7 +132,7 @@ async function flow(name, opts) {
   const frame = (cards, turns) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
     cards: cards, turns: turns || [],
-    agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 },
+    agent: { agent: 'deepseek', state: 'working', turns: 2, turn_started: u0 },
   });
 
   es.onmessage({ data: frame([asked]) });
@@ -294,7 +294,7 @@ await flow('reduce motion', { reduceMotion: true });
   const frame = (cards, turns) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
     cards: cards, turns: turns || [],
-    agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 },
+    agent: { agent: 'deepseek', state: 'working', turns: 2, turn_started: u0 },
   });
 
   es.onmessage({ data: frame([asked]) });
@@ -372,7 +372,7 @@ await flow('reduce motion', { reduceMotion: true });
   const frame = (cards) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture', mode: 'math' },
     cards: cards, turns: [],
-    agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 },
+    agent: { agent: 'deepseek', state: 'working', turns: 2, turn_started: u0 },
   });
 
   es.onmessage({ data: frame([opening]) });

@@ -115,7 +115,7 @@ const frame = (cards, agent) => JSON.stringify({
            aim: 'build', stance: 'do', declared_stance: 'do' },
   cards: cards,
   turns: [],
-  agent: agent || { agent: 'claude', state: 'listening', turns: 3 },
+  agent: agent || { agent: 'deepseek', state: 'listening', turns: 3 },
   waiting: null,
 });
 
@@ -131,7 +131,7 @@ const question = { id: '0008', kind: 'question', title: 'the tie-break',
 
 // The lesson as it stood while the turn ran: the opening sentence, nothing else.
 es.onmessage({ data: frame([opening],
-                           { agent: 'claude', state: 'working', turns: 3,
+                           { agent: 'deepseek', state: 'working', turns: 3,
                              turn_started: t0 - 280 }) });
 await sleep(60);
 
@@ -149,7 +149,7 @@ await sleep(60);
 // that used to change the board from one sentence to four hundred words between
 // two frames, with no typing and with the next board already under it.
 es.onmessage({ data: frame([report, question],
-                           { agent: 'claude', state: 'working', turns: 3,
+                           { agent: 'deepseek', state: 'working', turns: 3,
                              turn_started: t0 - 280 }) });
 await sleep(60);
 
@@ -218,7 +218,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
 // the mtime in the stamp must not make either of them retype the lesson.
 {
   es.onmessage({ data: frame([report, question],
-                             { agent: 'claude', state: 'working', turns: 3,
+                             { agent: 'deepseek', state: 'working', turns: 3,
                                turn_started: t0 - 280 }) });
   await sleep(60);
   !soonOf('0007') && !soonOf('0008')
@@ -287,7 +287,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   const f2 = (cards) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture' },
     cards: cards, turns: [sent],
-    agent: { agent: 'claude', state: 'working', turns: 2, turn_started: u0 } });
+    agent: { agent: 'deepseek', state: 'working', turns: 2, turn_started: u0 } });
 
   es2.onmessage({ data: f2([asked]) });
   await sleep(80);
@@ -385,7 +385,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
     es2.onmessage({ data: JSON.stringify({
       state: { course: 'Galois Theory', session: 'lecture' },
       cards: [asked, yes1, q2, yes2], turns: [sent, sent2],
-      agent: { agent: 'claude', state: 'listening', turns: 3 } }) });
+      agent: { agent: 'deepseek', state: 'listening', turns: 3 } }) });
     await sleep(80);
     bandOf('0004') === 'correct' && markOf('0004') === 'correct'
       ? ok('and the green band and the tick are there with the movement refused')
@@ -429,7 +429,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   const titled = { id: '0010', kind: 'lesson', title: 'Well-ordering, in one line',
                    body: 'Every non-empty subset has a least element.', mtime: t0 - 9 };
   es.onmessage({ data: frame([slugged, titled, report, question],
-                             { agent: 'claude', state: 'listening', turns: 4 }) });
+                             { agent: 'deepseek', state: 'listening', turns: 4 }) });
   await sleep(80);
   const sl = nodeFor('0009');
   sl && !sl.querySelector('.card-title')
@@ -559,7 +559,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   es.onmessage({ data: frame([{ id: '0011', kind: 'lesson',
                                 body: 'a long stretch of prose '.repeat(30),
                                 mtime: t0 + 900 }, question],
-                             { agent: 'claude', state: 'working', turns: 5,
+                             { agent: 'deepseek', state: 'working', turns: 5,
                                turn_started: t0 }) });
   await sleep(2900);          /* one frame, arriving well past TYPE_STALL */
   window.requestAnimationFrame = realRaf;
@@ -639,7 +639,7 @@ await sleep(2800);            // past TYPE_MIN and past this card's own time
   es3.onmessage({ data: JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture' },
     cards: [asked], turns: [],
-    agent: { agent: 'claude', state: 'listening', turns: 1 } }) });
+    agent: { agent: 'deepseek', state: 'listening', turns: 1 } }) });
   for (let i = 0; i < 60 && d3.getElementById('writer').hidden; i++) await sleep(50);
   d3.getElementById('tab-type').click();
   await sleep(40);

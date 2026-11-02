@@ -104,7 +104,7 @@ const since = () => doc.getElementById('busy-since').textContent;
 (async () => {
 
 // ------------------------------------------------------------- waking up
-es.onmessage({ data: frame({ agent: 'claude', state: 'waking' }, held) });
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'waking' }, held) });
 await sleep(40);
 
 /waking up/.test(chip())
@@ -144,7 +144,7 @@ busy().classList.contains('busy-bad')
 // it already carries the course, the chapter, the sitting badge and three
 // controls, so a sentence put in the chip comes out truncated exactly where it
 // stops being useful. The chip says the state; the chrome says what it means.
-es.onmessage({ data: frame({ agent: 'claude', state: 'stale', turns: 2 }, null) });
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'stale', turns: 2 }, null) });
 await sleep(40);
 
 chip().length <= 16 && /stopped/.test(chip())
@@ -168,7 +168,7 @@ chip().length <= 16 && /stopped/.test(chip())
   ? ok('and it lives in the chrome, where the lesson cannot hide it')
   : fail('the banner is outside the chrome stack');
 
-es.onmessage({ data: frame({ agent: 'claude', state: 'listening' }, null) });
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'listening' }, null) });
 await sleep(40);
 doc.getElementById('tutorbad').hidden
   ? ok('and it goes the moment one is listening again')
@@ -181,7 +181,7 @@ doc.getElementById('tutorbad').hidden
 // message it failed on is read and the inbox is empty. A failure that could
 // only be reported alongside unclaimed work would therefore never be reported
 // at all -- which is exactly the hole the whole report is about.
-es.onmessage({ data: frame({ agent: 'claude', state: 'listening',
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'listening',
                              failure: { error: 'timed out', at: t0 - 30 } },
                            null) });
 await sleep(40);
@@ -201,7 +201,7 @@ await sleep(40);
 
 // A retry is not a dead end, and must not be painted as one: the daemon
 // re-answers the same message on its own.
-es.onmessage({ data: frame({ agent: 'claude', state: 'listening', retrying: true,
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'listening', retrying: true,
                              failure: { error: 'exit 1', at: t0 - 30 } },
                            null) });
 await sleep(40);
@@ -211,11 +211,11 @@ await sleep(40);
 
 // A send AFTER a failure is the newer fact, and the board must talk about that
 // rather than about the failure it has already reported once.
-es.onmessage({ data: frame({ agent: 'claude', state: 'waking',
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'waking',
                              failure: null },
                            { since: t0 - 10, count: 1 }) });
 await sleep(40);
-es.onmessage({ data: frame({ agent: 'claude', state: 'listening',
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'listening',
                              failure: { error: 'exit 1', at: t0 - 300 } },
                            { since: t0 - 20, count: 1 }) });
 await sleep(40);
@@ -225,7 +225,7 @@ await sleep(40);
          + says() + '"');
 
 // ------------------------------------------------ out of allowance is not a bug
-es.onmessage({ data: frame({ agent: 'claude', state: 'listening',
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'listening',
                              failure: { error: 'out of allowance', at: t0 - 30 } },
                            null) });
 await sleep(40);
@@ -234,7 +234,7 @@ await sleep(40);
   : fail('running out of allowance is reported as something else: "' + says() + '"');
 
 // ------------------------------------------------------- and the turn itself
-es.onmessage({ data: frame({ agent: 'claude', state: 'working', turns: 4,
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'working', turns: 4,
                              turn_started: t0 - 200 }, null) });
 await sleep(40);
 
@@ -269,7 +269,7 @@ await sleep(40);
               signal: 'begin', text: '' }],
     agent: agent, waiting: null,
   });
-  es.onmessage({ data: doing({ agent: 'claude', state: 'working', turns: 9,
+  es.onmessage({ data: doing({ agent: 'deepseek', state: 'working', turns: 9,
                                turn_started: t0 - 40 }) });
   await sleep(40);
   !busy().hidden
@@ -281,7 +281,7 @@ await sleep(40);
 
   // A different turn, started seven minutes ago -- the clock is set once per
   // turn from the daemon's own stamp, so a long one has to arrive as its own.
-  es.onmessage({ data: doing({ agent: 'claude', state: 'working', turns: 10,
+  es.onmessage({ data: doing({ agent: 'deepseek', state: 'working', turns: 10,
                                turn_started: t0 - 400 }) });
   await sleep(40);
   /report lands here/.test(says())
@@ -301,7 +301,7 @@ await sleep(40);
       cards: [{ id: '0001', kind: 'lesson', title: 'opening',
                 html: '<p>Working on it.</p>', mtime: t0 - 5 }],
       turns: [],
-      agent: { agent: 'claude', state: 'working', turns: 11,
+      agent: { agent: 'deepseek', state: 'working', turns: 11,
                turn_started: t0 - 40 },
       waiting: null,
     });
@@ -326,13 +326,13 @@ await sleep(40);
   };
   const old = { id: '0001', kind: 'lesson', title: 'q',
                 html: '<p>old</p>', mtime: t0 - 300 };
-  es.onmessage({ data: teach({ agent: 'claude', state: 'working', turns: 11,
+  es.onmessage({ data: teach({ agent: 'deepseek', state: 'working', turns: 11,
                                turn_started: t0 - 40 }, [old]) });
   await sleep(40);
   !busy().hidden
     ? ok('a teaching turn says so while its card is still being written')
     : fail('a teaching turn in progress says nothing');
-  es.onmessage({ data: teach({ agent: 'claude', state: 'working', turns: 11,
+  es.onmessage({ data: teach({ agent: 'deepseek', state: 'working', turns: 11,
                                turn_started: t0 - 40 },
                              [old, { id: '0002', kind: 'lesson', title: 'a',
                                      html: '<p>new</p>', mtime: t0 - 1 }]) });
@@ -363,7 +363,7 @@ await sleep(40);
     cards: cards,
     turns: [{ id: 't0020', rev: 1, kind: 'text', answers: null, t: t0 - 60,
               signal: 'direction', text: 'Drop the bake-off.' }],
-    agent: { agent: 'claude', state: 'working', turns: 1,
+    agent: { agent: 'deepseek', state: 'working', turns: 1,
              turn_started: t0 - 40, turn_signal: 'direction' },
     waiting: null,
   });
@@ -395,7 +395,7 @@ await sleep(40);
               body: 'The plan is rewritten. First step: calibrate.',
               mtime: t0 - 1 }],
     turns: [],
-    agent: { agent: 'claude', state: 'listening', turns: 1 },
+    agent: { agent: 'deepseek', state: 'listening', turns: 1 },
     waiting: null,
   }) });
   await sleep(40);
@@ -414,7 +414,7 @@ await sleep(40);
   es.onmessage({ data: JSON.stringify({
     state: { course: 'Speech-Lab', session: 'lecture' },
     cards: [], turns: [],
-    agent: { agent: 'claude', state: 'stopped', turns: 4 },
+    agent: { agent: 'deepseek', state: 'stopped', turns: 4 },
     waiting: { since: t0 - 30, count: 1, signal: 'direction' },
   }) });
   await sleep(40);
@@ -443,7 +443,7 @@ await sleep(40);
     cards: [{ id: '0001', kind: 'lesson', title: 'opening',
               html: '<p>About to run the four typists.</p>', mtime: t0 - 900 }],
     turns: [], unsaved: 8,
-    agent: { agent: 'claude', state: 'listening', turns: 1,
+    agent: { agent: 'deepseek', state: 'listening', turns: 1,
              failure: { error: 'timed out', at: t0 - 600 } },
   }) });
   await sleep(40);
@@ -478,7 +478,7 @@ await sleep(40);
   const pending = (turns, cards) => JSON.stringify({
     state: { course: 'Galois Theory', session: 'lecture' },
     cards: cards || [asked], turns: turns,
-    agent: { agent: 'claude', state: 'working', turns: 2,
+    agent: { agent: 'deepseek', state: 'working', turns: 2,
              turn_started: t0 - 20 },
   });
   const typedAnswer = { id: 't0080', rev: 1, kind: 'text', answers: '0001',
@@ -552,7 +552,7 @@ await sleep(40);
 // ------------------------------------------------------------ and silence
 // Nothing waiting, nothing working: there is genuinely nothing to say, and
 // saying something anyway is furniture.
-es.onmessage({ data: frame({ agent: 'claude', state: 'listening' }, null) });
+es.onmessage({ data: frame({ agent: 'deepseek', state: 'listening' }, null) });
 await sleep(40);
 busy().hidden
   ? ok('with nothing owed and nothing waiting, the strip goes')

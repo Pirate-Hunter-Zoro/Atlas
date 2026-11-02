@@ -132,7 +132,7 @@ const lesson = {
             iso: '2026-08-28 17:07:43', png: '/answers/t0002-r3.png',
             ink: '/answers/t0002-r3.json' }],
   messages: [], uploads: [], slate: [], push: null,
-  agent: { agent: 'claude', state: 'attached', mode: 'interactive' },
+  agent: { agent: 'deepseek', state: 'attached', mode: 'interactive' },
 };
 es.onmessage({ data: JSON.stringify(lesson) });
 
@@ -397,7 +397,7 @@ const farDown = Object.assign({}, withNew, {
 {
   scrolls.length = 0;
   es.onmessage({ data: JSON.stringify(Object.assign({}, farDown, {
-    agent: { agent: 'claude', state: 'working', turns: 3 },
+    agent: { agent: 'deepseek', state: 'working', turns: 3 },
   })) });
   !scrolls.length
     ? ok('a heartbeat with no new card does not move the page at all')

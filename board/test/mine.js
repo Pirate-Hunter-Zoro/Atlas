@@ -95,7 +95,7 @@ const ink = { id: 't0054', rev: 1, kind: 'ink', answers: '0001', t: t0 + 60,
 const frame = (cards, turns) => JSON.stringify({
   state: { course: 'Galois Theory', session: 'lecture' },
   cards: cards, turns: turns,
-  agent: { agent: 'claude', state: 'listening' },
+  agent: { agent: 'deepseek', state: 'listening' },
 });
 
 const mineFor = (id) => doc.querySelector('.mine[data-turn="' + id + '"]');

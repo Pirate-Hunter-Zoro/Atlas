@@ -41,9 +41,8 @@
     <button id="btn-mode" class="sess-ctl mode-toggle" type="button"
             title="teach: you write the code; do: the tutor writes it"><span class="mode-teach">teach</span><span class="mode-do">do</span></button>
     <span id="chapter" class="muted"></span>
-    <!-- The tutor's chip, and the way to choose who teaches: it opens
-         #agentpick. Not a session control: the choice is the machine's. -->
-    <button id="agent" class="agent" type="button" hidden></button>
+    <!-- The tutor's chip: whether DeepSeek is listening, working or gone. -->
+    <span id="agent" class="agent" hidden></span>
   </div>
   <div class="bar-right">
     <button id="btn-make" class="sess-ctl" type="button" title="a write-up, a deck or a paper from this session">make<span class="caret"> ▾</span></button>
@@ -236,16 +235,6 @@
     <button id="subjpick-go" type="button" class="primary">make it and bind</button>
   </div>
   <p id="subjpick-said" class="hdrmenu-note muted"></p>
-</div>
-
-<!-- WHO TEACHES: the tutor's chip opens this. The machine's one provider
-     setting (POST /default-agent), the one the home screen shows, drawn by
-     who.js: every session's next turn goes to it, this one's and the rest. -->
-<div id="agentpick" class="barmenu hdrmenu" hidden>
-  <p class="hdrmenu-note muted">Who teaches. One setting for this machine: it
-    takes every session's next turn.</p>
-  <div id="agentpick-ways" class="agentpick-ways"></div>
-  <p id="agentpick-said" class="hdrmenu-note muted"></p>
 </div>
 
 <!-- THE STATEMENT, AND A GIVEN'S MENU: layers over the lesson, outside
@@ -617,9 +606,6 @@
 <!-- Speaking, listening and the heard block; before board.js, which hands it
      the session's routes. -->
 <script src="/static/speak.js"></script>
-<!-- Which assistants this machine can run, by the rules the home screen
-     draws them by. Before board.js, whose tutor chip opens them. -->
-<script src="/static/who.js"></script>
 <script src="/static/board.js"></script>
 </body>
 </html>

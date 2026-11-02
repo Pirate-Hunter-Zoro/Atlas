@@ -138,9 +138,6 @@ var els = {
   subjpickSkip: document.getElementById("subjpick-skip"),
   subjpickGo: document.getElementById("subjpick-go"),
   subjpickNew: document.getElementById("subjpick-new"),
-  agentpick: document.getElementById("agentpick"),
-  agentpickWays: document.getElementById("agentpick-ways"),
-  agentpickSaid: document.getElementById("agentpick-said"),
   endedbar: document.getElementById("endedbar"),
   codebar: document.getElementById("codebar"),
   codeCmd: document.getElementById("code-cmd"),
@@ -1881,19 +1878,15 @@ function render(data) {
          the question mark are TEXT, they scale with the type, they survive the
          card being folded to its heading, and they are the whole of what this
          says to somebody who cannot tell the green from the red. */
-      /* AND THE FALLBACK THAT WROTE IT, when the provider could not: `by` is
-         stamped by `board write` on a turn `recipes.resolve` handed over. */
-      if (c.kind !== "lesson" || shown || band || c.by) {
+      if (c.kind !== "lesson" || shown || band) {
         head = '<div class="card-head">' +
                '<span class="kind">' + (KIND_LABEL[c.kind] || c.kind) + "</span>" +
                (run > 1 ? '<span class="streak">' + run + ' in a row</span>' : "") +
                (shown ? '<span class="card-title"></span>' : "") +
-               (c.by ? '<span class="card-by"></span>' : "") +
                '<span class="card-num">' + c.id + "</span></div>";
       }
       node.innerHTML = head + '<div class="body"></div>';
       if (shown) node.querySelector(".card-title").textContent = shown;
-      if (c.by) node.querySelector(".card-by").textContent = "by " + c.by;
       node.querySelector(".body").innerHTML = renderMarkdown(c.body || "");
     } else {
       var m = item.turn;
@@ -2455,20 +2448,10 @@ function paintSession(state, push, agent, exported, hwBuilt) {
          "tutor stopped - nothing is rea...", which loses the half that matters.
          `#tutorbad` carries the sentence. */
     : "tutor stopped";
-    /* AND IF SOMEBODY ELSE IS WRITING, SAY WHY, NOT JUST WHO. The strip already
-       names the assistant, so a swap changes the name on its own -- but a name
-       that changed silently is a question rather than an answer. `agent_why` is
-       written by the daemon at the moment it climbs down to another provider,
-       and it is the sentence a student is owed: this is the one thing the board
-       does on their behalf without being asked. */
-    els.agent.title = agent.agent_why || "";
   }
-  agentWhy = (agent && agent.agent_why) || "";
   /* The chip is the first thing the bar gives up width on, so its words are also
-     its title -- unless `agent_why`, the sentence a student is owed when somebody
-     else is teaching, is already there. The busy strip says it too
-     (`stalledWord`), because a title is a tooltip and glass does not hover. */
-  if (!els.agent.title) els.agent.title = els.agent.textContent;
+     its title. */
+  els.agent.title = els.agent.textContent;
   if (leavingTo) return;              /* a decision is in front of the student */
   if (state.finished) {
     els.finishLead.textContent = "Session finished.";
@@ -4620,7 +4603,6 @@ function postJson(url, body) {
 function closeHeaderMenus() {
   els.makemenu.hidden = true;
   els.subjpick.hidden = true;
-  els.agentpick.hidden = true;
   picking = "bind";
   pickThen = null;
 }
@@ -5041,69 +5023,7 @@ document.getElementById("subjpick-go").onclick = function (e) {
   }, function () { pickSaid("Not made: the server did not answer."); });
 };
 
-/* WHO TEACHES. The tutor's chip opens the machine's provider setting, the one
-   the home screen shows, drawn by the same rules (`who.js`). A tap posts
-   /default-agent: every session's next turn goes to it, this one's and every
-   other's, since each turn reads the setting when it starts. Why somebody else
-   is writing (`agent_why`) is said in the menu, because a title is a tooltip
-   and glass does not hover. */
-var agentListing = null;
-var agentSaved = null;
-var agentWhy = "";
-
-function agentSaid(text) { els.agentpickSaid.textContent = text || ""; }
-
-function paintAgentPick() {
-  var have = window.WhoChoice ? window.WhoChoice.offerable(agentListing) : [];
-  if (!have.length) {
-    els.agentpickWays.textContent = "";
-    if (agentListing) agentSaid("No assistant this machine can run was found.");
-    return;
-  }
-  window.WhoChoice.draw(els.agentpickWays, have, agentSaved || agentListing["default"], {
-    say: agentSaid,
-    pick: function (a) { setAgent(a); }
-  });
-}
-
-els.agent.onclick = function (e) {
-  e.stopPropagation();
-  var open = els.agentpick.hidden;
-  closeHeaderMenus();
-  els.barmenu.hidden = true;
-  if (!open) return;
-  agentSaved = null;
-  agentSaid(agentWhy);
-  els.agentpick.hidden = false;
-  hangMenu(els.agentpick);
-  fetch("/assistants.json").then(function (r) { return r.json(); }).then(function (got) {
-    agentListing = (got && got.assistants) || null;
-    paintAgentPick();
-  }, function () { agentSaid("The list of assistants did not come."); });
-};
-
-function setAgent(a) {
-  agentSaved = a.name;
-  paintAgentPick();
-  agentSaid("…");
-  postJson("/default-agent", { agent: a.name }).then(function (got) {
-    if (got && got.ok) {
-      agentListing = got.assistants || agentListing;
-      agentSaid(got.why ? got.why + "."
-                : (a.label || a.name) + " takes every session's next turn, this one's too.");
-    } else {
-      agentSaved = null;
-      agentSaid((got && (got.detail || got.error)) || "That did not take.");
-    }
-    paintAgentPick();
-  }, function () {
-    agentSaved = null;
-    agentSaid("The board did not answer.");
-    paintAgentPick();
-  });
-}
-
-[els.subjpick, els.makemenu, els.agentpick].forEach(function (menu) {
+[els.subjpick, els.makemenu].forEach(function (menu) {
   menu.addEventListener("click", function (e) { e.stopPropagation(); });
 });
 document.addEventListener("click", function () {
@@ -6214,20 +6134,15 @@ function stalledWord(st, waiting, unsaved) {
         since: Date.now() - (st.failure.at || 0) * 1000 }
     : null;
 
-  /* A provider standing aside is a standing fact, not an event: which provider
-     went quiet, what it could not reach, when it is asked again, and who
-     teaches instead. `agent_why` is the server's own sentence for the swap;
-     `stood_down` covers the case where nothing could take the turn. */
+  /* DeepSeek not answering from here is a standing fact, not an event: what
+     it could not reach, and until when the board believes it. The next turn
+     tries anyway. */
   var aside = null;
-  if (st && st.agent_why) {
-    aside = { text: st.agent_why, since: 0 };
-  } else if (st && st.stood_down) {
-    aside = { text: who + " is standing aside — "
-                  + (st.stood_down.host
-                     ? st.stood_down.host + " does not answer from this machine"
-                     : st.stood_down.why)
-                  + ", and nothing else here can take the lesson. Asking again at "
-                  + clockWord(st.stood_down.until) + ".",
+  if (st && st.stood_down) {
+    aside = { text: "DeepSeek does not answer from this machine"
+                  + (st.stood_down.host ? " (" + st.stood_down.host + ")" : "")
+                  + ". The next message tries again; the board stops saying so at "
+                  + clockWord(st.stood_down.until) + " or when a turn goes through.",
               bad: true, since: 0 };
   }
 
@@ -6291,9 +6206,9 @@ function failWord(err) {
   if (/allowance/i.test(e)) return "its usage allowance has run out here";
   /* A hostname is a fact about somebody else's server and the person holding
      the iPad did not choose it and cannot act on it. What they can act on is
-     that this is the provider rather than the lesson, the machine or them. */
-  if (/^cannot reach /i.test(e)) return "its provider does not answer from this machine";
-  if (/egress|network/i.test(e)) return "this machine cannot reach the internet";
+     that this is DeepSeek rather than the lesson, the machine or them. */
+  if (/^cannot reach /i.test(e)) return "DeepSeek does not answer from this machine";
+  if (/egress|network/i.test(e)) return "this machine cannot reach DeepSeek";
   if (/timed out/i.test(e)) return "the turn ran too long and was stopped";
   if (/^exit /.test(e)) return "the assistant exited (" + e + ")";
   return e || "no detail";

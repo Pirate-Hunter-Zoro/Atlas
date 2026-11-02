@@ -117,7 +117,7 @@ function strays(asked, prefix) {
                opened: '2026-10-08 21:00:00' },
       cards: [{ id: '0001', kind: 'lesson', title: 'A figure', body: BODY,
                 mtime: now - 600 }],
-      turns: [], agent: { agent: 'claude', state: 'listening', turns: 1 },
+      turns: [], agent: { agent: 'deepseek', state: 'listening', turns: 1 },
       waiting: null,
     }) });
   } else {
@@ -242,7 +242,7 @@ function strays(asked, prefix) {
   // ------------------------------------------------- and in the source
   // Every session route is fetched through the page's prefix. A bare literal
   // is allowed only for the cross-subject routes the server answers unprefixed.
-  const CROSS = /^\/(atlas\.json|sw\.js|subjects\.json|subjects\/new|subject\/delete|session\/delete|sessions\.json|assistants\.json)\b/;
+  const CROSS = /^\/(atlas\.json|sw\.js|subjects\.json|subjects\/new|subject\/delete|session\/delete|sessions\.json)\b/;
   for (const f of ['board.js', 'slate.js', 'slate-core.js', 'inkkeep.js', 'shot.js',
                    'library.js', 'ledger.js']) {
     const src = fs.readFileSync(path.join(WEB, f), 'utf8');

@@ -878,7 +878,7 @@ const heelSwipe = (id, x, y, dx, dy) => {
   // A save the network refused must not become a permanent label.
   //
   // Reported from the board: "I also see an 'offline' next to the send button.
-  // What gives? It says claude listening at the top." The board had been
+  // What gives? It says deepseek listening at the top." The board had been
   // flickering; one save fell into the gap; and the tag beside the send button
   // said `offline` for the rest of the sitting -- while the page still owed the
   // disk its strokes and nothing anywhere was retrying. The word was wrong, it

@@ -217,30 +217,6 @@ button.action { font: inherit; cursor: pointer; }
 }
 .set-lead { color: var(--ink-3); margin-right: .3rem; }
 
-/* WHO TUTORS: the machine's one provider setting, under New session, drawn by
-   web/who.js. The lead is a section heading, and the note under the buttons
-   always says who takes the next turn. */
-.who {
-  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
-}
-.who-lead { flex-basis: 100%; margin: 1.4rem 0 .2rem; }
-.who-ways { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
-/* 2.75rem, like every other thing on this page a finger has to hit. A chooser
-   nobody can tap on the device it exists for is furniture. */
-.who-ways button {
-  font-family: var(--ui); font-size: .78rem;
-  min-height: 2.75rem; padding: .4rem .8rem; border-radius: .4rem;
-  border: 1px solid var(--rule); background: transparent; color: var(--ink-2);
-}
-.who-ways button.on {
-  background: var(--ink); border-color: var(--ink); color: var(--paper); font-weight: 600;
-}
-.who-ways button.away { opacity: .55; }
-.who-note {
-  flex-basis: 100%; margin: .2rem 0 0;
-  font-family: var(--ui); font-size: .8rem; line-height: 1.35; color: var(--ink-2);
-}
-
 /* ---------- the search, and what the boot check says ---------- */
 .find {
   display: block; width: 100%; margin-top: 1.6rem;

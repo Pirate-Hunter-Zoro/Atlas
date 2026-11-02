@@ -578,7 +578,6 @@ body.annotating #btn-annotate { background: var(--ask); color: #fff; border-colo
 }
 .card-title { font-size: 1.02rem; font-weight: 640; color: var(--ink); }
 .card-num { font-size: .7rem; color: var(--ink-3); margin-left: auto; flex: none; }
-.card-by { font-size: .7rem; color: var(--ink-3); flex: none; }
 
 /* Feedback that a later card has replaced: folded to its heading, one line, and
    opened again by tapping it. Not hidden -- a transcript keeps everything -- but
@@ -1993,15 +1992,14 @@ body.reading #calc, body.viewing #calc { z-index: 96; }
 }
 #bar .sess-ctl:disabled { cursor: default; opacity: .55; }
 #bar .sess-ctl:disabled:hover { background: transparent; color: var(--ink-2); }
-/* The tutor's chip gives way before the subject does: its dot carries it. A
-   button, since it opens who teaches, drawn as the chip it is. */
+/* The tutor's chip gives way before the subject does: its dot carries it. */
 #bar .agent { flex-shrink: 4; }
-#bar button.agent {
+#bar span.agent {
   display: block; min-width: .45rem; padding: .3rem .3rem;
   overflow: hidden; text-overflow: ellipsis; text-align: left;
   font-size: .68rem; color: var(--ink-3);
 }
-#bar button.agent[data-state="stale"], #bar button.agent[data-state="none"] { color: var(--bad); }
+#bar span.agent[data-state="stale"], #bar span.agent[data-state="none"] { color: var(--bad); }
 /* A phone is narrower than the writing tools and the session's controls
    together: the session's go on a row of their own rather than off the glass. */
 @media (max-width: 600px) {
@@ -2012,7 +2010,7 @@ body.reading #calc, body.viewing #calc { z-index: 96; }
 
 /* The chip's picker opens under the chip, on the left; Make's under Make. */
 .hdrmenu { min-width: 15rem; }
-#subjpick, #agentpick { left: max(.6rem, env(safe-area-inset-left)); right: auto; }
+#subjpick { left: max(.6rem, env(safe-area-inset-left)); right: auto; }
 .hdrmenu-note { margin: .3rem .4rem .1rem; font-size: .76rem; }
 .hdrmenu-note:empty { display: none; }
 #make-about { display: block; width: calc(100% - .4rem); margin: .2rem .2rem .35rem;
@@ -2028,10 +2026,6 @@ body.reading #calc, body.viewing #calc { z-index: 96; }
                    background: var(--paper); color: var(--ink); }
 #subjpick-skip { border-top: 1px solid var(--rule); border-radius: 0; margin-top: .3rem;
                  padding-top: .5rem; color: var(--ink-2); }
-.agentpick-ways { display: flex; flex-wrap: wrap; gap: .3rem; padding: .2rem; }
-.agentpick-ways button { border: 1px solid var(--rule); }
-.agentpick-ways button.on { background: var(--ink); color: var(--paper); font-weight: 650; }
-.agentpick-ways button.away { opacity: .55; }
 .subjpick-new { display: flex; gap: .3rem; border-top: 1px solid var(--rule);
                 margin-top: .3rem; padding-top: .3rem; }
 .subjpick-new button { flex: 1; }

@@ -274,7 +274,7 @@ const px = (v) => parseFloat(v || '0');
       state: { course: 'Speech-Lab', opened: '2026-09-17 19:55', session: 'lecture',
                aim: 'build', stance: 'do', stance_now: 'do', declared_stance: 'do' },
       cards: cards, turns: turns || [], messages: [], uploads: [], slate: [],
-      agent: { agent: 'claude', state: 'listening' } }) });
+      agent: { agent: 'deepseek', state: 'listening' } }) });
     const under = () => {
       const p = writer.previousElementSibling;
       return (p && p.dataset && p.dataset.card) || '-';

@@ -5,8 +5,8 @@
 //      made from its name, and the address grammar -- `#/s/` carried to
 //      the session's board, and an old `#/w/` link followed nowhere. The
 //      re-centre pill placed off the bar; the boot check's Retry line and
-//      the beacon to /client-error; a failed refresh tried again; the Tutor
-//      chooser under New session saying who takes the next turn; the search,
+//      the beacon to /client-error; a failed refresh tried again; no tutor
+//      chooser, because DeepSeek is the one assistant; the search,
 //      the most-recently-used order and the newest ten past sessions; a
 //      subject deleted from its row (and the ones that cannot be, saying
 //      why); and an unbound past session sent to a course or project.
@@ -96,9 +96,6 @@ async function stubbed() {
     { id: 'projects/Mosaic', kind: 'project', slug: 'Mosaic', name: 'Mosaic' },
     { id: 'projects/Cohort-Study', kind: 'project', slug: 'Cohort-Study', name: 'Cohort-Study' },
     { id: 'projects/local-models', kind: 'project', slug: 'local-models', name: 'Local LLM' }];
-  const AGENTS = [
-    { name: 'claude', label: 'Claude', headless: true, cmd: 'claude' },
-    { name: 'codex', label: 'Codex', headless: true, cmd: 'codex' }];
   // GET /subject/delete?subject=, by subject: what the check says.
   const CHECKS = {
     'courses/Probability': { why: '', blocker: '', sessions: [] },
@@ -139,8 +136,6 @@ async function stubbed() {
     '/sync.json': { ok: true, synced: false, down: true,
       lines: ['not synced: fatal: Not possible to fast-forward, aborting.',
               'brew: node did not upgrade: it is pinned'] },
-    '/assistants.json': { ok: true, assistants: { default: 'claude', machine: 'claude',
-                                                  why: null, agents: AGENTS } },
   };
 
   // opts: `over` replaces answers by path; `fail` answers a path 502 with an
@@ -195,10 +190,6 @@ async function stubbed() {
                                filed: ['slides.pdf'], refused: [] };
       }
       if (method === 'POST' && url === '/client-error') got = { ok: true };
-      if (method === 'POST' && url === '/default-agent') {
-        got = { ok: true, default: body.agent, machine: body.agent, why: null,
-                assistants: { default: body.agent, machine: body.agent, why: null, agents: AGENTS } };
-      }
       if (method === 'POST' && url.split('?')[0] === '/artifact') {
         got = { ok: true, id: 't0003', make: body.make, session: SID,
                 source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
@@ -213,7 +204,7 @@ async function stubbed() {
                                json: () => Promise.resolve(JSON.parse(JSON.stringify(got))) });
     };
     if (!opts.errorsOk) w.addEventListener('error', (e) => fail('home: uncaught: ' + e.message));
-    for (const f of ['typeface.js', 'keyguard.js', 'address.js', 'recentre.js', 'who.js', 'home.js']) {
+    for (const f of ['typeface.js', 'keyguard.js', 'address.js', 'recentre.js', 'home.js']) {
       if ((opts.skip || []).indexOf(f) >= 0) continue;
       let src = fs.readFileSync(path.join(WEB, f), 'utf8');
       if (f === 'home.js') src = patched(src);
@@ -241,13 +232,13 @@ async function stubbed() {
   const d = w.document;
   await sleep(80);
 
-  const order = ['continue', 'new-session', 'who', 'notices', 'find', 'courses', 'projects',
+  const order = ['continue', 'new-session', 'notices', 'find', 'courses', 'projects',
                  'past', 'make', 'settings'];
   const at = order.map((id) => {
     const e = d.getElementById(id);
     return e ? Array.prototype.indexOf.call(d.querySelectorAll('main *'), e) : -1;
   });
-  check('top to bottom: Continue, New session, Tutor, notices, the search, Courses, '
+  check('top to bottom: Continue, New session, notices, the search, Courses, '
         + 'Projects, Past sessions, the three actions, Settings',
         at.every((n, i) => n >= 0 && (i === 0 || n > at[i - 1])));
 
@@ -362,9 +353,11 @@ async function stubbed() {
   const urls = () => w.asked.map((r) => r.url);
   check('the start screen asks nothing of the old switch route or /atlas.json',
         !urls().some((u) => /^\/(switch|atlas\.json)/.test(u)));
-  check('and reads the sessions, subjects, notices and assistants it draws',
-        ['/sessions.json', '/subjects.json', '/notices.json', '/assistants.json']
+  check('and reads the sessions, subjects and notices it draws',
+        ['/sessions.json', '/subjects.json', '/notices.json']
           .every((u) => urls().indexOf(u) >= 0));
+  check('and asks for no assistant listing: there is nothing to choose',
+        !urls().some((u) => u === '/assistants.json' || u === '/default-agent'));
 
   // Notices: each dismissible, and a dismissed one stays gone.
   let notes = Array.from(d.querySelectorAll('#notice-list .notice'));
@@ -420,44 +413,8 @@ async function stubbed() {
         && d.getElementById('theme-now').textContent === d.body.dataset.mode);
   check('the face setting is wired by typeface.js',
         typeof d.getElementById('btn-face').onclick === 'function');
-  // THE TUTOR: right under New session, its buttons reading the recipes'
-  // labels, and its note saying who takes the next turn before any tap.
-  const who = d.getElementById('who');
-  const whoNote = () => d.getElementById('who-note').textContent;
-  check('the Tutor chooser sits directly under New session and New canvas, out of Settings',
-        d.getElementById('starts').nextElementSibling === who
-        && d.getElementById('new-session').parentElement === d.getElementById('starts')
-        && !d.getElementById('settings').contains(who)
-        && /^Tutor$/.test(who.querySelector('.who-lead').textContent));
-  check('it is drawn with both choices, each reading its label',
-        !who.hidden && Array.from(d.querySelectorAll('#who-ways button'))
-          .map((b) => b.textContent + '=' + b.getAttribute('data-name')).join('|')
-          === 'Claude=claude|Codex=codex');
-  check('and says who takes the next turn without a tap',
-        whoNote() === 'Claude takes the next turn in every session.');
-  answers['/assistants.json'] = { ok: true, assistants: { default: 'claude', machine: 'codex',
-    why: 'claude has run out of its allowance until 14:00, so codex takes the next turn',
-    agents: AGENTS } };
-  d.dispatchEvent(new w.Event('visibilitychange'));
-  await sleep(60);
-  check('the listing is read again on coming back, and a fallback says why',
-        whoNote() === 'claude has run out of its allowance until 14:00, so codex takes the next turn.');
-  d.querySelector('#who-ways button[data-name="codex"]').click();
-  await sleep(40);
-  const picked = w.asked.filter((r) => r.url === '/default-agent');
-  check('a tap posts the recipe\'s name, not its label, and the note follows the reply',
-        picked.length === 1 && picked[0].body.agent === 'codex'
-        && whoNote() === 'Codex takes the next turn in every session.'
-        && d.querySelector('#who-ways button.on').getAttribute('data-name') === 'codex');
-  answers['/assistants.json'] = { ok: true, assistants: { default: 'claude', machine: 'claude',
-                                                          why: null, agents: AGENTS } };
-  {
-    const one = load('', { over: { '/assistants.json': { ok: true, assistants: {
-      default: 'claude', machine: 'claude', why: null, agents: [AGENTS[0]] } } } });
-    await sleep(60);
-    check('with fewer than two to choose between, there is no chooser',
-          one.document.getElementById('who').hidden);
-  }
+  check('there is no Tutor chooser on the start screen',
+        !d.getElementById('who') && !w.WhoChoice);
 
   // THE SEARCH narrows the subjects and the past sessions, here on the page,
   // and holds across a refresh.
@@ -635,7 +592,7 @@ async function stubbed() {
     const html = fs.readFileSync(path.join(WEB, 'home.html'), 'utf8');
     const tags = html.match(/<script src="\/static\/[^"]+"[^>]*>/g) || [];
     check('every script the page loads records itself when it does not arrive',
-          tags.length === 6 && tags.every((t) => /onerror="\(window\.bootMissed/.test(t)));
+          tags.length === 5 && tags.every((t) => /onerror="\(window\.bootMissed/.test(t)));
     check('and the check comes after them all',
           html.lastIndexOf('<script>') > html.indexOf('<script src="/static/home.js"'));
     const fine = load('', { boot: true });
@@ -1104,9 +1061,8 @@ finally:
     shutil.rmtree(tmp, ignore_errors=True)
 `;
 
-// The server runs under a home of its own: a route like POST /default-agent
-// writes ~/.config/tutor-board/config.json, and a test must never write the
-// machine's real one.
+// The server runs under a home of its own: a route that writes under
+// ~/.config/tutor-board must never write the machine's real one.
 function serve() {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'tutor-home-user-'));
   const env = Object.assign({}, process.env, {
@@ -1222,7 +1178,7 @@ async function real() {
     const w = await page(base + '/');
     const d = w.document;
     await until(() => d.querySelectorAll('#course-list .row').length > 0, 8000);
-    await until(() => w.__requests.some((r) => r.url === '/assistants.json' && r.status), 8000);
+    await until(() => w.__requests.some((r) => r.url === '/notices.json' && r.status), 8000);
 
     const asked = () => w.__requests.map((r) => r.url);
     check('/ makes no request to the old switch route or /atlas.json',

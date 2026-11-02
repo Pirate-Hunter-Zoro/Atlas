@@ -98,7 +98,7 @@ window.EventSource = function () {
   this.addEventListener = function () {};
 };
 
-for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'annbar.js', 'who.js']) {
+for (const f of ['typeface.js', 'macros.js', 'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js', 'annbar.js']) {
   try { window.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
   catch (e) { fail(f + ': ' + e.message); }
 }
@@ -192,14 +192,14 @@ if (es) {
   else fail('the empty state invites a tap without saying nobody will read it');
 
   es.onmessage({ data: JSON.stringify(Object.assign({}, live, {
-    agent: { agent: 'claude', state: 'attached', mode: 'interactive' } })) });
+    agent: { agent: 'deepseek', state: 'attached', mode: 'interactive' } })) });
   if (noTutor.hidden) ok('and withdrawn the moment one attaches');
   else fail('the warning stayed up with a tutor attached');
   if (/attached/.test(agentChip.textContent)) ok('an interactive tutor reads as attached');
   else fail('an interactive tutor is not reported: ' + agentChip.textContent);
 
   es.onmessage({ data: JSON.stringify(Object.assign({}, live, {
-    agent: { agent: 'claude', state: 'stale', mode: 'interactive' } })) });
+    agent: { agent: 'deepseek', state: 'stale', mode: 'interactive' } })) });
   if (!noTutor.hidden) ok('a tutor whose process has gone counts as none');
   else fail('a stale tutor still reads as attended');
 
@@ -207,7 +207,7 @@ if (es) {
   // "assistant not responding" plus a red "no tutor attached", five minutes into
   // a turn that was writing a card.
   es.onmessage({ data: JSON.stringify(Object.assign({}, live, {
-    agent: { agent: 'claude', state: 'working', turns: 3 } })) });
+    agent: { agent: 'deepseek', state: 'working', turns: 3 } })) });
   if (noTutor.hidden) ok('a tutor mid-turn is not reported as absent');
   else fail('a working tutor is shouted about as missing');
   if (/working/.test(agentChip.textContent)) ok('and the chrome says it is working');
@@ -216,7 +216,7 @@ if (es) {
   es.onmessage({ data: JSON.stringify(Object.assign({}, live, {
     cards: [{ n: 1, slug: 'first', kind: 'lesson', title: 'A first card',
               html: '<p>text</p>', mtime: Date.now() / 1000 }],
-    agent: { agent: 'claude', state: 'attached', mode: 'interactive' } })) });
+    agent: { agent: 'deepseek', state: 'attached', mode: 'interactive' } })) });
 
   es.onerror();
   if (!linkbad.hidden) ok('link lost with a lesson up: the board says it may be out of date');
@@ -237,7 +237,7 @@ if (es) {
   var cardsHost = doc.getElementById('cards');
   var base = { state: { course: 'G', session: 'lecture', mode: 'math' },
                turns: [], messages: [], uploads: [], slate: [], push: null,
-               agent: { agent: 'claude', state: 'listening' } };
+               agent: { agent: 'deepseek', state: 'listening' } };
   var t0 = Date.now() / 1000;
   var one = { n: 1, id: '0001', slug: 'a', kind: 'lesson', title: 'First',
               body: 'text one', mtime: t0 };
@@ -285,7 +285,7 @@ if (es) {
   var host2 = doc.getElementById('cards');
   var b2 = { state: { course: 'G', session: 'lecture', mode: 'math' },
              messages: [], uploads: [], slate: [], push: null,
-             agent: { agent: 'claude', state: 'listening' } };
+             agent: { agent: 'deepseek', state: 'listening' } };
   var s0 = Date.now() / 1000;
   var c1 = { id: '0001', slug: 'a', kind: 'question', title: 'One', body: 'q one', mtime: s0 };
   var c2 = { id: '0002', slug: 'b', kind: 'lesson', title: 'Two', body: 'two', mtime: s0 + 10 };
@@ -316,7 +316,7 @@ if (es) {
   var cardsBox = doc.getElementById('cards');
   var b3 = { state: { course: 'G', session: 'lecture', mode: 'math' },
              turns: [], messages: [], uploads: [], slate: [], push: null,
-             agent: { agent: 'claude', state: 'listening' } };
+             agent: { agent: 'deepseek', state: 'listening' } };
   var k0 = Date.now() / 1000;
   es.onmessage({ data: JSON.stringify(Object.assign({}, b3, {
     cards: [{ id: '0003', slug: 'c', kind: 'lesson', title: 'Marked', body: 'body', mtime: k0 }] })) });
@@ -1381,7 +1381,7 @@ if (es) {
   window.__render && window.__render();
   var b5 = { state: { course: 'G', session: 'lecture', mode: 'math' },
              cards: [], turns: [], messages: [], uploads: [], slate: [],
-             push: null, agent: { agent: 'claude', state: 'listening' },
+             push: null, agent: { agent: 'deepseek', state: 'listening' },
              export: { ok: false, at: Date.now() / 1000, tex: 'transcripts/x.tex',
                        detail: '! Undefined control sequence' } };
   es.onmessage({ data: JSON.stringify(b5) });
@@ -1399,7 +1399,7 @@ if (es) {
                     size: 12345, iso: '2026-09-08 11:01', scope: 'lesson' };
   var b6 = { state: { course: 'G', session: 'lecture', mode: 'math' },
              cards: [], turns: [], messages: [], uploads: [], slate: [],
-             push: null, agent: { agent: 'claude', state: 'listening' },
+             push: null, agent: { agent: 'deepseek', state: 'listening' },
              papers: { lesson: lessonDoc },
              export: { ok: true, at: Date.now() / 1000,
                        pdf: 'transcripts/galois-theory-v3.pdf',
@@ -1446,7 +1446,7 @@ if (es) {
     return Object.assign({
       state: { course: 'G', chapter: 'Ch 7', session: 'homework' },
       cards: [], turns: [], messages: [], uploads: [], slate: [],
-      agent: { agent: 'claude', state: 'listening' },
+      agent: { agent: 'deepseek', state: 'listening' },
       papers: { lesson: lessonDoc, homework: hwDoc },
       hw: { name: 'ch07', rel: 'homework/ch07.tex', problems: [], sets: ['ch07'],
             total: 0, written: 0,
@@ -1655,7 +1655,7 @@ if (es) {
 
   var b4 = { state: { course: 'G', session: 'lecture', mode: 'math' },
              cards: [], turns: [], messages: [], uploads: [], slate: [],
-             push: null, agent: { agent: 'claude', state: 'listening' } };
+             push: null, agent: { agent: 'deepseek', state: 'listening' } };
   es.onmessage({ data: JSON.stringify(b4) });
   if (fin.hidden) ok('and it stays out of the way until asked for');
   else fail('the save prompt is up when nobody asked');
@@ -1842,7 +1842,7 @@ async function sendingFlow() {
                 t: t1 + 60, t0: t1 + 60, png: '/answers/t0001-r1.png' };
   var base5 = { state: { course: 'P', session: 'homework', mode: 'math' },
                 messages: [], uploads: [], slate: [], push: null,
-                agent: { agent: 'claude', state: 'working' } };
+                agent: { agent: 'deepseek', state: 'working' } };
   var order = function () {
     return Array.prototype.map.call(flow.children, function (n) {
       return n === writer ? 'WRITER'
@@ -1878,7 +1878,7 @@ async function sendingFlow() {
              body: 'the second split is not disjoint', mtime: t1 + 120 };
   es.onmessage({ data: JSON.stringify(Object.assign({}, base5,
     { cards: [qCard, fb], turns: [myInk],
-      agent: { agent: 'claude', state: 'listening' } })) });
+      agent: { agent: 'deepseek', state: 'listening' } })) });
 
   if (flow.querySelector('.mine[data-answers="0001"]'))
     ok('once answered, what was handed in takes its place in the transcript');
@@ -1922,7 +1922,7 @@ async function reopenFlow() {
   var reopened = {
     state: { course: 'P', session: 'homework', mode: 'math' },
     messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' },
+    agent: { agent: 'deepseek', state: 'listening' },
     cards: [
       { id: '0001', kind: 'question', title: 'Prove it', body: 'q', mtime: t2 },
       { id: '0002', kind: 'note', title: 'Aside', body: 'a', mtime: t2 + 100 },
@@ -2312,8 +2312,8 @@ async function latchFlow() {
 // toggle flips `mode` through POST /mode, a new project is made from its
 // name, and End posts /end only after a second tap -- on a bound session. On an
 // unbound one End asks where the lecture goes, the chip of one that ended
-// unbound still sends it, and Make binds it first. The tutor's chip chooses
-// who teaches. The server is scripted here; the routes themselves are
+// unbound still sends it, and Make binds it first. The tutor's chip says
+// whether DeepSeek is there, and chooses nothing. The server is scripted here; the routes themselves are
 // `test/routing.py`'s, `test/header.py`'s and `test/sessions.py`'s.
 async function headerFlow() {
   const real = window.fetch;
@@ -2322,10 +2322,6 @@ async function headerFlow() {
   const reply = (o, status) => Promise.resolve({ status: status || 200,
                                                  json: () => Promise.resolve(o) });
   const names = { 'courses/Linear-Algebra': 'Linear Algebra' };
-  const listing = { 'default': 'deepseek', agents: [
-    { name: 'claude', label: 'Claude', headless: true, cmd: 'claude -p' },
-    { name: 'deepseek', label: 'DeepSeek', headless: true, cmd: 'opencode' },
-    { name: 'gone', label: 'Gone', headless: true, missing: true }] };
   window.fetch = (u, init) => {
     const url = String(u);
     const body = init && init.body ? JSON.parse(init.body) : null;
@@ -2362,9 +2358,6 @@ async function headerFlow() {
     if (url === '/sessions.json') return reply({ ok: true, sessions: [
       { id: '20261009-200000', subject: null }, { id: '20261009-190000', subject: 'projects/Cohort-Study' },
       { id: '20261009-180000', subject: 'projects/Cohort-Study' }] });
-    if (url === '/assistants.json') return reply({ ok: true, assistants: listing });
-    if (url === '/default-agent') return reply({ ok: true, 'default': body.agent, why: '',
-      assistants: Object.assign({}, listing, { 'default': body.agent }) });
     if (url === '/artifact') return reply({ ok: true, id: 't0009', make: body.make,
       source: 'courses/Linear-Algebra/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') });
     if (url === '/hw/build') return reply({ ok: false, detail: 'this session has no write-up yet' });
@@ -2375,7 +2368,7 @@ async function headerFlow() {
     state: Object.assign({ id: '20261009-210000', subject: null, mode: 'teach',
                            ended: null, course: 'Atlas' }, st),
     cards: [], turns: [], messages: [], uploads: [], slate: [], push: null,
-    agent: { agent: 'claude', state: 'listening' } });
+    agent: { agent: 'deepseek', state: 'listening' } });
   const chip = doc.getElementById('btn-subject');
   const label = doc.getElementById('course');
   const toggle = doc.getElementById('btn-mode');
@@ -2675,40 +2668,19 @@ async function headerFlow() {
     : fail('make then bind: artifacts=' + posts('/artifact').length + ' menu hidden=' + menu.hidden);
   doc.body.click();
 
-  // WHO TEACHES: the tutor's chip opens the machine's provider setting.
+  // THE TUTOR'S CHIP IS STATUS ONLY: there is one assistant, so nothing to choose.
   const html = fs.readFileSync(path.join(WEB, 'board.html'), 'utf8');
-  const whoAt = html.indexOf('src="/static/who.js"');
-  whoAt > 0 && whoAt < html.indexOf('src="/static/board.js"')
-    ? ok('board.html loads who.js before board.js') : fail('board.html does not load who.js first');
-  const agentBtn = doc.getElementById('agent');
-  const agentPick = doc.getElementById('agentpick');
-  agentBtn.tagName === 'BUTTON' && !agentBtn.classList.contains('sess-ctl')
-    ? ok('the tutor\'s chip is a button, and not a session control')
-    : fail('the tutor\'s chip is a ' + agentBtn.tagName + ' ' + agentBtn.className);
-  agentBtn.click();
-  await sleep(40);
-  const ways = Array.prototype.map.call(agentPick.querySelectorAll('#agentpick-ways button'),
-                                        (b) => b.textContent);
-  !agentPick.hidden && JSON.stringify(ways) === '["Claude","DeepSeek"]'
-    && agentPick.querySelector('#agentpick-ways button.on').textContent === 'DeepSeek'
-    && /every session's next turn/.test(agentPick.textContent)
-    ? ok('it opens who teaches: every assistant this machine runs, by label, the setting lit, '
-         + 'and that it is every session\'s next turn')
-    : fail('who teaches shows ' + JSON.stringify(ways) + ' hidden=' + agentPick.hidden);
-  agentPick.querySelectorAll('#agentpick-ways button')[0].click();
-  await sleep(40);
-  posts('/default-agent').length === 1 && posts('/default-agent')[0].body.agent === 'claude'
-    && /Claude takes every session's next turn/.test(doc.getElementById('agentpick-said').textContent)
-    && agentPick.querySelector('#agentpick-ways button.on').textContent === 'Claude'
-    ? ok('a tap posts /default-agent with the recipe\'s name, and says what it now does')
-    : fail('the tap posted ' + JSON.stringify(posts('/default-agent')) + ' said '
-           + doc.getElementById('agentpick-said').textContent);
-  chip.click();
+  html.indexOf('who.js') < 0 && !doc.getElementById('agentpick')
+    ? ok('there is no who-teaches menu and no who.js') : fail('a who-teaches menu is still drawn');
+  const agentChip = doc.getElementById('agent');
+  agentChip.tagName === 'SPAN' && !agentChip.classList.contains('sess-ctl')
+    ? ok('the tutor\'s chip is a status chip, not a button and not a session control')
+    : fail('the tutor\'s chip is a ' + agentChip.tagName + ' ' + agentChip.className);
+  agentChip.click();
   await sleep(20);
-  agentPick.hidden && !pick.hidden
-    ? ok('and it is one of the header menus: opening another closes it')
-    : fail('who teaches stayed open beside the picker');
-  doc.body.click();
+  !posts('/default-agent').length && !asked.some((a) => a.url === '/assistants.json')
+    ? ok('and tapping it asks the server for nothing')
+    : fail('tapping the chip asked ' + JSON.stringify(asked.slice(-2)));
   doc.querySelectorAll('#bar .sess-ctl').length === 4
     ? ok('the session controls are still four') : fail('the tutor\'s chip became a session control');
 

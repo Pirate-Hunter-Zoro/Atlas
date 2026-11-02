@@ -90,7 +90,7 @@ const steps = [
 const frame = (mode, extra) => JSON.stringify(Object.assign({
   state: { course: 'Harness', session: 'lecture', mode: mode, stance_now: mode },
   cards: steps, turns: [],
-  agent: { agent: 'claude', state: 'listening' },
+  agent: { agent: 'deepseek', state: 'listening' },
 }, extra || {}));
 
 const taps = () => doc.querySelectorAll('.card .hand-over');

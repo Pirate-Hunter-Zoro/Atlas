@@ -147,7 +147,7 @@ function paintWith(agent) {
 }
 
 const busy = doc.getElementById('busy');
-paintWith({ agent: 'claude', state: 'working', turns: 1, host: 'h', pid: 1 });
+paintWith({ agent: 'deepseek', state: 'working', turns: 1, host: 'h', pid: 1 });
 busy && !busy.hidden
   ? ok('the lesson says the tutor is writing while it writes')
   : fail('nothing on the board says the tutor is working — a blank screen and a '
@@ -166,7 +166,7 @@ busy && doc.getElementById('cards').nextElementSibling === busy
   ? ok('and sits directly after the lesson, where the card is about to appear')
   : fail('the notice is not at the end of the lesson');
 
-paintWith({ agent: 'claude', state: 'listening', turns: 1, host: 'h', pid: 1 });
+paintWith({ agent: 'deepseek', state: 'listening', turns: 1, host: 'h', pid: 1 });
 busy.hidden
   ? ok('and it goes when the turn ends')
   : fail('the working notice outlives the turn');
@@ -175,7 +175,7 @@ busy.hidden
 // write the handoff, and the daemon says "working" throughout. The notice
 // counted through all of it, so a 34-second card looked like a four-minute wait
 // -- measured, on a real board, and reported as "WHAT is going on".
-paintWith({ agent: 'claude', state: 'working', turns: 2, host: 'h', pid: 1 });
+paintWith({ agent: 'deepseek', state: 'working', turns: 2, host: 'h', pid: 1 });
 !busy.hidden ? ok('a new turn starts the notice again')
              : fail('the notice does not come back for the next turn');
 window.__render({
@@ -183,7 +183,7 @@ window.__render({
   cards: [question, { id: '0002', kind: 'lesson', title: 'Answer', body: 'here',
                       mtime: now + 500 }],
   turns: [], messages: [], uploads: [], slate: [],
-  agent: { agent: 'claude', state: 'working', turns: 2, host: 'h', pid: 1 },
+  agent: { agent: 'deepseek', state: 'working', turns: 2, host: 'h', pid: 1 },
 });
 busy.hidden
   ? ok('and it stops the moment a card lands, not when the tutor stops tidying')
