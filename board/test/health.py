@@ -9,8 +9,9 @@ What the checks are about:
     "not synced: <git's words>" line, and the payload reads down.
   * ONE SOURCE. `sync.health` reads pull.json, which the sync thread writes.
     The session's payload carries it as `sync`, and GET /sync.json serves it.
-  * BREW. brew.json's failures, and tools.json's, join /sync.json's lines, so
-    home shows them; the session's payload never carries them.
+  * UPKEEP. upkeep's state.json failures, Atlas's hook's, and tools.json's
+    join /sync.json's lines, so home shows them; the session's payload never
+    carries them.
   * NOTHING OF THE CLUSTER. GET /relay.json and POST /colibri are gone, and
     neither the payload nor /subject.json carries jobs or Colibri.
 
@@ -31,6 +32,7 @@ sys.path.insert(0, ROOT)
 box = tempfile.mkdtemp(prefix="tutor-health-box-")
 STATE = os.path.join(box, "state")
 os.environ["BOARD_STATE_DIR"] = STATE
+os.environ["UPKEEP_STATE_DIR"] = os.path.join(box, "upkeep")
 os.environ["XDG_CONFIG_HOME"] = os.path.join(box, "config")
 os.environ["TUTORBOARD_TRASH"] = os.path.join(box, "trash")
 os.environ["BOARD_NO_TAILNET"] = "1"
@@ -147,24 +149,29 @@ try:
           code == 200 and got["ok"] and got["synced"] is False
           and got["lines"] == ["not synced: skipped: staged changes"], got)
 
-    # --- brew upkeep: /sync.json only -----------------------------------------
-    write(os.path.join(STATE, "brew.json"), json.dumps({
-        "mode": "own", "last_attempt": "2026-10-12T03:30:00",
-        "last_success": "2026-10-11T03:30:00", "last_result": "partial",
-        "failed": {"ffmpeg": "Error: a download failed"}, "held": {},
-        "problems": []}))
+    # --- upkeep: /sync.json only ---------------------------------------------
+    upkeep_state = os.path.join(box, "upkeep", "state.json")
+    write(upkeep_state, json.dumps({
+        "last_attempt": "2099-10-12T03:30:00", "last_success": "2099-10-11T03:30:00",
+        "last_result": "partial", "failed": {"cask ffmpeg": "Error: a download failed"},
+        "held": {}, "problems": []}))
+    write(os.path.join(STATE, "atlas-upkeep.json"), json.dumps({
+        "problems": [{"what": "TeX is missing preview.sty", "fix": "tlmgr install preview"}]}))
     sync.forget()
     code, got = ask("GET", "/sync.json")
-    check("a brew failure joins /sync.json's lines, after the not-synced one",
+    check("upkeep's failure and the hook's problem join /sync.json's lines, after "
+          "the not-synced one",
           code == 200 and got["lines"][0].startswith("not synced")
-          and "brew: ffmpeg did not upgrade: Error: a download failed"
-          in got["lines"], got.get("lines"))
+          and "upkeep: cask ffmpeg failed: Error: a download failed" in got["lines"]
+          and "atlas: TeX is missing preview.sty; tlmgr install preview" in got["lines"],
+          got.get("lines"))
     sync.forget()
     data = hub.Hub(sessions.repo(sid, mac), Worker()).build()
-    check("and the session's payload stays without it",
-          not any(l.startswith("brew:") for l in data["sync"]["lines"]),
+    check("and the session's payload stays without them",
+          not any(l.startswith(("upkeep:", "atlas:")) for l in data["sync"]["lines"]),
           data["sync"])
-    os.remove(os.path.join(STATE, "brew.json"))
+    os.remove(upkeep_state)
+    os.remove(os.path.join(STATE, "atlas-upkeep.json"))
     write(os.path.join(STATE, "tools.json"), json.dumps({
         "tools": {"widget": {"failed": "T_UPDATE exited 3"}},
         "pins": [{"subject": "projects/S", "tool": "node", "pinned": "20.0.0",
@@ -193,4 +200,4 @@ print()
 if fails:
     print("%d check(s) failed" % len(fails))
     sys.exit(1)
-print("the Mac says when it is not synced, and home adds the machine's brew lines")
+print("the Mac says when it is not synced, and home adds the machine's upkeep lines")

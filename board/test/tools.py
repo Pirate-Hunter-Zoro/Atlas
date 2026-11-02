@@ -39,6 +39,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -90,6 +91,7 @@ PATH = os.pathsep.join([shims, "/opt/homebrew/bin", "/usr/local/bin",
                         os.path.join(home, ".elan", "bin"),
                         "/usr/bin", "/bin", "/usr/sbin", "/sbin"])
 ENV = dict(os.environ, HOME=home, PATH=PATH,
+           UPKEEP_STATE_DIR=os.path.join(work, "upkeep"),
            XDG_CONFIG_HOME=os.path.join(home, ".config"),
            XDG_STATE_HOME=os.path.join(home, ".local", "state"),
            BOARD_STATE_DIR=state, TOOLS_CALLS=CALLS)
@@ -363,7 +365,9 @@ try:
     for hours, moves in ((24 - 5.0 / 3600, True), (19, False)):
         write(os.path.join(home, ".widget", "version"), "1.1.0\n")
         doc = tools_json()
-        ago = (datetime.now() - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+        # Real hours, not wall-clock ones: across a DST change they differ.
+        ago = datetime.fromtimestamp(time.time() - hours * 3600).replace(
+            microsecond=0).isoformat()
         doc["tools"]["widget"].update({"attempted": ago, "updated": ago})
         write(TOOLS_JSON, json.dumps(doc))
         code, out = tools("update")
@@ -493,6 +497,31 @@ try:
     run(["bash", setup])
     check("an entry that comes back leaves left_brew",
           'brew "ripgrep"' not in tools_json().get("left_brew", {}), tools_json())
+    # An entry that moves from the root Brewfile to upkeep/Brewfile is not left
+    # behind: upkeep installs it. One already recorded comes out.
+    os.makedirs(os.path.join(prefix, "Cellar", "mise", "1.0"))
+    os.makedirs(os.path.join(prefix, "Cellar", "gh", "1.0"))
+    toolplan.update(lambda d: d.setdefault("left_brew", {}).update(
+        {'brew "gh"': "2026-10-01T03:00:00"}))
+    write(os.path.join(atlas, "upkeep", "Brewfile"), 'brew "mise"\nbrew "gh"  # the CLI\n')
+    write(os.path.join(atlas, "Brewfile"),
+          '# the root\nbrew "uv"            # every uv.lock\n'
+          'cask "font-x"   # a "quoted" # comment\n')
+    code, out = run(["bash", setup])
+    doc = tools_json()
+    said = brewcare.tool_lines_of(doc, prefix=prefix)
+    check("an entry moved to upkeep/Brewfile is not left behind, and a recorded one clears",
+          code == 0 and 'brew "mise"' not in read(union)
+          and not set(doc.get("left_brew", {})) & {'brew "mise"', 'brew "gh"'}
+          and not [l for l in said if "no longer declared: mise" in l
+                   or "no longer declared: gh" in l], (out, doc, said))
+    shutil.rmtree(os.path.join(atlas, "upkeep"))
+    shutil.rmtree(os.path.join(prefix, "Cellar", "mise"))
+    shutil.rmtree(os.path.join(prefix, "Cellar", "gh"))
+    write(os.path.join(atlas, "Brewfile"),
+          '# the root\nbrew "uv"            # every uv.lock\nbrew "mise"\n'
+          'cask "font-x"   # a "quoted" # comment\n')
+    run(["bash", setup])
 
     # =======================================================================
     # reporting
@@ -515,14 +544,14 @@ try:
     check("the doctor's summary counts them",
           brewcare.tools_summary(state, N) == "4 declared, 1 failed, 2 stale, "
           "0 no longer declared, 1 pins behind", brewcare.tools_summary(state, N))
-    write(os.path.join(state, "brew.json"), json.dumps({
-        "mode": "defer", "failed": {"tool:broke": "T_UPDATE exited 1"}}))
-    said = brewcare.lines(state, N)
+    write(os.path.join(state, "atlas-upkeep.json"), json.dumps({
+        "failed": {"tool:broke": "T_UPDATE exited 1"}}))
+    said = brewcare.lines(state, N, upkeep=os.path.join(work, "no-upkeep"))
     check("brewcare.lines, which reach home through /sync.json, name a failure once",
           len([l for l in said if "broke" in l]) == 1
           and "tools: broke did not update: T_UPDATE exited 1" in said
           and "tools: pin behind: projects/S node 20.0.0 -> 22.1.0" in said, said)
-    os.remove(os.path.join(state, "brew.json"))
+    os.remove(os.path.join(state, "atlas-upkeep.json"))
     check("no tools.json: no summary", brewcare.tools_summary(work) is None)
     check("and doctor's line says to run setup only on a Mac, which writes it",
           brewcare.tools_doctor(work, platform="darwin")

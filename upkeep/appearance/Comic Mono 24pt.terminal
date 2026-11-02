@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Bell</key>
+	<false/>
+	<key>Font</key>
+	<data>
+	YnBsaXN0MDDUAQIDBAUGBwpYJHZlcnNpb25ZJGFyY2hpdmVyVCR0b3BYJG9iamVjdHMS
+	AAGGoF8QD05TS2V5ZWRBcmNoaXZlctEICVRyb290gAGkCwwVFlUkbnVsbNQNDg8QERIT
+	FFZOU1NpemVYTlNmRmxhZ3NWTlNOYW1lViRjbGFzcyNAOAAAAAAAABAQgAKAA1lDb21p
+	Y01vbm/SFxgZGlokY2xhc3NuYW1lWCRjbGFzc2VzVk5TRm9udKIZG1hOU09iamVjdAgR
+	GiQpMjdJTFFTWF5nbnd+hY6QkpSeo663vsEAAAAAAAABAQAAAAAAAAAcAAAAAAAAAAAA
+	AAAAAAAAyg==
+	</data>
+	<key>FontAntialias</key>
+	<true/>
+	<key>FontHeightSpacing</key>
+	<real>1.2</real>
+	<key>FontWidthSpacing</key>
+	<real>1.0</real>
+	<key>ProfileCurrentVersion</key>
+	<real>2.09</real>
+	<key>ShowWindowSettingsNameInTitle</key>
+	<false/>
+	<key>columnCount</key>
+	<integer>100</integer>
+	<key>name</key>
+	<string>Comic Mono 24pt</string>
+	<key>rowCount</key>
+	<integer>30</integer>
+	<key>type</key>
+	<string>Window Settings</string>
+	<key>useOptionAsMetaKey</key>
+	<true/>
+</dict>
+</plist>

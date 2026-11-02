@@ -2041,11 +2041,10 @@ def machine_check():
     v4, tsname = ts_info()
     print("tailnet:  %s  (this machine calls itself '%s')"
           % (tsname or "not linked", tailscale.tailnet_hostname()))
-    # Not fatal: brew upkeep is setup's machine job (scripts/brew-upgrade.py).
+    # Not fatal: upkeep is the machine's job (upkeep/, and Atlas's
+    # upkeep.d/hook), not the board's.
     from tutorboard import brewcare
-    said = brewcare.summary()
-    if said is not None:
-        print("brew:     %s" % said)
+    print("upkeep:   %s" % brewcare.summary())
     # The tools neither brew nor mise keeps current, the mise pins behind and
     # whatever a deleted subject left installed (scripts/tools.sh, toolplan).
     print("tools:    %s" % brewcare.tools_doctor())

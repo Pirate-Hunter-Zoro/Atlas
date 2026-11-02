@@ -202,8 +202,8 @@ def pull_health(state_dir=None):
 def health(atlas, state_dir=None, brew=True, fresh=False):
     """The Mac's sync health: `{ok, synced, down, pull, lines}`. `lines` are
     the sentences to show, worst first, `[]` when all is well: the not-synced
-    line, then (with `brew`) the machine's `brew:` and `tools:` lines
-    (`brewcare.lines`). The board's payload asks without `brew`, so a lesson
+    line, then (with `brew`) the machine's `upkeep:`, `atlas:` and `tools:`
+    lines (`brewcare.lines`). The board's payload asks without `brew`, so a lesson
     shows only what stops its work reaching origin."""
     from . import brewcare
     key = (os.path.realpath(atlas), state_dir, bool(brew))

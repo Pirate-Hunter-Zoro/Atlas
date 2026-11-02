@@ -14,8 +14,8 @@ also runs with --guards. Where ai-config is absent the run says SKIPPED, loudly.
 
 Each suite runs with board/ as its working directory and this process's
 environment less git's repository-local variables (GIT_DIR and the rest), plus
-a page cache and a speech cache of its own (TUTORBOARD_PAGES,
-TUTORBOARD_SPEECH). Suites in SERIAL never run beside each other.
+a page cache, a speech cache and an upkeep state of its own (TUTORBOARD_PAGES,
+TUTORBOARD_SPEECH, UPKEEP_STATE_DIR). Suites in SERIAL never run beside each other.
 
 Stdlib only.
 """
@@ -172,15 +172,18 @@ def run_one(suite):
     # pruning another's page set mid-read is a failure neither caused.
     pages = tempfile.mkdtemp(prefix="suite-pages-")
     speech = tempfile.mkdtemp(prefix="suite-speech-")
+    # And an empty upkeep state: the machine's real problems are not a suite's.
+    upkeep = tempfile.mkdtemp(prefix="suite-upkeep-")
     try:
         proc = subprocess.run(suite.argv, cwd=suite.cwd, stdin=subprocess.DEVNULL,
                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               universal_newlines=True, errors="replace",
                               env=dict(os.environ, TUTORBOARD_PAGES=pages,
-                                       TUTORBOARD_SPEECH=speech))
+                                       TUTORBOARD_SPEECH=speech,
+                                       UPKEEP_STATE_DIR=upkeep))
     finally:
-        shutil.rmtree(pages, ignore_errors=True)
-        shutil.rmtree(speech, ignore_errors=True)
+        for d in (pages, speech, upkeep):
+            shutil.rmtree(d, ignore_errors=True)
     secs = time.time() - start
     out = proc.stdout or ""
     lines = [l for l in out.split("\n") if l.strip()]

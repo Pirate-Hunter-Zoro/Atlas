@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Rendered by `scripts/brew-upgrade.py install`: @HOME@ and @ATLAS@ become absolute paths.
-     Hourly, and the script decides whether to work. No RunAtLoad, so loading never
-     starts an upgrade. /usr/bin/python3, because this job upgrades brew's python.
-     AbandonProcessGroup, so a bootout never kills a brew the job started mid-link. -->
+<!-- Rendered by `upkeep install`: @HOME@, @UPKEEP@ and @PATH@ become absolute.
+     Hourly; the script's gate decides whether to work. No RunAtLoad, so loading
+     never starts an upgrade. /usr/bin/python3, because a run upgrades brew's python.
+     AbandonProcessGroup, so a bootout never kills a brew mid-link. -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>atlas.brew-upgrade</string>
+    <string>com.mikeyferguson.upkeep</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>@ATLAS@/scripts/brew-upgrade.py</string>
+        <string>@UPKEEP@/upkeep.py</string>
         <string>run</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>@ATLAS@</string>
+    <string>@HOME@</string>
     <key>StartInterval</key>
     <integer>3600</integer>
     <key>RunAtLoad</key>
@@ -31,13 +31,13 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>@HOME@/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>@PATH@</string>
         <key>HOME</key>
         <string>@HOME@</string>
     </dict>
     <key>StandardOutPath</key>
-    <string>@HOME@/.local/state/atlas-setup/brew-upgrade.launchd.log</string>
+    <string>@HOME@/.local/state/upkeep/launchd.log</string>
     <key>StandardErrorPath</key>
-    <string>@HOME@/.local/state/atlas-setup/brew-upgrade.launchd.log</string>
+    <string>@HOME@/.local/state/upkeep/launchd.log</string>
 </dict>
 </plist>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Rendered by `upkeep install`. Every minute: `upkeep.py doctor` keeps opencode,
+     ~/bin/coder and opencode.jsonc working. It does nothing while a run moves
+     node and npm, or while the legacy com.mikeyferguson.opencodedoctor is loaded. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mikeyferguson.opencode-doctor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>@UPKEEP@/upkeep.py</string>
+        <string>doctor</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@HOME@</string>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@PATH@</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>@HOME@/.local/state/upkeep/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.local/state/upkeep/launchd.log</string>
+</dict>
+</plist>

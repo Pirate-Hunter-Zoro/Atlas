@@ -14,20 +14,23 @@
 # Deleting the role file makes the next run a host again.
 #
 # A fresh clone or an old checkout, it does the same thing, and a second run
-# changes nothing:
+# changes nothing. A Mac with no Homebrew gets it first (upkeep/setup-mac.sh
+# --homebrew), which asks for the password once:
 #
 #   1  main, fast-forward only; once, the checkouts of the retired vendor
 #      submodules go, and so do retired projects that hold only caches
 #   2  bootstrap: `board` on the PATH, ai-config,
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
-#   3  the Brewfile and every subject's environment (scripts/setup.sh), and
-#      the board's whisper model (scripts/speech-model.sh)
+#   3  the machine's upkeep (upkeep/setup-mac.sh: brew, the shared Brewfile,
+#      opencode, Android, Flutter, fonts, editors, kept current hourly by
+#      com.mikeyferguson.upkeep), then the Brewfile and every subject's
+#      environment (scripts/setup.sh), and the board's whisper model
+#      (scripts/speech-model.sh)
 #   4  the assistant: ai-config linked, and opencode, which runs DeepSeek,
 #      installed when missing
 #   5  tailscale serves the board on the tailnet over HTTPS
 #   6  DeepSeek can take a turn (opencode, the key), the board answers on
 #      8778, and board/test/tracked.py passes
-#   7  brew upkeep: the atlas.brew-upgrade LaunchAgent, both roles (scripts/brew-upgrade.py)
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
 # line counts what still needs a person. Logs: ~/.local/state/atlas-setup/.
@@ -49,8 +52,12 @@ warn() { printf '  ----  %s\n' "$*"; problems=$((problems + 1)); }
 
 [ "$(uname -s)" = Darwin ] \
   || { echo "this is not a Mac; Atlas runs on a Mac only."; exit 1; }
-command -v brew >/dev/null 2>&1 \
-  || { echo "no Homebrew. Install it from https://brew.sh, then rerun."; exit 1; }
+# A bare Mac: Homebrew first, at the terminal, since its installer asks for
+# the password. It lands in /opt/homebrew/bin, already on the PATH above.
+if ! command -v brew >/dev/null 2>&1; then
+  bash upkeep/setup-mac.sh --homebrew || exit 1
+  hash -r
+fi
 
 # The role is read by board/install.sh and board/bootstrap.sh too.
 ROLE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/role"
@@ -131,7 +138,20 @@ done
 echo "== 2. bootstrap"
 bash board/bootstrap.sh 2>&1 | sed 's/^/  /'
 
-echo "== 3. environments"
+echo "== 3. upkeep and environments"
+# upkeep is the machine's, on every clone of Atlas or Media-Orchestrator: it
+# installs and runs once here, then com.mikeyferguson.upkeep keeps it current.
+# Its exit status counts the steps only the owner can take.
+bash upkeep/setup-mac.sh >"$LOGS/upkeep.log" 2>&1
+owner_steps=$?
+if [ "$owner_steps" -eq 0 ]; then
+  good "upkeep installed and run; see $LOGS/upkeep.log"
+else
+  sed -n '/^== what only you can do/,$p' "$LOGS/upkeep.log" | sed '1d; s/^/  /'
+  printf '  ----  %s\n' "upkeep: $owner_steps step(s) above only you can take; see $LOGS/upkeep.log"
+  problems=$((problems + owner_steps))
+fi
+if said="$(python3 scripts/brew-upgrade.py install 2>&1)"; then good "$said"; else warn "atlas-brew: $said"; fi
 bash scripts/setup.sh 2>&1 | tee "$LOGS/setup.log" | sed 's/^/  /'
 [ "${PIPESTATUS[0]}" -eq 0 ] || warn "scripts/setup.sh: a FAILED line above names its log"
 # The board's local listener: one whisper model, checksummed, fetched once.
@@ -252,9 +272,6 @@ sys.exit(1 if why else 0)' 2>&1)"; then
 fi
 python3 board/test/tracked.py >"$LOGS/tracked.log" 2>&1 \
   && good "tracked.py: git can see nothing it must not" || warn "tracked.py fails; see $LOGS/tracked.log"
-
-echo "== 7. brew upkeep"
-if said="$(python3 scripts/brew-upgrade.py install 2>&1)"; then good "$said"; else warn "brew upkeep: $said"; fi
 
 echo
 if [ "$problems" -eq 0 ] && [ "$CODING" = 1 ]; then

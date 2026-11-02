@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- A system LaunchDaemon (root): xcode-select, the license and first launch
+         need root. It runs the ROOT-OWNED copy root/install.sh installed, never the
+         repo's user-writable file. Daily, and at load. -->
+    <key>Label</key>
+    <string>com.mikeyferguson.upkeep-root</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Library/Application Support/upkeep-root/upkeep-root.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>15</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardOutPath</key>
+    <string>/Library/Logs/upkeep-root.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Library/Logs/upkeep-root.log</string>
+</dict>
+</plist>

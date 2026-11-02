@@ -2,14 +2,16 @@
 
 Three layers, each read from the subjects and never from a list. The board
 server runs none of them: `scripts/setup.sh` installs, `scripts/tools.sh`
-reads descriptors, and `scripts/brew-upgrade.py` keeps all three current.
+reads descriptors, and upkeep, through Atlas's hook (`scripts/brew-upgrade.py`),
+keeps all three current.
 
   BREWFILES    the root `Brewfile` plus each subject's own, as one sorted and
                deduplicated union (`union_text`). setup.sh bundles it with
-               --no-upgrade and brew-upgrade.py checks it, from
+               --no-upgrade and upkeep installs it, from
                `~/.local/state/atlas-setup/Brewfile.all`, rewritten only when
                it changes (`write_union`). An entry that leaves the union is
-               remembered in tools.json `left_brew`; nothing is uninstalled.
+               remembered in tools.json `left_brew`, unless upkeep/Brewfile
+               declares it; nothing is uninstalled.
   MISE         a subject's `mise.toml` and `mise.lock` pin its toolchains.
                `marker_dirs` finds a marker at a subject's root and one
                directory down, skipping SKIP.
@@ -18,7 +20,7 @@ reads descriptors, and `scripts/brew-upgrade.py` keeps all three current.
 
 State is tools.json in the board's state directory: one record per tool
 tools.sh has handled, `left` for one no longer declared, `left_brew`, and
-`pins`, the mise pins brew-upgrade.py found behind, which brief.py puts in
+`pins`, the mise pins the hook found behind, which brief.py puts in
 that subject's sessions as a bump to propose. `python3 -m
 tutorboard.toolplan` is tools.sh's and setup.sh's way in. Stdlib only, and
 3.7-clean.
@@ -210,17 +212,30 @@ def union(base):
 
 def union_text(base):
     got, labels = union(base)
-    head = ("# Written by scripts/setup.sh and scripts/brew-upgrade.py; edit the "
+    head = ("# Written by scripts/setup.sh and Atlas's upkeep hook; edit the "
             "Brewfiles it joins:\n# %s\n" % ", ".join(labels or ["(none)"]))
     return head + "".join(e + "\n" for e in got)
+
+
+def machine_entries(base):
+    """The entries of `upkeep/Brewfile`, which upkeep installs on every
+    machine whatever Atlas declares."""
+    return set(entries(os.path.join(base, "upkeep", "Brewfile")))
 
 
 def write_union(base, dest=None):
     """Write the union to `dest` (Brewfile.all) when it differs. (changed,
     path). An entry that left it goes into tools.json `left_brew`, and one
-    that came back comes out."""
+    that came back comes out. An entry upkeep/Brewfile declares never counts
+    as left: upkeep keeps it installed."""
     dest = dest or union_path()
     text = union_text(base)
+    machine = machine_entries(base)
+    if set(read().get("left_brew") or {}) & machine:
+        def drop(doc):
+            for e in machine:
+                doc.setdefault("left_brew", {}).pop(e, None)
+        update(drop)
     try:
         with open(dest, encoding="utf-8") as fh:
             old = fh.read()
@@ -235,7 +250,8 @@ def write_union(base, dest=None):
     os.replace(tmp, dest)
     before = set(l for l in (old or "").splitlines() if l and not l.startswith("#"))
     now = set(l for l in text.splitlines() if l and not l.startswith("#"))
-    gone, back = before - now, now
+    back = now | machine
+    gone = before - back
 
     def change(doc):
         left = doc.setdefault("left_brew", {})

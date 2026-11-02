@@ -1,0 +1,5 @@
+#!/bin/bash
+# Atlas's upkeep hook. upkeep (upkeep/upkeep.py) calls it as `hook <phase>`;
+# scripts/brew-upgrade.py does the work. /usr/bin/python3, because upkeep
+# upgrades brew's python.
+exec /usr/bin/python3 "$(cd "$(dirname "$0")/.." && pwd)/scripts/brew-upgrade.py" hook "$@"
