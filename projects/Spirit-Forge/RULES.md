@@ -98,10 +98,10 @@ cloud account, app-store membership, or subscription is required to play or deve
 Official references: https://podman.io/docs/installation, https://flutter.dev/,
 https://ziglang.org/, and https://lean-lang.org/.
 
-DeepSeek is the intended coach, not an application dependency. All coaches follow this
-same contract. Atlas's provider table and fallback order remain authoritative. Any future
-AI call outside the board goes through `board/tutorboard/agents/oneshot.py`. Gameplay must
-work without an AI provider. Do not change global provider configuration for this project.
+DeepSeek is the coach, not an application dependency. DeepSeek through OpenCode is Atlas's
+only AI, and any future AI call outside the board goes through
+`board/tutorboard/agents/oneshot.py`. Gameplay must work without AI. Do not change global AI
+configuration for this project.
 
 ## Session state and completion
 
