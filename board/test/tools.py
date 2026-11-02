@@ -497,6 +497,31 @@ try:
     run(["bash", setup])
     check("an entry that comes back leaves left_brew",
           'brew "ripgrep"' not in tools_json().get("left_brew", {}), tools_json())
+    # An entry that moves from the root Brewfile to upkeep/Brewfile is not left
+    # behind: upkeep installs it. One already recorded comes out.
+    os.makedirs(os.path.join(prefix, "Cellar", "mise", "1.0"))
+    os.makedirs(os.path.join(prefix, "Cellar", "gh", "1.0"))
+    toolplan.update(lambda d: d.setdefault("left_brew", {}).update(
+        {'brew "gh"': "2026-10-01T03:00:00"}))
+    write(os.path.join(atlas, "upkeep", "Brewfile"), 'brew "mise"\nbrew "gh"  # the CLI\n')
+    write(os.path.join(atlas, "Brewfile"),
+          '# the root\nbrew "uv"            # every uv.lock\n'
+          'cask "font-x"   # a "quoted" # comment\n')
+    code, out = run(["bash", setup])
+    doc = tools_json()
+    said = brewcare.tool_lines_of(doc, prefix=prefix)
+    check("an entry moved to upkeep/Brewfile is not left behind, and a recorded one clears",
+          code == 0 and 'brew "mise"' not in read(union)
+          and not set(doc.get("left_brew", {})) & {'brew "mise"', 'brew "gh"'}
+          and not [l for l in said if "no longer declared: mise" in l
+                   or "no longer declared: gh" in l], (out, doc, said))
+    shutil.rmtree(os.path.join(atlas, "upkeep"))
+    shutil.rmtree(os.path.join(prefix, "Cellar", "mise"))
+    shutil.rmtree(os.path.join(prefix, "Cellar", "gh"))
+    write(os.path.join(atlas, "Brewfile"),
+          '# the root\nbrew "uv"            # every uv.lock\nbrew "mise"\n'
+          'cask "font-x"   # a "quoted" # comment\n')
+    run(["bash", setup])
 
     # =======================================================================
     # reporting
