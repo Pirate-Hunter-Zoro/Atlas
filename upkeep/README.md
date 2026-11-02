@@ -73,8 +73,8 @@ Each failure is recorded and the run goes on.
   `~/.config/tutor-board/keys.env`, else opencode's `auth.json`, written to the
   others (a missing directory is not created, except `~/.config/api-keys`). No key is logged.
 - **Legacy**: while MO main's `com.mikeyferguson.brewupgrade` is loaded, steps 2-4 and
-  cleanup are its, when its `last_success` is under 20 h old (`--force` ignores
-  that), its lock is under 6 h old, or a brew runs. While `com.mikeyferguson.opencodedoctor`
+  cleanup are its, when its `last_success` is under 20 h old, its lock is under
+  6 h old, or a brew runs, `--force` or not: it knows MO's protected casks. While `com.mikeyferguson.opencodedoctor`
   is loaded, the doctor is its. Both found by label with `launchctl print`.
 - **Retired**: `install` and every run boot out `atlas.brew-upgrade` and remove its plist.
 - **Hooks**: `upkeep.d/hook <phase>`, run in the repo root with `UPKEEP_STATE_DIR`,

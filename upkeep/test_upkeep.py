@@ -805,12 +805,11 @@ class Legacy(Case):
             self.legacy_success(3)
             legacy = U.legacy_brew()
             self.assertEqual(legacy["dir"], self.wd)
-            self.assertIn("succeeded", U.legacy_skip(legacy, False))
-            self.assertIsNone(U.legacy_skip(legacy, True), "--force runs past recency")
+            self.assertIn("succeeded", U.legacy_skip(legacy))
             self.legacy_success(30)
-            self.assertIsNone(U.legacy_skip(U.legacy_brew(), False))
+            self.assertIsNone(U.legacy_skip(U.legacy_brew()))
             b.write(os.path.join(self.wd, "state", "brew_upgrade.lock"), "1 now")
-            self.assertIn("lock", U.legacy_skip(U.legacy_brew(), True))
+            self.assertIn("lock", U.legacy_skip(U.legacy_brew()))
         finally:
             restore()
 
@@ -825,6 +824,16 @@ class Legacy(Case):
                                                                      "bundle", "cleanup"))])
         self.assertNotIn("update -g", b.argv("npm"))
         self.assertIn("doctor -v", b.argv("flutter"))
+
+    def test_forced_run_leaves_brew_to_a_recent_legacy_job(self):
+        b = self.b
+        self.legacy_success(3)
+        b.upkeep("run", "--force")
+        st = b.state()
+        self.assertTrue(st["phases"]["brew"].startswith("skipped"), st["phases"])
+        self.assertEqual(st["brew_by"], U.LEGACY_BREW)
+        self.assertFalse([a for a in b.argv("brew") if a.startswith(("update", "upgrade",
+                                                                     "bundle", "cleanup"))])
 
     def test_legacy_doctor_makes_doctor_a_noop(self):
         b = self.b

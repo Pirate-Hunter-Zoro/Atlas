@@ -815,9 +815,10 @@ def brew_running():
     return code == 0 and bool(out.strip())
 
 
-def legacy_skip(legacy, force):
+def legacy_skip(legacy):
     """Why phases 2-4 are left to the legacy job this run, or None. --force
-    skips only for safety (its lock, a running brew), not for its recency."""
+    changes nothing here: the legacy job knows casks upkeep does not (MO's
+    protected ones), so a forced run never upgrades beside it."""
     if not legacy:
         return None
     if legacy["lock_fresh"]:
@@ -825,7 +826,7 @@ def legacy_skip(legacy, force):
     if brew_running():
         return "a brew is running"
     last = parse_ts(legacy.get("last_success"))
-    if not force and hours_since(last) < MIN_INTERVAL_H:
+    if hours_since(last) < MIN_INTERVAL_H:
         return "%s succeeded at %s" % (LEGACY_BREW, legacy["last_success"])
     return None
 
@@ -1909,7 +1910,7 @@ def full_run(state, why, force):
     r = Run()
     stopped = False
     legacy = legacy_brew()
-    skip = legacy_skip(legacy, force)
+    skip = legacy_skip(legacy)
     try:
         if skip:
             for name in ("brew", "bundle", "npm"):
