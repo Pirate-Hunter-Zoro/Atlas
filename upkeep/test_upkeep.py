@@ -762,6 +762,13 @@ class FullRun(Case):
         b.upkeep("run", "--force")
         self.assertIn("update", b.argv("brew"), "Atlas's hook is no upgrader")
         b.clear_calls()
+        full_scenario(b, pgrep_lines={"brew[-_]upgrade": "80 /Applications/Xcode.app/"
+                                      "Contents/Developer/Library/Frameworks/Python3."
+                                      "framework/Versions/3.9/Resources/Python.app/"
+                                      "Contents/MacOS/Python pg/brew_upgrade.py"})
+        b.upkeep("run", "--force")
+        self.assertNotIn("update", b.argv("brew"), "Xcode's Python, capital P")
+        b.clear_calls()
         full_scenario(b, pgrep_lines={"/Library/Homebrew/brew\\.(rb|sh)":
                                       "79 /opt/homebrew/Library/Homebrew/brew.rb"})
         b.upkeep("run", "--force")

@@ -1982,7 +1982,7 @@ def busy():
     for line in out.splitlines() if code == 0 else []:
         parts = line.split()
         if len(parts) > 2 and re.match(r"^(python[\d.]*|bash|sh|zsh)$",
-                                       os.path.basename(parts[1])) \
+                                       os.path.basename(parts[1]), re.I) \
                 and re.search(r"brew[-_]upgrade\.(py|sh)\b", " ".join(parts[2:])) \
                 and "scripts/brew-upgrade.py" not in line \
                 and not parts[2].startswith("-c"):
