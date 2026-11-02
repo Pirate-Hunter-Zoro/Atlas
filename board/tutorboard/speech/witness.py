@@ -57,7 +57,7 @@ def local_state(cfg=None):
     model = speech.model_path(spec)
     out.append((bool(whisper and model), "local stt:    %s" % (
         "whisper-cli %s with %s" % (whisper, model) if whisper and model
-        else "whisper-cli MISSING (brew install whisper-cpp)" if not whisper
+        else "whisper-cli MISSING (brew install whisper.cpp)" if not whisper
         else "whisper-cli %s, but no model in %s (bash scripts/speech-model.sh)"
         % (whisper, paths.MODELS))))
     conv = [t for t in ("afconvert", "ffmpeg") if shutil.which(t)]

@@ -290,7 +290,7 @@ def _local_missing(spec, kind, lang):
     if kind == "stt":
         exe = (job.get("cmd") or ["whisper-cli"])[0]
         if not shutil.which(exe):
-            return "`%s` is not installed (brew install whisper-cpp)" % exe
+            return "`%s` is not installed (brew install whisper.cpp)" % exe
         if not model_path(spec):
             return ("no whisper model in %s (bash scripts/speech-model.sh)"
                     % paths.MODELS)

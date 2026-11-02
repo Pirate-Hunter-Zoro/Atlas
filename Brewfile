@@ -17,7 +17,7 @@ brew "tailscale"
 cask "font-dejavu"   # `board build`'s PDF face: it has the ₀ ρ ≈ − a paper uses
 
 # speech: the board's local listener and voices (board/tutorboard/agents/speech.py)
-brew "whisper-cpp"   # whisper-cli; scripts/speech-model.sh fetches its model
+brew "whisper.cpp"   # whisper-cli; scripts/speech-model.sh fetches its model
 brew "ffmpeg"        # a WebM take, which afconvert cannot read
 brew "espeak-ng"     # Irish (ga), which macOS has no voice for
 

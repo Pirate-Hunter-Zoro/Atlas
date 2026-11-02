@@ -81,7 +81,7 @@ waiting.
   cannot take one, and a finger tap gives the full keyboard. Scribble can stay on. Once, after
   the board updates: force-quit the home-screen app and Safari, because the mini-keyboard state
   sticks to the running app. If the system keyboard itself is floating, pinch it out once.
-- **Speech.** This Mac has `whisper-cpp`, `espeak-ng`, the whisper model and the Azure key.
+- **Speech.** This Mac has `whisper.cpp`, `espeak-ng`, the whisper model and the Azure key.
   `setup-mac.sh` installs the first three on any other Mac.
 - **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
   `setup-mac.sh --coding` the Mac mini's tailnet name.

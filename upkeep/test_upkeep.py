@@ -731,7 +731,7 @@ class FullRun(Case):
         self.assertEqual(data["window.zoomLevel"], 1)
         self.assertIn("// keep this comment", settings)
         self.assertEqual(data["markdown.preview.fontFamily"],
-                         "OpenDyslexic, -apple-system, sans-serif")
+                         "OpenDyslexic, OpenDyslexic Nerd Font Propo, -apple-system, sans-serif")
         prefs = plistlib.loads(b.read(os.path.join(b.fake, "terminal.plist")).encode())
         self.assertEqual(prefs["Default Window Settings"], "Comic Mono 24pt")
         self.assertEqual(prefs["Startup Window Settings"], "Comic Mono 24pt")

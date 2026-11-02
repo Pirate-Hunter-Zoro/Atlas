@@ -1258,8 +1258,8 @@ try:
     # 8. SETUP
     # =======================================================================
     brew = open(os.path.join(ATLAS_ROOT, "Brewfile")).read()
-    check("the Brewfile has whisper-cpp, ffmpeg and espeak-ng",
-          all('brew "%s"' % b in brew for b in ("whisper-cpp", "ffmpeg", "espeak-ng")))
+    check("the Brewfile has whisper.cpp, ffmpeg and espeak-ng",
+          all('brew "%s"' % b in brew for b in ("whisper.cpp", "ffmpeg", "espeak-ng")))
     script = os.path.join(ATLAS_ROOT, "scripts", "speech-model.sh")
     text = open(script).read()
     import re

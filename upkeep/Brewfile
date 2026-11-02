@@ -22,6 +22,6 @@ cask "google-chrome"              # flutter doctor's web section, and `flutter r
 
 # dyslexia-friendly faces: monospace for code and terminals, OpenDyslexic for prose
 cask "font-comic-mono"
-cask "font-opendyslexic"
+cask "font-opendyslexic-nerd-font"   # OpenDyslexic itself; the plain cask is disabled upstream
 cask "font-atkinson-hyperlegible-mono"
 cask "font-monaspace"
