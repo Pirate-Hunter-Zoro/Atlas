@@ -97,12 +97,13 @@ board, and checks that the board answers. Its header lists each step.
   in two subjects must be the same bytes. Nothing is uninstalled: a deleted subject's tools and
   Brewfile entries are named by `board doctor` while they stay installed.
 - Turn on automatic login, so the LaunchAgents come back after a reboot.
-- The DeepSeek key is `DEEPSEEK_API_KEY` in `~/.config/tutor-board/keys.env`, else the file
-  `~/.config/api-keys/deepseek_key`; Azure's keys sit in keys.env too. `config.json` holds
+- The DeepSeek key is `DEEPSEEK_API_KEY` in the environment, else in
+  `~/.config/tutor-board/keys.env`, else the file `~/.config/api-keys/deepseek_key`. A file other
+  accounts can read is refused, so keep both at mode 600. Azure's keys sit in keys.env too. `config.json` holds
   timeouts and the host, and picks no assistant. All of it stays off the tree.
 - `board doctor --dry` reports what the machine has without spending a turn.
-- Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
-  each one you use, once.
+- Step 4 links `ai-config` and installs `opencode`, the one assistant CLI (see *Assistant
+  CLIs*). Step 6 runs the board's own readiness check: opencode, the key, the allowance.
 - Step 7 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
   cask current once a day in 03:00-07:59, then brew's npm globals. It never passes `--greedy`, so
   a cask marked `auto_updates` is left out of `brew outdated` and updates itself. Then comes the
@@ -159,17 +160,16 @@ host.
 
 ## Assistant CLIs
 
-Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
-config and how to install, update and run it. The scripts that act on the
-descriptors name no vendor. The board needs only `opencode`.
+The one assistant is OpenCode running DeepSeek, described in `ai-config/assistants/opencode.sh`:
+where it keeps its config and how to install, update and run it. The board needs only
+`opencode`, the npm global `opencode-ai`; upkeep's opencode doctor repairs it when it breaks.
 `setup-mac.sh` fast-forwards `ai-config` first, since Atlas's pull never moves it. Then it
 runs these two, which a second run leaves unchanged:
 
 - `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`) and each settings
   file, and loads the daily audit's LaunchAgent.
-- `ai-config/scripts/install-clis.sh` runs the vendor's own installer for any CLI that is
-  missing, under `$HOME`, with no prompt and no login. It prints each login command. A failed
-  install is reported and the rest go on.
+- `ai-config/scripts/install-clis.sh` installs opencode when it is missing, with no prompt and
+  no login, and prints the login command.
 
 `ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
 `node_modules`, the CLI's own `update` otherwise. It runs from `atlas.brew-upgrade`.

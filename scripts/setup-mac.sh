@@ -22,11 +22,11 @@
 #      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
 #   3  the Brewfile and every subject's environment (scripts/setup.sh), and
 #      the board's whisper model (scripts/speech-model.sh)
-#   4  the assistant CLIs: ai-config linked, and every CLI its descriptors know
-#      how to install, installed when missing (none is required)
+#   4  the assistant: ai-config linked, and opencode, which runs DeepSeek,
+#      installed when missing
 #   5  tailscale serves the board on the tailnet over HTTPS
-#   6  the DeepSeek key is there, the board answers on 8778, and
-#      board/test/tracked.py passes
+#   6  DeepSeek can take a turn (opencode, the key), the board answers on
+#      8778, and board/test/tracked.py passes
 #   7  brew upkeep: the atlas.brew-upgrade LaunchAgent, both roles (scripts/brew-upgrade.py)
 #
 # It never stops at the first problem. Each line says ok or ----, and the last
@@ -142,10 +142,10 @@ else
   [ "${PIPESTATUS[0]}" -eq 0 ] || warn "the whisper model: the line above says why"
 fi
 
-echo "== 4. assistant CLIs"
-# None is load-bearing: a CLI that will not install is reported, never a stop.
-# ai-config links each one's contract and settings and loads the daily
-# audit; install-clis puts in any its descriptors know how to install.
+echo "== 4. the assistant"
+# DeepSeek through opencode is the AI. ai-config links its contract and
+# settings and loads the daily audit; install-clis puts opencode in when it
+# is missing, and upkeep's opencode doctor keeps it working after that.
 if [ -f ai-config/scripts/install.sh ]; then
   # ai-config is its own repository and Atlas's pull never moves it.
   GIT_TERMINAL_PROMPT=0 git -C ai-config pull -q --ff-only origin main 2>"$LOGS/ai-config-pull.log" \
@@ -155,9 +155,14 @@ if [ -f ai-config/scripts/install.sh ]; then
     && good "ai-config linked (contract, settings, daily audit)" \
     || warn "ai-config's install.sh failed; see $LOGS/ai-config-install.log"
   bash ai-config/scripts/install-clis.sh 2>&1 | sed 's/^/  /'
-  [ "${PIPESTATUS[0]}" -eq 0 ] || warn "an assistant CLI did not install; the line above says how by hand"
+  [ "${PIPESTATUS[0]}" -eq 0 ] || warn "opencode did not install; the line above says how by hand"
 else
   warn "no ai-config here; bootstrap clones it, then rerun"
+fi
+if command -v opencode >/dev/null 2>&1; then
+  good "opencode is $(command -v opencode)"
+else
+  warn "no opencode: npm install -g opencode-ai --allow-scripts=opencode-ai, or rerun once ai-config or upkeep is here"
 fi
 
 echo "== 5. tailscale"
@@ -221,10 +226,17 @@ os.replace(path + ".tmp", path)
     warn "no host in $CONFIG: board pull --materials refuses until a rerun is given the Mac mini's tailnet name"
   fi
 else
-  if grep -qs '^DEEPSEEK_API_KEY=.' "$HOME/.config/tutor-board/keys.env" || [ -s "$HOME/.config/api-keys/deepseek_key" ]; then
-    good "the DeepSeek key is there"
+  # The board's own readiness check, so this line and a turn never disagree:
+  # opencode on the PATH, the DeepSeek key readable, the allowance not spent.
+  if said="$(cd board && python3 -c 'import sys
+sys.path.insert(0, ".")
+from tutorboard.agents import recipes
+why = recipes.ready()
+print(why or "")
+sys.exit(1 if why else 0)' 2>&1)"; then
+    good "DeepSeek can take a turn: opencode is here and the key is readable"
   else
-    warn "no DeepSeek key: put DEEPSEEK_API_KEY=... in ~/.config/tutor-board/keys.env, mode 600 (README, Setting up the Mac)"
+    warn "DeepSeek cannot take a turn: $said (README, Setting up the Mac)"
   fi
   code=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do

@@ -156,6 +156,8 @@ ENV.update(SPEECH_MODEL_FETCH=os.path.join(shims, "model-fetch"),
            SPEECH_MODEL_SHA256=hashlib.sha256(b"model bytes").hexdigest())
 write(os.path.join(shims, "brew"), "#!/bin/bash\n" + LOG, EXE)
 write(os.path.join(shims, "mise"), "#!/bin/bash\n" + LOG, EXE)
+# The assistant setup checks for; nothing here runs a turn.
+write(os.path.join(shims, "opencode"), "#!/bin/bash\n" + LOG, EXE)
 # setup-mac.sh refuses anything but a Mac; the shim keeps the suite independent of uname.
 write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
 # rsync: logs its argv (one JSON list a line), maps `host:<path>` to
@@ -371,8 +373,10 @@ try:
         os.remove(ROLE)
         coding_cfg = read(CONFIG)
         write(CONFIG, "{}\n")
+        # Mode 600: setup's check is the board's, which refuses a key file
+        # every account can read.
         write(os.path.join(home, ".config", "tutor-board", "keys.env"),
-              "DEEPSEEK_API_KEY=sk-test\n")
+              "DEEPSEEK_API_KEY=sk-test\n", stat.S_IRUSR | stat.S_IWUSR)
         runs = []
         for _ in (1, 2):
             open(CALLS, "w").close()
