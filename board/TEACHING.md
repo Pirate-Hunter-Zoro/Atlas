@@ -103,7 +103,7 @@ exact result, and that card is the whole turn: no next step, no re-pose.
 An upload lands in the session's `uploads/`, and an `[uploaded] <name>` line
 with a `file:` path reaches you with whatever they say next.
 
-**Open the file** (`board eyes <path>` if you cannot read an image). Say in one
+**Open the file** (`board see <path>` puts an image into words). Say in one
 line what you see and act on it: a screenshot of four exercises means *these
 are the ones I want to work through*. Never let one sit unremarked.
 

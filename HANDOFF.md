@@ -39,8 +39,8 @@ Rules that hold throughout:
   The main checkout carries uncommitted owner work.
 - **Owner files are the owner's.** These are `RULES.md`, subject `README.md`s, and
   `TUTOR.md` outside `board memo`. A tutor turn may not commit them.
-- **No provider is load-bearing.** That covers text, vision and speech. Each walks a table, and
-  something local ends every chain.
+- **DeepSeek through OpenCode is the AI,** for turns and for vision. Nothing chooses another
+  assistant. Speech is Azure first and local last.
 - **Python is standard library only. The web client is plain JavaScript.** External tools arrive
   through Homebrew or a subject's declared toolchain, never at board run time.
 
@@ -67,7 +67,7 @@ Rules that hold throughout:
   - Home's "Annotate a PDF" preselects Random lessons.
   - A finished textbook ingest wakes one tutor turn.
 - **Speech.**
-  - Azure first, OpenAI second, local last.
+  - Azure first, local last.
   - A language course auto-speaks target phrases only.
   - Gaelic means Irish (ga-IE).
 
@@ -112,7 +112,6 @@ These are built but not yet used for real. Strike each one after an evening on t
   - A free lesson sent to Random lessons at End, leaving a TUTOR.md line and any write-up.
   - One that ended unsent, sent later from its chip.
   - A new course made from the send picker at End.
-  - Who teaches, switched from the tutor's chip mid-session.
   - The session header: subject chip, teach and do, Make, End.
   - Teach and do persist until switched, and a do turn runs `board check`.
 - **Documents:**

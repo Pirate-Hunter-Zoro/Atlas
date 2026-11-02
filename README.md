@@ -14,9 +14,9 @@ sessions and the invariants. How a tutor turn teaches is
 - **Nothing private in git.** Other people's work, keys, recordings and large binaries stay on
   disk. Ignore rules, `.githooks/pre-commit` and `board/test/tracked.py` each refuse them on
   their own, because any one guard can be deleted by accident.
-- **No AI provider is load-bearing.** Every AI use in Atlas reads one provider table and walks
-  it in order, so any provider can be added, removed, or go away. DeepSeek on the Mac mini alone
-  runs all of it. The README in `board/` says how to add one.
+- **DeepSeek through OpenCode is the AI.** Every turn, vision request and one-off prompt goes
+  to DeepSeek through one recipe, `board/tutorboard/agents/recipes.py`. Nothing chooses another
+  assistant. Speech is not AI: Azure Speech first, this Mac's local tools last.
 - **The Mac is the only brain.** Every model turn, compile and deck runs on the Mac mini.
 - **Commits are authored by the owner.** `.githooks/commit-msg` strips assistant trailers.
 
@@ -97,9 +97,9 @@ board, and checks that the board answers. Its header lists each step.
   in two subjects must be the same bytes. Nothing is uninstalled: a deleted subject's tools and
   Brewfile entries are named by `board doctor` while they stay installed.
 - Turn on automatic login, so the LaunchAgents come back after a reboot.
-- The providers are set in `~/.config/tutor-board/config.json` (`provider`, optional
-  `fallback`, `vision_agent`, extra `agents`); keys sit in `~/.config/tutor-board/keys.env`.
-  Both stay off the tree.
+- The DeepSeek key is `DEEPSEEK_API_KEY` in `~/.config/tutor-board/keys.env`, else the file
+  `~/.config/api-keys/deepseek_key`; Azure's keys sit in keys.env too. `config.json` holds
+  timeouts and the host, and picks no assistant. All of it stays off the tree.
 - `board doctor --dry` reports what the machine has without spending a turn.
 - Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
   each one you use, once.
@@ -141,7 +141,7 @@ cd Atlas && bash scripts/setup-mac.sh --coding
 A laptop is a coding checkout: it runs `board code` and no board. `--coding` writes `coding` to
 `~/.config/tutor-board/role`, so every later run stays a coding checkout. That run does the Mac's
 steps without the board's LaunchAgent, and boots out one left from before. It skips tailscale
-serve, the provider config and the port-8778 check. Deleting the role file makes the next run a
+serve, the DeepSeek key check and the port-8778 check. Deleting the role file makes the next run a
 host.
 
 - `board pull` brings the laptop up to date: Atlas and ai-config. It names
@@ -161,7 +161,7 @@ host.
 
 Every assistant is one descriptor in `ai-config/assistants/<name>.sh`: where it keeps its
 config and how to install, update and run it. The scripts that act on the
-descriptors name no vendor, so adding an assistant is one file, and none is required.
+descriptors name no vendor. The board needs only `opencode`.
 `setup-mac.sh` fast-forwards `ai-config` first, since Atlas's pull never moves it. Then it
 runs these two, which a second run leaves unchanged:
 

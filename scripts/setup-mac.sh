@@ -8,7 +8,7 @@
 # --coding makes a coding checkout instead, a laptop that runs `board code` and
 # no board: it writes `coding` to ~/.config/tutor-board/role, so every rerun
 # stays one, and then step 2 installs no board LaunchAgent and boots out a stray one,
-# and steps 5 and 6 skip tailscale serve, the provider config and port 8778.
+# and steps 5 and 6 skip tailscale serve, the DeepSeek key and port 8778.
 # Step 6 asks instead for the Mac mini's tailnet name, once, and writes it as
 # `host` in ~/.config/tutor-board/config.json for `board pull --materials`.
 # Deleting the role file makes the next run a host again.
@@ -25,7 +25,7 @@
 #   4  the assistant CLIs: ai-config linked, and every CLI its descriptors know
 #      how to install, installed when missing (none is required)
 #   5  tailscale serves the board on the tailnet over HTTPS
-#   6  the provider config exists, the board answers on 8778, and
+#   6  the DeepSeek key is there, the board answers on 8778, and
 #      board/test/tracked.py passes
 #   7  brew upkeep: the atlas.brew-upgrade LaunchAgent, both roles (scripts/brew-upgrade.py)
 #
@@ -175,7 +175,7 @@ fi
 
 echo "== 6. checks"
 if [ "$CODING" = 1 ]; then
-  good "skipped the provider config and port 8778: the board runs on the Mac mini"
+  good "skipped the DeepSeek key and port 8778: the board runs on the Mac mini"
   # `host` in config.json: read it, else ask once and merge it in. The other
   # keys are kept; a config.json that is not JSON is left alone.
   CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/config.json"
@@ -221,10 +221,10 @@ os.replace(path + ".tmp", path)
     warn "no host in $CONFIG: board pull --materials refuses until a rerun is given the Mac mini's tailnet name"
   fi
 else
-  if [ -f "$HOME/.config/tutor-board/config.json" ]; then
-    good "~/.config/tutor-board/config.json is there"
+  if grep -qs '^DEEPSEEK_API_KEY=.' "$HOME/.config/tutor-board/keys.env" || [ -s "$HOME/.config/api-keys/deepseek_key" ]; then
+    good "the DeepSeek key is there"
   else
-    warn "no ~/.config/tutor-board/config.json: set provider, fallback and vision_agent (README, Setting up the Mac)"
+    warn "no DeepSeek key: put DEEPSEEK_API_KEY=... in ~/.config/tutor-board/keys.env, mode 600 (README, Setting up the Mac)"
   fi
   code=""
   for _ in 1 2 3 4 5 6 7 8 9 10; do

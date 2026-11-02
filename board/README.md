@@ -27,9 +27,8 @@ where a model is called.
   server-sent events: in full on connect, then as deltas. It reacts to file changes in the
   session directory and to routes marking it dirty.
 - **The runner** (`runner/service.py`) takes every turn inside the server: one FIFO per
-  session, at most 2 turns at once. A turn is one fresh provider process with cwd at the Atlas
-  root and `TUTORBOARD_SESSION=<session dir>`, `TUTORBOARD_TURN=1` and
-  `CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1`. A message is recorded as owed before the turn runs
+  session, at most 2 turns at once. A turn is one fresh DeepSeek process (`opencode run`) with
+  cwd at the Atlas root and `TUTORBOARD_SESSION=<session dir>` and `TUTORBOARD_TURN=1`. A message is recorded as owed before the turn runs
   and re-queued at startup, so a restart loses no message.
 - **The sync thread** (`sync.Sync`, only with `TUTORBOARD_SYNC=1`). Every 20 s one
   `git ls-remote origin` asks for `main` and `refs/heads/code/*`. When main moved: a
@@ -62,7 +61,7 @@ A server started by hand or by a test sets neither variable, so it never pulls t
 | `tutorboard/runner/` | the runner, one turn, its prompts (`prompts/*.md`) |
 | `tutorboard/lesson/` | cards, inbox, slate, turns, uploads, the save |
 | `tutorboard/course/` | a subject on disk: config, Repo, homework, library, reader pages, ledger, burn, book (the textbook index) |
-| `tutorboard/agents/` | provider recipes, usage and cost, `board doctor` |
+| `tutorboard/agents/` | the DeepSeek recipe, usage and cost, `board doctor`, speech |
 | `tutorboard/` (top level) | sessions, subjects, artifacts, memo, mode, brief, sense, build, writeups, sync, code, gitops, audit |
 | `web/` | home, board, slate and library pages; reader; ink; `sw.js`; vendored KaTeX and math.js |
 | `tex/` | `board-macros.tex` (generated from `web/macros.js` by `tools/sync-macros.py`) and the write-up template |
@@ -103,9 +102,8 @@ and the audit refuses any path under it.
   and never past an unpushed commit of the owner's), then queues
   a wrap-up turn that brings `TUTOR.md` up to date with `board memo`. A second End retries the
   commit and the push.
-- **Who teaches.** The tutor's chip in the header opens the machine's provider setting
-  (`POST /default-agent`, drawn by `who.js` as on the home screen). It takes every session's
-  next turn; there is no per-session provider.
+- **The tutor's chip** in the header says whether DeepSeek is listening, working or gone. It
+  chooses nothing: there is one assistant.
 - **Reopen.** A coding step for an ended session reopens it.
 - **Delete.** A second tap moves the directory to `~/.local/share/tutor-board/trash/<stamp>/`,
   kept 30 days.
@@ -114,8 +112,8 @@ and the audit refuses any path under it.
 A line written `"wake": false` (bind, mode, filing, upload) queues nothing, and the next turn
 takes it with the rest.
 
-**Every turn is cold.** The prompt carries the brief and the recap (`brief.py`); the global
-CLAUDE.md still loads. The brief is the method from `sense.py`, the subject's `RULES.md` at
+**Every turn is cold.** The prompt carries the brief and the recap (`brief.py`), above the
+turn's own words. The brief is the method from `sense.py`, the subject's `RULES.md` at
 HEAD, its `TUTOR.md`, and what the owner did away from the board. A subject's `README.md` never
 enters it. `board brief` and `board recap` print the same text.
 
@@ -294,41 +292,40 @@ One git ref per coding session, `code/<session-id>` (`code.py`).
 `board code` answers before anything else in `bin/board` is imported, so it loads no server,
 runner or model module.
 
-## Providers
+## DeepSeek
 
-No AI provider is load-bearing: every AI use in Atlas reads one table and walks it in order.
+DeepSeek through OpenCode is the AI. Nothing chooses another assistant.
 
-- `agents/recipes.py` holds the built-in recipes (`claude`, `deepseek`, `codex`), and
-  `~/.config/tutor-board/config.json` is laid over them. It names the `provider` tried first and
-  a `vision_agent`; the built-in table names neither. With no `provider`, the first recipe in
-  table order that can take a turn here is it (`recipes.provider`). `fallback` is one name or a
-  list; with none, every other recipe backs the provider up, in the table's order
-  (`recipes.chain`). Nothing else chooses.
-- **Adding a provider** is one entry under `agents` in config.json: `cmd`, `headless_first`
-  with `{prompt}`, and `needs_key` plus `env` when it takes a key. **Removing one** is deleting
-  its entry, or naming the chain in `fallback`.
-- Who uses the table: every board turn (`resolve`), image reading (`seeing.route`, every
-  sighted recipe in turn), `board doctor`, and anything outside the board through
-  `agents/oneshot.py`.
-- Keys come from `~/.config/tutor-board/keys.env` (`keys.py`) and never reach a command line,
-  because argv shows in `ps`. A usage limit marks a provider unavailable until it expires, and
-  the next in the chain takes its turns (`limits.py`). `board doctor` spends one real turn per
-  provider in the chain and sends the vision route one witness strip; `--dry` spends none and
-  names the vision route chain. `board see` passes over a route that answered without looking
-  and asks the next sighted recipe. `board cost` adds up every session's `cost.jsonl`.
+- `agents/recipes.py` holds the one recipe, `DEEPSEEK`: `opencode --pure run --auto -m
+  deepseek/deepseek-flash --format json <prompt>`, its environment, its price table and its
+  `vision` block. `recipes.ready()` says why a turn cannot run here now: no `opencode`, no key,
+  or a spent allowance. `TUTORBOARD_OPENCODE` names another binary; tests use it for a fake.
+- `~/.config/tutor-board/config.json` holds timeouts, `courses_dir`, `host` and the like. It
+  picks no assistant: `provider`, `fallback`, `vision_agent` and `agents` in it are ignored.
+- Who uses the recipe: every board turn, the wrap-up, `board see`, `board doctor`, and
+  anything outside the board through `agents/oneshot.py`.
+- The key is `DEEPSEEK_API_KEY` in `~/.config/tutor-board/keys.env`, else the file
+  `~/.config/api-keys/deepseek_key` (`keys.py`). It never reaches a command line, because argv
+  shows in `ps`.
+- A spent balance or a rate limit is one record (`limits.py`); the message stays owed and the
+  board says until when. A turn that goes through clears it.
+- `board see` sends an image to deepseek-flash at the chat-completions endpoint with a witness
+  strip whose six digits must come back, so an answer that did not look is refused.
+- `board doctor` spends one real turn and sends the vision route one witness strip; `--dry`
+  spends neither. `board cost` adds up every session's `cost.jsonl`.
 
 ## Speech
 
 Every session speaks and listens; a subject's `speech.lang` only sets the default language.
 
-- `agents/speech.py` is a table of its own, `azure`, `openai` and `local`, with an `order` per
-  kind (`tts`, `stt`, `assess`). config.json's `speech` block is laid over it as `agents` is:
-  `recipes` per name, `order` per kind. `chain` passes over a recipe that is unkeyed, missing
+- `agents/speech.py` is a table of its own, `azure` then `local`, with an `order` per kind
+  (`tts`, `stt`, `assess`). config.json's `speech` block is laid over it: `recipes` per name,
+  `order` per kind. `chain` passes over a recipe that is unkeyed, missing
   its command, limited, stood down or without the language, and always ends with `local`,
   which the config may tune but never remove, key or narrow to a language:
   `say` (espeak-ng for Irish), `whisper-cli` with the model `scripts/speech-model.sh` fetches,
   and `speech/tones.py`, a stdlib tone check labelled a prototype. Azure takes
-  `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`, OpenAI `OPENAI_API_KEY`, in keys.env.
+  `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` in keys.env.
 - A card's fence opened with `say <lang>` (optional `pinyin="..."`) becomes
   `@@SAY:<sha>:<status>:<lang>[:<pinyin, percent-encoded>]@@ <words>` (pinyin in the marker,
   since words may end in parentheses), synthesised on the TikZ thread into the speech cache
@@ -392,8 +389,8 @@ it installs jsdom into `board/node_modules` on first run, for development only.
 - `truthful.py` checks the documents against the tree: no moved address, no dropped config
   key, every relative link and anchor resolving, every `board` command named existing.
 
-Prove behaviour with fixtures: temp repositories, bare remotes, a fake provider script that
-writes a card. A test server never binds 8778 and never sets
+Prove behaviour with fixtures: temp repositories, bare remotes, a fake `opencode` script
+(`TUTORBOARD_OPENCODE`) that writes a card. A test server never binds 8778 and never sets
 `TUTORBOARD_SYNC=1`. A failing suite means the change is wrong, not the test. Suites can
 collide on ports when worktrees test at once, so re-run a failure alone before believing it.
 
