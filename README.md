@@ -28,7 +28,9 @@ Atlas/
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
   scripts/setup.sh       builds every subject's environment; setup-mac.sh runs it
   scripts/tools.sh       installs and updates the subjects' tool descriptors
-  scripts/brew-upgrade.py  the daily brew and toolchain upkeep, `atlas-brew`
+  scripts/brew-upgrade.py  Atlas's upkeep hook (`atlas-brew`): repairs, toolchain, status
+  upkeep/                the machine upkeep both repos carry (upkeep/README.md)
+  upkeep.d/hook          what upkeep asks of Atlas
   .githooks/             pre-commit (the public-repo gate) and commit-msg
   board/                 the tutoring board: server, CLI, web client, tests
   ai-config/             the AI assistant configuration; a private repository, ignored here
@@ -73,14 +75,19 @@ cd Atlas && bash scripts/setup-mac.sh
 ```
 
 `setup-mac.sh` is also how an existing Mac is brought up to date; a second run changes nothing.
-It pulls main, runs `board/bootstrap.sh`, runs `scripts/setup.sh`, has tailscale serve the
-board, and checks that the board answers. Its header lists each step.
+It pulls main, runs `board/bootstrap.sh`, runs `upkeep/setup-mac.sh` and `scripts/setup.sh`, has
+tailscale serve the board, and checks that the board answers. Its header lists each step. On a
+Mac with no Homebrew, run `bash upkeep/setup-mac.sh` first: it installs Homebrew.
 
 - `bootstrap.sh` clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
   absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs
   the board's LaunchAgent, `tutor-board`, which keeps `board/serve.py` up on port 8778.
-- `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile joined with every
-  subject's own (`~/.local/state/atlas-setup/Brewfile.all`), never `--cleanup`. It then builds
+- `upkeep/setup-mac.sh` registers this clone with upkeep and runs it once (see
+  *Machine upkeep*), then prints the steps only the owner can take: install Xcode, run
+  `sudo bash upkeep/root/install.sh` once, and put the DeepSeek key in
+  `~/.config/api-keys/deepseek_key`.
+- `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile (Atlas's own tools;
+  upkeep/Brewfile has the shared ones) joined with every subject's own (`~/.local/state/atlas-setup/Brewfile.all`), never `--cleanup`. It then builds
   each subject's environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
   A `lean-toolchain` subject gets elan in `~/.elan` when it is missing, then `lake build`.
 - A subject pins a toolchain in `mise.toml` and `mise.lock` (written by `mise lock`, which records
@@ -103,31 +110,30 @@ board, and checks that the board answers. Its header lists each step.
 - `board doctor --dry` reports what the machine has without spending a turn.
 - Step 4 installs the assistant CLIs and links `ai-config` (see *Assistant CLIs*). Log in to
   each one you use, once.
-- Step 7 loads `atlas.brew-upgrade` (`scripts/brew-upgrade.py`). It keeps every brew formula and
-  cask current once a day in 03:00-07:59, then brew's npm globals. It never passes `--greedy`, so
-  a cask marked `auto_updates` is left out of `brew outdated` and updates itself. Then comes the
-  toolchain phase: `ai-tools-update`, uv's Pythons, `mise install --locked` in every subject with
-  a `mise.toml`, `mise prune --tools` of the tools those files name (never a bare prune, which
-  reaches the owner's other projects and trusted configs), and `scripts/tools.sh update`. It then checks the subjects' venvs,
-  TeX, the Brewfile union and the board. It repairs a broken venv, and puts back an assistant
-  CLI the upgrade removed; a CLI missing before the run stays missing. A recorded problem is
-  checked again each hour until it clears.
-- Where another brew upgrader is loaded, brew is that job's, because two upgraders fight over
-  brew's lock. This job still repairs and runs the toolchain phase daily. When the other job's
-  last success (a partial run is none) is over 26 hours old, this job runs its own full brew
-  upgrade that day (formulae, every cask, the Brewfile and npm) and says it covered. It excludes
-  nothing of the other job's: the casks it protects and what it holds upgrade too, and only this
-  job's own holds apply. A cask whose installer needs the admin password fails, recorded as
-  failed, since no brew call has a stdin or a terminal to prompt on. Brew does not wait on its lock,
-  so the cover stops before any brew step that would meet a running brew or the other job.
-  The day's cover or toolchain phase waits while the other job is due, up to 90 minutes, so the
-  two never update brew, npm or the assistant CLIs at once.
+
+## Machine upkeep
+
+`upkeep/` keeps the Mac current; `upkeep/README.md` has its commands, files and rules. Media-Orchestrator
+carries the same bytes, so a Mac with either repo gets it. Hourly, gated to once a day in
+03:00-07:59, it upgrades brew (never `--greedy`, except flutter and android-studio), installs the
+Brewfile union, updates brew's npm globals, keeps opencode, the DeepSeek key, the Android SDK,
+Flutter, Xcode's checks, fonts, VS Code and Terminal in order, and makes `flutter doctor` green.
+
+Atlas's part is `upkeep.d/hook`, which runs `scripts/brew-upgrade.py`:
+
+- It holds tailscale while the host runs it as a brew service, because it carries the board's
+  tailnet, and hands upkeep the Brewfile union (`~/.local/state/atlas-setup/Brewfile.all`).
+- After brew moves, it re-syncs a subject's broken `.venv` and reinstalls the board's LaunchAgent
+  whose interpreter is gone. TeX and the board's reachability are reported, never touched.
+- Its toolchain phase runs uv's Pythons, `mise install --locked` in every subject with a
+  `mise.toml`, `mise prune --tools` of the tools those files name (never a bare prune, which
+  reaches the owner's other projects), and `scripts/tools.sh update`.
 - A failed tool shows as `tool:<name>`, and a mise pin behind (`mise outdated --json --bump
-  --local` gives it a `bump`) as `pin behind`, in
-  `atlas-brew status`, `board doctor` and on home. A pin behind is also in that subject's
-  session brief, so the session proposes the bump: a commit of `mise.toml` and `mise.lock`.
-- `atlas-brew off` stops it for good; a run under way stops before its next step, and the job
-  unloads once it ends.
+  --local` gives it a `bump`) as `pin behind`, in `atlas-brew status`, `board doctor` and on home.
+  A pin behind is also in that subject's session brief, so the session proposes the bump: a
+  commit of `mise.toml` and `mise.lock`.
+- upkeep's problems and the hook's reach `atlas-brew status`, `board doctor` and home, and arrive
+  as notifications on every Mac. `upkeep off` stops it.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
 
@@ -154,7 +160,7 @@ host.
   from `~/.config/tutor-board/config.json`, and refuses without `host`.
 - **The owner's one step:** turn on Remote Login on the Mac mini (System Settings, General,
   Sharing), and add the laptop's public SSH key to the Mac mini's `~/.ssh/authorized_keys`.
-- The same brew job runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
+- The same upkeep runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
   and idle 20 minutes, because a laptop is shut at night. Problems arrive as notifications.
 
 ## Assistant CLIs
@@ -172,7 +178,7 @@ runs these two, which a second run leaves unchanged:
   install is reported and the rest go on.
 
 `ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
-`node_modules`, the CLI's own `update` otherwise. It runs from `atlas.brew-upgrade`.
+`node_modules`, the CLI's own `update` otherwise. Nothing schedules it; upkeep keeps opencode.
 
 ## Working in here
 

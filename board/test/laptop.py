@@ -15,9 +15,10 @@ anything but the shim.
 
   - --CODING WRITES THE ROLE FILE, and a rerun without it stays a coding
     checkout.
-  - NO BOARD LAUNCHAGENT IS LOADED; atlas.brew-upgrade is. A stray
-    `tutor-board` is booted out with its plist; without the role, install.sh
-    does load it.
+  - NO BOARD LAUNCHAGENT IS LOADED. A stray `tutor-board` is booted out with
+    its plist; without the role, install.sh does load it. upkeep/setup-mac.sh
+    runs (a stub here; upkeep/test_upkeep.py runs the real one), atlas-brew is
+    linked, and a stray atlas.brew-upgrade is retired.
   - TAILSCALE AND PORT 8778 ARE NEVER ASKED.
   - THE PULL, scripts/setup.sh and ai-config's fast-forward and install run;
     setup.sh bundles the union, builds a mise subject and installs a
@@ -219,8 +220,7 @@ try:
     for rel in ("scripts/setup-mac.sh", "scripts/setup.sh", "scripts/tools.sh",
                 "scripts/speech-model.sh",
                 "board/bootstrap.sh", "board/install.sh", "Brewfile",
-                "board/scripts/launchd/tutor-board.plist", "scripts/brew-upgrade.py",
-                "scripts/launchd/atlas.brew-upgrade.plist"):
+                "board/scripts/launchd/tutor-board.plist", "scripts/brew-upgrade.py"):
         real[rel] = read(os.path.join(ATLAS, rel))
     real.update({
         ".gitignore": "/ai-config/\n",
@@ -232,6 +232,9 @@ try:
             'T_MANUAL="by hand"\nT_UPDATE="true"\nT_VERSION="widget"\nT_CHECK="widget"\n'
             'T_EVERY_DAYS=1\nT_STALE_DAYS=14\n'),
         "board/test/tracked.py": "import sys\nsys.exit(0)\n",
+        "upkeep/setup-mac.sh": ('echo upkeep-setup >>"$LAPTOP_CALLS"\n'
+                                'echo "== what only you can do"\n'
+                                'echo "  nothing: open a new terminal"\n'),
         "projects/A/uv.lock": "a 1\n", "projects/B/go.sum": "b 1\n",
         "projects/M/mise.toml": '[tools]\nrust = "1.80.0"\n',
         "projects/M/mise.lock": "m 1\n", "projects/M/app/Cargo.toml": "[package]\n",
@@ -248,7 +251,9 @@ try:
     write(os.path.join(laptop, "projects", "Paper-Writer", ".venv", "pyvenv.cfg"), "x\n")
     # A stray board from before, loaded, with its plist.
     write(AGENT, "<plist/>\n")
-    write(LOADED, "tutor-board\n")
+    write(LOADED, "tutor-board\natlas.brew-upgrade\n")
+    RETIRED = os.path.join(home, "Library", "LaunchAgents", "atlas.brew-upgrade.plist")
+    write(RETIRED, "<plist/>\n")
     commit(seed, {"courses/C/notes.md": "c 2\n"}, "elsewhere")
 
     # =======================================================================
@@ -282,12 +287,15 @@ try:
           any("bootout" in l and l.endswith("/tutor-board") for l in calls("launchctl"))
           and not os.path.exists(AGENT) and "tutor-board" not in read(LOADED),
           "\n".join(calls("launchctl")))
-    check("no tutor-board bootstrap, and atlas.brew-upgrade is loaded",
+    check("no tutor-board bootstrap; upkeep's setup runs and atlas.brew-upgrade is retired",
           not any(l.startswith("launchctl bootstrap") and "tutor-board" in l
                   for l in calls("launchctl"))
           and "no LaunchAgent: a coding checkout runs no board" in out
-          and "atlas.brew-upgrade" in read(LOADED).split()
-          and "atlas.brew-upgrade loaded;" in out, out)
+          and calls("upkeep-setup") == ["upkeep-setup"]
+          and "upkeep installed and run" in out and "atlas-brew linked" in out
+          and "atlas.brew-upgrade" not in read(LOADED).split()
+          and not os.path.exists(RETIRED)
+          and os.path.islink(os.path.join(home, ".local", "bin", "atlas-brew")), out)
     check("tailscale and port 8778 are never asked",
           not calls("tailscale") and not calls("curl")
           and "skipped: a coding checkout serves no board" in out, read(CALLS))

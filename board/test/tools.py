@@ -39,6 +39,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -90,6 +91,7 @@ PATH = os.pathsep.join([shims, "/opt/homebrew/bin", "/usr/local/bin",
                         os.path.join(home, ".elan", "bin"),
                         "/usr/bin", "/bin", "/usr/sbin", "/sbin"])
 ENV = dict(os.environ, HOME=home, PATH=PATH,
+           UPKEEP_STATE_DIR=os.path.join(work, "upkeep"),
            XDG_CONFIG_HOME=os.path.join(home, ".config"),
            XDG_STATE_HOME=os.path.join(home, ".local", "state"),
            BOARD_STATE_DIR=state, TOOLS_CALLS=CALLS)
@@ -363,7 +365,9 @@ try:
     for hours, moves in ((24 - 5.0 / 3600, True), (19, False)):
         write(os.path.join(home, ".widget", "version"), "1.1.0\n")
         doc = tools_json()
-        ago = (datetime.now() - timedelta(hours=hours)).replace(microsecond=0).isoformat()
+        # Real hours, not wall-clock ones: across a DST change they differ.
+        ago = datetime.fromtimestamp(time.time() - hours * 3600).replace(
+            microsecond=0).isoformat()
         doc["tools"]["widget"].update({"attempted": ago, "updated": ago})
         write(TOOLS_JSON, json.dumps(doc))
         code, out = tools("update")
@@ -515,14 +519,14 @@ try:
     check("the doctor's summary counts them",
           brewcare.tools_summary(state, N) == "4 declared, 1 failed, 2 stale, "
           "0 no longer declared, 1 pins behind", brewcare.tools_summary(state, N))
-    write(os.path.join(state, "brew.json"), json.dumps({
-        "mode": "defer", "failed": {"tool:broke": "T_UPDATE exited 1"}}))
-    said = brewcare.lines(state, N)
+    write(os.path.join(state, "atlas-upkeep.json"), json.dumps({
+        "failed": {"tool:broke": "T_UPDATE exited 1"}}))
+    said = brewcare.lines(state, N, upkeep=os.path.join(work, "no-upkeep"))
     check("brewcare.lines, which reach home through /sync.json, name a failure once",
           len([l for l in said if "broke" in l]) == 1
           and "tools: broke did not update: T_UPDATE exited 1" in said
           and "tools: pin behind: projects/S node 20.0.0 -> 22.1.0" in said, said)
-    os.remove(os.path.join(state, "brew.json"))
+    os.remove(os.path.join(state, "atlas-upkeep.json"))
     check("no tools.json: no summary", brewcare.tools_summary(work) is None)
     check("and doctor's line says to run setup only on a Mac, which writes it",
           brewcare.tools_doctor(work, platform="darwin")

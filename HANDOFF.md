@@ -53,10 +53,9 @@ Rules that hold throughout:
   - Laptops get the ignored course inputs by rsync over SSH from the Mac mini.
 - **Owner files are pre-approved:** the owner's RULES.md files, the subject READMEs and the
   ai-config `update-tools` fix.
-- **Brew upgrades.** Both upgraders stay.
-  - The external `com.mikeyferguson.brewupgrade` keeps its job.
-  - `atlas.brew-upgrade` keeps a full brew upgrader on every clone.
-  - A cover run is a full brew upgrade, the external job's protected casks included.
+- **Machine upkeep.** One system, `upkeep/`, byte-identical in Atlas and Media-Orchestrator,
+  keeps every Mac installed and current; `flutter doctor` stays green. Atlas adds only its
+  `upkeep.d/hook`.
 - **Spirit-Forge:** the verification language is Lean 4 without Mathlib. Zig, Rust and
   containerization are the three things the project exercises, each with a real job in the game.
   Flutter stays the client as planned.

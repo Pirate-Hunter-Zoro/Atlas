@@ -2,11 +2,12 @@
 
 Three layers, each read from the subjects and never from a list. The board
 server runs none of them: `scripts/setup.sh` installs, `scripts/tools.sh`
-reads descriptors, and `scripts/brew-upgrade.py` keeps all three current.
+reads descriptors, and upkeep, through Atlas's hook (`scripts/brew-upgrade.py`),
+keeps all three current.
 
   BREWFILES    the root `Brewfile` plus each subject's own, as one sorted and
                deduplicated union (`union_text`). setup.sh bundles it with
-               --no-upgrade and brew-upgrade.py checks it, from
+               --no-upgrade and upkeep installs it, from
                `~/.local/state/atlas-setup/Brewfile.all`, rewritten only when
                it changes (`write_union`). An entry that leaves the union is
                remembered in tools.json `left_brew`; nothing is uninstalled.
@@ -18,7 +19,7 @@ reads descriptors, and `scripts/brew-upgrade.py` keeps all three current.
 
 State is tools.json in the board's state directory: one record per tool
 tools.sh has handled, `left` for one no longer declared, `left_brew`, and
-`pins`, the mise pins brew-upgrade.py found behind, which brief.py puts in
+`pins`, the mise pins the hook found behind, which brief.py puts in
 that subject's sessions as a bump to propose. `python3 -m
 tutorboard.toolplan` is tools.sh's and setup.sh's way in. Stdlib only, and
 3.7-clean.
@@ -210,7 +211,7 @@ def union(base):
 
 def union_text(base):
     got, labels = union(base)
-    head = ("# Written by scripts/setup.sh and scripts/brew-upgrade.py; edit the "
+    head = ("# Written by scripts/setup.sh and Atlas's upkeep hook; edit the "
             "Brewfiles it joins:\n# %s\n" % ", ".join(labels or ["(none)"]))
     return head + "".join(e + "\n" for e in got)
 

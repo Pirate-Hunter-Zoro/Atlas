@@ -1,11 +1,14 @@
-"""What the machine's brew and tool upkeep last said, for the board.
+"""What the machine's upkeep last said, for the board.
 
-`scripts/brew-upgrade.py` (the `atlas.brew-upgrade` LaunchAgent, setup's job,
-not the board's) writes `brew.json` in the state directory, and
-`scripts/tools.sh` and brew-upgrade.py write `tools.json` beside it
-(`toolplan`). `lines` are the `brew:` and `tools:` sentences `/sync.json`
-shows on home; `summary` and `tools_summary` are `board doctor`'s lines.
-Neither reaches a tutor's brief. Runs under /usr/bin/python3: stdlib only.
+upkeep (`upkeep/upkeep.py`, the `com.mikeyferguson.upkeep` LaunchAgent, not
+the board's) writes `state.json` in its own state directory
+($UPKEEP_STATE_DIR, else ~/.local/state/upkeep). Atlas's hook,
+`scripts/brew-upgrade.py`, writes `atlas-upkeep.json` in the board's state
+directory, and `scripts/tools.sh` and the hook write `tools.json` beside it
+(`toolplan`). `lines` are the `upkeep:`, `atlas:` and `tools:` sentences
+`/sync.json` shows on home; `summary` and `tools_summary` are `board
+doctor`'s lines. Neither reaches a tutor's brief. Runs under
+/usr/bin/python3: stdlib only.
 """
 
 import json
@@ -27,15 +30,28 @@ def _prefix():
     return None
 
 
-def read(state_dir=None):
-    """brew.json as a dict, or None when it is missing or broken."""
-    path = os.path.join(state_dir or paths.STATE_DIR, "brew.json")
+def upkeep_dir():
+    return os.environ.get("UPKEEP_STATE_DIR") or os.path.join(
+        os.path.expanduser("~"), ".local", "state", "upkeep")
+
+
+def _json(path):
     try:
         with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None
+
+
+def read_upkeep(where=None):
+    """upkeep's state.json as a dict, or None when it is missing or broken."""
+    return _json(os.path.join(where or upkeep_dir(), "state.json"))
+
+
+def read(state_dir=None):
+    """The hook's atlas-upkeep.json as a dict, or None."""
+    return _json(os.path.join(state_dir or paths.STATE_DIR, "atlas-upkeep.json"))
 
 
 def _when(value):
@@ -51,48 +67,57 @@ def _short(when):
     return "%s %d %s" % (when.strftime("%b"), when.day, when.strftime("%H:%M"))
 
 
+def upkeep_lines_of(state, now=None):
+    """upkeep's sentences: failures, holds, problems, then a success older
+    than STALE_H hours. Repo hooks' lines are each repo's to show."""
+    out = []
+    for name, why in sorted((state.get("failed") or {}).items()):
+        out.append("upkeep: %s failed: %s" % (name, why))
+    for name, h in sorted((state.get("held") or {}).items()):
+        h = h if isinstance(h, dict) else {}
+        out.append("upkeep: %s %s -> %s is held: %s" % (
+            name, h.get("installed") or "?", h.get("latest") or "?", h.get("why") or ""))
+    for line in state.get("problems") or []:
+        if isinstance(line, str):
+            out.append("upkeep: %s" % line)
+    base = _when(state.get("last_success")) or _when(state.get("first_seen"))
+    now = now or datetime.now()
+    if base and (now - base).total_seconds() > STALE_H * 3600:
+        out.append("upkeep: no successful run since %s" % _short(base))
+    return out
+
+
 def lines_of(state, now=None):
-    """The `brew:` sentences for one state dict: failures, holds, problems,
-    then, in own mode, a success older than STALE_H hours."""
+    """The hook's sentences: each failed tool, then each problem."""
     out = []
     for name, why in sorted((state.get("failed") or {}).items()):
         if name.startswith("tool:"):
             out.append("tools: %s did not update: %s" % (name[5:], why))
         else:
-            out.append("brew: %s did not upgrade: %s" % (name, why))
-    for name, h in sorted((state.get("held") or {}).items()):
-        h = h if isinstance(h, dict) else {}
-        out.append("brew: %s %s -> %s is held: %s" % (
-            name, h.get("installed") or "?", h.get("latest") or "?", h.get("why") or ""))
+            out.append("atlas: %s failed: %s" % (name, why))
     for p in state.get("problems") or []:
         if isinstance(p, dict):
-            out.append("brew: %s; %s" % (p.get("what"), p.get("fix")))
-    cover = state.get("covered") if isinstance(state.get("covered"), dict) else {}
-    if state.get("mode") == "defer" and cover.get("at"):
-        out.append("brew: %s last succeeded %s, so atlas.brew-upgrade ran the brew "
-                   "upgrade itself %s" % (
-                       cover.get("for") or "the other upgrader",
-                       _short(_when(cover.get("other_success")))
-                       if _when(cover.get("other_success")) else "never",
-                       _short(_when(cover["at"])) if _when(cover["at"]) else "?"))
-    if state.get("mode") == "own":
-        base = _when(state.get("last_success")) or _when(state.get("first_seen"))
-        now = now or datetime.now()
-        if base and (now - base).total_seconds() > STALE_H * 3600:
-            out.append("brew: no successful upgrade since %s" % _short(base))
+            out.append("atlas: %s; %s" % (p.get("what"), p.get("fix")))
     return out
 
 
-def lines(state_dir=None, now=None):
-    """`lines_of` brew.json, then `tool_lines_of` tools.json; [] when there
-    is neither. A tool brew.json names as failed is not named twice."""
-    state = read(state_dir)
+def lines(state_dir=None, now=None, upkeep=None):
+    """upkeep's lines, the hook's, then `tool_lines_of` tools.json; [] when
+    there is none of them. A tool the hook names as failed is not named
+    twice."""
     out = []
+    up = read_upkeep(upkeep)
+    if up is not None:
+        try:
+            out += upkeep_lines_of(up, now)
+        except (AttributeError, TypeError, ValueError):
+            pass
+    state = read(state_dir)
     if state is not None:
         try:
-            out = lines_of(state, now)
+            out += lines_of(state, now)
         except (AttributeError, TypeError, ValueError):
-            out = []
+            pass
     doc = read_tools(state_dir)
     if doc is not None:
         skip = set(k[5:] for k in ((state or {}).get("failed") or {})
@@ -186,21 +211,23 @@ def tools_doctor(state_dir=None, now=None, platform=None):
     return "not kept here (the descriptors and mise are Mac only)"
 
 
-def summary(state_dir=None):
-    """One line for `board doctor`, or None with no brew.json."""
+def summary(state_dir=None, upkeep=None):
+    """`board doctor`'s upkeep line: upkeep's last run, then the hook's."""
+    up = read_upkeep(upkeep)
+    if up is None or not up.get("last_attempt"):
+        head = "no upkeep run yet (bash upkeep/setup-mac.sh)"
+    else:
+        when = _when(up.get("last_attempt"))
+        head = "%s %s; %d held, %d failed, %d problems" % (
+            up.get("last_result") or "?", _short(when) if when else "?",
+            len(up.get("held") or {}), len(up.get("failed") or {}),
+            len(up.get("problems") or []))
+        if up.get("brew_by") and up.get("brew_by") != "upkeep":
+            head += "; brew left to %s" % up["brew_by"]
     state = read(state_dir)
     if state is None:
-        return None
-    problems = len(state.get("problems") or [])
-    if state.get("mode") == "defer":
-        cover = state.get("covered") if isinstance(state.get("covered"), dict) else {}
-        when = _when(cover.get("at"))
-        return "defers to %s%s; %d failed, %d problems" % (
-            (state.get("deferred_to") or {}).get("label") or "another upgrader",
-            ", covered for it %s (%s)" % (_short(when), state.get("last_result") or "?")
-            if when else "", len(state.get("failed") or {}), problems)
-    when = _when(state.get("last_attempt"))
-    head = ("own, %s %s" % (state.get("last_result") or "?", _short(when))
-            if when else "own, no run yet")
-    return "%s; %d held, %d failed, %d problems" % (
-        head, len(state.get("held") or {}), len(state.get("failed") or {}), problems)
+        return head + "; no Atlas hook run yet"
+    when = _when(state.get("toolchain_success"))
+    return "%s; Atlas toolchain %s, %d failed, %d problems" % (
+        head, _short(when) if when else "never", len(state.get("failed") or {}),
+        len(state.get("problems") or []))
