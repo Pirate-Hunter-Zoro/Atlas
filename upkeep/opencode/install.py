@@ -196,15 +196,18 @@ class Installer:
             os.chmod(tmp, mode)
         os.replace(tmp, path)
 
-    def copy(self, src, dst, mode=None):
+    def copy(self, src, dst, mode=None, quiet=False):
+        """Copy src over dst when the contents differ; True when it did."""
         if dst.exists() and not dst.is_symlink() and filecmp.cmp(src, dst, shallow=False):
             if mode is not None and (dst.stat().st_mode & 0o777) != mode and not self.dry:
                 os.chmod(dst, mode)
-            return
-        self.change(f"install {dst}")
+            return False
+        if not quiet:
+            self.change(f"install {dst}")
         if not self.dry and dst.is_symlink():
             dst.unlink()
         self.write(dst, src.read_bytes(), mode)
+        return True
 
     # -- steps
 
@@ -276,13 +279,16 @@ class Installer:
                 self.copy_tree(skill, dest_root / name)
 
     def copy_tree(self, src, dst):
+        copied = 0
         for dirpath, _dirs, filenames in os.walk(src):
             rel = Path(dirpath).relative_to(src)
             for fn in filenames:
                 s = Path(dirpath) / fn
                 if s.is_symlink() or not s.is_file():
                     continue
-                self.copy(s, dst / rel / fn)
+                copied += self.copy(s, dst / rel / fn, quiet=True)
+        if copied:
+            self.change(f"copy skill {dst.name} ({copied} files) to {dst}")
 
     def coder(self):
         self.copy(self.src / "coder", self.home / "bin" / "coder", mode=0o755)
