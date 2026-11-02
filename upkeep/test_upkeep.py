@@ -601,7 +601,9 @@ class FullRun(Case):
         self.assertFalse([a for a in brew if "--cleanup" in a or "autoremove" in a])
         self.assertEqual(brew[-1], "cleanup --prune=7")
         st = b.state()
-        self.assertEqual(sorted(st["held"]), ["guarded", "pinme"])
+        self.assertEqual(sorted(st["held"]), ["pinme"])
+        self.assertEqual(sorted(st["protected"]), ["guarded"])
+        self.assertEqual(st["protected_by"], {b.repo: ["guarded"]})
         self.assertEqual(st["cask_defers"], {"slack": 1})
         union = b.read(os.path.join(b.state_dir, "Brewfile.all"))
         self.assertEqual(union.count('brew "jq"'), 1)
@@ -615,6 +617,76 @@ class FullRun(Case):
         self.assertEqual(b.read(os.path.join(b.fake, "hook.log")).split(),
                          ["protected-casks", "dry=", "brewfiles", "dry=", "after-brew",
                           "dry=", "toolchain", "dry=", "status", "dry="])
+
+    def test_failing_protected_casks_hook_keeps_last_answer(self):
+        b = self.b
+        b.upkeep("run", "--force")
+        b.clear_calls()
+        b.write(os.path.join(b.fake, "hook-protected-casks.code"), "1")
+        b.upkeep("run", "--force")
+        self.assertFalse([a for a in b.argv("brew") if "guarded" in a and "upgrade" in a])
+        st = b.state()
+        self.assertIn("guarded", st["protected"])
+        self.assertIn("exited 1; the casks it named last time stay put (guarded)",
+                      st["failed"]["hook repo protected-casks"])
+        os.chmod(os.path.join(b.repo, "upkeep.d", "hook"), 0o644)
+        b.clear_calls()
+        b.upkeep("run", "--force")
+        self.assertFalse([a for a in b.argv("brew") if "guarded" in a and "upgrade" in a])
+        self.assertIn("missing or not executable",
+                      b.state()["failed"]["hook repo protected-casks"])
+        os.remove(os.path.join(b.repo, "upkeep.d", "hook"))
+        b.clear_calls()
+        b.upkeep("run", "--force")
+        self.assertFalse([a for a in b.argv("brew") if "guarded" in a and "upgrade" in a],
+                         "a hook gone after it named casks still holds them")
+
+    def test_no_answer_on_record_upgrades_no_cask(self):
+        b = self.b
+        b.write(os.path.join(b.fake, "hook-protected-casks.code"), "124")
+        code, out = b.upkeep("run", "--force")
+        self.assertEqual(code, 0, out)
+        brew = b.argv("brew")
+        self.assertIn("upgrade --formula guarded jq", brew)
+        self.assertFalse([a for a in brew if a.startswith("upgrade --cask")])
+        st = b.state()
+        self.assertEqual(sorted(st["protected"]), ["flutter", "iterm2", "slack"])
+        self.assertIn("never named its protected casks",
+                      st["failed"]["hook repo protected-casks"])
+
+    def test_repo_without_a_hook_protects_nothing(self):
+        b = self.b
+        os.remove(os.path.join(b.repo, "upkeep.d", "hook"))
+        b.upkeep("run", "--force")
+        brew = b.argv("brew")
+        self.assertIn("upgrade --formula guarded jq", brew)
+        self.assertIn("upgrade --cask iterm2", brew)
+        st = b.state()
+        self.assertEqual(st["protected_by"], {b.repo: []})
+        self.assertNotIn("hook repo protected-casks", st["failed"])
+
+    def test_checkout_without_upkeep_stays_registered_and_protecting(self):
+        b = self.b
+        moved = os.path.join(b.root, "upkeep-aside")
+        os.rename(os.path.join(b.repo, "upkeep"), moved)
+        b.upkeep("run", "--force")
+        repos = json.loads(b.read(os.path.join(b.home, ".config", "upkeep", "repos.json")))
+        self.assertEqual(repos, [b.repo])
+        self.assertFalse([a for a in b.argv("brew") if "guarded" in a and "upgrade" in a])
+        self.assertIn("guarded", b.state()["protected"])
+
+    def test_cleanup_waits_while_a_hook_runs_brew(self):
+        b = self.b
+        b.write(os.path.join(b.repo, "upkeep.d", "hook"),
+                '#!/bin/bash\n[ "$1" = protected-casks ] && echo guarded\n'
+                'if [ "$1" = after-brew ]; then /usr/bin/python3 -c \'\n'
+                'import json, sys\np = sys.argv[1]\nd = json.load(open(p))\n'
+                'd["pgrep_hits"] = d.get("pgrep_hits", []) + ["Homebrew"]\n'
+                'json.dump(d, open(p, "w"))\' "%s/scenario.json"; fi\nexit 0\n'
+                % b.fake, 0o755)
+        b.upkeep("run", "--force")
+        self.assertNotIn("cleanup --prune=7", b.argv("brew"))
+        self.assertIn("brew cleanup waits for the next run", b.log())
 
     def test_ios_runtime_present_is_left_alone(self):
         b = self.b
@@ -697,6 +769,7 @@ class FullRun(Case):
         self.assertEqual(code, 1, out)
         self.assertIn("PROBLEM   repo: repo thing is wrong", out)
         self.assertIn("PROBLEM   upkeep: pinme 1 -> 2 is held", out)
+        self.assertNotIn("guarded", out, "a cask a hook upgrades itself is no problem")
         self.assertIn("APP STORE 497799835 Xcode (27.3)", out)
 
     def test_failing_step_is_recorded_and_the_rest_runs(self):

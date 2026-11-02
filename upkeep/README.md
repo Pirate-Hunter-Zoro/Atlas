@@ -23,7 +23,7 @@ installed and kept current. Edit it in one repo, copy it to the other, and bump
 | Path | What |
 | --- | --- |
 | `~/.local/share/upkeep/` | the installed copy (copied, so deleting a repo breaks nothing) |
-| `~/.config/upkeep/repos.json` | registered repo roots; a root without `upkeep/` is dropped |
+| `~/.config/upkeep/repos.json` | registered repo roots; a root whose directory is gone is dropped |
 | `~/.config/upkeep/off` | the off switch |
 | `~/.local/state/upkeep/` | `state.json`, `doctor.json`, `upkeep.log` (trimmed at 2 MB), `upkeep.lock`, `Brewfile.all` |
 | `~/.zprofile` | the block between `# >>> upkeep >>>` and `# <<< upkeep <<<`: JAVA_HOME, ANDROID_HOME, SDK paths, `opencode/shell.zsh` |
@@ -41,8 +41,9 @@ Each failure is recorded and the run goes on.
 
 1. Copy in the highest registered `VERSION` and re-exec it; re-render the agents.
 2. `brew update`, formulae, casks one at a time without `--greedy`, then the
-   `greedy-casks` with `--greedy-auto-updates`. Held: pinned formulae, names a hook
-   prints for `protected-casks`, and a cask whose app ran at three ticks in a row.
+   `greedy-casks` with `--greedy-auto-updates`. Held: pinned formulae and a cask whose
+   app ran at three ticks in a row. Left alone, in `protected` and never a problem line:
+   names a hook prints for `protected-casks` (the hook upgrades them itself).
 3. `brew bundle install --no-upgrade` over `Brewfile` plus each hook's `brewfiles`.
    Never `--cleanup`. Hand-copied fonts that block a font cask move to
    `~/Library/Fonts/.before-upkeep/`, and back if the cask fails; a hand-installed app keeps its cask out of the bundle.
@@ -58,8 +59,8 @@ Each failure is recorded and the run goes on.
    kept), the Terminal profile as default and startup, the `Dart-Code.flutter` extension.
 9. Each repo's `upkeep.d/hook`: `after-brew`, `toolchain`, then `status` (its stdout
    lines are problems).
-10. `brew cleanup --prune=7` (never autoremove), state, and a notification for each new
-    problem line.
+10. `brew cleanup --prune=7` (never autoremove; skipped while a brew runs, such as a
+    hook's worker), state, and a notification for each new problem line.
 
 ## Rules
 
@@ -80,7 +81,11 @@ Each failure is recorded and the run goes on.
   is loaded, the doctor is its. Both found by label with `launchctl print`.
 - **Retired**: `install` and every run boot out `atlas.brew-upgrade` and remove its plist.
 - **Hooks**: `upkeep.d/hook <phase>`, run in the repo root with `UPKEEP_STATE_DIR`,
-  `UPKEEP_LOG` and `UPKEEP_DRY_RUN`; a missing hook is fine.
+  `UPKEEP_LOG` and `UPKEEP_DRY_RUN`; a repo with no hook is fine.
+- **Protected casks fail closed**: each repo's last `protected-casks` answer is kept in
+  `state.json` (`protected_by`). A hook that fails, times out or turns non-executable
+  keeps those casks put; with no answer on record, no cask upgrades that run. Either
+  is a failed step.
 
 ## Tests
 

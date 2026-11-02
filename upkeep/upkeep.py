@@ -507,15 +507,16 @@ def jsonc_set(text, key, value):
 
 # ------------------------------------------------------------------- repos
 
-def load_repos():
-    """The registered repo roots that still carry upkeep/. A gone one is
-    dropped from repos.json."""
+def registered():
+    """Every root in repos.json. One whose directory is gone is dropped from
+    the file; one that exists stays, with or without upkeep/ right now (a
+    checkout mid-switch is not a repo that left)."""
     data = read_json(REPOS)
     roots = [r for r in data if isinstance(r, str)] if isinstance(data, list) else []
-    keep = [r for r in roots if os.path.isfile(os.path.join(r, "upkeep", "upkeep.py"))]
+    keep = [r for r in roots if os.path.isdir(r)]
     if keep != roots and not DRY:
         for gone in [r for r in roots if r not in keep]:
-            log("dropped %s from the registry: it no longer carries upkeep/" % gone)
+            log("dropped %s from the registry: it no longer exists" % gone)
         try:
             write_json(REPOS, keep)
         except OSError:
@@ -523,8 +524,14 @@ def load_repos():
     return keep
 
 
+def load_repos():
+    """The registered repo roots that carry upkeep/ now."""
+    return [r for r in registered()
+            if os.path.isfile(os.path.join(r, "upkeep", "upkeep.py"))]
+
+
 def register(root):
-    roots = load_repos()
+    roots = registered()
     if root not in roots:
         roots.append(root)
         write_json(REPOS, roots)
@@ -598,6 +605,45 @@ def hook_lists(phase):
         if code == 0:
             out += [l for l in lines if l not in out]
     return out
+
+
+def protected_casks(r, state):
+    """(names, known) the registered repos' hooks protect. Fails closed: a
+    repo whose hook gives no answer (not executable, a crash, a timeout, gone
+    after it named casks) keeps the list it gave last time, recorded in
+    state["protected_by"]; with nothing on record `known` is False, and no
+    cask upgrades this run. A repo that never had a hook protects nothing."""
+    record = state.get("protected_by")
+    record = dict(record) if isinstance(record, dict) else {}
+    roots = registered()
+    record = dict((k, v) for k, v in record.items() if k in roots)
+    names, known = set(), True
+    for root in roots:
+        name = os.path.basename(root.rstrip("/"))
+        if hook_path(root):
+            code, lines = hook(root, "protected-casks", T_HOOK_LIST)
+            if code == 0:
+                record[root] = sorted(set(lines))
+                names.update(lines)
+                continue
+            why = "upkeep.d/hook protected-casks exited %d" % code
+        elif not os.path.lexists(os.path.join(root, "upkeep.d", "hook")) \
+                and not record.get(root):
+            record[root] = []
+            continue
+        else:
+            why = "upkeep.d/hook is missing or not executable"
+        step = "hook %s protected-casks" % name
+        if isinstance(record.get(root), list):
+            names.update(record[root])
+            r.fail(step, "%s; the casks it named last time stay put (%s)"
+                   % (why, ", ".join(record[root]) or "none"))
+        else:
+            known = False
+            r.fail(step, "%s, and it has never named its protected casks; no cask "
+                   "upgrades until it does" % why)
+    state["protected_by"] = record
+    return names, known
 
 
 # ------------------------------------------------------------ launchctl
@@ -902,6 +948,7 @@ class Run(object):
         self.report_only = report_only
         self.failed = {}
         self.held = {}
+        self.protected = {}
         self.problems = []
         self.hooks = {}
         self.phases = {}
@@ -1015,7 +1062,7 @@ def phase_brew(r, state):
             gcasks = []
         names = set(c["name"] for c in casks)
         gcasks = [c for c in gcasks if c["name"] not in names]
-    protected = set(hook_lists("protected-casks"))
+    protected, known = protected_casks(r, state)
     defers = dict(state.get("cask_defers") or {})
     every = set(c["name"] for c in casks + gcasks)
     defers = dict((k, v) for k, v in defers.items() if k in every)
@@ -1025,16 +1072,14 @@ def phase_brew(r, state):
             r.held[f["name"]] = {"installed": inst, "latest": latest,
                                  "why": "pinned; brew unpin %s to let it move" % f["name"]}
         elif f["name"] in protected:
-            r.held[f["name"]] = {"installed": inst, "latest": latest,
-                                 "why": "a repo's hook protects it"}
+            r.protected[f["name"]] = {"installed": inst, "latest": latest}
     apps = cask_apps(sorted(every))
     plain, greedy_run = [], []
     for c in casks + gcasks:
         name = c["name"]
         inst, latest = versions(c)
-        if name in protected:
-            r.held[name] = {"installed": inst, "latest": latest,
-                            "why": "a repo's hook protects it"}
+        if name in protected or not known:
+            r.protected[name] = {"installed": inst, "latest": latest}
             continue
         running = [a for a in apps.get(name, []) if app_running(a)]
         if running:
@@ -1048,9 +1093,10 @@ def phase_brew(r, state):
                     % (running[0], name, defers[name], CASK_DEFER_HOLD))
             continue
         (greedy_run if c in gcasks else plain).append(name)
-    names = sorted(f["name"] for f in formulae if f["name"] not in r.held)
-    log("outdated: %d formula(e), %d cask(s), %d held"
-        % (len(formulae), len(casks) + len(gcasks), len(r.held)))
+    names = sorted(f["name"] for f in formulae
+                   if f["name"] not in r.held and f["name"] not in r.protected)
+    log("outdated: %d formula(e), %d cask(s), %d held, %d left to a repo's hook"
+        % (len(formulae), len(casks) + len(gcasks), len(r.held), len(r.protected)))
     if names:
         check_off()
         log("upgrading formulae: %s" % ", ".join(names))
@@ -1889,6 +1935,10 @@ def phase_hooks(r):
 
 
 def phase_cleanup(r):
+    if brew_running():
+        log("brew cleanup waits for the next run: a brew is running (a hook's own "
+            "upgrade, perhaps), and cleanup deletes the downloads in flight")
+        return
     code, out, err = brew(["cleanup", "--prune=%d" % PRUNE_DAYS], T_CLEANUP,
                           mutating=True)
     if code != 0:
@@ -1973,7 +2023,8 @@ def full_run(state, why, force):
     ok = not stopped and not r.failed
     state.update({"last_result": "stopped" if stopped else "ok" if ok else "partial",
                   "last_duration_seconds": int((done - started).total_seconds()),
-                  "failed": r.failed, "held": r.held, "problems": r.problems,
+                  "failed": r.failed, "held": r.held, "protected": r.protected,
+                  "problems": r.problems,
                   "hooks": r.hooks, "phases": r.phases, "checked_at": stamp(done),
                   "version": version_of(HERE),
                   "brew_by": LEGACY_BREW if skip else "upkeep"})
