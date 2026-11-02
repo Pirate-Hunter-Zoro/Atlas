@@ -4,7 +4,7 @@
     python3 upkeep/test_upkeep.py
 
 Every program upkeep calls (brew, npm, node, opencode, launchctl, defaults,
-sdkmanager, flutter, xcodebuild, xcode-select, mas, code, pmset, ioreg, curl,
+sdkmanager, flutter, xcodebuild, xcode-select, xcrun, mas, code, pmset, ioreg, curl,
 pgrep, ps, osascript, caffeinate) is one fake, first on the PATH, that logs
 its argv and answers from a JSON scenario file. HOME, /Applications, the root
 helper's status and every state directory are temp dirs. The suite refuses to
@@ -31,8 +31,8 @@ sys.path.insert(0, HERE)
 import upkeep as U                                           # noqa: E402
 
 PROGRAMS = ["brew", "npm", "node", "launchctl", "defaults", "sdkmanager", "flutter",
-            "xcodebuild", "xcode-select", "mas", "code", "pmset", "ioreg", "curl",
-            "pgrep", "ps", "osascript", "caffeinate"]
+            "xcodebuild", "xcode-select", "xcrun", "mas", "code", "pmset", "ioreg",
+            "curl", "pgrep", "ps", "osascript", "caffeinate"]
 
 FAKE = r'''#!/usr/bin/python3
 import json, os, sys
@@ -146,6 +146,12 @@ elif name == "defaults":
 elif name == "xcode-select":
     out(C.get("xcode_select", os.path.join(os.environ["UPKEEP_APPLICATIONS"], "Xcode.app",
                                            "Contents", "Developer")) + "\n")
+elif name == "xcrun":
+    if args[:1] == ["--sdk"]:
+        out(C.get("ios_sdk", "27.2") + "\n")
+    elif args[:3] == ["simctl", "list", "runtimes"]:
+        out(json.dumps({"runtimes": C.get("runtimes", [
+            {"platform": "iOS", "version": "27.2", "isAvailable": True}])}))
 elif name == "mas":
     out("\n".join(C.get("mas") or []) + "\n")
 elif name == "code":
@@ -609,6 +615,21 @@ class FullRun(Case):
         self.assertEqual(b.read(os.path.join(b.fake, "hook.log")).split(),
                          ["protected-casks", "dry=", "brewfiles", "dry=", "after-brew",
                           "dry=", "toolchain", "dry=", "status", "dry="])
+
+    def test_ios_runtime_present_is_left_alone(self):
+        b = self.b
+        b.upkeep("run", "--force")
+        self.assertNotIn("-downloadPlatform iOS", b.argv("xcodebuild"))
+        self.assertIn("--sdk iphonesimulator --show-sdk-version", b.argv("xcrun"))
+
+    def test_ios_runtime_for_a_new_sdk_is_downloaded(self):
+        b = self.b
+        full_scenario(b, ios_sdk="27.3", runtimes=[
+            {"platform": "iOS", "version": "27.2", "isAvailable": True},
+            {"platform": "watchOS", "version": "27.3", "isAvailable": True}])
+        b.upkeep("run", "--force")
+        self.assertIn("-downloadPlatform iOS", b.argv("xcodebuild"))
+        self.assertIn("downloading the iOS 27.3 simulator runtime", b.log())
 
     def test_android_flutter_xcode_appearance(self):
         b = self.b

@@ -52,7 +52,8 @@ Each failure is recorded and the run goes on.
    licenses, `flutter config` to the SDK and Android Studio's JBR, `flutter precache`
    when flutter moved, then `flutter doctor -v`: every section not `[✓]` is a problem.
 7. Xcode: missing, xcode-select, first launch, license, App Store auto-updates, the
-   root helper's status. `mas outdated` is shown in `status`, not counted.
+   root helper's status, and an iOS simulator runtime for the SDK this Xcode ships (downloaded
+   when missing, because an Xcode update otherwise turns `flutter doctor` red). `mas outdated` is shown in `status`, not counted.
 8. Appearance: the VS Code keys in `appearance/vscode.json` (comments and other keys
    kept), the Terminal profile as default and startup, the `Dart-Code.flutter` extension.
 9. Each repo's `upkeep.d/hook`: `after-brew`, `toolchain`, then `status` (its stdout

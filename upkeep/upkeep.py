@@ -58,6 +58,7 @@ T_CASK = 5400
 T_BUNDLE = 3600
 T_NPM = 1800
 T_SDK = 3600
+T_SIMULATOR = 3 * 3600
 T_FLUTTER = 1800
 T_HOOK_LIST = 300
 T_HOOK_WORK = 7200
@@ -1690,6 +1691,34 @@ def defaults_read(domain_or_path, key):
     return out.strip() if code == 0 else None
 
 
+def ios_runtime(r):
+    """An iOS simulator runtime for the iOS SDK this Xcode ships: an Xcode update
+    brings a new SDK, and flutter doctor goes red until its runtime is here."""
+    code, out, _ = run(["xcrun", "--sdk", "iphonesimulator", "--show-sdk-version"], T_PROBE)
+    sdk = out.strip() if code == 0 else ""
+    if not sdk:
+        r.problem("Xcode has no iOS simulator SDK: xcodebuild -downloadPlatform iOS")
+        return
+    code, out, _ = run(["xcrun", "simctl", "list", "runtimes", "--json"], T_PROBE)
+    try:
+        runtimes = json.loads(out).get("runtimes") or [] if code == 0 else []
+    except (ValueError, AttributeError):
+        runtimes = []
+    want = ".".join(sdk.split(".")[:2])
+    for rt in runtimes:
+        if (isinstance(rt, dict) and rt.get("platform") == "iOS" and rt.get("isAvailable")
+                and ".".join(str(rt.get("version", "")).split(".")[:2]) == want):
+            return
+    if r.report_only:
+        r.problem("no iOS %s simulator runtime: upkeep run --force" % want)
+        return
+    log("downloading the iOS %s simulator runtime" % want)
+    code, out, err = run(["xcodebuild", "-downloadPlatform", "iOS"], T_SIMULATOR,
+                         mutating=True)
+    if code != 0:
+        r.fail("xcodebuild -downloadPlatform iOS", last_line(err, out) or "exit %d" % code)
+
+
 def phase_xcode(r, state):
     xcode = os.path.join(APPS, "Xcode.app")
     if not os.path.isdir(xcode):
@@ -1703,6 +1732,8 @@ def phase_xcode(r, state):
             r.problem("Xcode needs its first launch: %s" % root_hint())
         elif run(["xcodebuild", "-license", "check"], T_PROBE)[0] != 0:
             r.problem("Xcode's license is not accepted: %s" % root_hint())
+        else:
+            ios_runtime(r)
     for where, key in (("/Library/Preferences/com.apple.commerce", "AutoUpdate"),
                        ("/Library/Preferences/com.apple.SoftwareUpdate",
                         "AutomaticallyInstallAppUpdates")):
