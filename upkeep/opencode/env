@@ -1,0 +1,9 @@
+# Environment for OpenCode: every shell (via shell.zsh) and the opencode-serve LaunchAgent.
+# KEY=value lines only. launchd/com.mikeyferguson.opencode-serve.plist repeats them; test_install.py
+# keeps the two in step.
+OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1
+OPENCODE_ENABLE_EXA=1
+OPENCODE_EXPERIMENTAL_PLAN_MODE=1
+OPENCODE_EXPERIMENTAL_LSP_TOOL=1
+OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS=600000
+OPENCODE_DISABLE_CLAUDE_CODE=1

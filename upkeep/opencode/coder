@@ -1,0 +1,9 @@
+#!/bin/bash
+# coder: OpenCode on the persistent server (com.mikeyferguson.opencode-serve), in this
+# directory, so wakeups, monitors and background agents outlive the window. Permissions are
+# all "allow" in opencode.jsonc. Falls back to a local opencode with --auto when the server is down.
+URL="${OPENCODE_SERVER_URL:-http://127.0.0.1:4096}"
+if curl -fsS -m 2 -o /dev/null "$URL/global/health" 2>/dev/null; then
+  exec opencode attach "$URL" --dir "$PWD" "$@"
+fi
+exec opencode --auto "$@"

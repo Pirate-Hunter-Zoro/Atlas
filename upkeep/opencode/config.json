@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "deepseek/deepseek-flash",
+  "small_model": "deepseek/deepseek-flash",
+  "enabled_providers": ["deepseek"],
+  "subagent_depth": 3,
+  "permission": "allow",
+  "agent": {
+    "build": { "permission": { "doom_loop": "allow", "external_directory": "allow" } },
+    "plan": { "permission": { "doom_loop": "allow", "external_directory": "allow" } },
+    "general": { "permission": { "doom_loop": "allow", "external_directory": "allow" } },
+    "explore": { "permission": { "doom_loop": "allow", "external_directory": "allow" } }
+  },
+  "provider": {
+    "deepseek": {
+      "models": {
+        "deepseek-flash": { "variants": { "nothink": { "thinking": { "type": "disabled" } } } },
+        "deepseek-v4-pro": { "variants": { "nothink": { "thinking": { "type": "disabled" } } } }
+      }
+    }
+  },
+  "experimental": {
+    "primary_tools": ["wakeup", "cron_create", "cron_delete", "monitor", "workflow"]
+  }
+}
