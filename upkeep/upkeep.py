@@ -1153,17 +1153,25 @@ def phase_bundle(r):
             return
         for cask, files in sorted(fonts.items()):
             aside = os.path.join(HOME, "Library", "Fonts", ".before-upkeep")
+            moved = []
             for f in files:
                 if DRY:
                     log("[dry-run] would move %s to %s" % (tilde(f), tilde(aside)))
                     continue
                 os.makedirs(aside, exist_ok=True)
                 shutil.move(f, os.path.join(aside, os.path.basename(f)))
+                moved.append(f)
                 log("moved hand-copied %s aside for cask %s" % (tilde(f), cask))
             code, out, err = brew(["install", "--cask", "--force", cask], T_CASK,
                                   mutating=True)
             if code != 0:
                 r.fail("cask " + cask, last_line(err, out) or "exit %d" % code)
+                # The faces stay usable until a later run installs the cask.
+                for f in moved:
+                    if not os.path.exists(f):
+                        shutil.move(os.path.join(aside, os.path.basename(f)), f)
+                        log("put hand-copied %s back: cask %s did not install"
+                            % (tilde(f), cask))
         check_off()
         code, out, err = brew(["bundle", "install", "--no-upgrade", "--file=" + target],
                               T_BUNDLE, mutating=True)

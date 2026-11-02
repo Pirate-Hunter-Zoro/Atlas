@@ -719,6 +719,20 @@ class FullRun(Case):
         self.assertLess(brew.index("install --cask --force font-comic-mono"),
                         [i for i, a in enumerate(brew) if a.startswith("bundle install")][0])
 
+    def test_fonts_come_back_when_the_cask_fails(self):
+        b = self.b
+        fonts = os.path.join(b.home, "Library", "Fonts")
+        b.write(os.path.join(fonts, "ComicMono.ttf"), "hand copy")
+        full_scenario(b, cask_info=[{"token": "font-comic-mono", "artifacts": [
+            {"font": ["comic-mono-font-master/ComicMono.ttf"],
+             "target": os.path.join(fonts, "ComicMono.ttf")}]}],
+            exit={"brew install --cask --force font-comic-mono": 1})
+        b.upkeep("run", "--force")
+        self.assertEqual(b.read(os.path.join(fonts, "ComicMono.ttf")), "hand copy")
+        self.assertFalse(os.path.exists(os.path.join(fonts, ".before-upkeep",
+                                                     "ComicMono.ttf")))
+        self.assertIn("cask font-comic-mono", b.state()["failed"])
+
     def test_hand_installed_app_is_left_out_of_the_bundle(self):
         b = self.b
         os.makedirs(os.path.join(b.apps, "Visual Studio Code.app"))

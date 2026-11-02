@@ -45,7 +45,7 @@ Each failure is recorded and the run goes on.
    prints for `protected-casks`, and a cask whose app ran at three ticks in a row.
 3. `brew bundle install --no-upgrade` over `Brewfile` plus each hook's `brewfiles`.
    Never `--cleanup`. Hand-copied fonts that block a font cask move to
-   `~/Library/Fonts/.before-upkeep/`; a hand-installed app keeps its cask out of the bundle.
+   `~/Library/Fonts/.before-upkeep/`, and back if the cask fails; a hand-installed app keeps its cask out of the bundle.
 4. `npm update -g` with brew's npm, after npm's `allow-scripts` names opencode-ai.
 5. The opencode doctor, the DeepSeek key sync, then `opencode/install.py`.
 6. Android: `sdkmanager --update`, the newest stable platform and build-tools,
