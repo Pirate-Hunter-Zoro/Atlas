@@ -1,12 +1,11 @@
-"""The server's own routes: health, the sync health, the provider setting,
-`/seen` and a page's error report.
+"""The server's own routes: health, the sync health, `/seen` and a page's
+error report.
 
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     atlas     unprefixed only, over every subject, by a sessionless Repo over
               the Atlas root; 404 under `/s/<id>/`:
               GET  /sync.json
-              POST /default-agent
     session   under `/s/<id>/`: POST /seen (somebody is looking at this
               session's subject)
     both      GET /health: the session's, under `/s/<id>/`; unprefixed, the
@@ -23,8 +22,6 @@ import urllib.parse
 
 from . import NOT_MINE
 from ...net import tailscale
-from ... import assistants
-from ... import keys
 from ... import limits
 from ... import subjects
 from ... import sync
@@ -136,52 +133,5 @@ def post(h, repo, path):
             repo.set_state(seen=time.time())
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
-
-    if path == "/default-agent":
-        # The one provider setting: writes only `provider`, which the next
-        # turn re-reads. Refused: unknown or unrunnable here. A
-        # spent allowance is allowed; the fallback covers it.
-        from ...agents import recipes
-        try:
-            payload = json.loads(h.read_body().decode("utf-8") or "{}")
-        except (ValueError, UnicodeDecodeError):
-            return h.send_json({"ok": False, "detail": "bad request"}, status=400)
-        want = str((payload or {}).get("agent") or "").strip()
-        cfg = recipes.load_config()
-        spec = (cfg.get("agents") or {}).get(want)
-        why = None
-        if not isinstance(spec, dict):
-            why = "'%s' is not an assistant on this machine" % want
-        else:
-            gone = recipes.missing_command(spec.get("cmd"))
-            need = keys.unkeyed(spec)
-            why = (gone and "`%s` is not installed here" % gone) or (
-                need and "%s is not in %s" % (need, keys.store()))
-        if why:
-            return h.send_json({"ok": False, "detail": why}, status=400)
-        try:
-            with open(recipes.CONFIG, "r", encoding="utf-8") as fh:
-                on_disk = json.load(fh) or {}
-        except (OSError, ValueError):
-            on_disk = {}
-        on_disk["provider"] = want
-        on_disk.pop("default_agent", None)
-        # Atomic: every turn reads this file.
-        os.makedirs(os.path.dirname(recipes.CONFIG), exist_ok=True)
-        tmp = recipes.CONFIG + ".tmp"
-        try:
-            with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump(on_disk, fh, indent=2)
-                fh.write("\n")
-            os.replace(tmp, recipes.CONFIG)
-        except OSError as exc:
-            return h.send_json({"ok": False, "detail": str(exc)}, status=500)
-        assistants.forget()
-        h.hub.worker.dirty.set()
-        table = assistants.listing()
-        return h.send_json({"ok": True, "default": want,
-                            "machine": (table or {}).get("machine"),
-                            "why": (table or {}).get("why"),
-                            "assistants": table})
 
     return NOT_MINE

@@ -82,9 +82,9 @@ check("but the step it hands over is a doing turn",
 CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
 check("so the handed-over step gets a doing turn's clock",
       runturn.turn_timeout(CLOCK, course) == 900
-      and runturn.turn_timeout(CLOCK, course, None, "handover") == 3600)
+      and runturn.turn_timeout(CLOCK, course, signal="handover") == 3600)
 check("and every other signal leaves the clock where it was",
-      runturn.turn_timeout(CLOCK, course, None, "help") == 900)
+      runturn.turn_timeout(CLOCK, course, signal="help") == 900)
 
 # ---------------------------------------------------------------------------
 # A MISSION REPLACES THE SITTING; NO SITTING IS ABOUT A BOX

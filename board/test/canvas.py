@@ -4,7 +4,7 @@
     python3 test/canvas.py
 
 A real server (`serve.py --port 0`) on a temp Atlas holding Random lessons
-(`courses/Random`), and a fake provider standing in for claude: a turn handed
+(`courses/Random`), and a fake opencode standing in for DeepSeek: a turn handed
 a `[canvas]` line writes one card that reads every page, and a wrap-up writes
 TUTOR.md with `board memo`.
 
@@ -79,7 +79,7 @@ def write(path, data):
 
 
 # ---------------------------------------------------------------------------
-# the fake provider
+# the fake opencode
 # ---------------------------------------------------------------------------
 CALLS = os.path.join(box, "calls.jsonl")
 FAKE = os.path.join(box, "bin", "fake-provider")
@@ -106,11 +106,12 @@ with open(%(calls)r, "a") as fh:
 ''' % {"calls": CALLS})
 os.chmod(FAKE, 0o755)
 write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-    "provider": "fake", "vision_agent": "fake", "concurrency": 2,
+    "concurrency": 2,
     "headless_timeout": 120, "doing_timeout": 180, "handoff_timeout": 60,
-    "agents": {"fake": {"cmd": [FAKE], "label": "Fake",
-                        "headless_first": [FAKE, "{prompt}"], "usage": "none"}},
 }))
+write(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), 0o600)
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
 
 
 def calls(sid, kind=None):

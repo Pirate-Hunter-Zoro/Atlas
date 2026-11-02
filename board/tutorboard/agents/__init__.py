@@ -1,2 +1,3 @@
-"""The assistants: the recipe table and the choice of one (`recipes`), what a
-turn said and cost (`usage`), and `board doctor`'s turns (`doctor`)."""
+"""The assistant: the DeepSeek recipe and its readiness (`recipes`), what a
+turn said and cost (`usage`), `board doctor`'s turn (`doctor`), one prompt
+from outside the board (`oneshot`), and speech (`speech`)."""

@@ -102,12 +102,12 @@ log(kind="writeup", src=src, rc=p.returncode, out=p.stdout[-1500:])
 ''' % {"calls": CALLS})
 os.chmod(FAKE, 0o755)
 write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-    "provider": "fake", "vision_agent": "fake", "concurrency": 2,
+    "concurrency": 2,
     "headless_timeout": 180, "doing_timeout": 240, "handoff_timeout": 60,
-    "agents": {"fake": {"cmd": [FAKE], "label": "Fake",
-                        "headless_first": [FAKE, "{prompt}"],
-                        "usage": "none"}},
 }))
+write(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), 0o600)
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
 
 
 def calls(kind=None):

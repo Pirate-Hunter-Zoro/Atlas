@@ -8,7 +8,7 @@ is about.
     course/                     a subject's config, documents and homework
     lesson/                     what is on the board: cards, turns, the slate
     server/                     the HTTP board and its routes
-    runner/                     the turns: one fresh provider process each
+    runner/                     the turns: one fresh DeepSeek process each
     sync, code                  the Mac's git sync and coding sessions
 
 Standard library only, everywhere.

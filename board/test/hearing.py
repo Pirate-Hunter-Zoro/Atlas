@@ -468,12 +468,12 @@ with open(%(calls)r, "a") as fh:
 ''' % {"ctl": CTL, "calls": CALLS})
 os.chmod(FAKE, 0o755)
 write(os.path.join(os.environ["XDG_CONFIG_HOME"], "tutor-board", "config.json"),
-      json.dumps({"provider": "fake", "vision_agent": "fake",
-                  "concurrency": 2, "headless_timeout": 120,
-                  "doing_timeout": 180, "handoff_timeout": 60,
-                  "agents": {"fake": {"cmd": [FAKE], "label": "Fake",
-                                      "headless_first": [FAKE, "{prompt}"],
-                                      "usage": "none"}}}))
+      json.dumps({"concurrency": 2, "headless_timeout": 120,
+                  "doing_timeout": 180, "handoff_timeout": 60}))
+write(os.path.join(os.environ["XDG_CONFIG_HOME"], "tutor-board", "keys.env"),
+      "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(os.path.join(os.environ["XDG_CONFIG_HOME"], "tutor-board", "keys.env"), 0o600)
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
 
 
 def calls(sid, kind):
@@ -714,9 +714,9 @@ try:
     from tutorboard.runner import turn as tturn  # noqa: E402
     check("the [code] signal gets the prompt that reads the diff",
           runturn.turn_signal("[2026-10-09 10:00:00] " + got[0]["text"]) == "code"
-          and tturn.turn_plan({"headless": ["x"]}, "code")[1]
+          and tturn.turn_prompt("code")
           .startswith("You are running headless") and "git diff" in
-          tturn.turn_plan({"headless": ["x"]}, "code")[1])
+          tturn.turn_prompt("code"))
 
     # The Mac may not commit a held path to main.
     ok_, said_ = gitops.commit(cmac, [A], "the Mac edits a held file")

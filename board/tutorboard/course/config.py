@@ -197,16 +197,3 @@ def clean_check(raw):
     if not (out.get("all") or out.get("one")):
         return None, problems or ["`check` names neither `all` nor `one`"]
     return out, problems
-
-
-# ---------------------------------------------------------------------------
-# An assistant's NAME from a request: only its shape is checked here. Who takes
-# a turn is the machine's one provider setting (`recipes.resolve`).
-# ---------------------------------------------------------------------------
-AGENT_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,31}$")
-
-
-def clean_agent(agent):
-    """An assistant name from a request, or None if it is not one. Never raises."""
-    agent = str(agent or "").strip().lower()
-    return agent if AGENT_RE.match(agent) else None

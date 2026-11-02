@@ -6,11 +6,9 @@ turn it wakes has to be able to edit a document and rebuild it without touching
 the evening somebody else is having on the same board -- and the thing that makes
 that hard is not the card, it is the CONVERSATION.
 
-`turn_plan` resumes the agent's own session by default, which is what makes a
-twelve-card lesson affordable. A revision resumed into a lesson drags the lesson
-into the document and the document back into the lesson. The alternative was a
-second daemon per workspace, which doubles the cost and the failure modes for a
-turn that takes a minute.
+A revision resumed into a lesson would drag the lesson into the document and
+the document back into the lesson. Every turn is a fresh process, and the
+signal picks the prompt (`turn_prompt`).
 
 So: a `[revise]` line runs fresh, writes no card, leaves `state.json` alone, and
 puts its report beside the document. What is guarded here is each of those, plus
@@ -42,6 +40,7 @@ from tutorboard.server.routes import library as library_route
 
 from tutorboard.runner import prompts  # noqa: E402
 from tutorboard.runner import turn as runturn  # noqa: E402
+from tutorboard.agents import recipes  # noqa: E402
 
 fails = []
 
@@ -54,9 +53,6 @@ def check(name, cond):
         print("FAIL " + name)
 
 
-SPEC = {"headless": ["agent", "-p", "{prompt}", "--continue"],
-        "headless_first": ["agent", "-p", "{prompt}"]}
-
 # ---------------------------------------------------------------------------
 # which turn a revision is
 # ---------------------------------------------------------------------------
@@ -64,12 +60,10 @@ check("a revision line is read as the signal it carries",
       runturn.turn_signal("[2026-09-16 18:02:11] [revise] the document is x")
       == "revise")
 
-use, template = runturn.turn_plan(SPEC, "revise")
-check("a revision runs fresh with the revision's own prompt",
-      use == SPEC["headless_first"] and template is prompts.HEADLESS_REVISE_PROMPT)
-use, template = runturn.turn_plan(SPEC)
-check("and so does an ordinary turn: every turn is a fresh process",
-      use == SPEC["headless_first"] and template is prompts.HEADLESS_FIRST_PROMPT)
+check("a revision gets the revision's own prompt",
+      runturn.turn_prompt("revise") is prompts.HEADLESS_REVISE_PROMPT)
+check("and an ordinary turn the lesson's",
+      runturn.turn_prompt() is prompts.HEADLESS_FIRST_PROMPT)
 
 # ---------------------------------------------------------------------------
 # what that turn is told
@@ -99,9 +93,8 @@ check("it is not sent to read the contract or the cards, none of which is about 
 check("an overhaul line is read as the signal it carries",
       runturn.turn_signal("[2026-09-17 20:10:00] [rework] the deck is for x")
       == "rework")
-use, template = runturn.turn_plan(SPEC, "rework")
-check("an overhaul runs fresh with its own prompt",
-      use == SPEC["headless_first"] and template is prompts.HEADLESS_REWORK_PROMPT)
+check("an overhaul gets its own prompt",
+      runturn.turn_prompt("rework") is prompts.HEADLESS_REWORK_PROMPT)
 
 # A DOING TURN'S CLOCK, and a plain revision deliberately does not get one: a
 # correction changes what a note names and is over in a minute, while an
@@ -109,9 +102,9 @@ check("an overhaul runs fresh with its own prompt",
 CLOCK = {"headless_timeout": 900, "doing_timeout": 3600}
 _empty = tempfile.mkdtemp()
 check("an overhaul gets a doing turn's time, whatever the sitting says",
-      runturn.turn_timeout(CLOCK, _empty, None, "rework") == 3600)
+      runturn.turn_timeout(CLOCK, _empty, signal="rework") == 3600)
 check("while a correction is left on the sitting's own clock",
-      runturn.turn_timeout(CLOCK, _empty, None, "revise") == 900)
+      runturn.turn_timeout(CLOCK, _empty, signal="revise") == 900)
 
 worked = prompts.HEADLESS_REWORK_PROMPT
 check("an overhaul is told this turn is not part of the lesson",
@@ -155,9 +148,8 @@ check("and that the lesson on the board is somebody else's",
 
 # A MISSION SHIPPING ITSELF IS GONE with missions: `[ship]` picks the lesson
 # prompt like any line with no machinery of its own.
-use, template = runturn.turn_plan(SPEC, "ship")
 check("a [ship] line has no prompt of its own any more",
-      template is prompts.HEADLESS_FIRST_PROMPT
+      runturn.turn_prompt("ship") is prompts.HEADLESS_FIRST_PROMPT
       and not hasattr(prompts, "HEADLESS_SHIP_PROMPT")
       and not hasattr(sense, "ship_sense"))
 
@@ -174,7 +166,7 @@ check("and says the lesson on the board is somebody else's",
 # ---------------------------------------------------------------------------
 # Cohort-Study's shape: `paper1-cohort/manuscript.md` is the source, and the
 # .pdf and .docx beside it are built from it. A note from the library wakes a
-# `[revise]` turn, and that turn is told the one builder there is. The provider
+# `[revise]` turn, and that turn is told the one builder there is. The agent
 # is a fake script that records the prompt it was handed.
 tmp = os.path.realpath(tempfile.mkdtemp(prefix="tutor-revising-"))
 work = os.path.join(tmp, "projects", "Cohort-Study")
@@ -226,20 +218,17 @@ signal = runturn.turn_signal(out)
 check("the inbox hands the turn a [revise] line", out and signal == "revise")
 
 seen = os.path.join(tmp, "prompt.txt")
-fake = os.path.join(tmp, "fake-provider")
+fake = os.path.join(tmp, "opencode")
 with open(fake, "w", encoding="utf-8") as fh:
-    fh.write("#!/bin/sh\nprintf '%s' \"$2\" > " + seen + "\n")
+    fh.write("#!/bin/sh\nfor last; do :; done\nprintf '%s' \"$last\" > " + seen + "\n")
 os.chmod(fake, 0o755)
-spec = {"headless": [fake, "-p", "{prompt}", "--continue"],
-        "headless_first": [fake, "-p", "{prompt}"]}
-use, template = runturn.turn_plan(spec, signal)
-prompt = template % {"inbox": out.strip(), "handoff": ""}
+os.environ["TUTORBOARD_OPENCODE"] = fake
+prompt = runturn.turn_prompt(signal) % {"inbox": out.strip(), "handoff": ""}
 with open(os.path.join(tmp, "turn.log"), "a") as log:
-    rc, timed_out = runturn.run_turn(
-        [a.replace("{prompt}", prompt) for a in use], work, log, 30)
+    rc, timed_out = runturn.run_turn(recipes.argv(prompt), work, log, 30)
 got = open(seen, encoding="utf-8").read() if os.path.isfile(seen) else ""
-check("the fake provider ran one fresh turn", rc == 0 and not timed_out
-      and use == spec["headless_first"])
+check("the fake opencode ran one fresh turn", rc == 0 and not timed_out
+      and "--continue" not in recipes.argv(prompt))
 check("and that turn is the revision, not the lesson",
       "[revise]" in got and "NOT PART OF THE LESSON" in got)
 check("and it is told to rebuild the manuscript with board build",

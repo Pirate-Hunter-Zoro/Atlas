@@ -12,9 +12,9 @@
 
 One FIFO per session, at most `concurrency` turns at once overall (default
 2). A job is a turn or the wrap-up; two wakes before a turn starts are one
-turn, and a `"wake": false` line queues nothing. A turn is a fresh provider
-process in the Atlas root with TUTORBOARD_SESSION, TUTORBOARD_TURN=1 and
-CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS=1, and this tree's `board` on PATH.
+turn, and a `"wake": false` line queues nothing. A turn is a fresh DeepSeek
+process (OpenCode) in the Atlas root with TUTORBOARD_SESSION and
+TUTORBOARD_TURN=1, and this tree's `board` on PATH.
 
 The constraint: the message is written to agent.json as `owed` before the
 inbox is marked read, and the process group as `turn_pid`, so a server killed
@@ -148,9 +148,8 @@ class Runner(object):
         st = daemon.agent_record_at(where) or {}
         if st.get("pid") == os.getpid() or daemon.pid_alive(st.get("pid")):
             return False
-        name = st.get("agent") or recipes.resolve(recipes.load_config())[0]
         daemon.agent_state(where, pid=os.getpid(), host=recipes.this_host(),
-                           agent=name, state="listening")
+                           agent=recipes.NAME, state="listening")
         return True
 
     def busy(self, sid=None):
@@ -207,14 +206,9 @@ class Runner(object):
         cfg = recipes.load_config()
         course = {"root": repo.root, "dir": os.path.basename(repo.root),
                   "name": course_config.read_config(repo.root)["name"]}
-        # Who wrote last, so an `[unfinished]` report stays with it
-        # (`loop.for_this_turn`); every other turn re-resolves.
-        name = ((daemon.agent_record_at(repo.live) or {}).get("agent")
-                or recipes.resolve(cfg)[0])
         env = dict(os.environ)
         env["TUTORBOARD_SESSION"] = repo.live
         env["TUTORBOARD_TURN"] = "1"
-        env["CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"] = "1"
         env["TUTORBOARD_COURSES"] = self.atlas
         # `board` is this server's own, whatever PATH says.
         env["PATH"] = os.pathsep.join([os.path.join(paths.TOOL, "bin"),
@@ -227,7 +221,7 @@ class Runner(object):
         log = open(logpath, "a", buffering=1)
         ctx = loop.Ctx(cfg=cfg, course=course, repo=repo, root=repo.root,
                        cwd=self.atlas, live=repo.live, log=log, logpath=logpath,
-                       agent_name=name, spec=cfg["agents"].get(name) or {},
+                       spec=recipes.spec(),
                        turns=self._turns(repo.live), env=env, sid=sid)
         ctx.on_start = self._on_start(sid, ctx, landed)
         return ctx
@@ -249,7 +243,7 @@ class Runner(object):
             daemon.agent_state(ctx.live, turn_pid=p.pid, turn_cmd=exe)
             if landed:
                 ctx.log.write("-- %s spawned %.3f s after the message landed\n"
-                              % (ctx.agent_name, max(0.0, time.time() - landed)))
+                              % (exe, max(0.0, time.time() - landed)))
         return started
 
     def _run(self, sid, job):
@@ -280,18 +274,14 @@ class Runner(object):
             if owed:
                 ctx.log.write("-- answering the message the last turn still owed\n")
             daemon.agent_state(repo.live, pid=os.getpid(),
-                               host=recipes.this_host(), agent=ctx.agent_name)
+                               host=recipes.this_host(), agent=recipes.NAME)
             got = loop.take_turn(ctx, message)
             daemon.agent_state(repo.live, turn_pid=None, turn_cmd=None)
             if got.get("owed") is None:
                 return False
             if got.get("error") is None:
                 return True               # the [unfinished] report: now
-            # After a fallback-repaired failure, answer again now only if
-            # another agent would take it, or the failure repeats for ever.
-            nxt, _ = recipes.resolve(recipes.load_config())
-            if nxt and nxt != ctx.agent_name:
-                return True
+            # Answering again now would repeat the failure for ever.
             ctx.log.write("-- the message stays owed; the next turn answers it\n")
             return False
         finally:
@@ -320,7 +310,7 @@ class Runner(object):
         ctx = self._ctx(sid, repo)
         try:
             daemon.agent_state(repo.live, pid=os.getpid(),
-                               host=recipes.this_host(), agent=ctx.agent_name)
+                               host=recipes.this_host(), agent=recipes.NAME)
             late = rec.get("subject") if rec.get("sent_late") else None
             loop.wrap_up(ctx, sent=late)
             daemon.agent_state(repo.live, turn_pid=None, turn_cmd=None)
@@ -347,7 +337,7 @@ class Runner(object):
         ctx = self._ctx(sid, repo)
         try:
             daemon.agent_state(repo.live, pid=os.getpid(),
-                               host=recipes.this_host(), agent=ctx.agent_name)
+                               host=recipes.this_host(), agent=recipes.NAME)
             loop.notes_up(ctx, pages, rec.get("title"), rec.get("subject"))
             daemon.agent_state(repo.live, turn_pid=None, turn_cmd=None)
             try:

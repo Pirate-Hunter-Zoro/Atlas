@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""The in-process runner: every turn is a fresh provider process the server
+"""The in-process runner: every turn is a fresh DeepSeek process the server
 starts, one FIFO per session, at most two at once, owed messages survive the
 server, and the wrap-up runs only on End.
 
     python3 test/runner.py
 
-A fake provider (written below) stands in for claude: it reads its prompt and
+A fake opencode (written below, `TUTORBOARD_OPENCODE`) stands in: it reads its prompt and
 TUTORBOARD_SESSION, records what it was given, and does what a control file
 says -- write a card with `board write`, sleep first, run `board check`, or
 write TUTOR.md. A real server (`serve.py --port 0`) runs on a temp Atlas
@@ -69,7 +69,7 @@ def git(*args, cwd):
 
 
 # ---------------------------------------------------------------------------
-# the fake provider
+# the fake opencode
 # ---------------------------------------------------------------------------
 CTL = os.path.join(box, "ctl")
 CALLS = os.path.join(box, "calls.jsonl")
@@ -88,7 +88,7 @@ except OSError:
 rec = {"sid": sid, "t": time.time(), "pid": os.getpid(), "pgid": os.getpgid(0),
        "cwd": os.getcwd(), "mode": mode, "prompt": prompt,
        "turn": os.environ.get("TUTORBOARD_TURN"),
-       "nogit": os.environ.get("CLAUDE_CODE_DISABLE_GIT_INSTRUCTIONS"),
+       "key": os.environ.get("DEEPSEEK_API_KEY"),
        "port": os.environ.get("TUTORBOARD_PORT")}
 def log(**kw):
     rec.update(kw)
@@ -119,13 +119,13 @@ log(kind="turn", rc=p.returncode, out=p.stdout)
 ''' % {"ctl": CTL, "calls": CALLS})
 os.chmod(FAKE, 0o755)
 
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
 write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-    "provider": "fake", "vision_agent": "fake", "concurrency": 2,
+    "concurrency": 2,
     "headless_timeout": 120, "doing_timeout": 180, "handoff_timeout": 60,
-    "agents": {"fake": {"cmd": [FAKE], "label": "Fake",
-                        "headless_first": [FAKE, "{prompt}"],
-                        "usage": "none"}},
 }))
+write(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), 0o600)
 
 
 def ctl(sid, mode):
@@ -315,10 +315,8 @@ try:
     check("a quiet line in front of the one that woke the turn does not name "
           "the turn", turn.turn_signal("[a] [bind] courses/Demo\n[b] [begin] go") == "begin"
           and turn.turn_signal("[a] [mode] now do\n[b] go on") == "")
-    check("a turn never resumes: the recipe is headless_first",
-          turn.turn_plan({"headless_first": ["c", "-p", "{prompt}"],
-                          "headless": ["c", "-p", "{prompt}", "--continue"]})[0]
-          == ["c", "-p", "{prompt}"])
+    check("a turn never resumes: the recipe has no resume form",
+          "--continue" not in loop.recipes.DEEPSEEK["headless_first"])
 
     # -----------------------------------------------------------------------
     # nothing else starts a turn: no daemon, no waiter
@@ -348,7 +346,7 @@ try:
     one = (calls(sa, "turn") or [{}])[0]
     check("the turn ran in the Atlas root, on its session, flagged as a turn",
           os.path.realpath(one.get("cwd", "")) == os.path.realpath(atlas)
-          and one.get("turn") == "1" and one.get("nogit") == "1"
+          and one.get("turn") == "1" and one.get("key") == "sk-test"
           and one.get("port") == str(server.port), one)
     check("its prompt carries the message, and names no live/ path",
           "what is a field?" in one.get("prompt", "")
@@ -356,7 +354,7 @@ try:
     check("and board write landed the card in that session", one.get("rc") == 0, one)
     import re
     m = re.search(r"spawned ([0-9.]+) s after the message landed", agent_log(sa))
-    check("/say to provider spawn is under 300 ms, and logged",
+    check("/say to opencode spawn is under 300 ms, and logged",
           m and float(m.group(1)) < 0.3, agent_log(sa))
     print("     (spawned %s s after /say)" % (m.group(1) if m else "?"))
     rec = agent(sa)
@@ -593,7 +591,7 @@ try:
 finally:
     if server is not None:
         server.stop()
-    # Any fake provider still running belongs to this test.
+    # Any fake opencode still running belongs to this test.
     for c in calls():
         try:
             os.killpg(c.get("pgid"), signal.SIGKILL)

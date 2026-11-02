@@ -152,7 +152,7 @@ try:
     for sid, tokens in zip(made[:2], (1000, 3000)):
         write(os.path.join(atlas, "sessions", sid, "cost.jsonl"),
               "".join(json.dumps({"iso": "2026-10-09 10:0%d:00" % i, "turn": i + 1,
-                                  "agent": "claude", "requests": 2,
+                                  "agent": "deepseek", "requests": 2,
                                   "tokens": tokens, "usd": 0.5}) + "\n"
                       for i in range(2)))
 

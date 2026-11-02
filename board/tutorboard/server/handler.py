@@ -56,7 +56,6 @@ UNPREFIXED = (
     ("POST", "/subject/delete", "subject-delete"),
     ("POST", "/session/delete", "session-delete"),
     ("GET", "/notices.json", "notices"),
-    ("GET", "/assistants.json", "assistants"),
     ("GET", "/library", "page"),
     ("GET", "/library/", "page"),
     # library
@@ -82,7 +81,6 @@ UNPREFIXED = (
     ("GET", "/source/*", "subject?"),
     # machines
     ("GET", "/sync.json", "atlas"),
-    ("POST", "/default-agent", "atlas"),
     # Rendered PDF pages: one cache for every session (`course/paper.py`).
     ("GET", "/paper/*", "paper"),
     # writing
@@ -493,11 +491,6 @@ class Handler(BaseHTTPRequestHandler):
             # Machinery lines no session took (D16), newest first; no turn ran.
             return self.send_json({"ok": True,
                                    "notices": sync.notices(registry.atlas)})
-        if how == "assistants":
-            # The home screen's default-assistant setting: what POST
-            # /default-agent chooses among. None when it could not be asked.
-            from .. import assistants
-            return self.send_json({"ok": True, "assistants": assistants.listing()})
         if how in SUBJECT_CLASSES:
             ident = (query.get("subject") or [""])[0]
             if ident:

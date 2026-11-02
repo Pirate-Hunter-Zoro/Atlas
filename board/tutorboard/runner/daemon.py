@@ -48,29 +48,6 @@ def owed_message(live):
     return got if isinstance(got, str) and got.strip() else None
 
 
-def not_this_agents_failure(live, agent_name):
-    """The fields that drop a failure belonging to somebody else, or `{}`.
-
-    Written wherever the agent ON the record changes -- a start, and a
-    climb-down between turns -- because the board reads the agent and the
-    failure out of the same record and puts them in one sentence. A failure that
-    outlives the provider it happened to is then a sentence about the wrong
-    provider, which is a new way to mislead rather than the honest history the
-    retention is for.
-    """
-    try:
-        with open(os.path.join(live, "agent.json"), "r", encoding="utf-8") as fh:
-            was = json.load(fh) or {}
-    except (OSError, ValueError):
-        return {}
-    if not was.get("last_error"):
-        return {}
-    whose = was.get("failed_agent") or was.get("agent")
-    if whose == agent_name:
-        return {}
-    return {"last_error": None, "failed_at": 0, "failed_agent": None}
-
-
 def pid_alive(pid, needle=None):
     """Is this pid alive here, and does it still look like what was recorded?
 

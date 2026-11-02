@@ -354,8 +354,6 @@ DRIVE = {
     ("POST", "/writeup/seen", "library"): ("session", [
         ("/writeup/seen", {"id": "t0001"}, OK)]),
     # machines
-    ("POST", "/default-agent", "machines"): ("atlas", [
-        ("/default-agent", {"agent": "nobody-here"}, (400,))]),
     ("GET", "/sync.json", "machines"): ("atlas", [("/sync.json", None, OK)]),
     ("POST", "/seen", "machines"): ("session", [("/seen", {}, OK)]),
     ("GET", "/health", "machines"): ("both", [("/health", None, OK)]),

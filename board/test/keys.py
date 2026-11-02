@@ -1,23 +1,17 @@
 #!/usr/bin/env python3
-"""A provider is a recipe plus a key, and this is the key half.
+"""The DeepSeek key: where it is read from, and how a turn spends it.
 
     python3 test/keys.py
 
-Nothing in this tool could hand a turn a credential, and that was the only
-reason a hosted provider other than the two we are logged into could not be run.
-Two things fix it and they are useless apart: a store outside the tree, and an
-`env` on a recipe that spends what is in it.
-
-Three rules underneath, and each one is here because getting it wrong is silent:
+keys.env holds it (and Azure's), outside the tree; the shared
+`~/.config/api-keys/deepseek_key` file is read when keys.env has none. Three
+rules underneath, and each one is here because getting it wrong is silent:
 
   - A KEY NEVER REACHES ARGV. `ps` output is readable by anything on the
     machine, which is why `ai-config/policy/credentials.txt` exists at all.
-    `with_usage` puts flags on the command; `turn_environment` puts secrets in
-    the environment, and the two must not be confused.
-  - A RECIPE WITH NO KEY IS `unkeyed`, in the same word the browser already
-    understands for an executable that is not here. A button that is drawn,
-    tapped, and dies in a log file hands the person holding the iPad the one
-    thing they can least act on.
+    `turn_environment` puts secrets in the environment; the argv carries none.
+  - A MACHINE WITH NO KEY CANNOT TAKE A TURN, and says which key and where
+    (`recipes.ready`), rather than dying in a log file.
   - AND THE MODE RULE IS THE NARROW ONE. World-readable is refused. Group-
     readable is NOT, and the obvious rule that refuses it would refuse every
     file in this home -- see `tutorboard/keys.py` for the measurement.
@@ -55,6 +49,7 @@ def check(name, cond):
 
 box = tempfile.mkdtemp(prefix="keys-")
 paths.KEYS = os.path.join(box, "keys.env")
+paths.DEEPSEEK_KEY = os.path.join(box, "api-keys", "deepseek_key")
 
 
 def put(text, mode=0o600):
@@ -116,26 +111,45 @@ check("a value with no braces in it is itself",
 
 # ---- unkeyed ---------------------------------------------------------------
 check("a recipe that needs nothing is never unkeyed",
-      keys.unkeyed({"cmd": ["claude"]}) is None)
+      keys.unkeyed({"cmd": ["opencode"]}) is None)
 check("one whose key is here is not either",
       keys.unkeyed({"needs_key": "DEEPSEEK_API_KEY"}) is None)
-check("and one whose key is absent reports the key's NAME, so the dimmed "
-      "button can say which line to add",
+check("and one whose key is absent reports the key's NAME, so the refusal "
+      "can say which line to add",
       keys.unkeyed({"needs_key": "NOT_A_KEY"}) == "NOT_A_KEY")
 
+# ---- the shared deepseek_key file -------------------------------------------
+put("AZURE_SPEECH_KEY=az\n")
+os.makedirs(os.path.dirname(paths.DEEPSEEK_KEY))
+with open(paths.DEEPSEEK_KEY, "w") as fh:
+    fh.write("sk-shared\n")
+os.chmod(paths.DEEPSEEK_KEY, 0o600)
+keys.forget()
+check("with no DeepSeek key in keys.env the shared file is read, stripped",
+      keys.get("DEEPSEEK_API_KEY") == "sk-shared" and keys.get("AZURE_SPEECH_KEY") == "az")
+put("DEEPSEEK_API_KEY=sk-abc123\n")
+check("and keys.env wins when it has one", keys.get("DEEPSEEK_API_KEY") == "sk-abc123")
+put("")
+os.chmod(paths.DEEPSEEK_KEY, 0o644)
+keys.forget()
+check("a world-readable shared file is refused like keys.env",
+      keys.get("DEEPSEEK_API_KEY") is None)
+os.remove(paths.DEEPSEEK_KEY)
+
 # ---- env on a recipe -------------------------------------------------------
-plain = {"cmd": ["claude"]}
+plain = {"cmd": ["opencode"]}
 check("a recipe with no env leaves the turn's environment as it was, and "
       "marks it a turn so the pre-commit hook guards it",
       runturn.turn_environment(plain, {"A": "1"}) == {"A": "1", "TUTORBOARD_TURN": "1"}
       and runturn.turn_environment(plain).get("TUTORBOARD_TURN") == "1"
       and runturn.turn_environment(plain).get("PATH") == os.environ.get("PATH"))
 
-routed = {"env": {"ANTHROPIC_BASE_URL": "https://example.test",
-                  "ANTHROPIC_AUTH_TOKEN": "{DEEPSEEK_API_KEY}"}}
+put("DEEPSEEK_API_KEY=sk-abc123\n")
+routed = {"env": {"BASE_URL": "https://example.test",
+                  "AUTH_TOKEN": "{DEEPSEEK_API_KEY}"}}
 env = runturn.turn_environment(routed, {"COLI_SESSION_ID": "s1"})
-check("env reaches the subprocess", env["ANTHROPIC_BASE_URL"] == "https://example.test")
-check("with {KEY} substituted", env["ANTHROPIC_AUTH_TOKEN"] == "sk-abc123")
+check("env reaches the subprocess", env["BASE_URL"] == "https://example.test")
+check("with {KEY} substituted", env["AUTH_TOKEN"] == "sk-abc123")
 check("and a mission's own variable lands in the SAME dict rather than "
       "in a second one that fights it", env["COLI_SESSION_ID"] == "s1")
 
@@ -150,52 +164,33 @@ check("a value naming a key that is not here is dropped rather than passed "
 tutor_src = "".join(open(os.path.join(ROOT, "tutorboard", *p), encoding="utf-8").read()
                     for p in (("agents", "recipes.py"), ("runner", "turn.py"),
                               ("runner", "loop.py")))
-cmd = usage.with_usage(dict(routed, usage_args=["--output-format", "json"]),
-                       ["claude", "-p", "hello"])
-check("a key never reaches argv: `with_usage` adds flags and nothing else",
-      not any("sk-abc123" in a or "AUTH_TOKEN" in a for a in cmd))
-check("and the reason is written beside the function rather than in a commit "
+check("the reason is written beside the function rather than in a commit "
       "message", "must not reach argv" in tutor_src
       and "credentials.txt" in tutor_src)
 
-# ---- the whole of a provider: one entry and one line -----------------------
-D = recipes.DEFAULT_CONFIG
-ds = D["agents"]["deepseek"]
-check("deepseek runs through opencode, its own harness, and never through "
-      "another provider's client",
-      ds["cmd"][0] == "opencode" and ds["headless_first"][0] == "opencode"
-      and "claude" not in ds["cmd"] + ds["headless_first"])
-check("the model is named on the command line of the turn and of the "
-      "interactive sitting, because this machine's opencode default is another "
-      "provider",
-      all(t[t.index("-m") + 1] == "deepseek/deepseek-flash"
-          for t in (ds["cmd"], ds["headless_first"])))
-check("and it is the model the vision route reads with, so a rename is one "
-      "id in two places that a test holds together",
+# ---- the recipe's half ------------------------------------------------------
+ds = recipes.DEEPSEEK
+check("deepseek runs through opencode, its own harness",
+      ds["headless_first"][0] == "opencode")
+check("and the model it reads images with is the model it teaches with, so a "
+      "rename is one id in two places that a test holds together",
       ds["headless_first"][ds["headless_first"].index("-m") + 1]
       == "deepseek/" + ds["vision"]["model"])
-check("every turn is fresh: no resume form and no --continue",
-      "headless" not in ds and "--continue" not in ds["headless_first"])
 check("no external plugin and no permission prompt: --pure and --auto",
       "--pure" in ds["headless_first"] and "--auto" in ds["headless_first"])
-check("no `--` before the prompt, because `with_usage` appends flags after it",
-      "--" not in ds["headless_first"])
-check("it reports what it cost through its own parser",
-      ds["usage"] == "opencode-json" and ds["usage_args"] == ["--format", "json"]
-      and "opencode-json" in usage.USAGE_PARSERS)
 check("it names the key it needs", ds["needs_key"] == "DEEPSEEK_API_KEY")
-check("and no ANTHROPIC_* routing is left anywhere in the recipe",
+check("and no ANTHROPIC_* or CLAUDE_* variable is left anywhere in the recipe",
       not any(k.startswith(("ANTHROPIC_", "CLAUDE_CODE_")) for k in ds["env"]))
 check("the credential is named rather than written, so the tree holds no key",
       ds["env"]["DEEPSEEK_API_KEY"] == "{DEEPSEEK_API_KEY}")
 overlay = __import__("json").loads(ds["env"]["OPENCODE_CONFIG_CONTENT"])
-check("the overlay makes keys.env the key OpenCode uses, over a saved login",
-      overlay["provider"]["deepseek"]["options"]["apiKey"]
+check("the overlay makes the board's key the one OpenCode uses, over a saved "
+      "login", overlay["provider"]["deepseek"]["options"]["apiKey"]
       == "{env:DEEPSEEK_API_KEY}")
-check("titles go to DeepSeek too, not to the machine's small model",
+check("titles go to deepseek-flash too, not to the machine's small model",
       overlay["small_model"] == "deepseek/deepseek-flash")
-check("and skills are off: this machine's describe-image skill sends a slate "
-      "to another provider", overlay["permission"]["skill"] == "deny")
+check("and skills are off: a turn carries its own brief",
+      overlay["permission"]["skill"] == "deny")
 
 real_env = runturn.turn_environment(ds, {})
 check("the real recipe spends the key through the environment",
@@ -209,35 +204,23 @@ check("keys.fill leaves a brace that does not open a bare name alone",
 # THE ARGV RULE, ASKED OF THE REAL RECIPE rather than of a stand-in, because
 # this is the one that is unrecoverable: `ps` is readable by every account on
 # this machine and a leaked key cannot be un-leaked.
-real_cmd = usage.with_usage(ds, [a.replace("{prompt}", "hello")
-                                 for a in ds["headless_first"]])
+real_cmd = recipes.argv("hello", ds)
 check("and nothing of it reaches the command line",
       not any("sk-abc123" in a or "DEEPSEEK" in a for a in real_cmd))
 check("the recipe names the host its turns open",
       ds["egress_probe"] and all(u.startswith("https://api.deepseek.com/")
                                  for u in ds["egress_probe"]))
-check("the recipe says WHERE to re-check the model id",
-      "huggingface.co" in tutor_src and "deepseek-recipe" in tutor_src)
-check("and does not describe the institute's hostname filter as this "
-      "machine's", "from here the TLS handshake" not in tutor_src)
-check("and the vision block says whether its model has eyes, since an answer "
-      "from a blind route is indistinguishable from a transcription",
-      ds["vision"]["sighted"] is True)
 check("the vision route is the raw OpenAI-format request, independent of the "
-      "harness", ds["vision"]["endpoint"].endswith("/v1/chat/completions"))
+      "harness", ds["vision"]["endpoint"].endswith("/chat/completions"))
 
-# ---- and the refusals, on the surfaces that draw them ----------------------
-unkeyed_cfg = {"provider": "ghost", "agents": {
-    "ghost": {"cmd": ["sh"], "headless": ["sh", "-c", "{prompt}"],
-              "needs_key": "NOT_A_KEY"}}}
-check("an unkeyed recipe cannot take a turn, in the same words a missing "
-      "executable cannot",
-      "NOT_A_KEY" in (recipes.unavailable(unkeyed_cfg, "ghost") or ""))
-check("and no turn is spent on one: an unkeyed provider with no fallback "
-      "resolves to nobody, in words",
-      recipes.resolve(unkeyed_cfg)[0] is None
-      and "NOT_A_KEY" in recipes.resolve(unkeyed_cfg)[1])
+# ---- and the refusal ----------------------------------------------------------
+put("")
+os.environ["TUTORBOARD_OPENCODE"] = "sh"
+check("a machine with no key cannot take a turn, and says which key and both "
+      "places it looked", "DEEPSEEK_API_KEY" in (recipes.ready() or "")
+      and paths.KEYS in recipes.ready() and paths.DEEPSEEK_KEY in recipes.ready())
+os.environ.pop("TUTORBOARD_OPENCODE", None)
 
 print("%d FAILURES" % len(fails) if fails
-      else "a provider is a recipe plus a key, and neither is in the tree")
+      else "the DeepSeek key is read from outside the tree, and never reaches argv")
 sys.exit(1 if fails else 0)

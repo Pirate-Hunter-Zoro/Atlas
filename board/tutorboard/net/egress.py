@@ -2,9 +2,9 @@
 through.
 
 An exit node routes this machine's outbound traffic elsewhere; the tailnet is
-untouched, so the iPad still reaches the board while a provider that blocks
-VPN egress fails every turn silently. Which endpoints to probe is config,
-because the board must not know which assistant drives it.
+untouched, so the iPad still reaches the board while a filter that drops
+DeepSeek on VPN egress fails every turn silently. The probe is DeepSeek's own
+endpoint, unless config.json's `egress_probe` names others.
 """
 
 import json
@@ -21,41 +21,32 @@ from . import tailscale
 # ---------------------------------------------------------------------------
 # Exit nodes, and whether a turn can actually leave the building
 # ---------------------------------------------------------------------------
-DEFAULT_EGRESS_PROBE = ("https://api.anthropic.com/v1/messages",)
+DEFAULT_EGRESS_PROBE = ("https://api.deepseek.com/chat/completions",)
 
 # Exit nodes that once carried a real turn, tried first.
 EGRESS_KNOWN_GOOD = os.path.join(paths.STATE_DIR, "egress-ok.json")
 
 
-def egress_probe_urls(also=()):
+def egress_probe_urls():
     """The endpoints whose reachability settles anything here: config
-    `egress_probe` wins; else the default agent's endpoint plus each installed,
-    keyed provider's own (`also`, from `provider_probe_urls`), once each.
-    """
+    `egress_probe` wins; else DeepSeek's."""
     try:
         with open(paths.CONFIG, "r", encoding="utf-8") as fh:
             cfg = json.load(fh) or {}
     except (OSError, ValueError):
         cfg = {}
-    urls = cfg.get("egress_probe")
+    urls = cfg.get("egress_probe") if isinstance(cfg, dict) else None
     if isinstance(urls, str):
         urls = [urls]
-    out = list(urls) if urls else list(DEFAULT_EGRESS_PROBE)
-    for url in also or ():
-        if url and url not in out:
-            out.append(url)
-    return tuple(out)
+    return tuple(urls) if urls else DEFAULT_EGRESS_PROBE
 
 
-def egress_ok(timeout=12, urls=None, also=()):
+def egress_ok(timeout=12, urls=None):
     """Can a turn reach what it needs from here? Any HTTP answer, 401 and 405
     included, proves the path; only connection, DNS or timeout failures mean
-    broken egress. `urls` asks about one provider, whose host a filter may drop
-    while the rest of the internet answers (`agent_probe_urls`).
+    broken egress.
     """
-    import urllib.error
-    import urllib.request
-    for url in (urls if urls is not None else egress_probe_urls(also)):
+    for url in (urls if urls is not None else egress_probe_urls()):
         req = urllib.request.Request(url, data=b"{}", method="POST",
                                      headers={"Content-Type": "application/json"})
         try:
@@ -68,15 +59,14 @@ def egress_ok(timeout=12, urls=None, also=()):
     return False
 
 
-
 # ---------------------------------------------------------------------------
-# A provider this machine cannot reach, and until when
+# DeepSeek does not answer from this machine, and until when
 # ---------------------------------------------------------------------------
-# A provider this machine cannot reach, recorded like `limits` records an
-# exhausted allowance: per agent, with an expiry (filters lift), and with the
-# node (the home directory is shared). Written by `board see` when a vision
-# endpoint refuses a connection; read by `seeing.route` and the board, never
-# by the turn resolver.
+# Recorded like `limits` records a spent balance: one record, with an expiry
+# (filters lift) and the node (the home directory is shared). Written by
+# `board see` when the vision endpoint refuses a connection, read by the
+# board, and cleared by a turn that goes through. Nothing waits on it: the
+# next turn tries again.
 UNREACHABLE_RECORD = os.path.join(paths.STATE_DIR, "unreachable.json")
 
 # How long a block is believed.
@@ -95,7 +85,7 @@ def _unreachable_load():
             rec = json.load(fh) or {}
     except (OSError, ValueError):
         return {}
-    if not isinstance(rec, dict) or not isinstance(rec.get("agents"), dict):
+    if not isinstance(rec, dict) or "until" not in rec:
         return {}
     from .. import machine
     if rec.get("node") and rec["node"] != machine.node_name():
@@ -103,34 +93,19 @@ def _unreachable_load():
     return rec
 
 
-def _strikes(agent):
-    """How many times this provider has been stood down here, read past the
-    expiry on purpose."""
-    got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
-    try:
-        return int((got or {}).get("strikes") or 0)
-    except (TypeError, ValueError):
-        return 0
-
-
-def _stand_down(agent, host, why, until=None, node=None):
-    """Record that this agent cannot take a turn here, and until when. Merged,
-    so a second dark provider never erases the first's expiry."""
+def mark_unreachable(host, until=None, node=None):
+    """Write down that DeepSeek's `host` does not answer from this machine."""
     from .. import machine
     node = node or machine.node_name()
-    rec = _unreachable_load()
-    if rec.get("node") and rec["node"] != node:
-        rec = {}
-    strikes = _strikes(agent) + 1
+    try:
+        strikes = int(_unreachable_load().get("strikes") or 0) + 1
+    except (TypeError, ValueError):
+        strikes = 1
     if until is None:
         until = time.time() + min(UNREACHABLE_WINDOW * (2 ** (strikes - 1)),
                                   UNREACHABLE_MAX)
-    agents = dict(rec.get("agents") or {})
-    agents[str(agent or "")] = {"host": str(host or ""),
-                                "why": str(why or ""),
-                                "strikes": strikes,
-                                "until": float(until)}
-    rec = {"node": node, "at": time.time(), "agents": agents}
+    rec = {"node": node, "at": time.time(), "host": str(host or ""),
+           "strikes": strikes, "until": float(until)}
     try:
         os.makedirs(paths.STATE_DIR, exist_ok=True)
         tmp = UNREACHABLE_RECORD + ".tmp"
@@ -142,48 +117,26 @@ def _stand_down(agent, host, why, until=None, node=None):
     return rec
 
 
-def mark_unreachable(agent, host, until=None, node=None):
-    """Write down that this AGENT's provider does not answer from this machine."""
-    return _stand_down(agent, host, "", until=until, node=node)
-
-
-def stood_down(agent, now=None):
-    """`{host, why, until}` while this agent's host does not answer here, else
-    None."""
-    got = (_unreachable_load().get("agents") or {}).get(str(agent or ""))
-    if not isinstance(got, dict):
-        return None
+def stood_down(now=None):
+    """`{host, until}` while DeepSeek's host does not answer here, else None."""
+    got = _unreachable_load()
     try:
         until = float(got.get("until") or 0)
     except (TypeError, ValueError):
         return None
     if until <= (now or time.time()):
         return None
-    return {"host": got.get("host") or "", "why": got.get("why") or "",
-            "until": until}
+    return {"host": got.get("host") or "", "until": until}
 
 
-def unreachable(agent, now=None):
-    """`{host, until}` while this agent's provider is known not to answer, else None."""
-    got = stood_down(agent, now)
-    return {"host": got["host"], "until": got["until"]} if got and got["host"] else None
-
-
-def clear_unreachable(agent):
-    """A turn that went through proves the provider answers: drop the record
-    and its strikes."""
-    rec = _unreachable_load()
-    agents = dict(rec.get("agents") or {})
-    if agents.pop(str(agent or ""), None) is None:
-        return
-    rec["agents"] = agents
+def clear_unreachable():
+    """A turn that went through proves DeepSeek answers: drop the record and
+    its strikes. True when there was one."""
     try:
-        tmp = UNREACHABLE_RECORD + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(rec, fh, indent=2)
-        os.replace(tmp, UNREACHABLE_RECORD)
+        os.remove(UNREACHABLE_RECORD)
+        return True
     except OSError:
-        pass
+        return False
 
 
 def exit_node(status=None):

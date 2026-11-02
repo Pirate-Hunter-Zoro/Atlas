@@ -255,11 +255,11 @@ try:
     # setup-mac.sh --coding
     # =======================================================================
     CONFIG = os.path.join(home, ".config", "tutor-board", "config.json")
-    write(CONFIG, '{"provider": "kept"}\n')
+    write(CONFIG, '{"quota_tokens": 7}\n')
     code, out = run(["bash", setup, "--coding"], stdin="mac-mini\n")
     cfg = json.loads(read(CONFIG) or "{}")
     check("--coding asks for the Mac mini's tailnet name and writes it as host",
-          cfg.get("host") == "mac-mini" and cfg.get("provider") == "kept"
+          cfg.get("host") == "mac-mini" and cfg.get("quota_tokens") == 7
           and "board pull --materials copies from mac-mini" in out, out)
     check("--coding ends clean, as a coding checkout",
           code == 0 and "THIS CODING CHECKOUT IS UP TO DATE" in out, out)
@@ -371,6 +371,8 @@ try:
         os.remove(ROLE)
         coding_cfg = read(CONFIG)
         write(CONFIG, "{}\n")
+        write(os.path.join(home, ".config", "tutor-board", "keys.env"),
+              "DEEPSEEK_API_KEY=sk-test\n")
         runs = []
         for _ in (1, 2):
             open(CALLS, "w").close()
@@ -493,7 +495,7 @@ try:
         return [json.loads(l) for l in read(RSYNC_LOG).splitlines()]
 
     saved_cfg = read(CONFIG)
-    write(CONFIG, '{"provider": "kept"}\n')
+    write(CONFIG, '{"quota_tokens": 7}\n')
     code, out = run([sys.executable, BOARD, "pull", "--materials", "--atlas", laptop])
     check("--materials without host refuses plainly, and runs no rsync",
           code == 1 and "no `host`" in out and "setup-mac.sh --coding" in out

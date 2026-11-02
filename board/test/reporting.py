@@ -8,7 +8,7 @@ exits with the newest card still `pending` is woken once more with
 
 Guarded here: the placeholder's kind at the door (`board write pending`), the
 daemon's decision as a function with no daemon (`report_owed`), the turn the
-`[unfinished]` line buys (`turn_plan`, `doing_now`), the wiring in the loop as
+`[unfinished]` line buys (`turn_prompt`, `doing_now`), the wiring in the loop as
 source, the prompts that tell a turn to name what it left uncommitted, and the
 board not reading a placeholder as an answer.
 """
@@ -100,12 +100,8 @@ try:
     check("and which names the placeholder", os.path.relpath(path, ws) in line)
     check("and keeps the message it was answering", "write the sweep" in line)
 
-    use, prompt = runturn.turn_plan({"headless": ["r"], "headless_first": ["f"]},
-                                    "unfinished")
-    check("an unfinished turn is a fresh process like every other, reading "
-          "what the work changed off disk",
-          use == ["f"])
-    check("and is told to write the report over the card",
+    prompt = runturn.turn_prompt("unfinished")
+    check("an unfinished turn is told to write the report over the card",
           prompt is prompts.HEADLESS_UNFINISHED_PROMPT and "--over" in prompt
           and "uncommitted" in prompt)
     check("it runs on a doing turn's clock", runturn.doing_now(ws, "unfinished"))
@@ -170,8 +166,6 @@ check("the loop asks report_owed where nothing else is owed",
       "if pending is None:\n        pending = report_owed(" in loop)
 check("before the debt is written down", loop.index("report_owed(") <
       loop.index("owe(ctx, pending)\n    return"))
-check("the assistant is not swapped under an unfinished turn",
-      'signal == "unfinished"' in src.split("def for_this_turn(")[1].split("\ndef ")[0])
 
 print("\n-- the turn is told to name what it left uncommitted --")
 check("a doing turn opens with `board write pending`",

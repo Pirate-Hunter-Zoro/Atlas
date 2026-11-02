@@ -252,14 +252,14 @@ try:
     # test went on writing records under the old name, and the mismatch it was
     # meant to catch was the one thing it could not see.
     host = machine.node_name()
-    write_agent(host=host, pid=os.getpid(), agent="claude", state="attached",
+    write_agent(host=host, pid=os.getpid(), agent="deepseek", state="attached",
                 mode="interactive", cmd=sys.executable,
                 last_seen=_time.time() - 6000)
     st = state.load_agent(repo)
     check("the board sees an interactive assistant that has been idle for an hour",
           st and st["state"] == "attached")
 
-    write_agent(host=host, pid=999999, agent="claude", state="attached",
+    write_agent(host=host, pid=999999, agent="deepseek", state="attached",
                 mode="interactive", cmd=sys.executable, last_seen=_time.time())
     st = state.load_agent(repo)
     check("and marks it stale once its process is gone",
@@ -269,19 +269,19 @@ try:
     # boundaries, so a turn longer than the window reported a daemon busy
     # teaching as dead. A turn that reads a chapter and writes a card routinely
     # runs longer than two minutes.
-    write_agent(host=host, pid=os.getpid(), agent="claude", state="working",
+    write_agent(host=host, pid=os.getpid(), agent="deepseek", state="working",
                 turns=3, last_seen=_time.time() - 600)
     st = state.load_agent(repo)
     check("a daemon mid-turn is not called dead for being slow",
           st and st["state"] == "working")
 
-    write_agent(host=host, pid=999999, agent="claude", state="working",
+    write_agent(host=host, pid=999999, agent="deepseek", state="working",
                 turns=3, last_seen=_time.time())
     st = state.load_agent(repo)
     check("but a daemon whose process is gone is stale even mid-turn",
           st and st["state"] == "stale")
 
-    write_agent(host="a-node-that-is-not-this-one", pid=os.getpid(), agent="claude",
+    write_agent(host="a-node-that-is-not-this-one", pid=os.getpid(), agent="deepseek",
                 state="attached", mode="interactive", cmd=sys.executable,
                 last_seen=_time.time())
     st = state.load_agent(repo)
@@ -350,7 +350,7 @@ try:
     with open(os.path.join(ROOT, "TEACHING.md"), "r", encoding="utf-8") as fh:
         method = fh.read().lower()
     check("the method tells the tutor pictures arrive and must be opened",
-          "uploaded" in method and "board eyes" in method)
+          "uploaded" in method and "board see" in method)
     check("and that one must never sit unremarked",
           "unremarked" in method or "never let one sit" in method)
 

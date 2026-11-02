@@ -2,9 +2,9 @@
 
 `take_turn(ctx, message)` runs one turn and says whether the message is still
 owed; `wrap_up(ctx)` runs the End turn that updates TUTOR.md, and writes up a
-session sent to its subject only at End. Each is a fresh provider process in
-the Atlas root. The owed message lives on disk (`agent.json`), so a server
-dying mid-turn loses nothing.
+session sent to its subject only at End. Each is a fresh DeepSeek process
+(OpenCode) in the Atlas root. The owed message lives on disk (`agent.json`), so
+a server dying mid-turn loses nothing.
 """
 
 import os
@@ -51,31 +51,9 @@ def report_owed(where, this_signal, out, log=None):
                      else "could not replace it"))
     return None
 
-def for_this_turn(cfg, running, signal, log=None):
-    """Who writes the next card: `(cfg, name, spec, why)`. The config is
-    re-read every turn; `recipes.resolve` picks the provider, else the
-    fallback (with `why`), else nobody. An `[unfinished]` report stays with
-    the recipe that did the work while it can."""
-    cfg = recipes.load_config()
-    if (signal == "unfinished" and running
-            and not recipes.unavailable(cfg, running)):
-        return cfg, running, cfg["agents"].get(running) or {}, None
-    name, why = recipes.resolve(cfg)
-    if log and why:
-        log.write("-- %s\n" % why)
-    return cfg, name, (cfg["agents"].get(name) or {}) if name else {}, why
-
-def handed(spec, prompt, context):
-    """`(prompt, extra argv)` with `context` handed to the provider: as an
-    appended system prompt where the recipe has `system_args` (the global
-    CLAUDE.md still loads), else prepended to the prompt.
-    """
-    if not context:
-        return prompt, []
-    system = (spec or {}).get("system_args")
-    if system:
-        return prompt, [a.replace("{system}", context) for a in system]
-    return context + "\n\n" + prompt, []
+def handed(prompt, context):
+    """The prompt with `context` (the brief, the recap) above it."""
+    return context + "\n\n" + prompt if context else prompt
 
 
 class Ctx(object):
@@ -83,8 +61,8 @@ class Ctx(object):
 
     `repo` is the session's Repo, `root` its subject's root (the Atlas root
     while unbound), `cwd` the Atlas root, `live` the session directory, `env`
-    the base environment, `on_start(process)` a hook. `cfg`, `agent_name` and
-    `spec` are re-asked per turn by `for_this_turn`.
+    the base environment, `on_start(process)` a hook. `cfg` and `spec` are
+    re-read per turn.
     """
 
     def __init__(self, **kw):
@@ -127,49 +105,34 @@ def take_turn(ctx, message):
     ticker = threading.Thread(target=beat, daemon=True)
     ticker.start()
 
-    # WHO WRITES THIS ONE, asked per turn: the provider, else the fallback.
-    ctx.cfg, name, spec, moved = for_this_turn(
-        ctx.cfg, ctx.agent_name, this_signal, log)
-    if not name:
-        # Nobody can take it: the message stays owed and the board says why.
+    # Re-read per turn, so a config edit lands without a restart.
+    ctx.cfg, ctx.spec = recipes.load_config(), recipes.spec()
+    why = recipes.ready()
+    if why:
+        # It cannot run here now: the message stays owed and the board says why.
         beating.set()
-        log.write("!! %s\n" % moved)
-        daemon.agent_state(live, state="listening", last_error=moved,
-                           failed_at=time.time(), failed_agent=ctx.agent_name,
-                           retrying=False)
-        return {"owed": owe(ctx, out), "error": moved}
-    ctx.agent_name, ctx.spec = name, spec
-    # Who writes, and why when it is the fallback, recorded before the turn.
-    daemon.agent_state(live, agent=ctx.agent_name, agent_why=moved or None,
-                       **daemon.not_this_agents_failure(live, ctx.agent_name))
-    use, template = turn.turn_plan(ctx.spec, this_signal)
-    # A script agent gets the raw inbox and builds its own context.
-    fill = {"inbox": out.strip()}
-    prompt = out.strip() if ctx.spec.get("raw_prompt") else template % fill
+        log.write("!! %s\n" % why)
+        daemon.agent_state(live, state="listening", last_error=why,
+                           failed_at=time.time(), retrying=False)
+        return {"owed": owe(ctx, out), "error": why}
+    daemon.agent_state(live, agent=recipes.NAME)
+    template = turn.turn_prompt(this_signal)
+    prompt = template % {"inbox": out.strip()}
     # The brief and recap ride in the prompt, saving the turn two round trips.
     wants_brief, wants_recap = turn.context_plan(this_signal)
     context = ""
-    if wants_recap and not ctx.spec.get("raw_prompt"):
+    if wants_recap:
         context = brief.turn_context(ctx.repo, this_signal, brief=wants_brief)
-        log.write("-- handed %s, %d characters, %s\n" % (
+        log.write("-- handed %s, %d characters, above the prompt\n" % (
             "the brief and the recap" if wants_brief else "the recap",
-            len(context), "as system prompt" if ctx.spec.get("system_args")
-            else "above the prompt"))
-    prompt, extra = handed(ctx.spec, prompt, context)
-    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in use or []]
-                           + extra)
+            len(context)))
+    cmd = recipes.argv(handed(prompt, context), ctx.spec)
     # Where this turn's words begin, to read back why it failed.
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
     turn_env = turn.turn_environment(ctx.spec, base=ctx.env)
-    # `board write` puts `by: <name>` on a card the fallback wrote.
-    turn_env.pop("TUTORBOARD_FALLBACK", None)
-    if moved:
-        turn_env["TUTORBOARD_FALLBACK"] = ctx.agent_name
     timed_out = False
-    cap = turn.turn_timeout(ctx.cfg, ctx.repo, ctx.spec, this_signal)
+    cap = turn.turn_timeout(ctx.cfg, ctx.repo, this_signal)
     try:
-        if not use:
-            raise OSError("'%s' has no headless recipe" % ctx.agent_name)
         rc, timed_out = turn.run_turn(cmd, ctx.cwd, log, cap, env=turn_env,
                                       on_start=ctx.on_start)
         err = None if rc == 0 else ("timed out" if timed_out
@@ -179,13 +142,9 @@ def take_turn(ctx, message):
     finally:
         beating.set()
 
-    # The turn's words beat its exit code: `is_error` in the result object
-    # with exit 0 is a failed turn (`result_object_error`).
     said = usage.turn_output(logpath, mark)
-    if not err and usage.result_object_error(said):
-        err = "the agent reported a failure and exited 0"
 
-    # A provider's "image never arrived" placeholder anywhere in the model's
+    # DeepSeek's "image never arrived" placeholder anywhere in the model's
     # words fails the turn, since the model then marks unseen handwriting
     # fluently. Read from what the model said, not tool output, which quotes
     # files; the wording list is `seeing`'s, not a copy.
@@ -197,48 +156,35 @@ def take_turn(ctx, message):
                    "invented" % blind)
 
     # Cost is recorded whether or not the turn worked.
-    usage.record_cost(live, log, ctx.turns, ctx.agent_name, True,
-                      usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
+    usage.record_cost(live, log, ctx.turns, True,
+                      usage.read_turn_usage(logpath, mark, ctx.spec))
 
     if err:
         log.write("!! %s\n" % err)
         # Three causes, one symptom: the allowance ran out (asked first, and
-        # proof the provider was reached), the machine cannot reach the
-        # provider, or the agent failed.
+        # proof DeepSeek was reached), the machine cannot reach DeepSeek, or
+        # the agent failed.
         until = limits.reads_as_usage_limit(said)
         if until:
-            # Per agent: one provider's limit says nothing of the fallback's.
-            limits.mark_limited(until, agent=ctx.agent_name)
-            log.write("!! '%s' is out of allowance here until %s\n"
-                      % (ctx.agent_name,
-                         time.strftime("%H:%M", time.localtime(until))))
-            # `retrying` stops the board telling them to send again while this
-            # loop re-queues the message itself.
+            limits.mark_limited(until)
+            log.write("!! DeepSeek is out of allowance here until %s; the "
+                      "message waits for it -- `board limit` says when\n"
+                      % time.strftime("%H:%M", time.localtime(until)))
+            # `retrying` stops the board telling them to send again: the
+            # message stays owed and the next turn answers it.
             daemon.agent_state(live, state="listening", last_error="out of allowance",
-                               failed_at=time.time(), failed_agent=ctx.agent_name,
-                               limited=until, retrying=True)
-            # The same message, whoever answers it.
-            pending = owe(ctx, out)
-
-            # The next turn goes to the fallback until the expiry passes.
-            nxt, _ = recipes.resolve(recipes.load_config())
-            if nxt and nxt != ctx.agent_name:
-                log.write("-- the next turn goes to '%s'\n" % nxt)
-            else:
-                log.write("!! nothing else here can take it; turns wait "
-                          "until the allowance returns -- `board limit` "
-                          "says when\n")
-            return {"owed": pending, "error": err}
+                               failed_at=time.time(), limited=until, retrying=True)
+            return {"owed": owe(ctx, out), "error": err}
 
         # Kept, because the reason below would overwrite "no egress" with the
         # exit code (`failWord` in board.js has a case for it).
         dark_machine = False
-        if not egress.egress_ok(also=recipes.provider_probe_urls(ctx.cfg)):
+        if not egress.egress_ok():
             dark_machine = True
-            log.write("!! nothing can get out from here; the turn may not be "
-                      "the tutor's fault\n")
+            log.write("!! DeepSeek cannot be reached from here; the turn may "
+                      "not be the tutor's fault\n")
             daemon.agent_state(live, state="listening", last_error="no egress",
-                               failed_at=time.time(), failed_agent=ctx.agent_name)
+                               failed_at=time.time())
             fixed, detail = egress.rotate_exit_node(
                 log=lambda m: log.write("   %s\n" % m))
             if fixed:
@@ -252,17 +198,15 @@ def take_turn(ctx, message):
         # words, not an exit code (`failure_reason`).
         why = "no egress" if dark_machine else usage.failure_reason(said, err)
         daemon.agent_state(live, state="listening", last_error=why,
-                           failed_at=time.time(), failed_agent=ctx.agent_name,
-                           retrying=pending is not None)
+                           failed_at=time.time(), retrying=pending is not None)
     else:
-        # A turn that went through proves this agent's allowance; cleared per
-        # agent, never for all.
-        if limits.limited_until(ctx.agent_name):
-            log.write("-- a turn went through on '%s'; its allowance is "
-                      "back\n" % ctx.agent_name)
-            limits.clear_limited(ctx.agent_name)
+        # A turn that went through proves the allowance and the route.
+        if limits.limited_until():
+            log.write("-- a turn went through; DeepSeek's allowance is back\n")
+            limits.clear_limited()
+        egress.clear_unreachable()
         daemon.agent_state(live, state="listening", last_error=None,
-                           failed_at=0, failed_agent=None, retrying=False)
+                           failed_at=0, retrying=False)
 
     # The debt is settled here, once: `pending` is None where the turn went
     # through or failed beyond retry; re-queueing branches `continue` past
@@ -276,34 +220,26 @@ def take_turn(ctx, message):
 
 def wrap_up(ctx, sent=None):
     """The End turn: TUTOR.md brought up to date with `board memo`.
-    `(wrote, why)`. Only End queues it. Who writes it is asked again, so a
-    stood-down provider does not waste it; with nobody able, it is skipped.
+    `(wrote, why)`. Only End queues it. Skipped when DeepSeek cannot take a
+    turn here now (`recipes.ready`).
     `sent` names the subject of a session sent there only at End: the turn
     writes up its agreed answers first (`WRAPUP_SENT_PROMPT`), on the doing
     timeout.
     """
     log, logpath, root = ctx.log, ctx.logpath, ctx.root
-    ctx.cfg = recipes.load_config()
-    took, why_took = recipes.resolve(ctx.cfg)
-    if not took:
+    ctx.cfg, ctx.spec = recipes.load_config(), recipes.spec()
+    why_not = recipes.ready()
+    if why_not:
         log.write("\n=== %s wrap-up ===\n!! no wrap-up was attempted: %s\n"
-                  % (time.strftime("%H:%M:%S"), why_took))
-        return False, why_took
-    if took != ctx.agent_name:
-        log.write("-- the wrap-up goes to '%s'%s\n"
-                  % (took, (": " + why_took) if why_took else ""))
-    ctx.agent_name, ctx.spec = took, ctx.cfg["agents"].get(took) or {}
+                  % (time.strftime("%H:%M:%S"), why_not))
+        return False, why_not
     daemon.agent_state(ctx.live, state="wrapping up")
     log.write("\n=== %s wrap-up ===\n" % time.strftime("%H:%M:%S"))
-    # The recipe key and timeout keep the name `handoff`, so configs still work.
-    wrap = ctx.spec.get("handoff") or turn.fresh_recipe(ctx.spec) or []
     said = prompts.WRAPUP_PROMPT
     if sent:
         log.write("-- sent to %s at End: its answers are written up first\n" % sent)
         said += "\n\n" + prompts.WRAPUP_SENT_PROMPT % {"subject": sent}
-    prompt, extra = handed(ctx.spec, said, brief.turn_context(ctx.repo))
-    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt) for a in wrap]
-                           + extra)
+    cmd = recipes.argv(handed(said, brief.turn_context(ctx.repo)), ctx.spec)
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
     landing = os.path.join(root, "TUTOR.md")
     try:
@@ -317,14 +253,11 @@ def wrap_up(ctx, sent=None):
             ctx.cfg.get("doing_timeout", 3600) if sent
             else ctx.cfg.get("handoff_timeout", 600),
             env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
-        usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
-                          usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"), ctx.spec))
-        # Wrote it: exit 0, no reported failure, and the file is newer than
-        # the turn.
+        usage.record_cost(ctx.live, log, ctx.turns + 1, True,
+                          usage.read_turn_usage(logpath, mark, ctx.spec))
+        # Wrote it: exit 0 and the file is newer than the turn.
         said = usage.turn_output(logpath, mark)
-        failed = ((rc != 0 and ("timed out" if timed_out else "exit %d" % rc))
-                  or (usage.result_object_error(said)
-                      and "the agent reported a failure and exited 0"))
+        failed = rc != 0 and ("timed out" if timed_out else "exit %d" % rc)
         try:
             wrote = not failed and os.path.getmtime(landing) > before
         except OSError:
@@ -351,13 +284,12 @@ def notes_up(ctx, pages, title, subject):
     into `docs/<slug>/notes.md` (`board writeup new --md`), `board build` it.
     `(ok, why)`. No brief or recap: the pages are the whole session."""
     log, logpath = ctx.log, ctx.logpath
-    ctx.cfg = recipes.load_config()
-    took, why_took = recipes.resolve(ctx.cfg)
-    if not took:
+    ctx.cfg, ctx.spec = recipes.load_config(), recipes.spec()
+    why_not = recipes.ready()
+    if why_not:
         log.write("\n=== %s notes ===\n!! no transcript was attempted: %s\n"
-                  % (time.strftime("%H:%M:%S"), why_took))
-        return False, why_took
-    ctx.agent_name, ctx.spec = took, ctx.cfg["agents"].get(took) or {}
+                  % (time.strftime("%H:%M:%S"), why_not))
+        return False, why_not
     daemon.agent_state(ctx.live, state="wrapping up")
     log.write("\n=== %s notes ===\n" % time.strftime("%H:%M:%S"))
     prompt = prompts.NOTES_PROMPT % {
@@ -366,21 +298,17 @@ def notes_up(ctx, pages, title, subject):
         "title": str(title or "Notes").replace('"', "'"),
         "subject": subject or "no course or project yet",
         "scratch": subjects.SCRATCH}
-    cmd = usage.with_usage(ctx.spec, [a.replace("{prompt}", prompt)
-                                      for a in turn.fresh_recipe(ctx.spec) or []])
+    cmd = recipes.argv(prompt, ctx.spec)
     mark = os.path.getsize(logpath) if os.path.exists(logpath) else 0
     why = None
     try:
         rc, timed_out = turn.run_turn(
             cmd, ctx.cwd, log, ctx.cfg.get("doing_timeout", 3600),
             env=turn.turn_environment(ctx.spec, base=ctx.env), on_start=ctx.on_start)
-        usage.record_cost(ctx.live, log, ctx.turns + 1, ctx.agent_name, True,
-                          usage.read_turn_usage(logpath, mark, ctx.spec.get("usage"),
-                                                ctx.spec))
+        usage.record_cost(ctx.live, log, ctx.turns + 1, True,
+                          usage.read_turn_usage(logpath, mark, ctx.spec))
         said = usage.turn_output(logpath, mark)
-        failed = ((rc != 0 and ("timed out" if timed_out else "exit %d" % rc))
-                  or (usage.result_object_error(said)
-                      and "the agent reported a failure and exited 0"))
+        failed = rc != 0 and ("timed out" if timed_out else "exit %d" % rc)
         if failed:
             why = usage.failure_reason(said, failed)
             log.write("!! the notes turn failed (%s)\n" % why)

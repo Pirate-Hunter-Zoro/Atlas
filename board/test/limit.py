@@ -1,27 +1,23 @@
 #!/usr/bin/env python3
-"""An allowance that has run out, and the lesson that still has to be taught.
+"""An allowance that has run out, and the lesson that waits for it.
 
 The strangest kind of broken: the board answers, the machine is healthy, the
-network is fine, the agent is installed, and no lesson can be taught, because
-the tutor has been told it has no quota left. Treated as an ordinary failed turn
-it is invisible in the worst way -- the board shows a tutor listening, the
-student sends again, and nothing comes back for four hours.
+network is fine, opencode is installed, and no lesson can be taught, because
+DeepSeek says the balance is spent or the requests too many. Treated as an
+ordinary failed turn it is invisible in the worst way -- the board shows a
+tutor listening, the student sends again, and nothing comes back.
 
-So the tutor says so where it can be read, and the next turn goes to whoever
-can still take one, because a lesson that carries on beats a board where nobody
-is home.
+So the tutor says so where it can be read, the message stays owed, and the
+board says when the allowance returns.
 
 Three rules underneath, and each is here because getting it wrong is silent:
 
-  - a limit belongs to an AGENT on a machine, not to a course and not to the
-    machine: an allowance belongs to an account, so one provider running out
-    says nothing about another, and marking the machine would take the fallback
-    out along with the thing it is falling back from;
-  - it expires by itself, and a turn that goes through on an agent clears that
-    agent's. A limit cleared by hand outlives itself and quietly teaches worse
-    for days;
-  - and what a limit LOOKS like is configuration, because the board is not
-    allowed to know which assistant is driving it.
+  - a limit belongs to this machine's DeepSeek account: one record, with the
+    node, because the home directory is shared;
+  - it expires by itself, and a turn that goes through clears it. A limit
+    cleared by hand outlives itself;
+  - and what a limit LOOKS like is DeepSeek's own words, which config.json's
+    `usage_limit_says` may replace.
 """
 
 import json
@@ -63,124 +59,68 @@ os.environ["BOARD_NODE_NAME"] = "test-node"
 os.environ["BOARD_NO_TAILNET"] = "1"
 
 from tutorboard import limits, paths
-from tutorboard.net import egress
 
 paths.STATE_DIR = box
 limits.LIMIT_RECORD = os.path.join(box, "limited.json")
 paths.CONFIG = os.path.join(box, "config.json")           # no user config
 
 # ---- reading a failed turn -------------------------------------------------
-#
-# The agent said why it failed; the only question is whether we listened. What a
-# limit LOOKS like is configuration, for the same reason the egress probe is --
-# the board is not allowed to know which assistant is driving it.
-
 now = 1_700_000_000.0
 
-check("the reset time a provider names is believed over any window we'd guess",
-      abs(limits.reads_as_usage_limit(
-          "Claude AI usage limit reached|%d" % int(now + 7200), now) - (now + 7200)) < 2)
-check("a limit with no time on it gets the ordinary window",
-      limits.reads_as_usage_limit("Claude AI usage limit reached", now)
+check("DeepSeek's exhausted balance is a limit",
+      limits.reads_as_usage_limit("Insufficient Balance", now)
       == now + limits.DEFAULT_LIMIT_WINDOW)
-check("the five-hour form is a limit too",
-      limits.reads_as_usage_limit("5-hour limit reached ∙ resets 3pm", now))
-check("and so is the API's own word for it",
-      limits.reads_as_usage_limit('{"type":"rate_limit_error"}', now))
-
-check("DeepSeek's own word for an exhausted balance is a limit too -- none of "
-      "the phrases written for one provider matched it",
-      limits.reads_as_usage_limit("Insufficient Balance", now))
-# AN ACCOUNT-LEVEL CEILING SAYS NONE OF THE ABOVE, and a teaching evening paid
-# for finding that out. The sentence never says "limit reached"; the word
-# between "limit" and "resets" is "session"; and the first limit in it is a
-# SPEND limit. Every phrase written for a per-session allowance missed it, so
-# nothing was recorded and the daemon went on handing turns to a provider that
-# could not spend a token.
-SPENT = ("You've hit your org's monthly spend limit · run /usage-credits to "
-         "ask your admin for a higher limit · your session limit resets "
-         "8:20pm (America/Chicago)")
-check("a spent org budget is a limit, though it says none of the words the "
-      "per-session phrases were written for",
-      limits.reads_as_usage_limit(SPENT, now))
-check("and it falls back to the ordinary window rather than reading `8:20` as "
-      "an epoch -- the patterns for it capture nothing, deliberately",
-      abs(limits.reads_as_usage_limit(SPENT, now) - (now + limits.limit_window()))
-      < 2)
-check("an ordinary broken turn is not a limit, and must not demote the machine",
+check("and so is the HTTP 402 that carries it",
+      limits.reads_as_usage_limit("API Error: 402 Payment Required: balance", now))
+check("and a rate limit, in either of the words it comes in",
+      limits.reads_as_usage_limit('{"type":"rate_limit_error"}', now)
+      and limits.reads_as_usage_limit("429 Too Many Requests", now))
+check("an ordinary broken turn is not a limit",
       limits.reads_as_usage_limit("Error: ENOENT no such file", now) is None)
-# THE ONE THAT MUST NOT MATCH. A network drop read as a spend limit would stand
-# the fallback down alongside the provider it is meant to fall back to, and
-# leave the board with no tutor at all -- which is the state a filtered hostname
-# and a spent budget already put it in once, for two unrelated reasons.
-check("a provider the network drops is NOT a limit, so the climb-down still "
-      "has somewhere to climb to",
+check("a dropped connection is NOT a limit: it is the network, and the egress "
+      "check answers that one",
       limits.reads_as_usage_limit(
           "API Error: Connection dropped (ECONNRESET)", now) is None)
 check("nor is a turn that said nothing at all",
       limits.reads_as_usage_limit("", now) is None)
-
-# A reset time in the past, or absurdly far away, is a misread rather than news.
-check("a reset time already gone falls back to the window",
-      limits.reads_as_usage_limit("usage limit reached|100", now)
+check("and no other vendor's phrasing is in the defaults",
+      not any("usage limit reached" in p or "quota" in p
+              for p in limits.DEFAULT_USAGE_LIMIT_SAYS))
+with open(paths.CONFIG, "w") as fh:
+    json.dump({"usage_limit_says": [r"out of tokens\|(\d{9,})"]}, fh)
+check("config.json's own phrases replace the defaults, and a captured epoch "
+      "is believed when it is within a day",
+      abs(limits.reads_as_usage_limit("out of tokens|%d" % int(now + 7200), now)
+          - (now + 7200)) < 2
+      and limits.reads_as_usage_limit("Insufficient Balance", now) is None)
+check("one a year out is a misread, and gets the ordinary window",
+      limits.reads_as_usage_limit("out of tokens|%d" % int(now + 400 * 86400), now)
       == now + limits.DEFAULT_LIMIT_WINDOW)
-check("and one a year out does not take the machine out for a year",
-      limits.reads_as_usage_limit("usage limit reached|%d" % int(now + 400 * 86400), now)
-      == now + limits.DEFAULT_LIMIT_WINDOW)
+os.remove(paths.CONFIG)
 
 # ---- the record ------------------------------------------------------------
-
 check("with nothing written, the machine has its allowance", limits.limited_until() == 0)
-limits.mark_limited(time.time() + 900, agent="claude")
+limits.mark_limited(time.time() + 900)
 check("a limit reads back", limits.limited_until() > time.time())
-check("and says which tutor ran out", limits.limit_record().get("agent") == "claude")
-
-# ---- A LIMIT BELONGS TO AN AGENT --------------------------------------------
-#
-# It was recorded per MACHINE, and that was the right answer when there was one
-# tutor. There are three, and an allowance belongs to an account: Claude running
-# out says nothing at all about DeepSeek, and a machine-wide mark would take the
-# fallback out along with the thing it is falling back from.
+check("one record, the machine's: until and node",
+      set(limits.limit_record()) == {"until", "node"})
 limits.clear_limited()
-limits.mark_limited(time.time() + 900, agent="claude")
-check("a limit is that agent's", limits.limited_until("claude") > time.time())
-check("and is not another's", limits.limited_until("deepseek") == 0)
+check("and clearing it clears it", limits.limited_until() == 0)
 
-limits.mark_limited(time.time() + 1800, agent="deepseek")
-check("a second one does not erase the first -- a whole-file write would send "
-      "the daemon climbing home to an agent that is still limited",
-      limits.limited_until("claude") > 0 and limits.limited_until("deepseek") > 0)
-check("and the bare question is still answerable, for /health and `board limit`",
-      limits.limited_until() > 0)
-check("with the one that lasts longest, because that is when the machine is "
-      "unconstrained", limits.limit_record().get("agent") == "deepseek")
-
-limits.clear_limited("claude")
-check("clearing one clears one",
-      limits.limited_until("claude") == 0 and limits.limited_until("deepseek") > 0)
-limits.clear_limited()
-check("and clearing nothing in particular clears the lot",
+# A RECORD FROM WHEN THERE WERE SEVERAL ASSISTANTS counts only DeepSeek's entry.
+with open(limits.LIMIT_RECORD, "w", encoding="utf-8") as fh:
+    json.dump({"node": "test-node", "at": time.time(),
+               "agents": {"claude": time.time() + 900}}, fh)
+check("a per-agent record with only another assistant's limit is no limit",
       limits.limited_until() == 0)
-
-# A RECORD FROM THE VERSION BEFORE MUST NOT CRASH AND MUST NOT DEMOTE EVERY
-# AGENT. The second half is the one that is easy to get wrong.
 with open(limits.LIMIT_RECORD, "w", encoding="utf-8") as fh:
-    json.dump({"until": time.time() + 900, "agent": "claude",
-               "node": "test-node", "at": time.time()}, fh)
-check("an old single-tutor record reads as one entry under the name it carries",
-      limits.limited_until("claude") > 0)
-check("and does not demote the agent it never mentioned",
-      limits.limited_until("deepseek") == 0)
-with open(limits.LIMIT_RECORD, "w", encoding="utf-8") as fh:
-    json.dump({"until": time.time() + 900, "node": "test-node"}, fh)
-check("one that named nobody is still the machine's answer",
-      limits.limited_until() > 0)
-check("and still demotes nobody", limits.limited_until("claude") == 0)
+    json.dump({"node": "test-node", "at": time.time(),
+               "agents": {"claude": time.time() + 900,
+                          "deepseek": time.time() + 1800}}, fh)
+check("and DeepSeek's entry in one is the limit",
+      limits.limited_until() > time.time() + 1700)
 
-limits.clear_limited()
-limits.mark_limited(time.time() + 900, agent="claude")
-
-limits.mark_limited(time.time() - 60, agent="claude")
+limits.mark_limited(time.time() - 60)
 check("a limit that has expired is no limit; it does not need clearing by hand",
       limits.limited_until() == 0)
 
@@ -195,45 +135,33 @@ with open(limits.LIMIT_RECORD, "w", encoding="utf-8") as fh:
     fh.write("{not json")
 check("a corrupt record is an allowance, not a crash", limits.limited_until() == 0)
 
-limits.mark_limited(time.time() + 900, agent="claude")
-limits.clear_limited()
-check("and a turn going through clears it", limits.limited_until() == 0)
-
 # ---- what the tutor does about it ------------------------------------------
-
-# The daemon's loop, and the record it owes a message into.
 src = "".join(open(os.path.join(ROOT, "tutorboard", "runner", f), encoding="utf-8").read()
               for f in ("loop.py", "daemon.py", "service.py"))
 
 check("a limit is asked about before the network is blamed -- the turn itself "
-      "answered that one, and a provider that could say so is a provider we "
-      "plainly reached",
-      src.index("reads_as_usage_limit")
-      < src.index("if not egress.egress_ok(also="))
+      "answered that one, and DeepSeek saying so means it was reached",
+      src.index("reads_as_usage_limit") < src.index("if not egress.egress_ok():"))
 check("the machine is marked, which is what /health then publishes",
-      "limits.mark_limited(until, agent=ctx.agent_name)" in src)
+      "limits.mark_limited(until)" in src)
 check("the message whose turn was lost is carried, not dropped -- and to "
-      "DISK, because the daemon holding it is the thing most likely to be "
+      "DISK, because the process holding it is the thing most likely to be "
       "signalled next",
-      "pending = owe(ctx, out)" in src and "def owe(ctx, msg):" in src
+      "return {\"owed\": owe(ctx, out), \"error\": err}" in src
+      and "def owe(ctx, msg):" in src
       and "agent_state(ctx.live, owed=msg or None)" in src)
 check("and the next turn answers what was owed first, since the inbox lines it "
       "came from are already marked read",
       "owed = daemon.owed_message(repo.live)" in src and "def owed_message(live):" in src)
-check("and the board is told the daemon is retrying, so it does not advise "
-      "sending the same work again behind a turn already queued",
+check("and the board is told the message is held, so it does not advise "
+      "sending the same work again",
       "limited=until, retrying=True)" in src)
-check("and then the next turn goes to the fallback, which is the whole reason "
-      "to have one",
-      "nxt, _ = recipes.resolve(recipes.load_config())" in src)
-check("and where there is nobody to climb down to it says so and goes on "
-      "failing where that is visible, which is what one tutor always did",
-      "nothing else here can take it" in src)
-check("a turn that goes through proves THAT agent's allowance, not the "
-      "machine's", "limits.clear_limited(ctx.agent_name)" in src)
-check("the wrap-up is still attempted on End, by whoever can write it, because "
-      "TUTOR.md is the continuity there is",
-      "def wrap_up(ctx" in src and "the wrap-up goes to" in src)
+check("and the log says it waits, and where to see until when",
+      "message waits for it" in src and "`board limit` says when" in src)
+check("a turn that goes through clears the limit", "limits.clear_limited()" in src)
+check("and `ready` refuses a turn while the limit stands, so none is spent on it",
+      "limits.limited_until(now=now)" in open(os.path.join(
+          ROOT, "tutorboard", "agents", "recipes.py"), encoding="utf-8").read())
 
 health = open(os.path.join(ROOT, "tutorboard", "server", "routes",
                            "machines.py"), encoding="utf-8").read()
@@ -241,5 +169,5 @@ check("a board publishes its machine's allowance, because only it can know",
       '"limited": limits.limited_until()' in health)
 
 print("\n%d FAILURES" % len(errors) if errors
-      else "\nthe lesson goes where there is an allowance to teach it")
+      else "\na spent allowance is said, and the message waits for it")
 sys.exit(1 if errors else 0)

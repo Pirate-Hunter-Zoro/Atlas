@@ -3,11 +3,10 @@
 
     python3 test/injected.py
 
-`loop.take_turn` renders both in-process and hands them to the provider: as a
-system prompt where the recipe has `system_args` (claude's
-`--append-system-prompt`), else above the prompt. The prompt says they are
-above and not to fetch them. A fake provider records its argv; nothing here
-touches a real session, port or provider.
+`loop.take_turn` renders both in-process and puts them above the prompt. The
+prompt says they are above and not to fetch them. A fake opencode
+(`TUTORBOARD_OPENCODE`) records its argv; nothing here touches a real
+session, port or DeepSeek.
 """
 
 import json
@@ -59,25 +58,18 @@ def git(*args, cwd):
 
 
 CALLS = os.path.join(box, "calls.jsonl")
-FAKE = os.path.join(box, "bin", "fake-provider")
+FAKE = os.path.join(box, "bin", "opencode")
 write(FAKE, "#!/usr/bin/env python3\nimport json, sys\n"
             "with open(%r, 'a') as fh:\n"
             "    fh.write(json.dumps({'argv': sys.argv[1:]}) + '\\n')\n" % CALLS)
 os.chmod(FAKE, 0o755)
 
 
-def configure(default):
-    write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-        "provider": default, "vision_agent": default,
-        "headless_timeout": 60, "doing_timeout": 60, "handoff_timeout": 60,
-        "agents": {
-            "plain": {"cmd": [FAKE], "label": "Plain",
-                      "headless_first": [FAKE, "{prompt}"], "usage": "none"},
-            "sys": {"cmd": [FAKE], "label": "Sys",
-                    "headless_first": [FAKE, "-p", "{prompt}"],
-                    "system_args": ["--append-system-prompt", "{system}"],
-                    "usage": "none"},
-        }}))
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
+write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
+    "headless_timeout": 60, "doing_timeout": 60, "handoff_timeout": 60}))
+write(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), 0o600)
 
 
 def last_call():
@@ -111,20 +103,19 @@ with open(repo.path("turns.jsonl"), "w", encoding="utf-8") as fh:
                          "answers": "0002", "text": "yes, inverses are negatives"}) + "\n")
 
 
-def ctx_for(name):
+def ctx_for():
     cfg = recipes.load_config()
     logpath = os.path.join(repo.live, "agent.log")
     return loop.Ctx(cfg=cfg, course={"root": repo.root, "dir": "Demo",
                                      "name": course_config.read_config(repo.root)["name"]},
                     repo=repo, root=repo.root, cwd=atlas, live=repo.live,
                     log=open(logpath, "a", buffering=1), logpath=logpath,
-                    agent_name=name, spec=cfg["agents"][name], turns=0,
+                    spec=recipes.spec(), turns=0,
                     env=dict(os.environ), sid=sid, striking=[None, None, 0])
 
 
-def turn(name, message):
-    configure(name)
-    ctx = ctx_for(name)
+def turn(message):
+    ctx = ctx_for()
     try:
         loop.take_turn(ctx, message)
     finally:
@@ -136,8 +127,8 @@ FETCHING = ("Run these two commands", "Run `board brief`", "Run `board recap`",
             "`board brief` -- the method", "`board recap` -- the lesson")
 
 try:
-    # --- a lesson turn, on a provider with no system prompt ---------------
-    argv = turn("plain", "[2026-10-09 10:01:00] what is a coset?")
+    # --- a lesson turn -------------------------------------------------------
+    argv = turn("[2026-10-09 10:01:00] what is a coset?")
     prompt = argv[-1]
     check("a lesson turn's prompt opens with the brief",
           prompt.startswith("=== THE BRIEF"), prompt[:200])
@@ -164,26 +155,16 @@ try:
           not [f for f in FETCHING if f in prompt],
           [f for f in FETCHING if f in prompt])
 
-    # --- the same turn on a recipe with system_args (claude's shape) -------
-    argv = turn("sys", "[2026-10-09 10:02:00] and a normal subgroup?")
-    i = argv.index("--append-system-prompt") if "--append-system-prompt" in argv else -1
-    system = argv[i + 1] if i >= 0 else ""
-    check("a recipe with system_args is handed both as its system prompt",
-          system.startswith("=== THE BRIEF") and "=== THE RECAP" in system
-          and "THE LESSON IS EXERCISES" in system and "NEWEST-MARK-3" in system,
-          argv[:3])
-    prompt = argv[argv.index("-p") + 1]
-    check("and its prompt is the turn's own, not a second copy",
-          prompt.startswith("You are running headless") and "=== THE BRIEF" not in prompt
-          and "and a normal subgroup?" in prompt)
+    check("and no system-prompt flag is used: DeepSeek reads it all in the prompt",
+          "--append-system-prompt" not in argv)
 
     # --- a revision and an [unfinished] report read the recap only --------
-    argv = turn("plain", "[2026-10-09 10:03:00] [revise] fix page 2 of docs/a/a.pdf")
+    argv = turn("[2026-10-09 10:03:00] [revise] fix page 2 of docs/a/a.pdf")
     check("a revision is handed the recap of the session it runs in, and not "
           "the brief", argv[-1].startswith("=== THE RECAP")
           and "NEWEST-MARK-3" in argv[-1] and "=== THE BRIEF" not in argv[-1],
           argv[-1][:200])
-    argv = turn("plain", "[2026-10-09 10:04:00] [unfinished] The turn before this "
+    argv = turn("[2026-10-09 10:04:00] [unfinished] The turn before this "
                          "one exited with sessions/x/cards/0003-c3.md still the "
                          "placeholder.")
     check("an [unfinished] report is handed the recap and not the brief",
@@ -191,8 +172,7 @@ try:
           and "The recap of the lesson is above" in argv[-1])
 
     # --- the wrap-up reads the brief and the recap above its prompt ---------
-    configure("plain")
-    ctx = ctx_for("plain")
+    ctx = ctx_for()
     try:
         loop.wrap_up(ctx)
     finally:
@@ -241,7 +221,7 @@ try:
     check("and drops their earlier turns, saying where they are",
           "their turns so far" not in guarded
           and "earlier turn(s) of theirs not listed" in guarded)
-    argv = turn("plain", "[2026-10-09 12:00:00] go on")
+    argv = turn("[2026-10-09 12:00:00] go on")
     check("and that is what a turn is handed",
           "earlier turn(s) of theirs not listed" in argv[-1]
           and "their turns so far" not in argv[-1])

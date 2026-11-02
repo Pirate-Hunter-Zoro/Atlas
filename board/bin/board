@@ -103,16 +103,14 @@ The assistant runs these. The student never does.
                                        board/tex/writeup.tex.in; never overwrites
     board vpn [status]                 what tailscale says, and where HTTPS points
     board init [name]                  write tutorboard.json for this repository
-    board doctor [--dry] [name ...]    what the machine has, then one real turn
-                                       each on the provider and its fallback,
-                                       one look through the vision route and
-                                       one word spoken and heard back;
-                                       --dry spends none
+    board doctor [--dry]               what the machine has, then one real
+                                       DeepSeek turn, one look through the
+                                       vision route and one word spoken and
+                                       heard back; --dry spends none
     board egress [--repair]            can a turn get out, and through which exit node
     board limit [--clear|--set S]      has the tutor's allowance here run out
     board eyes [--answer]              can the assistant driving this actually see?
-    board see <path> [--page N]        what is in this image or PDF page, in words,
-                                       for an assistant whose model has no eyes
+    board see <path> [--page N]        what is in this image or PDF page, in words
     board hear <file>                  a take's .heard.json as words: what was
                                        heard, the target, each syllable's tone.
                                        An audio file is heard first, with
@@ -139,7 +137,7 @@ sys.path.insert(0, TOOL)
 if __name__ == "__main__" and sys.argv[1:2] == ["code"]:
     from tutorboard import code as _code
     sys.exit(_code.main(sys.argv[2:]))
-from tutorboard import (assistants, brief, gitops,
+from tutorboard import (brief, gitops,
                         limits, machine, memo,
                         paths, plain, reasoning, seeing, sense, sessions, tex, worktree)
 from tutorboard import subjects
@@ -167,8 +165,8 @@ def slugify(s):
     return (s or "card")[:48]
 
 
-# A turn's tool grants live in `ai-config/workspaces/tutors.allow`, not here:
-# a turn has nobody to approve a tool call.
+# A turn has nobody to approve a tool call: it runs `opencode run --auto`,
+# which allows whatever the recipe's `permission` block does not deny.
 
 
 def server_answers(port=None, timeout=3.0):
@@ -341,10 +339,6 @@ def cmd_write(live, args):
     head = "---\nkind: %s\n" % kind
     if title:
         head += "title: %s\n" % title
-    # A turn the fallback took says so on the card (`loop.take_turn` sets it).
-    by = config.clean_agent(os.environ.get("TUTORBOARD_FALLBACK"))
-    if by:
-        head += "by: %s\n" % by
     head += "---\n"
     # A card is never half on the board: write a temp file in the same
     # directory and `os.replace` it, because `open("w")` truncates first and
@@ -1805,20 +1799,9 @@ def cmd_eyes(live, args):
     print("Then run `board eyes --answer` to see whether it read them or invented them.")
     print()
     print("If it cannot, it cannot tutor from this board: every answer comes back")
-    print("as handwriting or a photograph, and there is no mode that turns that")
-    print("off any more. Point a different assistant at it -- `board doctor --dry`")
-    print("names the provider and its fallback.")
+    print("as handwriting or a photograph. `board see <file>` reads one through")
+    print("DeepSeek's vision route, and `board doctor` checks that route.")
     return 0
-
-
-def state_agent(live):
-    """Who is teaching in this workspace right now, off `live/agent.json`."""
-    try:
-        with open(os.path.join(live.session, "agent.json"), "r",
-                  encoding="utf-8") as fh:
-            return json.load(fh) or {}
-    except (OSError, ValueError):
-        return {}
 
 
 def cmd_see(live, args):
@@ -1829,10 +1812,8 @@ def cmd_see(live, args):
         board see page.png --ask "just the numbers in the right-hand column"
         board see --route            where an image would go, and nothing else
 
-    For an assistant whose model cannot see: the answer comes back as text on
-    stdout. The image goes to a recipe's `vision` block, resolved through the
-    running agent first and `vision_agent` second (`seeing.py`); `--route`
-    says which.
+    The answer comes back as text on stdout. The image goes to the DeepSeek
+    recipe's `vision` block (`seeing.py`); `--route` names it.
     """
     rest = [a for a in args if not a.startswith("--")]
     page = None
@@ -1847,25 +1828,16 @@ def cmd_see(live, args):
         if taken in rest:
             rest.remove(taken)
 
-    who = (state_agent(live) or {}).get("agent")
     if "--route" in args:
-        settings, why = seeing.route(who)
-        if not settings:
-            print(why, file=sys.stderr)
-            return 1
-        print("%s  %s  via the '%s' recipe"
-              % (settings.get("model"),
-                 settings.get("endpoint")
-                 or " ".join(settings.get("cmd") or []),
-                 settings.get("agent")))
+        settings = seeing.route()
+        print("%s  %s" % (settings.get("model"), settings.get("endpoint")))
         return 0
     if not rest:
         print("board see <path> -- an image, or a PDF with --page N",
               file=sys.stderr)
         return 1
     try:
-        said, _settings = seeing.describe(rest[0], page=page, prompt=prompt,
-                                          agent=who)
+        said, _settings = seeing.describe(rest[0], page=page, prompt=prompt)
     except seeing.Refused as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -1944,8 +1916,8 @@ def cmd_limit(live, args):
 
     The record is per machine, because an allowance belongs to an account. A
     failing turn writes it, it expires by itself, `/health` publishes it, and
-    a turn that goes through clears it. `--clear` exists because a provider's
-    reset time is only a promise.
+    a turn that goes through clears it. `--clear` exists because a reset
+    time is only a promise.
     """
     rec = limits.limit_record()
     if "--set" in args:
@@ -1962,7 +1934,6 @@ def cmd_limit(live, args):
     left = float(rec["until"]) - time.time()
     print("allowance: GONE until %s  (%d min)"
           % (time.strftime("%H:%M", time.localtime(rec["until"])), left / 60))
-    print("agent:     %s" % (rec.get("agent") or "unknown"))
     print("\nturns fail until it returns, and the board says so rather than")
     print("answering with something worse.")
     print("clear it early with:  board limit --clear")
@@ -1976,7 +1947,7 @@ def cmd_egress(live, args):
         board egress --repair    rotate exit nodes until a turn can get out
 
     An exit node does not touch tailnet traffic, so the iPad still reaches the
-    board, but a provider that blocks VPN egress fails every turn.
+    board, but a filter that drops DeepSeek on VPN egress fails every turn.
     """
     node = egress.exit_node()
     print("exit node: %s" % (node["name"] if node else "none (direct)"))
@@ -1997,31 +1968,28 @@ def cmd_egress(live, args):
 
 
 def cmd_doctor(live, args):
-    """board doctor [--dry] [name ...]
+    """board doctor [--dry]
 
     What this machine has (TeX, KaTeX, a PDF renderer, the tailnet, the
-    server), then one real turn each on the provider and its fallback, or on
-    the recipes named (`agents/doctor.py`): a code word in the prompt has to
-    come back. Unnamed, it also sends the vision route one witness strip, whose
-    digits have to come back. `--dry` spends no turn: it says, per recipe,
-    whether it can take one here and what would run, and names the vision
-    route chain. Inside a turn it is always dry, since a turn
-    starting a turn is a bill nobody asked for. Exit 1 when anything failed.
+    server), then one real DeepSeek turn (`agents/doctor.py`): a code word in
+    the prompt has to come back. Then the vision route gets one witness strip,
+    whose digits have to come back. `--dry` spends no turn: it says whether
+    one can run here and what would run, and names the vision route. Inside a
+    turn it is always dry, since a turn starting a turn is a bill nobody asked
+    for. Exit 1 when anything failed.
     """
     from tutorboard.agents import doctor as smoke
     dry = "--dry" in args or bool(os.environ.get("TUTORBOARD_TURN"))
-    names = [a for a in args if not a.startswith("-")]
     ok = machine_check()
     print()
     if dry and "--dry" not in args:
         print("inside a turn: dry, no turn is spent")
-    ok = smoke.cmd_doctor(None, names, dry=dry) == 0 and ok
-    if not names:
-        # Speech: the chains, the local recipe's state, and, spent, one word
-        # spoken and heard back (`speech/witness.py`).
-        from tutorboard.speech import witness
-        print()
-        ok = witness.report(dry=dry) and ok
+    ok = smoke.cmd_doctor(dry=dry) == 0 and ok
+    # Speech: the chains, the local recipe's state, and, spent, one word
+    # spoken and heard back (`speech/witness.py`).
+    from tutorboard.speech import witness
+    print()
+    ok = witness.report(dry=dry) and ok
     return 0 if ok else 1
 
 
@@ -2091,20 +2059,13 @@ def machine_check():
 
 
 def tutor_health():
-    """Who teaches on this machine, and can they. Printed; True if they can.
-    Read off `recipes.listing`: files only, no provider is asked."""
-    table = assistants.listing()
-    if not table:
-        print("teaching: unknown -- the provider table could not be built")
-        return False
-    print("teaching: provider '%s', fallback '%s'"
-          % (table.get("default"), table.get("fallback") or "none"))
-    if not table.get("machine"):
-        print("          NOBODY can take a turn: %s" % table.get("why"))
-        return False
-    if table.get("why"):
-        print("          %s" % table["why"])
-    return True
+    """Can DeepSeek take a turn on this machine. Printed; True if it can.
+    Read off `recipes.ready`: files only, DeepSeek is not asked."""
+    from tutorboard.agents import recipes
+    why = recipes.ready()
+    print("teaching: DeepSeek through OpenCode, %s"
+          % ("ready" if not why else "CANNOT take a turn: %s" % why))
+    return not why
 
 
 def cmd_pull(live, args):

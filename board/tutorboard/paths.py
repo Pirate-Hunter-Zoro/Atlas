@@ -43,8 +43,13 @@ CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")),
     "tutor-board")
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
-# Provider credentials, outside the public tree; only `keys.py` opens it.
+# Credentials, outside the public tree; only `keys.py` opens them. The
+# DeepSeek key is read from `KEYS`, else from `DEEPSEEK_KEY`, the file the
+# other repositories on this Mac share.
 KEYS = os.path.join(CONFIG_DIR, "keys.env")
+DEEPSEEK_KEY = os.path.join(
+    os.environ.get("XDG_CONFIG_HOME", os.path.join(HOME, ".config")),
+    "api-keys", "deepseek_key")
 
 # The one port the board listens on, unless config.json says `port`.
 PORT = 8778

@@ -1,14 +1,16 @@
-"""The credentials a turn is handed, and the one file they live in.
+"""The credentials a turn is handed, and the files they live in.
 
-    ~/.config/tutor-board/keys.env
+    ~/.config/tutor-board/keys.env      DEEPSEEK_API_KEY, AZURE_SPEECH_KEY, ...
+    ~/.config/api-keys/deepseek_key     the DeepSeek key alone, read when
+                                        keys.env has none
 
-`NAME=value`, one a line, `#` comments, no shell and no expansion; outside
-the tree because this repository is public. A recipe names its key with
-`needs_key` and spends it through `env` (`{NAME}`); nothing puts a value on
-a command line, because argv is visible in `ps`. A world-readable file is
-refused; a group-readable one is not, because this home's NFSv4 server
-reports every file as mode 770 whatever `chmod` says. Cached, since
-`--agents --json` is polled.
+keys.env is `NAME=value`, one a line, `#` comments, no shell and no
+expansion; outside the tree because this repository is public. The recipe
+names its key with `needs_key` and spends it through `env` (`{NAME}`);
+nothing puts a value on a command line, because argv is visible in `ps`. A
+world-readable file is refused; a group-readable one is not, because this
+home's NFSv4 server reports every file as mode 770 whatever `chmod` says.
+Cached, since the board polls readiness.
 """
 
 import os
@@ -60,6 +62,18 @@ def _read(path):
     return got, None
 
 
+def _one(path):
+    """A file holding one key and nothing else: its stripped text, or None.
+    Refused, like keys.env, when every account can read it."""
+    try:
+        if os.stat(path).st_mode & (stat.S_IROTH | stat.S_IWOTH):
+            return None
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.read().strip() or None
+    except OSError:
+        return None
+
+
 def _all():
     path = store()
     now = time.time()
@@ -67,6 +81,11 @@ def _all():
             and now - _CACHE["at"] <= TTL):
         return _CACHE["was"]
     got, why = _read(path)
+    if not got.get("DEEPSEEK_API_KEY"):
+        alone = _one(paths.DEEPSEEK_KEY)
+        if alone:
+            got = dict(got, DEEPSEEK_API_KEY=alone)
+            why = None
     _CACHE.update({"at": now, "was": got, "path": path, "why": why})
     return got
 
@@ -94,7 +113,7 @@ def forget():
 
 
 # ---------------------------------------------------------------------------
-# `{NAME}` in a recipe's `env`
+# `{NAME}` in the recipe's `env`
 # ---------------------------------------------------------------------------
 def fill(value):
     """Substitute `{NAME}` from the store. None where a named key is absent,
@@ -127,8 +146,7 @@ def fill(value):
 
 
 def unkeyed(spec):
-    """The key this recipe needs and this machine lacks, or None: drawable on
-    a button before it is tapped."""
+    """The key this recipe needs and this machine lacks, or None."""
     wanted = (spec or {}).get("needs_key")
     if not wanted:
         return None

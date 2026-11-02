@@ -62,23 +62,15 @@ check("there is no resume prompt: every turn is a fresh process",
 # --- every turn is a fresh process ----------------------------------------
 # Every session's turn runs in the Atlas root, so a resume would pick up
 # another session's conversation. What a turn holds never grows with the lesson.
-spec_claude = {"headless_first": ["claude", "-p", "{prompt}"],
-               "headless": ["claude", "-p", "{prompt}", "--continue"]}
-for sig in ("", "unfinished", "carry", "revise", "writeup", "repair"):
-    use, template = runturn.turn_plan(spec_claude, sig)
-    check("a %s turn opens a fresh conversation" % (sig or "lesson"),
-          "--continue" not in use)
-check("a lesson turn is cold-prompted",
-      runturn.turn_plan(spec_claude)[1] is first)
+check("the recipe has no resume form, so every turn opens a fresh "
+      "conversation", "--continue" not in recipes.DEEPSEEK["headless_first"]
+      and "headless" not in recipes.DEEPSEEK)
+check("a lesson turn is cold-prompted", runturn.turn_prompt() is first)
 check("an unfinished report reads what the work changed off disk",
-      runturn.turn_plan(spec_claude, "unfinished")[1]
-      is prompts.HEADLESS_UNFINISHED_PROMPT)
+      runturn.turn_prompt("unfinished") is prompts.HEADLESS_UNFINISHED_PROMPT)
 check("and a `[carry]` is not special: it is an ordinary cold turn",
-      runturn.turn_plan(spec_claude, "carry")[1] is first
+      runturn.turn_prompt("carry") is first
       and not hasattr(prompts, "HEADLESS_CARRY_PROMPT"))
-use, template = runturn.turn_plan({"headless": ["codex", "exec", "{prompt}"]})
-check("an agent with one recipe runs that, cold-prompted",
-      use == ["codex", "exec", "{prompt}"] and template is first)
 
 check("the config says how big an allowance window is, without guessing",
       "quota_tokens" in recipes.DEFAULT_CONFIG
@@ -321,76 +313,58 @@ finally:
 # A design whose whole justification is price has to be measured. These two
 # guard the measurement itself: the flag that makes the agent report, and the
 # parse of what it reports.
-claude = recipes.DEFAULT_CONFIG["agents"]["claude"]
-check("the claude recipe says how to ask what a turn cost",
-      claude.get("usage") == "claude-json" and claude.get("usage_args"))
-check("the flag is appended rather than written into the recipe, so a machine "
-      "carrying an old copy of it still reports",
-      "--output-format" not in claude["headless_first"]
-      and "--output-format" in usage.with_usage(claude, claude["headless_first"]))
-check("and appending it twice does not repeat it",
-      usage.with_usage(claude, usage.with_usage(claude, claude["headless_first"]))
-      == usage.with_usage(claude, claude["headless_first"]))
-check("an agent that reports nothing is simply not accounted for",
-      usage.with_usage({}, ["free", "{prompt}"]) == ["free", "{prompt}"])
+DS = recipes.DEEPSEEK
+check("the recipe asks OpenCode for its JSON events, which carry the cost",
+      "--format" in DS["headless_first"]
+      and DS["headless_first"][DS["headless_first"].index("--format") + 1] == "json")
+
+
+def step(inp, out, reasoning, read, write, cost):
+    return json.dumps({"type": "step_finish", "sessionID": "ses_1", "part": {
+        "cost": cost, "tokens": {"input": inp, "output": out,
+                                 "reasoning": reasoning,
+                                 "cache": {"read": read, "write": write}}}})
+
 
 fd, logpath = tempfile.mkstemp(prefix="tutor-cost-", suffix=".log")
 try:
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write("=== 10:00:00 turn 1 ===\nthe student sent a page\n")
         offset = fh.tell()
-        # Real stdout: a warning the agent printed, then the result object.
-        fh.write("Warning: no stdin data received in 3s, proceeding without it.\n")
-        fh.write(json.dumps({
-            "type": "result", "subtype": "success", "num_turns": 6,
-            "session_id": "abc", "total_cost_usd": 0.372,
-            "result": "wrote card 0042",
-            "usage": {"input_tokens": 10, "output_tokens": 4291,
-                      "cache_creation_input_tokens": 29513,
-                      "cache_read_input_tokens": 152020},
-            "modelUsage": {"claude-opus-5[1m]": {"costUSD": 0.371},
-                           "claude-haiku-4-5-20251001": {"costUSD": 0.001}},
-        }) + "\n")
-    u = usage.read_turn_usage(logpath, offset, "claude-json")
-    check("a turn's own report is read back out of the log",
-          u.get("usd") == 0.372 and u.get("requests") == 6)
-    check("and the numbers that matter are the cumulative ones",
-          u.get("cache_read") == 152020 and u.get("cache_write") == 29513
-          and u.get("out") == 4291)
-    # The headline figure, because on a subscription what runs out is a
-    # five-hour allowance and that is computed from tokens, not dollars.
+        fh.write("a line of plain output\n")
+        fh.write(json.dumps({"type": "text", "sessionID": "ses_1",
+                             "part": {"text": "wrote card 0042"}}) + "\n")
+        fh.write(step(1000, 200, 50, 30000, 0, 0.01) + "\n")
+        fh.write(step(500, 100, 0, 31000, 400, 0.02) + "\n")
+    u = usage.read_turn_usage(logpath, offset)
+    check("a turn's own report is read back out of the log, one round trip "
+          "per step_finish", u.get("requests") == 2 and u.get("session") == "ses_1")
+    check("and the round trips are summed, reasoning billed as output",
+          u.get("in") == 1500 and u.get("out") == 350
+          and u.get("cache_read") == 61000 and u.get("cache_write") == 400)
     check("and the total a quota is computed from is everything through the model",
-          u.get("tokens") == 10 + 4291 + 29513 + 152020)
-    check("noise on the same stream does not break the parse",
-          u.get("session") == "abc")
-    check("an agent that reports nothing yields nothing rather than raising",
-          usage.read_turn_usage(logpath, offset, None) == {})
-    check("and a log with no report at all is not an error",
-          usage.read_turn_usage(logpath, 0, "claude-json").get("usd") == 0.372
-          and usage.read_turn_usage(logpath, 10 ** 9, "claude-json") == {})
+          u.get("tokens") == 1500 + 350 + 61000 + 400)
+    check("with no price table, OpenCode's own cost is kept",
+          abs(u.get("usd") - 0.03) < 1e-9)
+    check("and with the recipe's, the dollars are recomputed and the rate kept",
+          usage.read_turn_usage(logpath, offset, DS).get("rate"))
+    check("a log with no report at all is not an error",
+          usage.read_turn_usage(logpath, 10 ** 9) == {})
+    check("and what the model SAID is the text events alone, not tool output",
+          usage.turn_text(open(logpath).read()) == "wrote card 0042")
+    check("there is one parser: the other vendors' are gone",
+          not any(hasattr(usage, n) for n in (
+              "read_claude_usage", "read_codex_usage", "USAGE_PARSERS",
+              "result_object_error", "with_usage")))
 
-    # ---- WHAT A TURN COST, PER PROVIDER -----------------------------------
-    #
-    # `usage` was an equality test against one string, so every other provider
-    # cost nothing and appeared in no total -- and the measurement that
-    # justifies every decision about how a turn is shaped would have stopped
-    # covering two thirds of the table the moment there were three of them.
-    check("`usage` is a dispatch, so a provider is a parser added beside the "
-          "others rather than a branch in the reader",
-          set(usage.USAGE_PARSERS) >= {"claude-json", "codex-jsonl"})
-    check("and a kind nobody wrote a parser for costs nothing rather than "
-          "raising", usage.read_turn_usage(logpath, offset, "no-such-kind") == {})
-
-    # A PROVIDER DRIVEN THROUGH SOMEBODY ELSE'S BINARY REPORTS THE TOKENS RIGHT
-    # AND THE MONEY WRONG. The counts are the model's own; the prices compiled
-    # into that binary are its vendor's. So the counts are kept and the dollars
-    # are recomputed from the recipe's table.
-    DS = recipes.DEFAULT_CONFIG["agents"]["deepseek"]
+    # THE COUNTS ARE THE MODEL'S OWN; THE PRICES COMPILED INTO OPENCODE MAY NOT
+    # BE DEEPSEEK'S. So the counts are kept and the dollars are recomputed from
+    # the recipe's table, with its peak and off-peak windows.
     import calendar                                            # noqa: E402
     peak = calendar.timegm((2026, 9, 23, 2, 0, 0, 0, 0, 0))    # Wednesday 02:00
     off = calendar.timegm((2026, 9, 23, 12, 0, 0, 0, 0, 0))    # Wednesday 12:00
     weekend = calendar.timegm((2026, 9, 26, 2, 0, 0, 0, 0, 0))  # Saturday 02:00
-    check("the provider's own peak window is open when it says it is",
+    check("DeepSeek's own peak window is open when it says it is",
           usage.at_peak_rate(DS["prices"], peak)
           and not usage.at_peak_rate(DS["prices"], off))
     check("and its weekday rule is honoured, because it has one",
@@ -412,71 +386,10 @@ try:
     check("the token counts are untouched, because they are the model's own "
           "report and they are right",
           dear["tokens"] == 100000 and dear["cache_read"] == 40000)
-    bare = usage.priced(counts, recipes.DEFAULT_CONFIG["agents"]["codex"])
-    check("and a provider with no price table records the tokens and NO dollar "
-          "figure, which is honest rather than wrong",
+    bare = usage.priced(counts, {})
+    check("and a table-less spec records the tokens and NO dollar figure, "
+          "which is honest rather than wrong",
           "usd" not in bare and "rate" not in bare)
-
-    # ---- CODEX'S OWN STREAM ------------------------------------------------
-    #
-    # `--json` carries a `token_count` event whose `total_token_usage` is the
-    # RUNNING TOTAL for the session. Summing them counts every earlier round
-    # trip again, which is the one way to get this wrong that yields a
-    # plausible number.
-    stream = "\n".join(json.dumps({
-        "type": "token_count",
-        "info": {"total_token_usage": {"input_tokens": n * 1000,
-                                       "cached_input_tokens": n * 400,
-                                       "output_tokens": n * 100}},
-    }) for n in (1, 2, 3))
-    got = usage.read_codex_usage(stream)
-    check("the last running total is the answer, not the sum of them",
-          got["out"] == 300 and got["cache_read"] == 1200)
-    check("and the cached half is not counted twice in the billed total",
-          got["in"] == 3000 - 1200 and got["tokens"] == 3000 + 300)
-    check("round trips are counted, because the stream is where they are",
-          got["requests"] == 3)
-    check("a stream that reported nothing is nothing rather than a crash",
-          usage.read_codex_usage("some plain output\n") == {})
-
-    # AND THE SHAPE IT HAS NOW, which is not that one. Codex 0.156.1 emits no
-    # `token_count` event at all: the numbers ride on `turn.completed` as a
-    # `usage` object. Read by the old rule that stream matches nothing, so
-    # every Codex turn was free in `cost.jsonl` and missing from every total --
-    # a measurement that reads zero is worse than one that is absent, because
-    # zero adds up. Captured from a real run rather than composed here.
-    now = "\n".join([
-        json.dumps({"type": "thread.started", "thread_id": "01a0d40b"}),
-        json.dumps({"type": "turn.started"}),
-        json.dumps({"type": "item.completed",
-                    "item": {"id": "item_0", "type": "agent_message",
-                             "text": "3"}}),
-        json.dumps({"type": "turn.completed",
-                    "usage": {"input_tokens": 43786,
-                              "cached_input_tokens": 32512,
-                              "cache_write_input_tokens": 0,
-                              "output_tokens": 139,
-                              "reasoning_output_tokens": 0}}),
-    ])
-    got = usage.read_codex_usage(now)
-    check("the turn's own usage event is read, which is where the numbers are "
-          "now", got["out"] == 139 and got["cache_read"] == 32512)
-    check("and the cached half is still not billed twice",
-          got["in"] == 43786 - 32512 and got["tokens"] == 43786 + 139)
-    check("one `codex exec` is one turn, whatever it did in the middle: that "
-          "run made two shell calls and reported once",
-          got["requests"] == 1)
-    check("and the cache WRITE is carried now, because this shape reports one",
-          usage.read_codex_usage(json.dumps(
-              {"type": "turn.completed",
-               "usage": {"input_tokens": 10, "cached_input_tokens": 4,
-                         "cache_write_input_tokens": 6, "output_tokens": 2}}
-          ))["cache_write"] == 6)
-    check("two turns in one stream are summed, because each is its own bill",
-          usage.read_codex_usage("\n".join(
-              json.dumps({"type": "turn.completed",
-                          "usage": {"input_tokens": 100, "output_tokens": 10}})
-              for _ in range(2)))["tokens"] == 220)
 finally:
     os.unlink(logpath)
 

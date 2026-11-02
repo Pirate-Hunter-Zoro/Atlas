@@ -29,9 +29,9 @@ def load_agent(repo):
         st["state"] = "reattaching" if _reattaching(st) else "stale"
     # The last failure, while it is news (`_failure`).
     st["failure"] = _failure(repo, st)
-    # A stood-down provider and its expiry, so the iPad can say why nothing
-    # is happening.
-    st["stood_down"] = _stood_down(st.get("agent"))
+    # DeepSeek not answering from here, and until when, so the iPad can say
+    # why nothing is happening.
+    st["stood_down"] = _stood_down()
     # `turn_signal` belongs to the turn; cleared here once it ends, so a stale
     # one never labels an idle tutor.
     if st.get("state") != "working":
@@ -73,16 +73,14 @@ def _failure(repo, st):
     return {"error": st["last_error"], "at": at}
 
 
-def _stood_down(agent):
-    """Why this provider cannot take a turn here and until when, or None.
+def _stood_down():
+    """`{host, until}` while DeepSeek does not answer from here, or None.
     `until` is epoch seconds; the glass formats it."""
-    if not agent:
-        return None
     from ..net import egress
-    got = egress.stood_down(agent)
-    if not got:
+    try:
+        return egress.stood_down()
+    except Exception:                                        # noqa: BLE001
         return None
-    return {"host": got["host"], "why": got["why"], "until": got["until"]}
 
 
 def _newest(repo):

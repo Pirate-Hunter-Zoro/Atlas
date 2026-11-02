@@ -16,7 +16,7 @@ from tutorboard.course import repo as course_repo
 def turn_environment(spec, base=None):
     """What one turn runs with: this process's environment, plus the recipe's.
 
-    A recipe's `env` carries keys, which must not reach argv: argv is readable
+    The recipe's `env` carries keys, which must not reach argv: argv is readable
     in `ps` (`ai-config/policy/credentials.txt`).
     `{NAME}` values come from `keys.fill`; a value naming a missing key is
     dropped rather than passed with its braces. Every turn carries
@@ -60,20 +60,12 @@ def doing_now(where, signal=""):
         return False
 
 
-def turn_timeout(cfg, where, spec=None, signal=""):
-    """How long this turn gets, by its kind and its agent.
-
-    A recipe's `timeout` is a floor, because a slow agent (a local model prefills
-    for hours) would otherwise die at the cap of every turn.
-    """
+def turn_timeout(cfg, where, signal=""):
+    """How long this turn gets, by its kind."""
     plain = int(cfg.get("headless_timeout", 900) or 900)
     if doing_now(where, signal):
         plain = max(plain, int(cfg.get("doing_timeout", 3600) or 3600))
-    try:
-        floor = int((spec or {}).get("timeout") or 0)
-    except (TypeError, ValueError):
-        floor = 0
-    return max(plain, floor)
+    return plain
 
 def at_root(root, env=None):
     """A turn's environment with `PWD` naming where it runs, because OpenCode
@@ -88,7 +80,7 @@ def run_turn(cmd, cwd, log, timeout, env=None, on_start=None):
 
     The turn is its own process group, so the cap kills all of it: SIGTERM,
     15 s, SIGKILL. `on_start(process)` runs before the turn does anything.
-    Stdin is closed because `codex exec` blocks reading a non-terminal stdin.
+    Stdin is closed, so nothing waits on a terminal that is not there.
     """
     p = subprocess.Popen(cmd, cwd=cwd, stdout=log, stderr=subprocess.STDOUT,
                          stdin=subprocess.DEVNULL,
@@ -115,24 +107,17 @@ def run_turn(cmd, cwd, log, timeout, env=None, on_start=None):
     return p.returncode, True
 
 
-def fresh_recipe(spec):
-    """The recipe that starts a new conversation: `headless_first`, else
-    `headless`. Every session shares the Atlas root as its cwd, so a turn
-    never resumes (`--continue` would pick up another session's)."""
-    return (spec or {}).get("headless_first") or (spec or {}).get("headless")
-
-
-def turn_plan(spec, signal=""):
-    """`(recipe, prompt)` for a turn woken for `signal`. Every turn is a fresh
-    process with a fresh conversation; the signal picks the prompt."""
-    prompt = {
+def turn_prompt(signal=""):
+    """The prompt template for a turn woken for `signal`. Every turn is a
+    fresh process with a fresh conversation, because every session shares the
+    Atlas root as its cwd and `--continue` would pick up another session's."""
+    return {
         "revise": prompts.HEADLESS_REVISE_PROMPT,
         "rework": prompts.HEADLESS_REWORK_PROMPT,
         "writeup": prompts.HEADLESS_WRITEUP_PROMPT,
         "unfinished": prompts.HEADLESS_UNFINISHED_PROMPT,
         "code": prompts.HEADLESS_CODE_PROMPT,
     }.get(signal, prompts.HEADLESS_FIRST_PROMPT)
-    return fresh_recipe(spec), prompt
 
 
 def context_plan(signal=""):

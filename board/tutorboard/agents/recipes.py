@@ -1,139 +1,88 @@
-"""Which assistant takes a turn: the recipes, this machine's config, and the choice.
+"""The one assistant: DeepSeek through OpenCode.
 
-A provider is a recipe plus a key. `DEFAULT_CONFIG` is the built-in table;
-`load_config` lays this machine's `config.json` over it. Adding a provider is
-one `agents` entry in that file; removing one is `"replace": true` with no
-recipe, or deleting its entry. No vendor is load-bearing: the config names a
-`provider` (none named, the first recipe in table order that can take a turn
-here) and, optionally, `fallback` (one name or a list), and with no
-`fallback` every other recipe in the table is tried in its order, so any one
-provider can die and the rest still answer. `vision_agent` is the first eye
-tried. Nothing else chooses: no session, subject or command line overrides it.
-`resolve` says who takes the next turn, `chain` the order they are tried in,
-`unavailable` why a recipe cannot, and `listing` is what the board draws.
+Every turn, wrap-up, `board see` and `board doctor` runs `spec()`; `ready`
+says why it cannot take a turn here now, or None. This machine's
+`config.json` carries the timeouts and `courses_dir`. It does not pick an
+assistant: `provider`, `fallback`, `vision_agent` and `agents` in it are
+ignored. `TUTORBOARD_OPENCODE` names another opencode binary, which is how a
+test runs a fake one.
 """
 
+import copy
 import json
 import os
 import shutil
-import sys
 import time
 
-from tutorboard import keys, limits, machine, subjects
+from tutorboard import keys, limits, machine, paths, subjects
 
 CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")),
     "tutor-board")
 CONFIG = os.path.join(CONFIG_DIR, "config.json")
 
+NAME = "deepseek"
+LABEL = "DeepSeek"
+KEY = "DEEPSEEK_API_KEY"
+# A model rename is `MODEL` and `vision.model`. Re-check the ids with
+# `opencode models deepseek`.
+MODEL = "deepseek/deepseek-flash"
+API = "https://api.deepseek.com/chat/completions"
+
+DEEPSEEK = {
+    "name": NAME,
+    "label": LABEL,
+    # Every turn is a fresh conversation in the Atlas root; `--format json`
+    # is what `usage` reads the cost and the error out of.
+    "headless_first": ["opencode", "--pure", "run", "--auto", "-m", MODEL,
+                       "--format", "json", "{prompt}"],
+    "needs_key": KEY,
+    # Keys ride in the environment, never argv (`turn.turn_environment`).
+    "env": {
+        KEY: "{%s}" % KEY,
+        "OPENCODE_CONFIG_CONTENT": json.dumps({
+            "small_model": MODEL,
+            "permission": {"skill": "deny"},
+            "provider": {"deepseek": {"options": {
+                "apiKey": "{env:%s}" % KEY}}}}),
+    },
+    "egress_probe": [API],
+    # deepseek-flash reads images through the chat-completions endpoint;
+    # `board doctor` proves it with the witness strip.
+    "vision": {"endpoint": API, "model": "deepseek-flash", "needs_key": KEY},
+    "prices": {
+        "peak": {"in": 0.30, "cache_write": 0.30, "cache_read": 0.006, "out": 1.20},
+        "off": {"in": 0.15, "cache_write": 0.15, "cache_read": 0.003, "out": 0.60},
+        "peak_utc": [["01:00", "04:00"], ["06:00", "10:00"]],
+        "peak_weekdays_only": True,
+    },
+}
+
 DEFAULT_CONFIG = {
     "courses_dir": subjects.root(),
-    "agents": {
-        "claude": {
-            "cmd": ["claude"], "prompt": "argv", "label": "Claude",
-            "headless_first": ["claude", "-p", "{prompt}"],
-            # The brief and the recap ride here (`runner.loop.handed`); any
-            # recipe without this field reads them prepended to its prompt.
-            "system_args": ["--append-system-prompt", "{system}"],
-            "usage": "claude-json",
-            "usage_args": ["--output-format", "json"],
-            "extra_args": [],
-            "vision": {"cmd": ["claude", "-p", "{prompt}"],
-                       "model": "whatever this machine's Claude Code settings "
-                                "select",
-                       "sighted": True},
-        },
-        # A model rename is two strings, `-m` and `vision.model`. Re-check the
-        # id at huggingface.co `deepseek-ai/DeepSeek-V4.1-Flash`, at
-        # `github.com/deepseek-ai/deepseek-recipe`, or with
-        # `opencode models deepseek`.
-        "deepseek": {
-            "cmd": ["opencode", "--pure", "-m", "deepseek/deepseek-flash"],
-            "label": "DeepSeek",
-            "prompt": "--prompt",
-            "headless_first": ["opencode", "--pure", "run", "--auto",
-                               "-m", "deepseek/deepseek-flash", "{prompt}"],
-            "usage": "opencode-json",
-            "usage_args": ["--format", "json"],
-            "extra_args": [],
-            "needs_key": "DEEPSEEK_API_KEY",
-            "env": {
-                "DEEPSEEK_API_KEY": "{DEEPSEEK_API_KEY}",
-                "OPENCODE_CONFIG_CONTENT": json.dumps({
-                    "small_model": "deepseek/deepseek-flash",
-                    "permission": {"skill": "deny"},
-                    "provider": {"deepseek": {"options": {
-                        "apiKey": "{env:DEEPSEEK_API_KEY}"}}}}),
-            },
-            "egress_probe": ["https://api.deepseek.com/chat/completions"],
-            "vision": {
-                "endpoint": "https://api.deepseek.com/v1/chat/completions",
-                "model": "deepseek-flash",
-                "needs_key": "DEEPSEEK_API_KEY",
-                "sighted": True,
-            },
-            "prices": {
-                "peak": {"in": 0.30, "cache_write": 0.30,
-                         "cache_read": 0.006, "out": 1.20},
-                "off": {"in": 0.15, "cache_write": 0.15,
-                        "cache_read": 0.003, "out": 0.60},
-                "peak_utc": [["01:00", "04:00"], ["06:00", "10:00"]],
-                "peak_weekdays_only": True,
-            },
-        },
-        "codex": {
-            "cmd": ["codex"], "prompt": "argv", "label": "Codex",
-            "headless_first": ["codex", "exec",
-                               "--dangerously-bypass-approvals-and-sandbox",
-                               "{prompt}"],
-            "usage": "codex-jsonl",
-            "usage_args": ["--json"],
-            "egress_probe": ["https://chatgpt.com/backend-api/codex/responses"],
-            "env": {},
-        },
-    },
-    # THE ONE PROVIDER SETTING: who takes every turn first, and who reads an
-    # image for a recipe with no eyes. `/default-agent` writes `provider`.
-    # Unset here, so a machine that names none gets the first recipe in the
-    # table that can take a turn on it (`provider`), and an image goes to the
-    # running recipe's eyes, then every sighted one (`seeing.route`). There is
-    # no `fallback` here, so every other recipe backs the provider up.
-    "provider": None,
-    "vision_agent": None,
     "headless_timeout": 900,
     "doing_timeout": 3600,
     "handoff_timeout": 600,
     "quota_tokens": None,
 }
 
+# Keys a config.json may still carry from when it chose an assistant.
+IGNORED = ("provider", "fallback", "vision_agent", "agents", "default_agent",
+           "only_agent", "session_turns")
+
+
 def load_config():
-    """The defaults above, with this machine's config file laid over them.
-    `agents` merges one level deeper (`"replace": true` replaces an entry).
-    A missing or unreadable file is the defaults; nothing is written.
-    `default_agent`, `only_agent` and `session_turns` are ignored.
-    """
-    cfg = json.loads(json.dumps(DEFAULT_CONFIG))
+    """The defaults above, with this machine's config file laid over them,
+    less `IGNORED`. A missing or unreadable file is the defaults; nothing is
+    written."""
+    cfg = dict(DEFAULT_CONFIG)
     try:
         with open(CONFIG, "r", encoding="utf-8") as fh:
             user = json.load(fh) or {}
     except (OSError, ValueError):
         user = {}
-    if not isinstance(user, dict):
-        user = {}
-    for k, v in user.items():
-        if k == "agents" and isinstance(v, dict):
-            for name, spec in v.items():
-                have = cfg["agents"].get(name)
-                if isinstance(spec, dict) and isinstance(have, dict) \
-                        and not spec.get("replace"):
-                    merged = dict(have)
-                    merged.update(spec)
-                    cfg["agents"][name] = merged
-                else:
-                    cfg["agents"][name] = spec
-        elif k not in ("default_agent", "only_agent", "session_turns"):
-            cfg[k] = v
-
+    if isinstance(user, dict):
+        cfg.update((k, v) for k, v in user.items() if k not in IGNORED)
     # A `courses_dir` that does not hold the board's own package is not an
     # Atlas root, so it is dropped for the one this package derives.
     said = cfg.get("courses_dir")
@@ -144,168 +93,36 @@ def load_config():
     return cfg
 
 
+def spec():
+    """The DeepSeek recipe, a copy, with `TUTORBOARD_OPENCODE` applied."""
+    got = copy.deepcopy(DEEPSEEK)
+    exe = os.environ.get("TUTORBOARD_OPENCODE")
+    if exe:
+        got["headless_first"][0] = exe
+    return got
+
+
+def argv(prompt, recipe=None):
+    """The command one turn runs, with `prompt` in it."""
+    return [a.replace("{prompt}", prompt)
+            for a in (recipe or spec())["headless_first"]]
+
+
 def this_host():
     """What this machine calls itself. One place decides; see boardlib."""
     return machine.node_name()
 
-def missing_command(recipe):
-    """The recipe's executable when this machine lacks it (the resolver then
-    hands its turns to the fallback); a script agent never lacks one."""
-    exe = (recipe or [None])[0]
-    if not exe or os.path.basename(exe) == os.path.basename(sys.executable):
-        return None
-    return None if shutil.which(exe) else exe
 
-def agent_label(cfg, name):
-    """What a person calls a recipe: its `label`, or its name."""
-    return ((cfg.get("agents") or {}).get(name) or {}).get("label") or name
-
-
-def agent_probe_urls(spec):
-    """The endpoints this recipe's turns open (e.g. via `ANTHROPIC_BASE_URL`),
-    or None for the default agent's own, since a filter may drop one host
-    while the rest of the internet answers."""
-    urls = (spec or {}).get("egress_probe")
-    if isinstance(urls, str):
-        urls = [urls]
-    return [u for u in urls if u] if urls else None
-
-
-def provider_probe_urls(cfg):
-    """Every configured provider's endpoints for the machine-wide probe: only
-    recipes whose command and key are both here."""
-    out = []
-    for name in sorted(cfg.get("agents") or {}):
-        spec = cfg["agents"][name] or {}
-        if missing_command(spec.get("cmd")) or keys.unkeyed(spec):
-            continue
-        for url in agent_probe_urls(spec) or ():
-            if url not in out:
-                out.append(url)
-    return out
-
-
-def probe_host(urls):
-    """The hostname a probe list is about, for saying which one went dark."""
-    try:
-        from urllib.parse import urlsplit
-        return urlsplit((urls or [""])[0]).hostname or ""
-    except (ValueError, IndexError):
-        return ""
-
-
-# ---------------------------------------------------------------------------
-# THE RESOLVER: the provider, else the one fallback
-# ---------------------------------------------------------------------------
-def provider(cfg, now=None):
-    """`provider`; unset, the first recipe in table order `unavailable` passes."""
-    said, names = (cfg or {}).get("provider"), list((cfg or {}).get("agents") or {})
-    return said.strip() if isinstance(said, str) and said.strip() else next(
-        (n for n in names if not unavailable(cfg, n, now)), (names or [""])[0])
-
-
-def fallbacks(cfg):
-    """Who takes a turn the provider cannot, in order. `fallback` is one name
-    or a list; null or [] is nobody; absent, it is every other recipe."""
-    cfg = cfg or {}
-    said = cfg.get("fallback") if "fallback" in cfg else list(
-        cfg.get("agents") or {})
-    if isinstance(said, str):
-        said = [said]
-    want, out = provider(cfg), []
-    for n in said if isinstance(said, list) else []:
-        n = n.strip() if isinstance(n, str) else ""
-        if n and n != want and n not in out:
-            out.append(n)
-    return out
-
-
-def fallback(cfg):
-    """The first fallback, or None."""
-    return (fallbacks(cfg) or [None])[0]
-
-
-def chain(cfg):
-    """Every recipe in the order a turn tries them: the provider, then each
-    fallback."""
-    return [n for n in [provider(cfg)] if n] + fallbacks(cfg)
-
-
-def unavailable(cfg, name, now=None):
-    """Why `name` cannot take a turn on this machine now, or None, from disk
-    alone: no recipe, no headless recipe, missing binary or key, or
-    a spent allowance (`limits.mark_limited`)."""
-    spec = ((cfg or {}).get("agents") or {}).get(name)
-    if not isinstance(spec, dict):
-        return "there is no recipe called '%s'" % name
-    if not (spec.get("headless_first") or spec.get("headless")):
-        return "'%s' has no headless recipe" % name
-    gone = missing_command(spec.get("cmd"))
-    if gone:
-        return "`%s` is not on the path here" % gone
-    need = keys.unkeyed(spec)
-    if need:
-        return "%s is not in %s" % (need, keys.store())
-    until = limits.limited_until(name, now)
+def ready(now=None):
+    """Why DeepSeek cannot take a turn on this machine now, or None, from disk
+    alone: no opencode, no key, or a spent balance (`limits.mark_limited`)."""
+    exe = spec()["headless_first"][0]
+    if not shutil.which(exe):
+        return "`%s` is not on the path here" % exe
+    if not keys.have(KEY):
+        return "%s is not in %s or %s" % (KEY, keys.store(), paths.DEEPSEEK_KEY)
+    until = limits.limited_until(now=now)
     if until:
-        return ("its allowance is gone until %s"
+        return ("DeepSeek's allowance is gone until %s"
                 % time.strftime("%H:%M", time.localtime(until)))
     return None
-
-
-def resolve(cfg, now=None):
-    """Who takes the next turn: `(name, why)`.
-
-    The provider when it can. Else the first fallback that can, with `why` the
-    sentence the board paints. Else `(None, why)`: nobody here can, and the
-    turn is not run.
-    """
-    want = provider(cfg, now)
-    why = unavailable(cfg, want, now)
-    if not why:
-        return want, None
-    nots = []
-    for alt in fallbacks(cfg):
-        alt_why = unavailable(cfg, alt, now)
-        if not alt_why:
-            return alt, ("'%s' cannot take this turn -- %s; '%s' is taking it"
-                         % (want, why, alt))
-        nots.append("'%s' (%s)" % (alt, alt_why))
-    return None, ("'%s' cannot take this turn -- %s, and %s" % (
-        want, why, "neither can " + ", ".join(nots) if nots
-        else "there is no fallback"))
-
-
-# ---------------------------------------------------------------------------
-# what the board draws
-# ---------------------------------------------------------------------------
-def listing(cfg=None):
-    """The table the board and `board see` read: the setting and every recipe.
-
-    `default` is the provider; `machine` who takes the next turn (None when
-    nobody can) and `why` the sentence when that is not the provider.
-    In-process and file reads only, so it can sit under a poll.
-    """
-    cfg = cfg or load_config()
-    took, why = resolve(cfg)
-    return {
-        "default": provider(cfg),
-        "fallback": fallback(cfg),
-        "fallbacks": fallbacks(cfg),
-        "machine": took,
-        "why": why,
-        "vision_agent": cfg.get("vision_agent") or None,
-        "agents": [
-            {"name": n,
-             "label": agent_label(cfg, n),
-             "cmd": " ".join(spec.get("cmd", [])),
-             "missing": missing_command(spec.get("cmd")),
-             "unkeyed": keys.unkeyed(spec),
-             "keys": keys.store(),
-             "exclusive": spec.get("exclusive") or None,
-             "vision": spec.get("vision") or None,
-             "unavailable": unavailable(cfg, n),
-             "headless": bool(spec.get("headless_first") or spec.get("headless"))}
-            for n, spec in sorted((cfg.get("agents") or {}).items())
-            if isinstance(spec, dict)],
-    }

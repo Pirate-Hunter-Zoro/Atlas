@@ -1,25 +1,19 @@
-"""`board doctor`'s turns: one real turn per provider, the way the runner sends it,
-and one look through the vision route.
+"""`board doctor`'s checks: one real DeepSeek turn, the way the runner sends
+it, and one look through the vision route.
 
-    board doctor              every provider, in the order a turn tries them,
-                              then one witness-strip probe of the vision route
-    board doctor codex ...    the recipes named instead, and no probe
-    board doctor --dry        no turn and no probe: whether each could take a
-                              turn, its argv, and the vision route chain
+    board doctor        one turn, then one witness-strip probe of the vision route
+    board doctor --dry  neither: whether a turn could run, its argv, and the route
 
-Each recipe gets one fresh turn in a scratch directory: its `headless_first`
-argv with the usage flags, its own environment (`turn_environment`), nothing on
-stdin, `DOCTOR_TURN_SECONDS` at most. The prompt asks for a code word that is
-in the prompt and nowhere else, so an answer that says it back came from the
-model. One line per recipe; exit 1 when any of them could not take a turn or
-did not answer. Nothing outside the scratch directory is written: no limit
-mark, no cost line in a session.
+The turn is the recipe's `headless_first` in a scratch directory, with its own
+environment (`turn_environment`), nothing on stdin, `DOCTOR_TURN_SECONDS` at
+most. The prompt asks for a code word that is in the prompt and nowhere else,
+so an answer that says it back came from the model. Exit 1 when the turn could
+not run or did not answer, or the probe failed. Nothing outside the scratch
+directory is written: no limit mark, no cost line in a session.
 
-The vision probe sends `seeing.ask` the witness strip alone to the first route
-`board see` would take (`seeing.routes`): one small call, which passes only
-when the six digits drawn in the strip come back, so a text-only model behind
-a sighted recipe fails here rather than in a lesson. Like `board see`, it may
-stand down a host that does not answer.
+The vision probe sends `seeing.ask` the witness strip alone: one small call,
+which passes only when the six digits drawn in the strip come back, so a
+text-only model fails here rather than in a lesson.
 """
 
 import os
@@ -38,54 +32,51 @@ DOCTOR_PROMPT = (
     "Reply with the code word %(word)s and nothing else. Do not read or write "
     "any file and run no command.")
 
+NAME = recipes.NAME
 
-def smoke(cfg, name, timeout=DOCTOR_TURN_SECONDS):
-    """One turn on recipe `name`. `(ok, line)`: the line names what happened."""
-    why = recipes.unavailable(cfg, name)
+
+def smoke(timeout=DOCTOR_TURN_SECONDS):
+    """One turn. `(ok, line)`: the line names what happened."""
+    why = recipes.ready()
     if why:
-        return False, "FAIL %-9s cannot take a turn here: %s" % (name, why)
-    spec = cfg["agents"][name]
+        return False, "FAIL %-9s cannot take a turn here: %s" % (NAME, why)
+    spec = recipes.spec()
     word = "doctor-%06d" % random.randint(0, 999999)
-    argv = [a.replace("{prompt}", DOCTOR_PROMPT % {"word": word})
-            for a in runturn.fresh_recipe(spec)]
-    cmd = usage.with_usage(spec, argv)
+    argv = recipes.argv(DOCTOR_PROMPT % {"word": word}, spec)
     box = tempfile.mkdtemp(prefix="tutor-doctor-")
     logpath = os.path.join(box, "turn.log")
     began = time.time()
     try:
         with open(logpath, "w") as log:
             rc, capped = runturn.run_turn(
-                cmd, box, log, timeout,
+                argv, box, log, timeout,
                 env=runturn.at_root(box, runturn.turn_environment(spec)))
         said = usage.turn_output(logpath, 0)
     except OSError as exc:
-        return False, "FAIL %-9s did not run: %s" % (name, exc)
+        return False, "FAIL %-9s did not run: %s" % (NAME, exc)
     finally:
         took = time.time() - began
         shutil.rmtree(box, ignore_errors=True)
     err = (("timed out after %d s" % timeout) if capped
-           else ("exit %d" % rc) if rc
-           else usage.result_object_error(said))
+           else ("exit %d" % rc) if rc else None)
     if err:
         why = usage.failure_reason(said, err)
         tail = [l.strip() for l in (said or "").splitlines() if l.strip()]
         if why == err and tail:
             why = "%s: %s" % (err, tail[-1][:200])
-        return False, "FAIL %-9s %s" % (name, why)
+        return False, "FAIL %-9s %s" % (NAME, why)
     if word not in usage.turn_text(said):
         return False, ("FAIL %-9s exited 0 without the code word: %s"
-                       % (name, " ".join(usage.turn_text(said).split())[:200]))
-    return True, "ok   %-9s answered in %.1f s (%s)" % (name, took, " ".join(argv[:1]))
+                       % (NAME, " ".join(usage.turn_text(said).split())[:200]))
+    return True, "ok   %-9s answered in %.1f s (%s)" % (NAME, took, argv[0])
 
 
-def dry_line(cfg, name):
-    """`(ok, line)` for a recipe without a turn: can it take one here, and
-    what would run."""
-    why = recipes.unavailable(cfg, name)
+def dry_line():
+    """`(ok, line)` without a turn: can one run here, and what would run."""
+    why = recipes.ready()
     if why:
-        return False, "FAIL %-9s cannot take a turn here: %s" % (name, why)
-    argv = runturn.fresh_recipe(cfg["agents"][name])
-    return True, "dry  %-9s would run: %s" % (name, " ".join(argv[:1]))
+        return False, "FAIL %-9s cannot take a turn here: %s" % (NAME, why)
+    return True, "dry  %-9s would run: %s" % (NAME, recipes.spec()["headless_first"][0])
 
 
 VISION_PROMPT = (
@@ -93,56 +84,26 @@ VISION_PROMPT = (
     "There is no other image and no question.")
 
 
-def _route_name(got):
-    """A route as a person reads it: the agent, and the host and model it
-    opens or the command it runs."""
+def vision(dry=False):
+    """`(ok, line)` for reading an image: with `dry`, the route `board see`
+    takes; else one witness-strip probe of it."""
     from tutorboard import seeing
-    how = (seeing.route_host(got) + (" " + got["model"] if got.get("model") else "")
-           if got.get("endpoint") else "command " + (got.get("cmd") or ["?"])[0])
-    return "%s (%s)" % (got.get("agent"), how)
-
-
-def vision(cfg, dry=False):
-    """`(ok, line)` for reading an image: with `dry`, the route chain `board
-    see` would walk; else one witness-strip probe of its first route."""
-    from tutorboard import seeing
-    table = recipes.listing(cfg)
-    chain = seeing.routes(None, table)
-    if not chain:
-        return False, "FAIL %-9s %s" % ("vision", seeing.route(None, table)[1])
-    names = ", then ".join(_route_name(r) for r in chain)
+    got = seeing.route()
+    where = "%s %s" % (seeing.route_host(got), got.get("model") or "")
     if dry:
-        return True, "dry  %-9s would try %s" % ("vision", names)
-    first = chain[0]
+        return True, "dry  %-9s would ask %s" % ("vision", where)
     try:
-        seeing.ask(first, [], VISION_PROMPT)
+        seeing.ask(got, [], VISION_PROMPT)
     except seeing.Refused as exc:
-        rest = ", then ".join(_route_name(r) for r in chain[1:])
-        return False, ("FAIL %-9s %s cannot see: %s%s" % (
-            "vision", _route_name(first), " ".join(str(exc).split())[:300],
-            "; `board see` goes on to %s" % rest if rest else ""))
-    return True, "ok   %-9s %s read the witness strip" % ("vision", _route_name(first))
+        return False, ("FAIL %-9s %s cannot see: %s"
+                       % ("vision", where, " ".join(str(exc).split())[:300]))
+    return True, "ok   %-9s %s read the witness strip" % ("vision", where)
 
 
-def cmd_doctor(cfg, args, dry=False):
-    """A smoke turn per provider and one look through the vision route
-    (`dry`: neither, only whether each could take a turn and the route
-    chain). Named recipes are asked alone, with no vision line. Exit 0 or 1."""
-    cfg = cfg or recipes.load_config()
-    names = [a for a in args if not a.startswith("-")]
-    named = bool(names)
-    if not names:
-        names = recipes.chain(cfg)
-    if not names:
-        print("FAIL nobody: no provider or fallback is configured")
-        return 1
-    ok = True
-    for name in dict.fromkeys(names):
-        good, line = dry_line(cfg, name) if dry else smoke(cfg, name)
-        print(line)
-        ok = ok and good
-    if not named:
-        good, line = vision(cfg, dry=dry)
-        print(line)
-        ok = ok and good
-    return 0 if ok else 1
+def cmd_doctor(dry=False):
+    """The smoke turn and the vision probe (`dry`: neither). Exit 0 or 1."""
+    good, line = dry_line() if dry else smoke()
+    print(line, flush=True)
+    seen, line = vision(dry=dry)
+    print(line)
+    return 0 if good and seen else 1

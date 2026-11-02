@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""A turn with a fake provider answers with a card.
+"""A turn with a fake opencode answers with a card.
 
-The runner end to end, in this process, against a recipe that is a script: a
-message in a stored session's inbox, `service.Runner` takes it, `take_turn`
-runs the fake provider through `run_turn` in the Atlas root; the provider
-writes a card into TUTORBOARD_SESSION and a `claude-json` result line. Then
-End queues the wrap-up, which writes the handoff with the same provider.
-Nothing here reaches a network or a real provider.
+The runner end to end, in this process, against a fake opencode
+(`TUTORBOARD_OPENCODE`): a message in a stored session's inbox,
+`service.Runner` takes it, `take_turn` runs the fake through `run_turn` in the
+Atlas root; it writes a card into TUTORBOARD_SESSION and an OpenCode
+`step_finish` event. Then End queues the wrap-up, which writes the handoff the
+same way. Nothing here reaches a network or DeepSeek.
 
 Stdlib only.
 """
@@ -25,7 +25,7 @@ os.environ["BOARD_STATE_DIR"] = os.path.join(BOX, "state")
 os.environ.pop("TUTORBOARD_COURSES", None)
 os.environ.pop("TUTORBOARD_SESSION", None)
 sys.path.insert(0, ROOT)
-from tutorboard import sessions                                      # noqa: E402
+from tutorboard import paths, sessions                               # noqa: E402
 from tutorboard.agents import recipes                                # noqa: E402
 from tutorboard.runner import daemon, service                        # noqa: E402
 
@@ -45,11 +45,12 @@ def write(path, text):
         fh.write(text)
 
 
-# The provider: a card for a turn, TUTOR.md for the wrap-up, and the result
-# object Claude Code prints under `--output-format json` either way.
-PROVIDER = os.path.join(BOX, "provider.py")
-write(PROVIDER, r'''import json, os, sys
-prompt = sys.argv[1]
+# The fake: a card for a turn, TUTOR.md for the wrap-up, and the `step_finish`
+# event `opencode run --format json` prints either way.
+FAKE = os.path.join(BOX, "opencode")
+write(FAKE, r'''#!/usr/bin/env python3
+import json, os, sys
+prompt = sys.argv[-1]
 session = os.environ["TUTORBOARD_SESSION"]
 if "This session is ending now" in prompt:
     with open(os.path.join("courses", "Fixture", "TUTOR.md"), "w",
@@ -60,18 +61,14 @@ else:
               encoding="utf-8") as fh:
         fh.write("---\nkind: lesson\n---\n\nIrreducible over the reals: "
                  "%s\n" % ("handwriting" in prompt))
-print(json.dumps({"type": "result", "is_error": False, "result": "done",
-                  "num_turns": 2, "total_cost_usd": 0.01, "session_id": "fx",
-                  "usage": {"input_tokens": 100, "output_tokens": 20,
-                            "cache_creation_input_tokens": 0,
-                            "cache_read_input_tokens": 300}}))
+print(json.dumps({"type": "step_finish", "sessionID": "fx", "part": {
+    "cost": 0.01, "tokens": {"input": 100, "output": 20, "reasoning": 0,
+                             "cache": {"read": 300, "write": 0}}}}))
 ''')
-write(recipes.CONFIG, json.dumps({
-    "provider": "fake",
-    "agents": {"fake": {"cmd": [sys.executable], "prompt": "argv",
-                        "headless": [sys.executable, PROVIDER, "{prompt}"],
-                        "usage": "claude-json"}},
-    "fallback": None}))
+os.chmod(FAKE, 0o755)
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
+write(paths.KEYS, "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(paths.KEYS, 0o600)
 
 ATLAS = os.path.join(BOX, "atlas")
 WS = os.path.join(ATLAS, "courses", "Fixture")
@@ -108,14 +105,13 @@ def wait(cond, timeout=120):
 
 runner = service.Runner(ATLAS, concurrency=2).start()
 try:
-    cfg = recipes.load_config()
-    name = recipes.resolve(cfg)[0]
-    check("the fixture's config resolves its fake recipe", name == "fake")
+    check("the fixture can take a turn: the fake opencode and a key",
+          recipes.ready() is None, recipes.ready())
     check("a line that wakes queues a turn", runner.wake(SID))
     wait(lambda: settled(1))
     body = open(CARD, encoding="utf-8").read() if os.path.exists(CARD) else ""
     check("the turn answered with a card", "Irreducible over the reals" in body)
-    check("and the provider was handed the student's message in its prompt",
+    check("and DeepSeek was handed the student's message in its prompt",
           "True" in body)
     with open(os.path.join(LIVE, "inbox", "messages.jsonl"),
               encoding="utf-8") as fh:
@@ -126,7 +122,7 @@ try:
     check("the record says one turn, no failure, nothing owed, and listening",
           rec.get("turns") == 1 and not rec.get("last_error")
           and not rec.get("owed") and rec.get("state") == "listening"
-          and rec.get("agent") == "fake", rec)
+          and rec.get("agent") == "deepseek", rec)
     log = open(os.path.join(LIVE, "agent.log"), encoding="utf-8").read()
     check("no wrap-up ran without End", "wrap-up ===" not in log)
     check("End queues the wrap-up", runner.end(SID))
@@ -135,8 +131,8 @@ try:
         costs = [json.loads(l) for l in fh if l.strip()]
     check("the turn and the wrap-up each wrote what they cost",
           [c.get("turn") for c in costs] == [1, 2]
-          and all(c.get("tokens") == 420 and c.get("agent") == "fake"
-                  for c in costs))
+          and all(c.get("tokens") == 420 and c.get("agent") == "deepseek"
+                  and c.get("rate") for c in costs))
     memo_file = os.path.join(WS, "TUTOR.md")
     check("and the wrap-up turn brought TUTOR.md up to date",
           os.path.exists(memo_file)
@@ -148,5 +144,5 @@ finally:
     shutil.rmtree(BOX, ignore_errors=True)
 
 print("%d FAILURES" % len(fails) if fails
-      else "a turn with a fake provider answers with a card")
+      else "a turn with a fake opencode answers with a card")
 sys.exit(1 if fails else 0)

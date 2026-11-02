@@ -4,7 +4,7 @@
     python3 test/annotating.py
 
 A real server (`serve.py --port 0`) on a temp Atlas with one course, and a fake
-provider standing in for claude: it records its prompt and, for a notes
+opencode standing in for DeepSeek: it records its prompt and, for a notes
 canvas's End, does what the prompt asks -- binds the session, starts notes.md
 with `board writeup new --md`, writes it, and runs `board build`.
 
@@ -78,7 +78,7 @@ def git(*args):
 
 
 # ---------------------------------------------------------------------------
-# the fake provider
+# the fake opencode
 # ---------------------------------------------------------------------------
 CALLS = os.path.join(box, "calls.jsonl")
 FAKE = os.path.join(box, "bin", "fake-provider")
@@ -105,11 +105,12 @@ with open(%(calls)r, "a") as fh:
 ''' % {"calls": CALLS})
 os.chmod(FAKE, 0o755)
 write(os.path.join(CONFIG_HOME, "tutor-board", "config.json"), json.dumps({
-    "provider": "fake", "vision_agent": "fake", "concurrency": 2,
+    "concurrency": 2,
     "headless_timeout": 120, "doing_timeout": 180, "handoff_timeout": 60,
-    "agents": {"fake": {"cmd": [FAKE], "label": "Fake",
-                        "headless_first": [FAKE, "{prompt}"], "usage": "none"}},
 }))
+write(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), "DEEPSEEK_API_KEY=sk-test\n")
+os.chmod(os.path.join(CONFIG_HOME, "tutor-board", "keys.env"), 0o600)
+os.environ["TUTORBOARD_OPENCODE"] = FAKE
 
 
 def calls(sid):
