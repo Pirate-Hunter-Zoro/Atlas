@@ -4,16 +4,16 @@
     python3 test/speech.py
 
 Nothing here needs a network, a key or a speech binary. A local http.server
-stands in for Azure and OpenAI; a script stands in for whisper-cli and another
+stands in for Azure; a script stands in for whisper-cli and another
 for `say`; every WAV is synthesised at run time with `wave`.
 
-  - THE TABLE: azure, openai and local, in that order for every kind; the
+  - THE TABLE: azure and local, in that order for every kind; the
     config's `speech` block is laid over it; `chain` passes over a recipe
     that is unkeyed, missing its command, limited, stood down or without the
     language, and always ends with local.
   - THE HOSTED RECIPES, against the stand-in: Azure's SSML, its short-audio
-    STT and the base64 Pronunciation-Assessment header; OpenAI's speech JSON
-    and the multipart built by hand. A refusal passes the job on; a 429
+    STT and the base64 Pronunciation-Assessment header. A refusal passes the
+    job on to this Mac; a 429
     marks the recipe limited and an unreachable host stands it down. Each job
     writes one cost line.
   - THE TONE CHECK, on sine sweeps: T1-T4 in any order, through voiced runs
@@ -171,21 +171,19 @@ try:
     # 1. THE TABLE
     # =======================================================================
     D = speech.DEFAULT_SPEECH
-    check("the table holds azure, openai and local",
-          set(D["recipes"]) == {"azure", "openai", "local"})
+    check("the table holds azure and local",
+          set(D["recipes"]) == {"azure", "local"})
     check("and tries them in that order for every kind",
-          all(D["order"][k] == ["azure", "openai", "local"] for k in speech.KINDS))
+          all(D["order"][k] == ["azure", "local"] for k in speech.KINDS))
     az = D["recipes"]["azure"]
     check("azure takes AZURE_SPEECH_KEY and AZURE_SPEECH_REGION",
           az["needs_key"] == "AZURE_SPEECH_KEY"
           and az["region_key"] == "AZURE_SPEECH_REGION")
     check("azure's Irish voices are Orla and Colm",
           az["voices"]["ga-IE"] == ["ga-IE-OrlaNeural", "ga-IE-ColmNeural"])
-    oa = D["recipes"]["openai"]
-    check("openai speaks with gpt-4o-mini-tts and hears with gpt-4o-mini-transcribe",
-          oa["tts"]["model"] == "gpt-4o-mini-tts"
-          and oa["stt"]["model"] == "gpt-4o-mini-transcribe"
-          and "assess" not in oa)
+    check("and no OpenAI recipe or driver is left",
+          not any(n.startswith("_openai") for n in dir(speech))
+          and not any(v == "openai" for v, _k in speech.DRIVERS))
     lo = D["recipes"]["local"]
     check("local is say (espeak-ng after it), whisper-cli and the tone check",
           lo["tts"]["cmd"] == ["say"] and lo["tts"]["fallback_cmd"] == ["espeak-ng"]
@@ -193,21 +191,21 @@ try:
           and lo["assess"]["module"] == "tutorboard.speech.tones"
           and not lo.get("needs_key"))
 
-    cfg = speech.load({"order": {"tts": ["openai", "azure"]},
+    cfg = speech.load({"order": {"tts": ["spare", "azure"]},
                        "recipes": {"azure": {"voices": {"zh-CN": "zh-CN-YunxiNeural"}},
                                    "spare": {"via": "azure", "needs_key": "X",
-                                             "tts": {"endpoint": "http://x"}},
-                                   "openai": None}})
+                                             "tts": {"endpoint": "http://x"}}}})
     check("the config's speech block is laid over the table: order per kind",
-          cfg["order"]["tts"] == ["openai", "azure"]
-          and cfg["order"]["stt"] == ["azure", "openai", "local"])
+          cfg["order"]["tts"] == ["spare", "azure"]
+          and cfg["order"]["stt"] == ["azure", "local"])
     check("a recipe merges one level deeper, keeping what it does not name",
           cfg["recipes"]["azure"]["voices"]["zh-CN"] == "zh-CN-YunxiNeural"
           and cfg["recipes"]["azure"]["voices"]["ja-JP"] == "ja-JP-NanamiNeural"
           and cfg["recipes"]["azure"]["needs_key"] == "AZURE_SPEECH_KEY"
           and cfg["recipes"]["azure"]["tts"]["format"] == "riff-24khz-16bit-mono-pcm")
     check("a new recipe is added and null removes one",
-          "spare" in cfg["recipes"] and "openai" not in cfg["recipes"])
+          "spare" in cfg["recipes"]
+          and "azure" not in speech.load({"recipes": {"azure": None}})["recipes"])
     for said, block in (("null", None),
                         ("replaced", {"replace": True, "tts": {"cmd": ["say"]}}),
                         ("made hosted", {"via": "azure", "needs_key": "NOPE",
@@ -222,7 +220,7 @@ try:
               and speech.unavailable({"recipes": {"local": kept}}, "local", "assess",
                                      "zh-CN") is None, kept)
     check("the defaults themselves are never changed by a load",
-          "openai" in speech.DEFAULT_SPEECH["recipes"])
+          "azure" in speech.DEFAULT_SPEECH["recipes"])
 
     # A fake `say`: it lists voices, and writes bytes where -o says.
     bin_dir = os.path.join(box, "bin")
@@ -268,12 +266,12 @@ try:
 
     write_keys()
     cfg = speech.load({"recipes": {"local": LOCAL}})
-    check("unkeyed, azure and openai are passed over and local is the chain",
+    check("unkeyed, azure is passed over and local is the chain",
           speech.chain("tts", "zh-CN", cfg) == ["local"]
           and speech.chain("stt", "zh-CN", cfg) == ["local"])
     why = dict(speech.explain("stt", "zh-CN", cfg))
-    check("and each is named with the key it lacks",
-          "AZURE_SPEECH_KEY" in why["azure"] and "OPENAI_API_KEY" in why["openai"])
+    check("and azure is named with the key it lacks",
+          "AZURE_SPEECH_KEY" in why["azure"])
     gone = speech.load({"recipes": {"local": {"stt": {"cmd": [os.path.join(bin_dir, "nope")]}}}})
     check("local ends the chain even when it cannot do the job, so its reason is last",
           speech.chain("stt", "zh-CN", gone) == ["local"]
@@ -284,38 +282,37 @@ try:
     except speech.Refused as exc:
         said = str(exc)
     check("and run refuses in every recipe's words",
-          "azure:" in said and "openai:" in said and "local:" in said, said)
+          "azure:" in said and "local:" in said, said)
     check("Irish has no local voice without espeak-ng, and says so",
           "espeak-ng" in (dict(speech.explain("tts", "ga-IE", cfg))["local"] or ""))
 
-    write_keys(AZURE_SPEECH_KEY="az-key", AZURE_SPEECH_REGION="westeurope",
-               OPENAI_API_KEY="oa-key")
+    write_keys(AZURE_SPEECH_KEY="az-key", AZURE_SPEECH_REGION="westeurope")
     full = speech.load({"recipes": {"local": LOCAL}})
-    check("keyed, the chain is azure, openai, local",
-          speech.chain("tts", "zh-CN", full) == ["azure", "openai", "local"])
-    check("openai does no assessment, so assess is azure then local",
+    check("keyed, the chain is azure, then this Mac",
+          speech.chain("tts", "zh-CN", full) == ["azure", "local"])
+    check("and so is assessment's",
           speech.chain("assess", "zh-CN", full) == ["azure", "local"])
     check("a language a recipe lacks passes it over: no Azure assessment of Irish",
           speech.chain("assess", "ga-IE", full) == ["local"]
           and speech.chain("tts", "ga-IE", full)[0] == "azure")
     check("and no Azure voice for Swahili",
           "azure" not in speech.chain("tts", "sw-KE", full))
-    swapped = speech.load({"order": {"tts": ["openai", "local", "azure"]},
+    swapped = speech.load({"order": {"tts": ["local", "azure"]},
                            "recipes": {"local": LOCAL}})
-    check("the order the config gives is the order tried, local still last",
-          speech.chain("tts", "zh-CN", swapped) == ["openai", "azure", "local"])
+    check("local is last whatever order the config gives",
+          speech.chain("tts", "zh-CN", swapped) == ["azure", "local"])
     only = speech.load({"order": {"stt": ["local"]}, "recipes": {"local": LOCAL}})
     check("and a recipe the order does not name is not tried",
           speech.chain("stt", "zh-CN", only) == ["local"])
     speech.mark_limited("azure", time.time() + 600, "429")
     check("a limited recipe is passed over",
-          speech.chain("stt", "zh-CN", full) == ["openai", "local"]
+          speech.chain("stt", "zh-CN", full) == ["local"]
           and "allowance" in dict(speech.explain("stt", "zh-CN", full))["azure"])
     clear_marks()
-    speech.mark_dark("openai", "no route", time.time() + 600)
+    speech.mark_dark("azure", "no route", time.time() + 600)
     check("so is a stood-down one",
-          speech.chain("stt", "zh-CN", full) == ["azure", "local"]
-          and "stood down" in dict(speech.explain("stt", "zh-CN", full))["openai"])
+          speech.chain("stt", "zh-CN", full) == ["local"]
+          and "stood down" in dict(speech.explain("stt", "zh-CN", full))["azure"])
     clear_marks()
     from tutorboard import limits
     check("and speech's marks never read as the tutor's allowance",
@@ -325,8 +322,7 @@ try:
     # 2. THE HOSTED RECIPES, against a stand-in
     # =======================================================================
     seen = []
-    behave = {"azure_tts": 200, "openai_stt": 200, "azure_stt": 200,
-              "openai_stream": False}
+    behave = {"azure_tts": 200, "azure_stt": 200, "azure_stream": False}
     reply_wav = os.path.join(box, "reply.wav")
     wav(reply_wav, syllable(CONTOURS["T1"], 0.4))
     with open(reply_wav, "rb") as fh:
@@ -343,6 +339,12 @@ try:
             seen.append(rec)
             if self.path.startswith("/azure/tts"):
                 status = behave["azure_tts"]
+                if status == 200 and behave["azure_stream"]:
+                    # A streamed WAV: RIFF and data sizes 0xFFFFFFFF.
+                    at = REPLY.index(b"data") + 4
+                    streamed = (REPLY[:4] + b"\xff\xff\xff\xff" + REPLY[8:at]
+                                + b"\xff\xff\xff\xff" + REPLY[at + 4:])
+                    return self.answer(200, streamed, "audio/wav")
                 return self.answer(status, REPLY if status == 200 else b"no", "audio/wav")
             if self.path.startswith("/azure/stt"):
                 if behave["azure_stt"] != 200:
@@ -365,27 +367,6 @@ try:
                                 "Duration": 6000000}]}]}
                 return self.answer(200, json.dumps(got).encode("utf-8"),
                                    "application/json")
-            if self.path.startswith("/openai/speech"):
-                if behave["openai_stream"]:
-                    # As OpenAI streams it: RIFF and data sizes 0xFFFFFFFF.
-                    at = REPLY.index(b"data") + 4
-                    streamed = (REPLY[:4] + b"\xff\xff\xff\xff" + REPLY[8:at]
-                                + b"\xff\xff\xff\xff" + REPLY[at + 4:])
-                    return self.answer(200, streamed, "audio/wav")
-                return self.answer(200, REPLY, "audio/wav")
-            if self.path.startswith("/openai/transcriptions"):
-                if behave["openai_stt"] != 200:
-                    return self.answer(behave["openai_stt"], b"down", "text/plain")
-                fields, folder = {}, tempfile.mkdtemp(dir=box)
-                boundary = self.headers["Content-Type"].split("boundary=")[1].encode()
-                got = multipart.save_parts(io.BytesIO(body), len(body), boundary,
-                                           folder, lambda i, f: os.path.join(folder, f),
-                                           fields=fields)
-                with open(got[0][1], "rb") as fh:
-                    rec["file"] = fh.read()
-                rec["fields"], rec["filename"] = fields, got[0][0]
-                return self.answer(200, json.dumps({"text": "你好"}).encode("utf-8"),
-                                   "application/json")
             return self.answer(404, b"?", "text/plain")
 
         def answer(self, status, data, ctype):
@@ -404,8 +385,6 @@ try:
     HOSTED = {"azure": {"tts": {"endpoint": base + "/azure/tts/{region}"},
                         "stt": {"endpoint": base + "/azure/stt/{region}"},
                         "assess": {"endpoint": base + "/azure/stt/{region}"}},
-              "openai": {"tts": {"endpoint": base + "/openai/speech"},
-                         "stt": {"endpoint": base + "/openai/transcriptions"}},
               "local": LOCAL}
     live = os.path.join(box, "live")
     os.makedirs(live)
@@ -441,21 +420,19 @@ try:
         behave["azure_tts"] = 500
         got, by = speech.run("tts", "zh-CN", {"text": "你好", "dest": dest},
                              live=live, cfg=cfg)
-        req = json.loads(seen[-1]["body"].decode("utf-8"))
-        check("azure refusing, openai speaks: gpt-4o-mini-tts, WAV back",
-              by == "openai" and req["model"] == "gpt-4o-mini-tts"
-              and req["input"] == "你好" and req["response_format"] == "wav"
-              and seen[-1]["headers"].get("Authorization") == "Bearer oa-key", req)
+        check("azure refusing, this Mac speaks",
+              by == "local" and open(dest, "rb").read() == b"fake m4a")
         check("and the refusal alone marks nothing",
               speech.chain("tts", "zh-CN", cfg)[0] == "azure")
-        behave["openai_stream"] = True
+        behave["azure_tts"] = 200
+        behave["azure_stream"] = True
         got, by = speech.run("tts", "zh-CN", {"text": "你好", "dest": dest},
                              live=live, cfg=cfg)
-        behave["openai_stream"] = False
+        behave["azure_stream"] = False
         cost = [json.loads(l) for l in open(os.path.join(live, "cost.jsonl"))][-1]
         check("a streamed WAV declaring 0xFFFFFFFF bytes is sized from what came: "
               "0.4 s, not a day of audio",
-              by == "openai" and abs(cost["seconds"] - 0.4) < 0.01
+              by == "azure" and abs(cost["seconds"] - 0.4) < 0.01
               and cost["usd"] < 0.001
               and abs(audio.seconds(reply_wav) - 0.4) < 0.01, cost)
         check("and still lands as an m4a",
@@ -495,28 +472,27 @@ try:
     check("and Azure, which scores the phonemes itself, may fail a syllable",
           [s["call"] for s in got["syllables"]] == ["right", "wrong"], got)
 
+    heard_says = os.path.join(box, "whisper-heard.json")
+    with open(heard_says, "w") as fh:
+        json.dump({"transcription": [{"text": "你好",
+                                      "offsets": {"from": 0, "to": 600}}]}, fh)
+    os.environ["WHISPER_SAYS"] = heard_says
     behave["azure_stt"] = 429
     got, by = speech.run("stt", "zh-CN", {"wav": take_wav}, live=live, cfg=cfg)
-    req = seen[-1]
-    check("a 429 passes the job on, to openai's transcriptions",
-          by == "openai" and got["text"] == "你好"
-          and req["headers"].get("Authorization") == "Bearer oa-key")
-    check("with the multipart built by hand: model, language and the WAV whole",
-          req.get("fields") == {"model": "gpt-4o-mini-transcribe", "language": "zh",
-                                "response_format": "json"}
-          and req.get("file") == TAKE and req.get("filename") == "take.wav",
-          req.get("fields"))
+    check("a 429 passes the job on, to this Mac's whisper-cli",
+          by == "local" and got["text"] == "你好", got)
     check("and marks azure limited, so the next job does not ask it",
-          speech.chain("stt", "zh-CN", cfg) == ["openai", "local"])
+          speech.chain("stt", "zh-CN", cfg) == ["local"])
     behave["azure_stt"] = 200
     clear_marks()
     n = len(seen)
     unreach = speech.load({"recipes": dict(HOSTED, azure={
         "stt": {"endpoint": dead + "/stt/{region}"}})})
     got, by = speech.run("stt", "zh-CN", {"wav": take_wav}, live=live, cfg=unreach)
-    check("an unreachable host is stood down and the next recipe answers",
-          by == "openai" and speech.chain("stt", "zh-CN", unreach)[0] == "openai")
+    check("an unreachable host is stood down and this Mac answers",
+          by == "local" and speech.chain("stt", "zh-CN", unreach)[0] == "local")
     clear_marks()
+    os.environ.pop("WHISPER_SAYS", None)
     costs = [json.loads(l) for l in open(os.path.join(live, "cost.jsonl"))]
     check("every job that answered wrote exactly one cost line",
           len(costs) == (7 if CONVERTS else 4)
@@ -528,7 +504,7 @@ try:
     from tutorboard.agents import usage
     out = io.StringIO()
     with open(os.path.join(live, "cost.jsonl"), "a") as fh:
-        fh.write(json.dumps({"turn": 1, "agent": "claude", "tokens": 1000,
+        fh.write(json.dumps({"turn": 1, "agent": "deepseek", "tokens": 1000,
                              "requests": 2, "usd": 0.5}) + "\n")
     with contextlib.redirect_stdout(out):
         usage.cost_report({}, {"dir": "live", "root": live})

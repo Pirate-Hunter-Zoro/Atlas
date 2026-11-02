@@ -78,7 +78,7 @@ def write_wav(path, samples, rate=RATE):
 
 def _data_chunk(path):
     """`(offset, declared size, file size)` of a RIFF WAV's data chunk, or
-    None. A streamed WAV (OpenAI's) declares 0xFFFFFFFF, so the declared size
+    None. A streamed WAV declares 0xFFFFFFFF, so the declared size
     is never trusted past the end of the file."""
     try:
         size = os.path.getsize(path)

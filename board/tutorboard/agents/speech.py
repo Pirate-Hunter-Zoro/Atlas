@@ -1,27 +1,26 @@
 """Who speaks, who listens and who judges pronunciation: the speech table.
 
-A table of its own beside `recipes.DEFAULT_CONFIG["agents"]`, because the
-assistants that teach are not the ones that hear: DeepSeek has no audio model.
-Three jobs, each a `kind`:
+Speech is not the tutor: DeepSeek has no audio model, so Azure Speech does
+the jobs it can and this Mac does the rest. Three jobs, each a `kind`:
 
     tts      text to an m4a the board plays
     stt      a 16 kHz mono WAV to the words heard, with timings when known
     assess   a WAV against the words it was meant to say: per-syllable tones,
              a word diff and a verdict
 
-`DEFAULT_SPEECH` holds the recipes, `azure`, `openai` and `local`, and
-`order`, the order each kind tries them in. `config.json`'s `speech` block is
-laid over it the way `agents` is: `recipes` merges one level deeper (`"replace":
-true` replaces an entry) and `order` per kind. No vendor is load-bearing:
-`chain(kind, lang)` passes over a recipe that is unkeyed, missing its command,
-out of allowance, stood down or without the language, and ALWAYS ends with
-`local`, which runs on this Mac alone and which the config cannot remove. `run()` walks the chain the way
-`seeing.describe` walks vision routes, each refusal passing to the next, and
-writes one cost line for the recipe that answered.
+`DEFAULT_SPEECH` holds the recipes, `azure` and `local`, and `order`, the
+order each kind tries them in: Azure first, this Mac last. `config.json`'s
+`speech` block is laid over it: `recipes` merges one level deeper
+(`"replace": true` replaces an entry) and `order` per kind.
+`chain(kind, lang)` passes over a recipe that is unkeyed, missing its
+command, out of allowance, stood down or without the language, and ALWAYS
+ends with `local`, which runs on this Mac alone and which the config cannot
+remove. `run()` walks the chain, each refusal passing to the next, and writes
+one cost line for the recipe that answered.
 
 A recipe added in the config names the code that drives it with `via`
-(`azure`, `openai` or `local`), so a second Azure region is one entry, tried
-once `order` names it.
+(`azure` or `local`), so a second Azure region is one entry, tried once
+`order` names it.
 """
 
 import base64
@@ -49,9 +48,9 @@ DARK_SECONDS = 600
 LIMIT_SECONDS = 3600
 
 DEFAULT_SPEECH = {
-    "order": {"tts": ["azure", "openai", "local"],
-              "stt": ["azure", "openai", "local"],
-              "assess": ["azure", "openai", "local"]},
+    "order": {"tts": ["azure", "local"],
+              "stt": ["azure", "local"],
+              "assess": ["azure", "local"]},
     "recipes": {
         "azure": {
             "label": "Azure Speech",
@@ -93,16 +92,6 @@ DEFAULT_SPEECH = {
             # USD; the free tier covers most of a week's use.
             "prices": {"tts_per_char": 0.000016, "stt_per_minute": 0.0167,
                        "assess_per_minute": 0.022},
-        },
-        "openai": {
-            "label": "OpenAI",
-            "needs_key": "OPENAI_API_KEY",
-            "tts": {"endpoint": "https://api.openai.com/v1/audio/speech",
-                    "model": "gpt-4o-mini-tts", "voice": "alloy"},
-            # Multipart, built by hand.
-            "stt": {"endpoint": "https://api.openai.com/v1/audio/transcriptions",
-                    "model": "gpt-4o-mini-transcribe"},
-            "prices": {"tts_per_minute": 0.015, "stt_per_minute": 0.003},
         },
         "local": {
             "label": "this Mac",
@@ -717,26 +706,6 @@ def _azure_assess(spec, name, lang, job):
             "prototype": False, "seconds": secs}
 
 
-def _openai_tts(spec, name, lang, job):
-    tts = spec.get("tts") or {}
-    body = json.dumps({
-        "model": tts.get("model") or "gpt-4o-mini-tts",
-        "input": job["text"],
-        "voice": job.get("voice") if job.get("voice") in OPENAI_VOICES
-        else tts.get("voice") or "alloy",
-        "response_format": "wav",
-        "instructions": "Speak this in the language tagged %s, clearly and at a "
-                        "learner's pace." % lang}).encode("utf-8")
-    raw = _post(name, _endpoint(spec, "tts"), body, {
-        "Authorization": "Bearer %s" % (keys.get(spec.get("needs_key")) or ""),
-        "Content-Type": "application/json"})
-    return _landed_wav(raw, job["dest"])
-
-
-OPENAI_VOICES = ("alloy", "ash", "ballad", "coral", "echo", "fable", "nova",
-                 "onyx", "sage", "shimmer", "verse")
-
-
 def multipart_body(fields, files):
     """`(body, content type)`: a multipart/form-data body built by hand.
     `fields` is `[(name, value)]`; `files` is `[(name, filename, type, bytes)]`."""
@@ -753,19 +722,6 @@ def multipart_body(fields, files):
         out.append(data + b"\r\n")
     out.append(("--%s--\r\n" % boundary).encode("utf-8"))
     return b"".join(out), "multipart/form-data; boundary=%s" % boundary
-
-
-def _openai_stt(spec, name, lang, job):
-    stt = spec.get("stt") or {}
-    body, ctype = multipart_body(
-        [("model", stt.get("model") or "gpt-4o-mini-transcribe"),
-         ("language", primary(lang)), ("response_format", "json")],
-        [("file", "take.wav", "audio/wav", _wav_bytes(job))])
-    got = _json(_post(name, _endpoint(spec, "stt"), body, {
-        "Authorization": "Bearer %s" % (keys.get(spec.get("needs_key")) or ""),
-        "Content-Type": ctype}), "OpenAI")
-    return {"text": (got.get("text") or "").strip(), "words": [],
-            "seconds": audio.seconds(job["wav"])}
 
 
 def _local_tts(spec, name, lang, job):
@@ -892,8 +848,6 @@ DRIVERS = {
     ("azure", "tts"): _azure_tts,
     ("azure", "stt"): _azure_stt,
     ("azure", "assess"): _azure_assess,
-    ("openai", "tts"): _openai_tts,
-    ("openai", "stt"): _openai_stt,
     ("local", "tts"): _local_tts,
     ("local", "stt"): _local_stt,
     ("local", "assess"): _local_assess,
