@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The persistent OpenCode server. oc, ocrun and coder attach to it, and the parity plugin's
+     wakeups, cron, monitors and background agents live in it. @HOME@ is substituted at install.
+     EnvironmentVariables repeat ../env (test_install.py keeps them equal). -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.mikeyferguson.opencode-serve</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>exec opencode serve --port 4096 --hostname 127.0.0.1</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>@HOME@</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>@HOME@/.local/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS</key>
+    <string>1</string>
+    <key>OPENCODE_ENABLE_EXA</key>
+    <string>1</string>
+    <key>OPENCODE_EXPERIMENTAL_PLAN_MODE</key>
+    <string>1</string>
+    <key>OPENCODE_EXPERIMENTAL_LSP_TOOL</key>
+    <string>1</string>
+    <key>OPENCODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS</key>
+    <string>600000</string>
+    <key>OPENCODE_DISABLE_CLAUDE_CODE</key>
+    <string>1</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+  <key>StandardOutPath</key>
+  <string>@HOME@/.local/state/opencode/serve.log</string>
+  <key>StandardErrorPath</key>
+  <string>@HOME@/.local/state/opencode/serve.log</string>
+</dict>
+</plist>
