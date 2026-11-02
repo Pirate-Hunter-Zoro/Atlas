@@ -4,6 +4,8 @@
     ~/.config/api-keys/deepseek_key     the DeepSeek key alone, read when
                                         keys.env has none
 
+DEEPSEEK_API_KEY in the environment comes before both, as upkeep reads it.
+
 keys.env is `NAME=value`, one a line, `#` comments, no shell and no
 expansion; outside the tree because this repository is public. The recipe
 names its key with `needs_key` and spends it through `env` (`{NAME}`);
@@ -63,15 +65,22 @@ def _read(path):
 
 
 def _one(path):
-    """A file holding one key and nothing else: its stripped text, or None.
-    Refused, like keys.env, when every account can read it."""
+    """A file holding one key and nothing else: `(its stripped text or None,
+    why it gave none)`. Refused, like keys.env, when every account can read
+    it, and the refusal says so."""
     try:
-        if os.stat(path).st_mode & (stat.S_IROTH | stat.S_IWOTH):
-            return None
-        with open(path, "r", encoding="utf-8", errors="replace") as fh:
-            return fh.read().strip() or None
+        st = os.stat(path)
     except OSError:
-        return None
+        return None, None
+    if st.st_mode & (stat.S_IROTH | stat.S_IWOTH):
+        return None, ("%s is readable by every account on this machine "
+                      "(mode %o); `chmod o-rwx` it and the key in it will be "
+                      "read again" % (path, st.st_mode & 0o777))
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            return fh.read().strip() or None, None
+    except OSError as exc:
+        return None, "%s could not be read: %s" % (path, exc)
 
 
 def _all():
@@ -81,11 +90,17 @@ def _all():
             and now - _CACHE["at"] <= TTL):
         return _CACHE["was"]
     got, why = _read(path)
-    if not got.get("DEEPSEEK_API_KEY"):
-        alone = _one(paths.DEEPSEEK_KEY)
+    env = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if env:
+        got = dict(got, DEEPSEEK_API_KEY=env)
+        why = None
+    elif not got.get("DEEPSEEK_API_KEY"):
+        alone, refused = _one(paths.DEEPSEEK_KEY)
         if alone:
             got = dict(got, DEEPSEEK_API_KEY=alone)
             why = None
+        elif refused:
+            why = "%s; %s" % (why, refused) if why else refused
     _CACHE.update({"at": now, "was": got, "path": path, "why": why})
     return got
 

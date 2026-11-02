@@ -64,6 +64,7 @@ def check(name, cond, detail=""):
 XDG = os.path.join(box, "xdg")
 os.makedirs(os.path.join(XDG, "tutor-board"))
 paths.KEYS = os.path.join(XDG, "tutor-board", "keys.env")
+os.environ.pop("DEEPSEEK_API_KEY", None)  # it comes before both files
 paths.DEEPSEEK_KEY = os.path.join(XDG, "api-keys", "deepseek_key")
 with open(paths.KEYS, "w") as fh:
     fh.write("DEEPSEEK_API_KEY=sk-doctor\n")

@@ -3,8 +3,9 @@
 
     python3 test/keys.py
 
-keys.env holds it (and Azure's), outside the tree; the shared
-`~/.config/api-keys/deepseek_key` file is read when keys.env has none. Three
+DEEPSEEK_API_KEY in the environment comes first; then keys.env, which holds
+it (and Azure's) outside the tree; then the shared
+`~/.config/api-keys/deepseek_key` file. Three
 rules underneath, and each one is here because getting it wrong is silent:
 
   - A KEY NEVER REACHES ARGV. `ps` output is readable by anything on the
@@ -47,6 +48,8 @@ def check(name, cond):
         print("FAIL " + name)
 
 
+# The environment's key comes before both files; none here unless set below.
+os.environ.pop("DEEPSEEK_API_KEY", None)
 box = tempfile.mkdtemp(prefix="keys-")
 paths.KEYS = os.path.join(box, "keys.env")
 paths.DEEPSEEK_KEY = os.path.join(box, "api-keys", "deepseek_key")
@@ -134,6 +137,22 @@ os.chmod(paths.DEEPSEEK_KEY, 0o644)
 keys.forget()
 check("a world-readable shared file is refused like keys.env",
       keys.get("DEEPSEEK_API_KEY") is None)
+check("and the refusal names the file and the chmod, not only keys.env",
+      paths.DEEPSEEK_KEY in (keys.why_not() or "")
+      and "chmod" in (keys.why_not() or ""))
+os.environ["TUTORBOARD_OPENCODE"] = "sh"
+check("so does the reason a turn cannot run",
+      paths.DEEPSEEK_KEY in (recipes.ready() or "")
+      and "chmod" in (recipes.ready() or ""))
+os.environ.pop("TUTORBOARD_OPENCODE", None)
+os.environ["DEEPSEEK_API_KEY"] = "sk-env"
+keys.forget()
+check("DEEPSEEK_API_KEY in the environment is a key before either file",
+      keys.get("DEEPSEEK_API_KEY") == "sk-env" and keys.why_not() is None)
+put("DEEPSEEK_API_KEY=sk-abc123\n")
+check("even over keys.env's", keys.get("DEEPSEEK_API_KEY") == "sk-env")
+os.environ.pop("DEEPSEEK_API_KEY")
+put("")
 os.remove(paths.DEEPSEEK_KEY)
 
 # ---- env on a recipe -------------------------------------------------------

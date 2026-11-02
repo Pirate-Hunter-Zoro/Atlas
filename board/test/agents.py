@@ -101,6 +101,7 @@ check("and the strike stand-down is gone", not hasattr(_egress, "mark_failing"))
 # --- ready(): the three reasons a turn cannot run ----------------------------
 _box = tempfile.mkdtemp(prefix="tutor-ready-")
 paths.KEYS = os.path.join(_box, "keys.env")
+os.environ.pop("DEEPSEEK_API_KEY", None)  # it comes before both files
 paths.DEEPSEEK_KEY = os.path.join(_box, "api-keys", "deepseek_key")
 keys.forget()
 os.environ["TUTORBOARD_OPENCODE"] = "a-command-no-machine-has"

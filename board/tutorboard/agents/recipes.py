@@ -120,7 +120,9 @@ def ready(now=None):
     if not shutil.which(exe):
         return "`%s` is not on the path here" % exe
     if not keys.have(KEY):
-        return "%s is not in %s or %s" % (KEY, keys.store(), paths.DEEPSEEK_KEY)
+        why = keys.why_not()
+        return "%s is not in %s or %s%s" % (KEY, keys.store(), paths.DEEPSEEK_KEY,
+                                           " (%s)" % why if why else "")
     until = limits.limited_until(now=now)
     if until:
         return ("DeepSeek's allowance is gone until %s"

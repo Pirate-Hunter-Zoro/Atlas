@@ -271,6 +271,8 @@ def scrub_git_env():
 
 def main(argv):
     scrub_git_env()
+    # keys.py reads this before any file, and no suite means the owner's key.
+    os.environ.pop("DEEPSEEK_API_KEY", None)
     ap = argparse.ArgumentParser(description="Run board/test's suites.")
     ap.add_argument("-j", type=int, default=4, metavar="N",
                     help="suites run at once (default 4)")

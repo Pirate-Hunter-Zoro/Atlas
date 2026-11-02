@@ -91,6 +91,7 @@ check("and there is one: no chain, no command routes, no routing scrub",
 
 # ---- an unkeyed machine says which line to add -----------------------------
 paths.KEYS = os.path.join(box, "no-such-keys.env")
+os.environ.pop("DEEPSEEK_API_KEY", None)  # it comes before both files
 paths.DEEPSEEK_KEY = os.path.join(box, "no-such-deepseek_key")
 keys.forget()
 said = refusal(path=put("live/slate/page.png"))

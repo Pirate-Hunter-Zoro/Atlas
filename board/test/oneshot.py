@@ -36,6 +36,7 @@ def check(name, cond):
 
 box = tempfile.mkdtemp(prefix="oneshot-")
 paths.KEYS = os.path.join(box, "keys.env")
+os.environ.pop("DEEPSEEK_API_KEY", None)  # it comes before both files
 paths.DEEPSEEK_KEY = os.path.join(box, "deepseek_key")
 FAKE = os.path.join(box, "opencode")
 with open(FAKE, "w") as fh:
