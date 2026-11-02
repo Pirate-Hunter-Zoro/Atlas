@@ -18,6 +18,7 @@ cask "flutter"
 cask "android-studio"             # its JBR is the JDK flutter and sdkmanager use
 cask "android-commandlinetools"   # bootstraps the SDK's own cmdline-tools;latest
 cask "visual-studio-code"
+cask "google-chrome"              # flutter doctor's web section, and `flutter run -d chrome`
 
 # dyslexia-friendly faces: monospace for code and terminals, OpenDyslexic for prose
 cask "font-comic-mono"

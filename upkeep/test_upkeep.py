@@ -15,6 +15,7 @@ run when any fake resolves anywhere else. upkeep itself runs under
 import json
 import os
 import plistlib
+import re
 import shutil
 import stat
 import subprocess
@@ -1128,6 +1129,12 @@ class Misc(Case):
                            stderr=subprocess.STDOUT, universal_newlines=True, timeout=300)
         self.assertEqual(p.returncode, 0, p.stdout)
         self.assertIn("nothing: open a new terminal", p.stdout)
+
+    def test_brewfile_has_what_flutter_doctor_checks(self):
+        casks = re.findall(r'^cask "([^"]+)"', self.b.read(os.path.join(HERE, "Brewfile")),
+                           re.M)
+        for c in ("flutter", "android-studio", "android-commandlinetools", "google-chrome"):
+            self.assertIn(c, casks)
 
     def test_setup_mac_homebrew_only(self):
         b = self.b
