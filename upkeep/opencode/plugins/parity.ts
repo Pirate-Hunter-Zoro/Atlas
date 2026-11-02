@@ -7,19 +7,25 @@
 // com.mikeyferguson.opencode-serve LaunchAgent) and attach to it.
 //
 // State: $PARITY_STATE_DIR, else $XDG_STATE_HOME/opencode/parity, else
-// ~/.local/state/opencode/parity. jobs.json holds every durable job; it is re-armed when the
-// plugin loads. One registry per process (globalThis), so several instances (one per
-// directory) never arm a job twice.
+// ~/.local/state/opencode/parity. jobs.json holds every durable job of every opencode process.
+//
+// Several opencode processes share jobs.json (the server, a plain TUI, `opencode run`, any
+// subcommand that loads plugins). Each job records the process that owns it, and only the owner
+// arms it. Another process never touches a job whose owner is alive; it reads it for listings
+// and deletes it from the file, and the owner cancels it on its next sync. A job whose owner has
+// died is adopted by the server (opencode serve, or PARITY_PRIMARY=1), or by a TUI when no server
+// is up; `opencode run` and other subcommands never adopt. Within one process the registry is
+// global (globalThis), so plugin instances for several directories share it.
 import { tool } from "@opencode-ai/plugin";
 import { spawn, execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync,
+  appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmdirSync, statSync, writeFileSync,
   openSync, readSync, closeSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, uptime } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const z = tool.schema;
 
@@ -29,14 +35,29 @@ const STATE_DIR =
   process.env.PARITY_STATE_DIR ||
   join(process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"), "opencode", "parity");
 const JOBS_FILE = join(STATE_DIR, "jobs.json");
+const LOCK_DIR = join(STATE_DIR, "jobs.lock");
+const PRIMARY_FILE = join(STATE_DIR, "primary.json");
 const LOG_FILE = join(STATE_DIR, "parity.log");
 const MAX_TIMEOUT = 2 ** 31 - 1;
+const SYNC_MS = Number(process.env.PARITY_SYNC_MS) || 10000;
 
-type Job = Record<string, any> & { id: string; kind: string; session: string; directory: string };
+type Owner = { pid: number; started: number };
+type Job = Record<string, any> & { id: string; kind: string; session: string; directory: string; owner?: Owner };
+
+// This process. `started` tells a live owner from a reused pid after a reboot.
+const ME: Owner = { pid: process.pid, started: Math.round(Date.now() - process.uptime() * 1000) };
+const BOOTED_AT = Date.now() - uptime() * 1000;
+const COMMAND = process.argv.slice(2).find((a) => !a.startsWith("-"));
+const NOT_TUI = new Set(["run", "debug", "mcp", "auth", "models", "agent", "upgrade", "uninstall", "stats",
+  "export", "import", "github", "pr", "session", "acp", "attach", "generate", "plugin", "db"]);
+const PRIMARY = process.env.PARITY_PRIMARY === "1" || COMMAND === "serve" || COMMAND === "web";
+const MAY_ADOPT = PRIMARY || COMMAND === undefined || !NOT_TUI.has(COMMAND);
 
 type Registry = {
   loaded: boolean;
-  jobs: Map<string, Job>;
+  jobs: Map<string, Job>; // jobs this process owns and has armed
+  written: Set<string>; // owned jobs this process has put in jobs.json
+  reported: Set<string>; // agent rounds already delivered ("id#round")
   timers: Map<string, { cancel: () => void }>;
   procs: Map<string, any>;
   waiters: Map<string, Array<(e: { error?: string }) => void>>;
@@ -48,6 +69,8 @@ type Registry = {
 const G: Registry = ((globalThis as any).__parity ??= {
   loaded: false,
   jobs: new Map(),
+  written: new Set(),
+  reported: new Set(),
   timers: new Map(),
   procs: new Map(),
   waiters: new Map(),
@@ -67,12 +90,50 @@ function newId(prefix: string) {
   return `${prefix}${Date.now().toString(36)}${randomBytes(2).toString("hex")}`;
 }
 
-function save() {
+function sameOwner(a?: Owner, b: Owner = ME) {
+  return !!a && a.pid === b.pid && a.started === b.started;
+}
+
+function ownerAlive(o?: Owner) {
+  if (!o?.pid) return false;
+  if (sameOwner(o)) return true;
+  if (o.started && o.started < BOOTED_AT - 60000) return false;
+  return pidAlive(o.pid);
+}
+
+function sleepSync(ms: number) {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  } catch {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {}
+  }
+}
+
+// jobs.json is read, changed and written under a lock directory (mkdir is atomic). A lock older
+// than 10 s belongs to a dead process and is broken.
+function withLock<T>(fn: () => T): T {
   mkdirSync(STATE_DIR, { recursive: true });
-  const durable = [...G.jobs.values()].filter((j) => j.durable !== false);
-  const tmp = `${JOBS_FILE}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(durable, null, 2));
-  renameSync(tmp, JOBS_FILE);
+  const until = Date.now() + 5000;
+  let held = false;
+  while (!held) {
+    try {
+      mkdirSync(LOCK_DIR);
+      held = true;
+    } catch (e: any) {
+      if (e?.code !== "EEXIST") throw e;
+      try {
+        if (Date.now() - statSync(LOCK_DIR).mtimeMs > 10000) { rmdirSync(LOCK_DIR); continue; }
+      } catch {}
+      if (Date.now() > until) { log("jobs.lock busy for 5 s; going ahead without it"); break; }
+      sleepSync(20);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    if (held) try { rmdirSync(LOCK_DIR); } catch {}
+  }
 }
 
 function loadJobs(): Job[] {
@@ -84,6 +145,44 @@ function loadJobs(): Job[] {
   }
 }
 
+function writeJobs(jobs: Job[]) {
+  const text = JSON.stringify(jobs, null, 2);
+  try { if (readFileSync(JOBS_FILE, "utf-8") === text) return; } catch {}
+  const tmp = `${JOBS_FILE}.${process.pid}.tmp`;
+  writeFileSync(tmp, text);
+  renameSync(tmp, JOBS_FILE);
+}
+
+// Writes this process's jobs into jobs.json, keeps every other process's, and cancels any job of
+// ours that another process deleted from the file (or that a live process now owns).
+function save() {
+  const lost: Job[] = [];
+  withLock(() => {
+    const disk = loadJobs();
+    const onDisk = new Set(disk.map((j) => j.id));
+    const out: Job[] = [];
+    for (const d of disk) {
+      const mine = G.jobs.get(d.id);
+      if (mine) {
+        if (d.owner && !sameOwner(d.owner) && ownerAlive(d.owner)) { lost.push(mine); out.push(d); }
+        else if (mine.durable !== false) out.push(mine);
+      } else if (!sameOwner(d.owner)) {
+        out.push(d);
+      }
+    }
+    for (const j of G.jobs.values()) {
+      if (onDisk.has(j.id) || j.durable === false) continue;
+      if (G.written.has(j.id)) lost.push(j);
+      else out.push(j);
+    }
+    for (const j of out) {
+      if (G.jobs.get(j.id) === j) { j.owner = { ...ME }; G.written.add(j.id); }
+    }
+    writeJobs(out);
+  });
+  for (const j of lost) cancelLocal(j, "deleted or taken by another opencode process");
+}
+
 function putJob(job: Job) {
   G.jobs.set(job.id, job);
   save();
@@ -92,7 +191,77 @@ function putJob(job: Job) {
 function dropJob(id: string) {
   G.timers.get(id)?.cancel();
   G.timers.delete(id);
+  G.written.delete(id);
   if (G.jobs.delete(id)) save();
+}
+
+// Stops a job here without reporting it: another process deleted or owns it.
+function cancelLocal(j: Job, why: string) {
+  G.timers.get(j.id)?.cancel();
+  G.timers.delete(j.id);
+  G.jobs.delete(j.id);
+  G.written.delete(j.id);
+  if (j.kind === "monitor") {
+    j.stopped = true;
+    const child = G.procs.get(j.id);
+    if (child?.pid) killGroup(child.pid);
+  } else if (j.kind === "workflow") {
+    G.runs.get(j.id)?.abort.abort();
+  }
+  log(`job ${j.id} stopped here: ${why}`);
+}
+
+// Jobs other live processes own, read from jobs.json.
+function foreignJobs(): Job[] {
+  return loadJobs().filter((j) => !G.jobs.has(j.id));
+}
+
+function allJobs(): Job[] {
+  return [...G.jobs.values(), ...foreignJobs()];
+}
+
+// Deletes another process's job from jobs.json; its owner cancels it on its next sync.
+function removeForeign(id: string): Job | undefined {
+  let found: Job | undefined;
+  withLock(() => {
+    const disk = loadJobs();
+    const i = disk.findIndex((j) => j.id === id);
+    if (i < 0) return;
+    found = disk[i];
+    disk.splice(i, 1);
+    writeJobs(disk);
+  });
+  return found;
+}
+
+function primaryAlive() {
+  try {
+    const p = JSON.parse(readFileSync(PRIMARY_FILE, "utf-8"));
+    return !sameOwner(p) && ownerAlive(p);
+  } catch {
+    return false;
+  }
+}
+
+// Takes over jobs whose owner died, and arms them here.
+function adoptOrphans() {
+  if (!MAY_ADOPT || (!PRIMARY && primaryAlive())) return;
+  const adopted: Job[] = [];
+  withLock(() => {
+    const disk = loadJobs();
+    for (const j of disk) {
+      if (G.jobs.has(j.id) || ownerAlive(j.owner)) continue;
+      j.owner = { ...ME };
+      adopted.push(j);
+    }
+    if (adopted.length) writeJobs(disk);
+  });
+  for (const j of adopted) {
+    G.jobs.set(j.id, j);
+    G.written.add(j.id);
+  }
+  for (const j of adopted) rearm(j);
+  if (adopted.length) log(`adopted ${adopted.length} jobs`);
 }
 
 // setTimeout caps at 2^31 ms (about 24.8 days); longer delays are chained.
@@ -233,7 +402,8 @@ function parseCron(expr: string) {
   const e = ALIASES[expr.trim().toLowerCase()] ?? expr.trim();
   const f = e.split(/\s+/);
   if (f.length !== 5) throw new Error(`cron needs 5 fields (minute hour day-of-month month day-of-week), got "${expr}"`);
-  const dow = cronField(f[4].replace(/\b7\b/g, "0"), 0, 6, DAYS);
+  // Day of week runs 0-7: 0 and 7 are both Sunday, so 1-7 and 5-7 are valid ranges.
+  const dow = new Set([...cronField(f[4], 0, 7, DAYS)].map((d) => d % 7));
   return {
     min: cronField(f[0], 0, 59), hour: cronField(f[1], 0, 23), dom: cronField(f[2], 1, 31),
     mon: cronField(f[3], 1, 12, MONTHS), dow, domStar: f[2] === "*", dowStar: f[4] === "*",
@@ -504,7 +674,10 @@ function splitModel(model?: string) {
 }
 
 async function finishAgent(job: Job) {
-  if (G.jobs.get(job.id)?.reported === job.round) return;
+  // Once per round, and only while this process still tracks the job.
+  const key = `${job.id}#${job.round}`;
+  if (G.jobs.get(job.id) !== job || G.reported.has(key)) return;
+  G.reported.add(key);
   let text = "", error: string | undefined;
   try {
     const last = await lastAssistant(job.id, job.directory);
@@ -514,7 +687,6 @@ async function finishAgent(job: Job) {
   } catch (e: any) {
     error = e?.message ?? String(e);
   }
-  job.reported = job.round;
   dropJob(job.id);
   const state = error ? "error" : "completed";
   const body = [
@@ -756,8 +928,22 @@ const LONG_WORK =
   "Never say you cannot monitor, wait or run something for a long time: use monitor, wakeup, cron_create, " +
   "bg_shell, task with background=true, or workflow, then end your turn; results arrive as new messages.";
 
+// capabilities.md sits beside plugins/ in the config dir. It reaches the model through this
+// plugin, not through `instructions`, so `opencode --pure` (no plugins, so none of these tools)
+// is never told it has them.
+const CAPABILITIES = (() => {
+  try {
+    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "capabilities.md"), "utf-8").trim();
+  } catch {
+    return LONG_WORK;
+  }
+})();
+
+// The browser MCP, added through the config hook for the same reason.
+const BROWSER_MCP = { type: "local", command: ["npx", "-y", "@playwright/mcp@latest"], enabled: true };
+
 function liveJobs(session?: string) {
-  return [...G.jobs.values()].filter((j) => !session || j.session === session || j.parent === session);
+  return allJobs().filter((j) => !session || j.session === session || j.parent === session);
 }
 
 function describe(j: Job) {
@@ -772,16 +958,29 @@ function describe(j: Job) {
   }
 }
 
-function boot(directory: string) {
-  if (G.loaded) {
-    // Jobs for this directory that were saved by a crashed process but never armed.
-    for (const j of G.jobs.values()) if (j.directory === directory && !G.timers.has(j.id) && !G.procs.has(j.id)) rearm(j);
-    return;
-  }
+// Once per process: claim the server role, adopt orphaned jobs, then keep jobs.json in sync.
+function boot() {
+  if (G.loaded) return;
   G.loaded = true;
-  for (const j of loadJobs()) G.jobs.set(j.id, j);
-  for (const j of [...G.jobs.values()]) rearm(j);
-  log(`loaded ${G.jobs.size} jobs`);
+  try {
+    if (PRIMARY) {
+      mkdirSync(STATE_DIR, { recursive: true });
+      writeFileSync(PRIMARY_FILE, JSON.stringify(ME));
+    }
+    adoptOrphans();
+  } catch (e: any) {
+    log(`boot failed: ${e?.message ?? e}`);
+  }
+  log(`pid ${ME.pid} (${COMMAND ?? "tui"}${PRIMARY ? ", server" : ""}) owns ${G.jobs.size} jobs`);
+  const t = setInterval(() => {
+    try {
+      save();
+      adoptOrphans();
+    } catch (e: any) {
+      log(`sync failed: ${e?.message ?? e}`);
+    }
+  }, SYNC_MS);
+  t.unref?.();
 }
 
 function rearm(j: Job) {
@@ -800,8 +999,7 @@ function rearm(j: Job) {
         }
         return startMonitor(j, true);
       case "agent":
-        // The server restarted: the child's run ended with it. Report what it left.
-        G.timers.set(j.id, { cancel: () => {} });
+        // Its owner died, and the child's run ended with it. Report what it left.
         j.started_at = 0;
         return trackAgent(j);
       case "workflow":
@@ -819,7 +1017,7 @@ function rearm(j: Job) {
 
 export const ParityPlugin = async ({ client, directory, worktree }: any) => {
   G.clients.set(directory, client);
-  boot(directory);
+  boot();
 
   const base = (ctx: any) => ({ session: ctx.sessionID, directory: ctx.directory ?? directory, agent: ctx.agent });
 
@@ -870,7 +1068,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         description: "List scheduled cron jobs and wakeups.",
         args: {},
         async execute() {
-          const js = [...G.jobs.values()].filter((j) => j.kind === "cron" || j.kind === "wakeup");
+          const js = allJobs().filter((j) => j.kind === "cron" || j.kind === "wakeup");
           return js.length ? js.map(describe).join("\n") : "No cron jobs or wakeups.";
         },
       }),
@@ -879,9 +1077,10 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         description: "Delete a cron job or a pending wakeup by id.",
         args: { id: z.string() },
         async execute(a) {
-          const j = G.jobs.get(a.id);
+          const j = G.jobs.get(a.id) ?? foreignJobs().find((f) => f.id === a.id);
           if (!j || (j.kind !== "cron" && j.kind !== "wakeup")) return `No cron job or wakeup ${a.id}.`;
-          dropJob(a.id);
+          if (G.jobs.has(a.id)) dropJob(a.id);
+          else removeForeign(a.id);
           return `Deleted ${a.id}.`;
         },
       }),
@@ -916,7 +1115,10 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         description: "Show the last lines of a background shell's or monitor's output and whether it is still running.",
         args: { id: z.string(), tail: z.number().optional().describe("Lines, default 50") },
         async execute(a) {
-          const mon = G.jobs.get(a.id);
+          const mon = G.jobs.get(a.id) ?? foreignJobs().find((f) => f.id === a.id);
+          if (mon?.kind === "monitor" && !G.jobs.has(a.id)) {
+            return `${a.id}: monitor running in another opencode process (pid ${mon.owner?.pid}); its output reaches its session as <monitor> messages.`;
+          }
           if (mon?.kind === "monitor") {
             const lines = ((G as any).recent?.[a.id] ?? []).slice(-(a.tail ?? 50));
             return `${a.id}: monitor running (pid ${mon.pid})\n${lines.join("\n") || "(no output yet)"}`;
@@ -932,9 +1134,14 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         description: "Stop a background shell or a monitor by id.",
         args: { id: z.string() },
         async execute(a) {
-          const j = G.jobs.get(a.id);
+          const local = G.jobs.get(a.id);
+          const j = local ?? foreignJobs().find((f) => f.id === a.id);
           if (!j) return `No running job ${a.id}.`;
-          if (j.kind === "monitor") { stopMonitor(a.id); return `Stopped monitor ${a.id}.`; }
+          if (j.kind === "monitor") {
+            if (local) stopMonitor(a.id);
+            else removeForeign(a.id);
+            return `Stopped monitor ${a.id}.`;
+          }
           if (j.kind !== "shell") return `${a.id} is a ${j.kind}; use the matching stop tool.`;
           killGroup(j.pid);
           return `Sent SIGTERM to ${a.id} (pid ${j.pid}); you will get its exit message.`;
@@ -1013,13 +1220,14 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         description: "Send another message to a subagent (from agent_spawn, task, or fork) by its session id. Its next reply comes back as a <task> message.",
         args: { id: z.string(), message: z.string() },
         async execute(a, ctx) {
-          const prev = G.jobs.get(a.id);
+          // Tracking moves to this process; the old owner drops its copy on its next sync.
+          const prev = G.jobs.get(a.id) ?? removeForeign(a.id);
           const dir = prev?.directory ?? ctx.directory ?? directory;
           const job: Job = prev ?? { id: a.id, kind: "agent", session: a.id, directory: dir, parent: ctx.sessionID,
             parent_directory: ctx.directory ?? directory, agent: ctx.agent, description: "follow-up", round: 0 };
           job.round = (job.round ?? 0) + 1;
           job.started_at = Date.now();
-          if (!prev) trackAgent(job); else save();
+          if (!prev || !G.jobs.has(a.id)) { delete job.owner; trackAgent(job); } else save();
           const r = await client.session.promptAsync({ path: { id: a.id }, query: { directory: dir }, body: { parts: [{ type: "text", text: a.message }] } });
           if (r?.response?.status >= 400) { dropJob(a.id); return `Could not reach ${a.id}: HTTP ${r.response.status}`; }
           return `Sent. The reply arrives as a <task id="${a.id}"> message.`;
@@ -1032,7 +1240,8 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         async execute(a, ctx) {
           const run = G.runs.get(a.id);
           if (run) { run.abort.abort(); return `Aborting workflow ${a.id}.`; }
-          const j = G.jobs.get(a.id);
+          const j = G.jobs.get(a.id) ?? foreignJobs().find((f) => f.id === a.id);
+          if (j?.kind === "workflow") { removeForeign(a.id); return `Aborting workflow ${a.id} (it runs in another opencode process).`; }
           await client.session.abort({ path: { id: a.id }, query: { directory: j?.directory ?? ctx.directory ?? directory } });
           return `Stopped ${a.id}.`;
         },
@@ -1189,6 +1398,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         for (const f of [...(G.waiters.get(p.sessionID) ?? [])]) f({ error: p.error?.data?.message ?? p.error?.name ?? "error" });
       } else if (t === "session.deleted") {
         const id = p.info?.id;
+        for (const j of foreignJobs()) if (j.session === id || j.parent === id) removeForeign(j.id);
         for (const j of [...G.jobs.values()]) {
           if (j.session !== id && j.parent !== id) continue;
           if (j.kind === "monitor") stopMonitor(j.id);
@@ -1208,8 +1418,13 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       }
     },
 
+    config: async (cfg: any) => {
+      cfg.mcp ??= {};
+      if (!cfg.mcp.playwright && process.env.PARITY_BROWSER_MCP !== "0") cfg.mcp.playwright = { ...BROWSER_MCP };
+    },
+
     "experimental.chat.system.transform": async (_input: any, output: any) => {
-      output.system.push(LONG_WORK);
+      output.system.push(CAPABILITIES);
     },
 
     "tool.definition": async (input: any, output: any) => {
