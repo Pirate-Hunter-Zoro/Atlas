@@ -2,6 +2,7 @@
 # setup-mac.sh -- a bare Mac to a kept one, from any repo carrying upkeep/.
 #
 #     bash upkeep/setup-mac.sh
+#     bash upkeep/setup-mac.sh --homebrew    Homebrew only, for a repo's own setup
 #
 # Installs Homebrew when it is missing, registers this repo with upkeep
 # (`upkeep.py install --repo`), runs upkeep once with --force (brew, the
@@ -17,6 +18,10 @@ APPS="${UPKEEP_APPLICATIONS:-/Applications}"
 ROOT_STATUS="${UPKEEP_ROOT_STATUS:-/Library/Application Support/upkeep-root/status.json}"
 
 [ "$(uname -s)" = Darwin ] || { echo "this is not a Mac; upkeep runs on a Mac only."; exit 1; }
+case "${1:-}" in
+  ""|--homebrew) ;;
+  *) echo "unknown option: $1 (the one option is --homebrew)"; exit 1 ;;
+esac
 # Appended, never put first: the caller's PATH decides which brew runs.
 for d in /opt/homebrew/bin /usr/local/bin "$HOME/.local/bin"; do
   case ":$PATH:" in *":$d:"*) ;; *) PATH="$PATH:$d" ;; esac
@@ -32,6 +37,7 @@ if ! command -v brew >/dev/null 2>&1; then
     [ -x "$b" ] && eval "$("$b" shellenv)" && break
   done
 fi
+[ "${1:-}" = --homebrew ] && exit 0
 
 echo "== upkeep install"
 /usr/bin/python3 "$HERE/upkeep.py" install --repo "$ROOT" || echo "  upkeep install reported a problem (above)"

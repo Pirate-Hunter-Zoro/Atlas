@@ -77,7 +77,7 @@ cd Atlas && bash scripts/setup-mac.sh
 `setup-mac.sh` is also how an existing Mac is brought up to date; a second run changes nothing.
 It pulls main, runs `board/bootstrap.sh`, runs `upkeep/setup-mac.sh` and `scripts/setup.sh`, has
 tailscale serve the board, and checks that the board answers. Its header lists each step. On a
-Mac with no Homebrew, run `bash upkeep/setup-mac.sh` first: it installs Homebrew.
+Mac with no Homebrew it installs Homebrew first, which asks for the password once.
 
 - `bootstrap.sh` clones `ai-config/`, sets `core.hooksPath` to `.githooks/` by
   absolute path, and runs `board/install.sh`. That links `board` into `~/.local/bin` and installs

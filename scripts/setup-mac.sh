@@ -14,7 +14,8 @@
 # Deleting the role file makes the next run a host again.
 #
 # A fresh clone or an old checkout, it does the same thing, and a second run
-# changes nothing:
+# changes nothing. A Mac with no Homebrew gets it first (upkeep/setup-mac.sh
+# --homebrew), which asks for the password once:
 #
 #   1  main, fast-forward only; once, the checkouts of the retired vendor
 #      submodules go, and so do retired projects that hold only caches
@@ -51,8 +52,12 @@ warn() { printf '  ----  %s\n' "$*"; problems=$((problems + 1)); }
 
 [ "$(uname -s)" = Darwin ] \
   || { echo "this is not a Mac; Atlas runs on a Mac only."; exit 1; }
-command -v brew >/dev/null 2>&1 \
-  || { echo "no Homebrew: bash upkeep/setup-mac.sh installs it, then rerun this."; exit 1; }
+# A bare Mac: Homebrew first, at the terminal, since its installer asks for
+# the password. It lands in /opt/homebrew/bin, already on the PATH above.
+if ! command -v brew >/dev/null 2>&1; then
+  bash upkeep/setup-mac.sh --homebrew || exit 1
+  hash -r
+fi
 
 # The role is read by board/install.sh and board/bootstrap.sh too.
 ROLE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/role"

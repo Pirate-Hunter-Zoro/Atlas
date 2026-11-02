@@ -1129,6 +1129,20 @@ class Misc(Case):
         self.assertEqual(p.returncode, 0, p.stdout)
         self.assertIn("nothing: open a new terminal", p.stdout)
 
+    def test_setup_mac_homebrew_only(self):
+        b = self.b
+        if 'PATH="$d:$PATH"' in b.read(os.path.join(HERE, "setup-mac.sh")):
+            self.fail("REFUSED: setup-mac.sh would put the real brew before the fakes")
+        b.clear_calls()
+        p = subprocess.run(["bash", os.path.join(b.repo, "upkeep", "setup-mac.sh"),
+                            "--homebrew"],
+                           env=dict(b.env, PATH=b.path), stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, universal_newlines=True, timeout=60)
+        self.assertEqual(p.returncode, 0, p.stdout)
+        self.assertNotIn("upkeep install", p.stdout)
+        self.assertFalse(b.argv("brew"), "brew is there: nothing runs")
+        self.assertFalse(b.argv("curl"), "and no installer is fetched")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=1)

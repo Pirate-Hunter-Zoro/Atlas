@@ -8,6 +8,7 @@ installed and kept current. Edit it in one repo, copy it to the other, and bump
 ## Commands
 
     bash upkeep/setup-mac.sh          a bare Mac: Homebrew, install, a forced run, owner steps
+    bash upkeep/setup-mac.sh --homebrew   Homebrew only, when missing (a repo's setup calls it)
     upkeep install --repo ROOT        register ROOT, copy upkeep in, load the agents
     upkeep run [--force] [--dry-run]  the hourly tick; --force skips the gate
     upkeep doctor                     the one-minute opencode tick
