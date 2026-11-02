@@ -1,0 +1,26 @@
+# What every clone's Mac needs, whichever repo it came from. upkeep runs
+# `brew bundle install --no-upgrade` over this file joined with each repo's own
+# Brewfiles (named by its upkeep.d/hook). A tool only one repo uses goes there.
+
+brew "python"
+brew "node"          # npm, which carries opencode (opencode-ai)
+brew "gh"
+brew "git"
+brew "uv"
+brew "mise"
+brew "go"
+brew "mas"           # App Store updates, reported
+brew "cocoapods"     # flutter's iOS and macOS builds
+brew "ripgrep"
+brew "jq"
+
+cask "flutter"
+cask "android-studio"             # its JBR is the JDK flutter and sdkmanager use
+cask "android-commandlinetools"   # bootstraps the SDK's own cmdline-tools;latest
+cask "visual-studio-code"
+
+# dyslexia-friendly faces: monospace for code and terminals, OpenDyslexic for prose
+cask "font-comic-mono"
+cask "font-opendyslexic"
+cask "font-atkinson-hyperlegible-mono"
+cask "font-monaspace"

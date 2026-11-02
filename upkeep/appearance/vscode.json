@@ -1,0 +1,13 @@
+{
+  "editor.fontFamily": "'Comic Mono', 'Monaspace Radon Frozen', 'Atkinson Hyperlegible Mono', Menlo, monospace",
+  "editor.fontSize": 24,
+  "editor.fontLigatures": false,
+  "editor.lineHeight": 1.6,
+  "editor.letterSpacing": 0.5,
+  "terminal.integrated.fontFamily": "'Comic Mono', 'Monaspace Radon Frozen', 'Atkinson Hyperlegible Mono', Menlo, monospace",
+  "terminal.integrated.fontSize": 24,
+  "terminal.integrated.lineHeight": 1.25,
+  "markdown.preview.fontFamily": "OpenDyslexic, -apple-system, sans-serif",
+  "markdown.preview.fontSize": 24,
+  "markdown.preview.lineHeight": 1.7
+}

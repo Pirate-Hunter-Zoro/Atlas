@@ -1,0 +1,4 @@
+# Casks marked auto_updates that upkeep upgrades anyway, one name per line:
+# their own updaters move the app out from under brew's record.
+flutter
+android-studio

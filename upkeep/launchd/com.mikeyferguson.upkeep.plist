@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Rendered by `upkeep install`: @HOME@, @UPKEEP@ and @PATH@ become absolute.
+     Hourly; the script's gate decides whether to work. No RunAtLoad, so loading
+     never starts an upgrade. /usr/bin/python3, because a run upgrades brew's python.
+     AbandonProcessGroup, so a bootout never kills a brew mid-link. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mikeyferguson.upkeep</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>@UPKEEP@/upkeep.py</string>
+        <string>run</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@HOME@</string>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>AbandonProcessGroup</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@PATH@</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>@HOME@/.local/state/upkeep/launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.local/state/upkeep/launchd.log</string>
+</dict>
+</plist>
