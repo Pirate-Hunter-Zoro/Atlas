@@ -99,6 +99,9 @@ elif name == "ps":
     out("\n".join(C.get("ps") or ["/sbin/launchd", "-zsh"]) + "\n")
 elif name == "pgrep":
     pat = args[-1]
+    said = (C.get("pgrep_lines") or {}).get(pat)
+    if said:
+        out(said + "\n"); sys.exit(0)
     hits = [h for h in C.get("pgrep_hits") or [] if h in pat]
     if hits:
         out("4242 %s\n" % hits[0]); sys.exit(0)
@@ -744,6 +747,26 @@ class FullRun(Case):
         st = b.state()
         self.assertFalse([p for p in st["problems"] if p.startswith("flutter doctor")])
         self.assertEqual(st["hooks"], {b.repo: []})
+
+    def test_busy_skips_the_tick(self):
+        b = self.b
+        full_scenario(b, pgrep_lines={"brew[-_]upgrade": "77 /usr/bin/python3 "
+                                      "/x/Open-Code-Doctor/brew_upgrade.py"})
+        b.upkeep("run", "--force")
+        self.assertFalse([a for a in b.argv("brew") if a.startswith(("update", "upgrade"))])
+        self.assertIn("skipped: another brew upgrader is running", b.log())
+        b.clear_calls()
+        full_scenario(b, pgrep_lines={"brew[-_]upgrade": "78 /usr/bin/python3 "
+                                      "/a/Atlas/scripts/brew-upgrade.py status",
+                                      "/Library/Homebrew/brew\\.(rb|sh)": ""})
+        b.upkeep("run", "--force")
+        self.assertIn("update", b.argv("brew"), "Atlas's hook is no upgrader")
+        b.clear_calls()
+        full_scenario(b, pgrep_lines={"/Library/Homebrew/brew\\.(rb|sh)":
+                                      "79 /opt/homebrew/Library/Homebrew/brew.rb"})
+        b.upkeep("run", "--force")
+        self.assertNotIn("update", b.argv("brew"))
+        self.assertIn("skipped: a brew is running", b.log())
 
     def test_off_and_on(self):
         b = self.b

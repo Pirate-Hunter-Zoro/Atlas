@@ -704,7 +704,7 @@ def ensure_agents(force_load=False):
             os.replace(dest + ".tmp", dest)
         if not changed and not force_load and loaded(label):
             continue
-        if label == LABEL and inside_job():
+        if label == LABEL and (inside_job() or lock_holder(LOCK) is not None):
             spawn_settle()
             said.append("%s: reloads once this run ends" % label)
             continue
@@ -1983,6 +1983,7 @@ def busy():
         if len(parts) > 2 and re.match(r"^(python[\d.]*|bash|sh|zsh)$",
                                        os.path.basename(parts[1])) \
                 and re.search(r"brew[-_]upgrade\.(py|sh)\b", " ".join(parts[2:])) \
+                and "scripts/brew-upgrade.py" not in line \
                 and not parts[2].startswith("-c"):
             return "another brew upgrader is running (%s)" % line.strip()[:120]
     return None
