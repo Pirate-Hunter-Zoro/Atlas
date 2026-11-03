@@ -1,0 +1,56 @@
+% ===========================================================================
+%  Writeup 20261103-163801
+%
+%  A write-up: one problem environment per question, and beneath it a marked
+%  solution region holding the agreed argument. `board writeup add <label>`
+%  writes both and rebuilds the PDF; a region stays empty until its answer is
+%  agreed. Code goes in verbatim, so nothing here needs shell-escape.
+% ===========================================================================
+\documentclass[11pt]{article}
+% The subject's own preamble when it has one (`latex/coursemacros.sty`, on
+% TEXINPUTS through `board build`), else a plain one.
+\IfFileExists{coursemacros.sty}{\usepackage{coursemacros}}{%
+  \usepackage{amsmath}\usepackage{amssymb}\usepackage{amsthm}%
+  \usepackage[margin=1in]{geometry}\usepackage{graphicx}}
+% The board's macro vocabulary, every one a \providecommand, so a card's
+% notation typesets here too and the subject's definitions still win.
+\IfFileExists{board-macros.tex}{\input{board-macros.tex}}{}
+\ifdefined\problem\else
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\fi
+\ifdefined\solution\else
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\fi
+\providecommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Writeup 20261103-163801}
+\author{}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per question, in the order the sheet or the
+% session posed them.
+
+\begin{problem}{20}
+Let $K/F$ be a finite extension and $L$ any field. For a field homomorphism $\phi\colon F\to L$, write $\operatorname{Emb}_\phi(K,L)$ for the set of homomorphisms $\psi\colon K\to L$ with $\psi|_F=\phi$, the extensions of $\phi$ to $K$. For $h\in F[x]$, write $\phi(h)$ for the polynomial obtained by applying $\phi$ to the coefficients.
+
+**(a)** Let $\alpha\in K$ have minimal polynomial $m$ over $F$. Show that $\psi\mapsto\psi(\alpha)$ is a bijection from $\operatorname{Emb}_\phi(F(\alpha),L)$ to the set of roots of $\phi(m)$ in $L$. Conclude that $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$, with equality if and only if $\phi(m)$ has $\deg m$ distinct roots in $L$.
+
+**(b)** Show by induction on $[K:F]$ that $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$.
+
+**(c)** Deduce that $|\operatorname{Gal}(K/F)|\le[K:F]$.
+
+**(d)** Now suppose $K$ is the splitting field over $F$ of some $f\in F[x]$, and that $\phi(f)$ splits into linear factors in $L$. Show that $|\operatorname{Emb}_\phi(K,L)|=[K:F]$ exactly.
+
+**(e)** Conclude that a Galois extension satisfies $|\operatorname{Gal}(K/F)|=[K:F]$.
+\end{problem}
+% ===== SOLUTION 20 =====
+% ===== END SOLUTION 20 =====
+
+\end{document}

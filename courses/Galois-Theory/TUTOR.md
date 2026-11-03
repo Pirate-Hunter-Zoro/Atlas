@@ -8,7 +8,7 @@
 
 ## Now
 
-Chapter 7 homework, problems 13-19, session 20261009-193922. All seven problems are closed and written up in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`; the PDF is clean. 19(a)-(d) sit under label 19, with `handwritten/ch07-19.png` filed from t0270 (19(d)). Nothing outstanding on this sheet.
+Session 20261103-163801, a lecture with no chapter label, is on the owner's uploaded sheet `GaloisTheoryAtWork.pdf` (Problems 20-31, continuing Problems 1-19). This sitting works Part I: Problems 20, 21 and 22, proving the fundamental theorem from scratch. Problem 20 is posed and pinned in the session's own write-up, `docs/writeup-20261103-163801/writeup.tex`, with 20(a) asked. Card 0002 confirmed the restriction reading and asked the injective half. On t0003 the owner restated Problem 20(a) correctly and asked whether it was straight; card 0003 confirmed every line, fixed the double-`ψ` naming (call the map `Ψ`), and re-posed the injective half (two extensions agreeing at `α` agree on all of `F(α)`, via `ψ_i(h(α))=φ(h)(ψ_i(α))`). Next: grade that proof, then show the image lies in `R`, the surjective half, and the count/equality; then 20(b)-(e), 21 and 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
 
 ## Open decisions
 
