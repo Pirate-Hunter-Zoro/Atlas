@@ -5,7 +5,7 @@ Task: $ARGUMENTS
 
 Work as an orchestrator, not a solo coder. Your context is for planning and judgement; subagents do the reading and the edits.
 
-1. Understand the task and the code just enough to split it. Use `todowrite` for the plan.
+1. Understand the task and the code just enough to split it: at most five tool calls of your own (a listing, a README, a grep), then write the plan with `todowrite`. Reading the code in depth is the survey phase's job, not yours; a sixth read of your own means you are solo coding.
 2. Write a `workflow` script for each fan-out stage. Typical shape:
    - `phase("survey")`: `parallel` agents, each mapping one area, returning JSON through a `schema` (files, functions, risks).
    - `phase("build")`: one agent per independent change, each told exactly which files it owns. Use worktrees (`worktree_create`, agent `cwd`) when changes could collide.
