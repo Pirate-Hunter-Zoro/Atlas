@@ -210,9 +210,14 @@ window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 
 const json = (v) => Promise.resolve({ json: () => Promise.resolve(v), ok: true });
 let asked = [];
-window.fetch = (u) => {
+window.__seen = [];
+window.fetch = (u, init) => {
   const url = String(u);
   asked.push(url);
+  if (/\/seen$/.test(url)) {
+    window.__seen.push(init && init.body ? JSON.parse(init.body) : null);
+    return json({ ok: true });
+  }
   if (/slate\/state/.test(url)) return json({ pages: [] });
   if (url.indexOf('/s/' + SID + '/view/doc/stage2-deck') === 0) return json(VIEW);
   if (url.indexOf('/s/' + SID + '/view/') === 0) {
@@ -240,6 +245,7 @@ try {
   src = src.replace('})();',
     'window.__addrGo = addrGo;\n'
     + 'window.__spell = spell;\n'
+    + 'window.__markSeen = markSeen;\n'
     + '})();');
   window.eval(src);
   ok('loaded board.js with the grammar beside it');
@@ -248,6 +254,65 @@ try {
 const el = (id) => doc.getElementById(id);
 const tick = (n) => new Promise((go) => setTimeout(go, n || 0));
 const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
+
+
+/* A second board, cold on whatever address it is given: the one way to ask
+   what a load with a hash, or none, does without disturbing the board above. */
+async function boardAt(startUrl, live) {
+  const vc2 = new VirtualConsole();
+  vc2.on('jsdomError', () => {});
+  const d2 = new JSDOM(fs.readFileSync(path.join(WEB, 'board.html'), 'utf8'), {
+    runScripts: 'outside-only', pretendToBeVisual: true, virtualConsole: vc2,
+    url: startUrl,
+  });
+  const w2 = d2.window;
+  w2.HTMLCanvasElement.prototype.getContext = () =>
+    new Proxy({}, { get: () => function () {}, set: () => true });
+  w2.HTMLCanvasElement.prototype.toDataURL = () => 'data:image/png;base64,';
+  Object.defineProperty(w2.HTMLElement.prototype, 'clientWidth', { get: () => 900 });
+  Object.defineProperty(w2.HTMLElement.prototype, 'clientHeight', { get: () => 500 });
+  w2.HTMLElement.prototype.getBoundingClientRect = function () {
+    return { left: 0, top: 0, width: 900, height: 500, right: 900, bottom: 500, x: 0, y: 0 };
+  };
+  w2.__scrolled = [];
+  w2.Element.prototype.scrollIntoView = function () { w2.__scrolled.push(this); };
+  w2.renderMathInElement = () => {};
+  w2.requestAnimationFrame = (fn) => setTimeout(fn, 0);
+  w2.scrollTo = () => {};
+  w2.scrollBy = () => {};
+  const json = (v) => Promise.resolve({ json: () => Promise.resolve(v), ok: true });
+  w2.__asked = [];
+  w2.__seen = [];
+  w2.fetch = (u, init) => {
+    const url = String(u);
+    w2.__asked.push(url);
+    if (/slate\/state/.test(url)) return json({ pages: [] });
+    if (url.indexOf('/s/' + SID + '/view/doc/stage2-deck') === 0) return json(VIEW);
+    if (url.indexOf('/s/' + SID + '/view/') === 0) {
+      return json({ ok: false, error: 'no such document' });
+    }
+    if (/\/seen$/.test(url)) {
+      w2.__seen.push(init && init.body ? JSON.parse(init.body) : null);
+      return json({ ok: true });
+    }
+    return new Promise(() => {});
+  };
+  w2.EventSource = function () {
+    w2.__es = this;
+    this.readyState = 1;
+    this.close = function () {};
+    this.addEventListener = function () {};
+  };
+  for (const f of ['address.js', 'typeface.js', 'macros.js',
+                   'plane-core.js', 'ink-core.js', 'slate-core.js', 'annotate.js',
+                   'reader.js', 'board.js']) {
+    try { w2.eval(fs.readFileSync(path.join(WEB, f), 'utf8')); }
+    catch (e) { fail(f + ' (second board): ' + e.message); }
+  }
+  w2.__es.onmessage({ data: JSON.stringify(live) });
+  await new Promise((go) => setTimeout(go, 80));
+  return { window: w2, doc: w2.document };
+}
 
 (async function () {
   const es = window.__es;
@@ -306,10 +371,24 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
 
   scrolled = [];
   at(S + '/doc/stage2-deck/p2');
-  await tick();
+  await tick(5);
   if (scrolled.some((n) => n.tagName === 'IMG')) {
     ok('a page address scrolls the viewer to that page');
   } else fail('a page address did not reach the page');
+  if (window.__seen.some((b) => b && b.doc
+      && b.doc.id === 'stage2-deck' && b.doc.page === 2)) {
+    ok('opening the document tells the server which page is on the glass');
+  } else fail('opening sent no page: ' + JSON.stringify(window.__seen));
+
+  const realNow = window.Date.now;
+  window.Date.now = () => realNow() + 60000;
+  window.__markSeen(false);
+  window.Date.now = realNow;
+  await tick(5);
+  const beat = window.__seen[window.__seen.length - 1];
+  if (beat && beat.doc && beat.doc.id === 'stage2-deck') {
+    ok('the throttled beat carries the open document');
+  } else fail('the throttled beat carried no document: ' + JSON.stringify(beat));
 
   at(S + '/doc/stage2-deck/p9');
   await tick();
@@ -332,13 +411,21 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   } else fail('a missing card was not reported: ' + said());
 
   // -- and left. Going back to the card takes down whatever was up.
-  at(S + '/doc/stage2-deck');
-  await tick();
+  window.__seen.length = 0;
+  at(S + '/doc/stage2-deck/p2');
+  await tick(5);
   at(S + '/card/0007');
   await tick(5);
   if (el('reader').hidden) {
     ok('every surface can be left: one address takes down what another put up');
   } else fail('a surface was left open over the one the address named');
+  const closed = window.__seen[window.__seen.length - 1];
+  if (closed && closed.doc === null) {
+    ok('closing the document sends doc null');
+  } else fail('closing sent no null document: ' + JSON.stringify(window.__seen));
+  if (window.location.hash === S) {
+    ok('and the bar stops naming the closed document');
+  } else fail('the bar still names the closed document: ' + window.location.hash);
 
   // -- another session is another board, with the address carried whole.
   if (window.__addrGo(A.parse('#/s/20261001-090000/card/0002')) === 'elsewhere') {
@@ -369,6 +456,35 @@ const said = () => (el('pushed').hidden ? '' : el('pushed-text').textContent);
   if (window.location.hash === S + '/card/0007') {
     ok('and the address it landed on stays in the bar');
   } else fail('the bar was overwritten after landing: ' + window.location.hash);
+
+  // -- a cold start on a page of a document, and a bare board that resumes
+  //    the document the session was last reading.
+  {
+    const cold = await boardAt('https://board.test/s/' + SID + '/board'
+                               + S + '/doc/stage2-deck/p2', LIVE);
+    const cd = cold.doc;
+    if (!cd.getElementById('reader').hidden) {
+      ok('a cold start on a document page opens the document');
+    } else fail('a cold document page opened nothing');
+    if (cold.window.location.hash === S + '/doc/stage2-deck/p2') {
+      ok('and keeps the page in the bar');
+    } else fail('a cold document page lost its page: ' + cold.window.location.hash);
+    if (cold.window.__scrolled.some((n) => n.tagName === 'IMG')) {
+      ok('and scrolls to that page');
+    } else fail('a cold document page did not reach its page');
+    cold.window.close();
+
+    const resumed = await boardAt('https://board.test/s/' + SID + '/board',
+      Object.assign({}, LIVE, { state: Object.assign({}, LIVE.state,
+        { doc: { id: 'stage2-deck', page: 2, name: 'The Stage 2 deck' } }) }));
+    if (!resumed.doc.getElementById('reader').hidden) {
+      ok('a bare board reopens the stored document');
+    } else fail('a bare board ignored the stored document');
+    if (resumed.window.location.hash === S + '/doc/stage2-deck/p2') {
+      ok('at its stored page, in a canonical address');
+    } else fail('the resume address is wrong: ' + resumed.window.location.hash);
+    resumed.window.close();
+  }
 
   done();
 })();

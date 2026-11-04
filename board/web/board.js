@@ -2753,6 +2753,7 @@ function act(label, cls, fn) {
    goes through `inkkeep.js`, owed and retried. A send (`sendNotes`) is not a
    save. */
 var paperOpen = null;          /* the kind on the glass, or null */
+var paperName = "";
 
 var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
   url: BASE + "/annotate/save",
@@ -2795,10 +2796,14 @@ function readKind(kind, label, then) {
   if (!kind || !reader) return;
   paperOpen = kind;
   var have = papers[kind];
+  paperName = label || (have && have.name) || paperName || "";
   paperTools.get.hidden = !have;
   paperTools.get.textContent = "save a copy";
   paperTools.get.disabled = false;
   paperTools.round.hidden = true;
+  /* The document is on the glass before `/view` answers: say so now, so a
+     resume has it even if the pictures never arrive. */
+  markSeen(true);
   /* In hand before the tap: Safari will not raise the share sheet for a
      `navigator.share` called after a fetch has resolved, so the wait is spent
      while the pages are being drawn rather than after `save a copy`. */
@@ -2840,9 +2845,11 @@ function readKind(kind, label, then) {
     },
     drawn: function (got) {
       paintPaperRound(kind);
+      if (!paperName) paperName = (got && got.name) || "";
       /* The address bar now names this document, so a link to it can be
          copied off the glass. */
       remember();
+      markSeen(true);
       if (then) then(got);
     },
     failed: function (got) {
@@ -2854,9 +2861,23 @@ function readKind(kind, label, then) {
          document closes drops somebody back into the lesson with the pen out
          and the toolbar up, which is a mode they did not ask for. */
       if (window.Annotate && window.Annotate.isOn()) setAnnotating(false);
+      var closed = paperOpen ? paperIdent(paperOpen) : "";
+      var now = addrParse(window.location.hash || "");
+      if (now && now.session === SESSION && now.surface === "doc"
+          && now.doc === closed) {
+        var bare = spell({ surface: "session" });
+        if (bare && window.history && window.history.replaceState) {
+          try {
+            window.history.replaceState({}, "", window.location.pathname
+                                                + (window.location.search || "") + bare);
+          } catch (e) { /* a browser that refuses keeps the bar it had */ }
+        }
+      }
       paperOpen = null;
+      paperName = "";
       paperTools.round.hidden = true;
       remember();                  /* and the address stops naming the document */
+      markSeen(true);
     }
   });
 }
@@ -4102,13 +4123,33 @@ function remember() {
 }
 
 /* Once per load, once a payload is here: an address in the bar is followed,
-   against what the payload holds. */
+   against what the payload holds. A bare board with no address follows the
+   document the session was last reading. */
 function land() {
-  if (landed || !addrWanted || !lastLive) return;
+  if (landed || !lastLive) return;
   landed = true;
+  if (!addrWanted) { resumeDoc(); return; }
   var asked = addrWanted;
   addrWanted = null;
   addrGo(asked);
+}
+
+function resumeDoc() {
+  if ((window.location.hash || "") !== "") return;
+  var doc = lastLive && lastLive.state && lastLive.state.doc;
+  if (!doc || typeof doc !== "object") return;
+  paperName = typeof doc.name === "string" ? doc.name : "";
+  var spec = { surface: "doc", doc: String(doc.id || "") };
+  var page = Number(doc.page);
+  if (page >= 1 && page <= 9999) spec.page = page;
+  var text = spell(spec);
+  var a = addrParse(text);
+  if (!a) return;
+  try {
+    window.history.replaceState({}, "", window.location.pathname
+                                        + (window.location.search || "") + text);
+  } catch (e) { return; }
+  addrGo(a);
 }
 
 /* ------------------------------------------------------------- addresses */
@@ -4285,7 +4326,15 @@ function addrGo(a) {
       if (pages[a.page - 1].scrollIntoView) {
         pages[a.page - 1].scrollIntoView({ block: "start" });
       }
+      var at = spell({ surface: "doc", doc: a.doc, page: a.page });
+      if (at && window.history && window.history.replaceState) {
+        try {
+          window.history.replaceState({}, "", window.location.pathname
+                                              + (window.location.search || "") + at);
+        } catch (e) { /* a browser that refuses keeps the bar it had */ }
+      }
       addrArrived(a);
+      markSeen(true);
     });
     return "ok";
   }
@@ -6531,6 +6580,16 @@ if (els.newsHide) {
 var seenAt = 0;
 var SEEN_EVERY = 20000;
 
+/* What is on the glass, for the server to resume: the open document and the
+   page being read, or null. A card, the lesson and the slate are not documents
+   of the library, so they resume nothing. */
+function seenDoc() {
+  if (!paperOpen || !reader || paperOpen.indexOf("doc/") !== 0) return null;
+  var page = reader.pageInView ? reader.pageInView() : 1;
+  return { id: paperIdent(paperOpen), page: page || 1,
+           name: paperName || paperTitle(paperOpen) };
+}
+
 function markSeen(force) {
   /* A BOARD IN A BACKGROUND TAB IS NOT BEING READ, and this is the whole point
      of the feature: the person is working in another workspace, on another
@@ -6542,7 +6601,10 @@ function markSeen(force) {
   if (!force && now - seenAt < SEEN_EVERY) return;
   seenAt = now;
   try {
-    api("/seen", { method: "POST", keepalive: true }).catch(function () {});
+    api("/seen", { method: "POST", keepalive: true,
+                   headers: { "Content-Type": "application/json" },
+                   body: JSON.stringify({ doc: seenDoc() }) })
+      .catch(function () {});
   } catch (e) { /* offline; the marker is a convenience, not the lesson */ }
 }
 

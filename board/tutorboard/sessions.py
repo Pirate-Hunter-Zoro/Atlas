@@ -20,7 +20,7 @@
 
 A session is Mac-only and ignored (`/sessions/`; the audit refuses any path
 under it) and persists until `end`. session.json = {id, title, subject,
-mode, opened, ended, writeup, problem, seen, code, view, sent_late?,
+mode, opened, ended, writeup, problem, seen, code, view, doc, sent_late?,
 canvas?, given?, transcribe?};
 `subject` is a subject id or null, `writeup` a source path from the Atlas
 root or null, `problem` the label of the write-up's problem on their screen
@@ -32,7 +32,8 @@ heard it ({ref, sha, paths, step, subject, prev, seen, at}); while set,
 `gitops.commit` refuses the held paths on main and `board push` goes to the
 ref. A canvas (`view: slate`) records where its pages are filed as `canvas`
 ({subject, dir}), when it was last handed to the tutor as `given`, and
-whether its End asked for a transcript as `transcribe`.
+whether its End asked for a transcript as `transcribe`. `doc` is the document on
+the glass, `{id, page, name}`, or null; `url` resumes it.
 
 The constraint: an id is matched against `ID_RE`, never joined onto a path
 unchecked.
@@ -44,12 +45,14 @@ import re
 import shutil
 import threading
 import time
+import urllib.parse
 
 from . import gitops, paths, subjects
 from .course import repo as course_repo
 
 STORE = "sessions"
 ID_RE = re.compile(r"^\d{8}-\d{6}(?:-\d+)?$")
+DOC_ID = re.compile(r"^[a-z0-9-]{1,40}$")
 STAMP = "%Y%m%d-%H%M%S"
 WHEN = "%Y-%m-%d %H:%M:%S"
 
@@ -173,7 +176,7 @@ def new(title=None, base=None, now=None, view="board"):
     rec = {"id": sid, "title": title or None, "subject": None, "mode": "teach",
            "opened": time.strftime(WHEN, time.localtime(now)), "ended": None,
            "writeup": None, "problem": None, "seen": 0, "code": None,
-           "view": view}
+           "view": view, "doc": None}
     _save(where, rec)
     for d in LAYOUT:
         os.makedirs(os.path.join(where, d), exist_ok=True)
@@ -695,6 +698,10 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
     _line(where, "[filed] uploads/%s -> %s" % (name, shown), "filed", now=now,
           files=[shown])
     library.forget()
+    doc = rec.get("doc")
+    if old and isinstance(doc, dict) and doc.get("id") == old:
+        rec["doc"] = dict(doc, id=new)
+        _save(where, rec)
     return {"from": "uploads/" + name, "to": rel, "subject": found["id"],
             "keys": keys, "doc": new}
 
@@ -709,9 +716,24 @@ def current():
 
 def url(rec):
     """Where a session opens: its board, or the slate of a canvas not yet
-    handed to the tutor (`given`)."""
+    handed to the tutor (`given`). A stored `doc` resumes its document, on the
+    page it was read at."""
+    sid = rec.get("id")
     canvas = rec.get("view") == "slate" and not rec.get("given")
-    return "/s/%s/%s" % (rec.get("id"), "slate" if canvas else "board")
+    if canvas:
+        return "/s/%s/slate" % sid
+    doc = rec.get("doc")
+    if isinstance(doc, dict):
+        ident = doc.get("id")
+        if isinstance(ident, str) and DOC_ID.match(ident):
+            out = "/s/%s/board#/s/%s/doc/%s" % (
+                sid, sid, urllib.parse.quote(ident, safe=""))
+            page = doc.get("page")
+            if isinstance(page, int) and not isinstance(page, bool) \
+                    and 1 <= page <= 9999:
+                out += "/p%d" % page
+            return out
+    return "/s/%s/board" % sid
 
 
 def slate_pages(sid, base=None):
