@@ -24,12 +24,13 @@ The phases, each with its reason:
     cannot start is re-synced with `uv sync --locked`; the board's LaunchAgent
     whose interpreter is gone is reinstalled.
   * toolchain: `uv python upgrade`, `mise install --locked <tools>` in every
-    subject directory holding a mise.toml, `mise prune --tools` of the tools
-    those files name, `scripts/tools.sh update`, and the mise pins behind
-    into tools.json. Install names the directory's own tools because
-    --locked fails on any tool without a mise.lock entry; the prune is named
-    because a bare one removes versions the owner's other projects use. A pin
-    moves only by a commit of mise.toml and mise.lock, never from here.
+    subject directory holding a mise.toml and in Atlas's root, `mise prune
+    --tools` of the subject tools those files name (Atlas's root pins are
+    install-only and never pruned), `scripts/tools.sh update`, and the mise
+    pins behind into tools.json. Install names the directory's own tools
+    because --locked fails on any tool without a mise.lock entry; the prune is
+    named because a bare one removes versions the owner's other projects use.
+    A pin moves only by a commit of mise.toml and mise.lock, never from here.
   * status: the probes again, report only (venvs, TeX, the board's agent and
     reachability), then each failed tool and each tools.json line but a pin
     behind, as upkeep's problem lines. upkeep re-asks hourly while any stand.
@@ -393,8 +394,9 @@ def tool_failures():
 
 
 def toolchain():
-    """uv's Pythons, the subjects' mise pins, the descriptors, the pins
-    behind. {tool:<name>: why} of what failed."""
+    """uv's Pythons, the subjects' mise pins and Atlas's own root pins (the
+    root install-only, never pruned), the descriptors, the pins behind.
+    {tool:<name>: why} of what failed."""
     failed = {}
     uv = shutil.which("uv", path=os.environ.get("PATH", "") + os.pathsep
                       + "/opt/homebrew/bin" + os.pathsep + "/usr/local/bin")
@@ -411,12 +413,30 @@ def toolchain():
     plan = board_import("toolplan")
     try:
         dirs = [(i, d, plan.pinned_in(d)) for i, d in plan.mise_dirs(ATLAS)] if plan else []
+        if plan is not None:
+            root_toml, _root_lock = plan.root_mise(ATLAS)
+            if os.path.isfile(root_toml):
+                dirs.insert(0, ("root", ATLAS, plan.pinned_in(ATLAS)))
         pinned = plan.mise_tools(ATLAS) if plan else []
     except Exception:                                        # noqa: BLE001
         dirs, pinned = [], []
     for ident, where, names in dirs:
         if not names:
             continue
+        toml, lock = plan.root_mise(where)
+        stale = not os.path.isfile(lock)
+        if not stale:
+            try:
+                stale = os.path.getmtime(toml) > os.path.getmtime(lock)
+            except OSError:
+                stale = True
+        if stale:
+            code, out, err = run(["mise", "lock"], T_MISE, mutating=True,
+                                 cwd=where, env=mise_env())
+            if code != 0:
+                failed["tool:mise-lock"] = last_line(err, out) or "exit %d" % code
+                log_tail(out + "\n" + err, "mise lock")
+                continue
         code, out, err = run(["mise", "install", "--locked"] + names, T_MISE,
                              mutating=True, cwd=where, env=mise_env())
         if code != 0:

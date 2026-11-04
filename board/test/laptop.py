@@ -224,6 +224,8 @@ try:
                 "board/bootstrap.sh", "board/install.sh", "Brewfile",
                 "board/scripts/launchd/tutor-board.plist", "scripts/brew-upgrade.py"):
         real[rel] = read(os.path.join(ATLAS, rel))
+    real["mise.toml"] = '[tools]\nnode = "22"\n'
+    real["mise.lock"] = "root 1\n"
     real.update({
         ".gitignore": "/ai-config/\n",
         "projects/M/tools/widget.sh": (
@@ -282,6 +284,7 @@ try:
     check("setup.sh bundles the union, builds the mise subject and installs its tool",
           [l for l in calls("brew") if l.startswith("brew bundle install --no-upgrade")]
           and "mise install --locked rust" in calls("mise")
+          and "mise install --locked node" in calls("mise")
           and "mise exec -- cargo fetch --locked" in calls("mise")
           and calls("widget-install") == ["widget-install"]
           and "1 tool(s) declared for a coding, 0 problem(s)" in out, (out, read(CALLS)))

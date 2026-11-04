@@ -1,9 +1,9 @@
 """The machine's tools, as the tree declares them, and what became of them.
 
-Three layers, each read from the subjects and never from a list. The board
-server runs none of them: `scripts/setup.sh` installs, `scripts/tools.sh`
-reads descriptors, and upkeep, through Atlas's hook (`scripts/brew-upgrade.py`),
-keeps all three current.
+Four layers, each found in the tree and never in a list. The board server runs
+none of them: `scripts/setup.sh` installs, `scripts/tools.sh` reads
+descriptors, and upkeep, through Atlas's hook (`scripts/brew-upgrade.py`),
+keeps them current.
 
   BREWFILES    the root `Brewfile` plus each subject's own, as one sorted and
                deduplicated union (`union_text`). setup.sh bundles it with
@@ -12,11 +12,19 @@ keeps all three current.
                it changes (`write_union`). An entry that leaves the union is
                remembered in tools.json `left_brew`, unless upkeep/Brewfile
                declares it; nothing is uninstalled.
-  MISE         a subject's `mise.toml` and `mise.lock` pin its toolchains.
-               `marker_dirs` finds a marker at a subject's root and one
-               directory down, skipping SKIP.
+  MISE         a subject's and Atlas's own `mise.toml` and `mise.lock` pin
+               their toolchains. `marker_dirs` finds a marker at a subject's
+               root and one directory down, skipping SKIP. Atlas's root is not
+               a subject, so `root_mise` and `root_mise_tools` read it for
+               setup.sh and the upkeep hook only.
   DESCRIPTORS  `<subject>/tools/<name>.sh`, read by scripts/tools.sh. One name
                in two subjects must be the same bytes (`descriptors`).
+  DECLARED     `declare` writes one tool into the repository's own files: a
+               `brew` or `cask` line in the root or a subject's Brewfile, or a
+               `[tools]` entry in the root or a subject's mise.toml. setup.sh
+               and the upkeep hook install what those files declare, so a
+               declaration made on one Mac reaches every clone through git.
+               Nothing is uninstalled.
 
 State is tools.json in the board's state directory: one record per tool
 tools.sh has handled, `left` for one no longer declared, `left_brew`, and
@@ -148,6 +156,48 @@ def mise_tools(base):
     for _ident, d in mise_dirs(base):
         names.update(pinned_in(d))
     return sorted(names)
+
+
+def root_mise(base):
+    """(mise.toml, mise.lock) at Atlas's own root, whether or not either
+    exists. Atlas's root is not a subject: only setup.sh and the hook read
+    it, through this helper."""
+    return (os.path.join(base, "mise.toml"), os.path.join(base, "mise.lock"))
+
+
+def _toml_tools(path):
+    """[(name, version)] of `path`'s `[tools]` table, simple
+    `name = "version"` entries only, in file order."""
+    out = []
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return out
+    inside = False
+    for raw in lines:
+        line = _strip_comment(raw).strip()
+        if line.startswith("["):
+            inside = line.strip("[] ").replace(" ", "") == "tools"
+            continue
+        if inside and "=" in line:
+            key, value = line.split("=", 1)
+            key = key.strip().strip("\"'")
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            elif value.startswith("{") and value.endswith("}"):
+                m = re.search(r'version\s*=\s*"([^"]*)"', value)
+                if m:
+                    value = m.group(1)
+            if key:
+                out.append((key, value))
+    return out
+
+
+def root_mise_tools(base):
+    """The (name, version) pairs Atlas's own mise.toml pins, in file order."""
+    return _toml_tools(root_mise(base)[0])
 
 
 # ----------------------------------------------------------------- Brewfile
@@ -463,6 +513,235 @@ def pins_of(said, subject, where=None):
     return out
 
 
+# ------------------------------------------------------------- declarations
+
+BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _newline(text):
+    """The line ending `text` already uses: CRLF only when most of its line
+    breaks are CRLF, else LF."""
+    crlf = text.count("\r\n")
+    return "\r\n" if crlf > text.count("\n") - crlf else "\n"
+
+
+def _write_text(path, text):
+    """Write `text` to `path` through a temp file, making its directory. The
+    text's own line endings are written unchanged."""
+    where = os.path.dirname(path)
+    if where:
+        os.makedirs(where, exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="") as fh:
+        fh.write(text)
+    os.replace(tmp, path)
+
+
+def _entry_name(entry):
+    """(kind, name) of a `brew "x"` or `cask "x"` entry, else None."""
+    m = re.match(r'^(brew|cask)\s+"([^"]+)"', entry)
+    return (m.group(1), m.group(2)) if m else None
+
+
+def _declared(base):
+    """[(kind, name)] of every brew and cask in `union(base)` and in
+    `upkeep/Brewfile`, which upkeep installs on every machine."""
+    out = []
+    for entry in list(union(base)[0]) + sorted(machine_entries(base)):
+        got = _entry_name(entry)
+        if got:
+            out.append(got)
+    return out
+
+
+def _sub_name(head):
+    """The tool part of a normalized `tools.<name>` header, unquoted."""
+    rest = head[len("tools."):]
+    if len(rest) >= 2 and rest[0] == rest[-1] and rest[0] in "\"'":
+        rest = rest[1:-1]
+    return rest
+
+
+def _mise_set(path, name, version, why):
+    """Put `name` under `path`'s tools table, replacing its entry, or the
+    version line inside a `[tools.<name>]` subtable when one exists. Returns
+    (changed, entry, note); every other line, comment and line ending stays."""
+    line = '%s = "%s"' % (name, version)
+    if why:
+        line += "  # " + why
+    version_line = 'version = "%s"' % version
+    if why:
+        version_line += "  # " + why
+    try:
+        with open(path, encoding="utf-8", newline="") as fh:
+            text = fh.read()
+    except OSError:
+        text = ""
+    eol = _newline(text)
+    lines = text.splitlines()
+    heads = []
+    for i, raw in enumerate(lines):
+        bare = _strip_comment(raw).strip()
+        if bare.startswith("[") and bare.endswith("]"):
+            heads.append((i, re.sub(r"\s+", "", bare[1:-1])))
+    tools_at = sub_at = None
+    for i, head in heads:
+        if head == "tools":
+            tools_at = i
+        elif head.startswith("tools.") and _sub_name(head) == name:
+            sub_at = i
+            break
+
+    def section_end(at):
+        later = [i for i, _head in heads if i > at]
+        return later[0] if later else len(lines)
+
+    if sub_at is not None:
+        end = section_end(sub_at)
+        replaced = None
+        insert_at = sub_at + 1
+        for i in range(sub_at + 1, end):
+            bare = _strip_comment(lines[i]).strip()
+            if "=" in bare:
+                key = bare.split("=", 1)[0].strip().strip("\"'")
+                if key == "version":
+                    replaced = i
+                    break
+                insert_at = i + 1
+        if replaced is not None:
+            if lines[replaced] == version_line:
+                return False, version_line, "already pinned to %s" % version
+            lines[replaced] = version_line
+        else:
+            lines.insert(insert_at, version_line)
+        _write_text(path, eol.join(lines) + eol)
+        return True, version_line, ""
+    start = tools_at
+    insert_at = replaced = None
+    if start is not None:
+        end = section_end(start)
+        insert_at = start + 1
+        for i in range(start + 1, end):
+            bare = _strip_comment(lines[i]).strip()
+            if "=" in bare:
+                key = bare.split("=", 1)[0].strip().strip("\"'")
+                if key == name:
+                    replaced = i
+                    break
+                insert_at = i + 1
+    if replaced is not None:
+        if lines[replaced] == line:
+            return False, line, "already pinned to %s" % version
+        lines[replaced] = line
+    elif start is None:
+        if lines and lines[-1].strip():
+            lines.append("")
+        lines.append("# Pinned toolchains, installed by `mise install --locked`.")
+        lines.append("[tools]")
+        lines.append(line)
+    else:
+        lines.insert(insert_at, line)
+    _write_text(path, eol.join(lines) + eol)
+    return True, line, ""
+
+
+def declare(base, kind, name, version=None, subject=None, why=None, force=False):
+    """Declare one machine tool in the repository's own files.
+
+    `kind` is brew, cask or mise. With no `subject`, a brew or cask line goes
+    in `base/Brewfile` and a mise pin in `base/mise.toml`; a subject's goes in
+    that subject's root. A brew or cask already declared anywhere in
+    `union(base)` or `upkeep/Brewfile` is refused with `changed` False, and so
+    is a name declared with the other kind, unless `force`. A mise pin replaces
+    its entry rather than adding a second. Returns {path, kind, name, changed,
+    target, entry, note}: `path` is relative to `base`, `target` the file's
+    directory. Never writes Brewfile.all.
+    """
+    base = os.path.realpath(os.path.expanduser(base))
+    kind = str(kind or "").strip()
+    name = str(name or "").strip()
+    got = {"path": "", "kind": kind, "name": name, "changed": False,
+           "target": base, "entry": "", "note": "", "subject": ""}
+    if kind not in ("brew", "cask", "mise"):
+        got["note"] = "kind must be brew, cask or mise"
+        return got
+    if not name:
+        got["note"] = "a tool needs a name"
+        return got
+    target_root = base
+    if subject:
+        from . import subjects
+        found = subjects.find(subject, base)
+        if not found:
+            got["note"] = "no subject %r" % subject
+            return got
+        target_root = found["root"]
+        got["subject"] = found["id"]
+    if kind in ("brew", "cask"):
+        for have_kind, have_name in _declared(base):
+            if have_name != name:
+                continue
+            if have_kind == kind:
+                if not force:
+                    got["note"] = "already declared as a %s in the Brewfiles" % kind
+                    return got
+            elif not force:
+                got["note"] = ("already declared as a %s; a name has one kind"
+                               % have_kind)
+                return got
+        path = os.path.join(target_root, "Brewfile")
+        try:
+            with open(path, encoding="utf-8", newline="") as fh:
+                text = fh.read()
+        except OSError:
+            text = ""
+        eol = _newline(text)
+        if text and not text.endswith("\n"):
+            text += eol
+        entry = '%s "%s"' % (kind, name)
+        if why:
+            entry += "  # " + why
+        _write_text(path, text + entry + eol)
+        got.update({"path": os.path.relpath(path, base), "changed": True,
+                    "target": os.path.dirname(path), "entry": entry})
+        return got
+    if not BARE_KEY.match(name):
+        got["note"] = "mise tool names are TOML bare keys"
+        return got
+    version = str(version or "latest")
+    path = root_mise(target_root)[0]
+    changed, entry, note = _mise_set(path, name, version, why)
+    got.update({"path": os.path.relpath(path, base), "changed": changed,
+                "target": os.path.dirname(path), "entry": entry, "note": note})
+    return got
+
+
+def note_declared(base, record, where=None):
+    """Append or replace `record` in tools.json's `declared` list, by kind
+    and name. Best effort: never raises, and returns False when unwritten."""
+    try:
+        rec = dict(record or {})
+        for key in ("name", "kind", "path", "subject", "why"):
+            rec.setdefault(key, "")
+        rec.setdefault("at", now_stamp())
+
+        def change(doc):
+            got = doc.get("declared")
+            if not isinstance(got, list):
+                got = []
+            key = (rec.get("kind"), rec.get("name"))
+            for i, old in enumerate(got):
+                if isinstance(old, dict) and (old.get("kind"), old.get("name")) == key:
+                    got[i] = rec
+                    break
+            else:
+                got.append(rec)
+            doc["declared"] = got
+        return update(change, where)
+    except Exception:                                        # noqa: BLE001
+        return False
+
+
 # --------------------------------------------------------------------- CLI
 
 def _cli(argv):
@@ -476,6 +755,7 @@ def _cli(argv):
         record            tools.sh's TSV rows on stdin into tools.json
         markers           one line per marker: subject, marker, lock, dir
         pinned <dir>      the tools <dir>'s own mise.toml pins, one a line
+        root-mise-tools   Atlas's own mise.toml pins, one name a line
     """
     args = list(argv)
     base = None
@@ -527,6 +807,10 @@ def _cli(argv):
         return 0
     if cmd == "pinned" and len(args) > 1:
         for name in pinned_in(args[1]):
+            print(name)
+        return 0
+    if cmd == "root-mise-tools":
+        for name, _version in root_mise_tools(base):
             print(name)
         return 0
     if cmd == "markers":

@@ -103,6 +103,14 @@ The assistant runs these. The student never does.
                                        board/tex/writeup.tex.in; never overwrites
     board vpn [status]                 what tailscale says, and where HTTPS points
     board init [name]                  write tutorboard.json for this repository
+    board tools list                   the machine tools this repository declares,
+                                       from the root and subjects' Brewfiles and
+                                       mise.toml files, plus tools.json's record
+    board tools add brew|cask|mise <name> [--subject <id>] [--why <text>] [--force]
+                                       declare a tool in the repository: write it
+                                       to a Brewfile or mise.toml, commit and push,
+                                       then start its install in the background.
+                                       `board tools add mise <name>@<version>` pins a version
     board doctor [--dry]               what the machine has, then one real
                                        DeepSeek turn, one look through the
                                        vision route and one word spoken and
@@ -2177,6 +2185,193 @@ def cmd_code(live, args):
     return coding.main(args)
 
 
+def _tools_entries(base):
+    """[(kind, name, path, subject)] from the repository's declarations."""
+    from tutorboard import toolplan
+    rows = []
+    seen = set()
+
+    def add(kind, name, path, subject):
+        key = (kind, name, os.path.relpath(path, base))
+        if key not in seen:
+            seen.add(key)
+            rows.append((kind, name, os.path.relpath(path, base), subject or ""))
+
+    for label, path in toolplan.brewfiles(base):
+        subject = "" if label == "Brewfile" else label[:-len("/Brewfile")]
+        for entry in toolplan.entries(path):
+            got = toolplan._entry_name(entry)
+            if got:
+                add(got[0], got[1], path, subject)
+    root_toml, _root_lock = toolplan.root_mise(base)
+    if os.path.isfile(root_toml):
+        for name, _version in toolplan.root_mise_tools(base):
+            add("mise", name, root_toml, "")
+    for ident, where in toolplan.mise_dirs(base):
+        toml = os.path.join(where, "mise.toml")
+        for name in toolplan.pinned_in(where):
+            add("mise", name, toml, ident)
+    for rec in toolplan.read().get("declared") or []:
+        if isinstance(rec, dict):
+            add(rec.get("kind") or "", rec.get("name") or "",
+                os.path.join(base, rec.get("path") or ""), rec.get("subject") or "")
+    return rows
+
+
+def _tools_kick(base):
+    """Start the install in the background: the hook's brewfiles and toolchain
+    phases through upkeep when it is installed, else the hook directly. True
+    when a process was started."""
+    if os.environ.get("BOARD_TOOLS_NO_KICK"):
+        return False
+    logdir = os.path.join(os.path.expanduser("~"), ".local", "state", "atlas-setup")
+    log = os.path.join(logdir, "declare.log")
+    try:
+        os.makedirs(logdir, exist_ok=True)
+    except OSError:
+        pass
+    up = shutil.which("upkeep")
+    if not up:
+        cand = os.path.join(os.path.expanduser("~"), ".local", "bin", "upkeep")
+        up = cand if os.path.exists(cand) else None
+    if up:
+        argv = [up, "run", "--force"]
+    else:
+        hook = os.path.join(base, "upkeep.d", "hook")
+        if not os.access(hook, os.X_OK):
+            return False
+        argv = ["/bin/sh", "-c", '"$0" brewfiles && "$0" toolchain', hook]
+    try:
+        with open(log, "ab") as fh:
+            subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=fh, stderr=fh,
+                             cwd=base, start_new_session=True, close_fds=True)
+        return True
+    except OSError:
+        return False
+
+
+def cmd_tools(live, args):
+    """Declare machine tools in the repository, or list what it declares.
+
+    board tools list
+    board tools add brew <name> [--subject <id>] [--why <text>] [--force]
+    board tools add cask <name> [--subject <id>] [--why <text>] [--force]
+    board tools add mise <name>[@<version>] [--subject <id>] [--why <text>] [--force]
+
+    add writes one declaration -- a Brewfile line, or a mise tool entry -- in
+    the root (no subject) or the named subject, commits and pushes that file,
+    and starts the install in the background. A duplicate is refused unless
+    --force. list reads the repository's declarations and tools.json, and
+    touches neither brew nor the network.
+    """
+    from tutorboard import toolplan
+    base = subjects.root()
+    rest = list(args)
+    if not rest:
+        print("usage: board tools list | board tools add brew|cask|mise <name> "
+              "[--subject <id>] [--why <text>] [--force]", file=sys.stderr)
+        return 2
+    if rest[0] == "list":
+        if len(rest) != 1:
+            print("usage: board tools list", file=sys.stderr)
+            return 2
+        for kind, name, path, subject in _tools_entries(base):
+            print("%-4s  %-28s  %-36s  %s"
+                  % (kind, name, path, subject or "-"))
+        return 0
+    if rest[0] != "add":
+        print("board tools: unknown subcommand %r (list or add)" % rest[0],
+              file=sys.stderr)
+        return 2
+    rest = rest[1:]
+    if len(rest) < 2:
+        print("usage: board tools add brew|cask|mise <name> [--subject <id>] "
+              "[--why <text>] [--force]", file=sys.stderr)
+        return 2
+    kind, spec = rest[0], rest[1]
+    rest = rest[2:]
+    subject = why = None
+    force = False
+    while rest:
+        if rest[0] in ("--subject", "--why") and len(rest) > 1:
+            if rest[0] == "--subject":
+                subject = rest[1]
+            else:
+                why = rest[1]
+            rest = rest[2:]
+        elif rest[0] == "--force":
+            force = True
+            rest = rest[1:]
+        else:
+            print("board tools add: unexpected %r" % rest[0], file=sys.stderr)
+            return 2
+    version = None
+    name = spec
+    if kind == "mise" and "@" in spec:
+        name, _sep, tail = spec.rpartition("@")
+        version = tail or None
+    decl = toolplan.declare(base, kind, name, version=version, subject=subject,
+                            why=why, force=force)
+    if not decl["changed"]:
+        print("board tools: %s not declared: %s" % (name, decl.get("note") or "no change"),
+              file=sys.stderr)
+        return 1
+    paths = [decl["path"]]
+    lock_note = ""
+    if kind == "mise":
+        lock = os.path.join(decl["target"], "mise.lock")
+        try:
+            with open(lock, "rb") as fh:
+                before = fh.read()
+        except OSError:
+            before = None
+        mise = shutil.which("mise")
+        if not mise:
+            lock_note = "mise is not installed, so the upkeep hook will lock it"
+        else:
+            try:
+                lockcode = subprocess.run(
+                    [mise, "lock"], cwd=decl["target"], timeout=180,
+                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE).returncode
+            except (OSError, subprocess.TimeoutExpired):
+                lockcode = 1
+            if lockcode != 0:
+                lock_note = "mise lock did not finish, so the upkeep hook will lock it"
+        try:
+            with open(lock, "rb") as fh:
+                after = fh.read()
+        except OSError:
+            after = None
+        if after != before and after is not None:
+            paths.append(os.path.relpath(lock, base))
+    if kind == "mise":
+        message = "tools: pin %s %s" % (name, version or "latest")
+    else:
+        message = "tools: declare %s %s" % (kind, name)
+    ok, said = gitops.save(base, paths, message)
+    print(said)
+    if lock_note:
+        print(lock_note)
+    if not any(line.startswith("committed:") for line in said.splitlines()):
+        return 1
+    toolplan.note_declared(base, {
+        "name": name, "kind": kind, "path": decl["path"],
+        "subject": decl.get("subject") or subject or "", "why": why or "",
+        "at": toolplan.now_stamp()})
+    started = _tools_kick(base)
+    pushed = ok and not any(
+        line.startswith("push failed") or "not pushed" in line
+        or "could not fetch" in line or "committed locally" in line
+        for line in said.splitlines())
+    print("declared %s in %s; %s; %s." % (
+        name, decl["path"], "the commit pushed" if pushed
+        else "the commit is local and was not pushed",
+        "the install is running in the background" if started
+        else "the install was not started"))
+    return 0
+
+
 # ---------------------------------------------------------------------------
 COMMANDS = {
     "status": cmd_status, "pull": cmd_pull, "cost": cmd_cost,
@@ -2192,7 +2387,7 @@ COMMANDS = {
     "code": cmd_code,
     "round": cmd_round, "textbook": cmd_textbook,
     "session": cmd_session, "bind": cmd_bind, "file": cmd_file,
-    "open": cmd_open,
+    "open": cmd_open, "tools": cmd_tools,
 }
 
 # Retired commands, refused by name with what replaced each.
@@ -2208,7 +2403,7 @@ GONE = {
 # Commands in none of the three lists below refuse without a session.
 # Commands about a path they are given: no `live/` is made for them.
 NO_LIVE = ("textbook", "build", "session", "bind", "file", "open", "code",
-           "pull", "cost", "doctor", "vpn", "egress", "limit", "hear")
+           "pull", "cost", "doctor", "vpn", "egress", "limit", "hear", "tools")
 # Commands that touch only the subject: outside a session they run on a
 # sessionless Repo.
 SUBJECT_ONLY = ("check", "init", "see", "memo")

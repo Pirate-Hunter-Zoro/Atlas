@@ -13,3 +13,5 @@ That text is the inbox -- it already carries every file path, so do not run `boa
 A `[bind]` line in it means the session was just moved to another subject. If that subject does not match the lesson in the recap, write nothing into it -- no memo, no write-up -- and ask on your card whether the move was meant. When the owner asks for it moved, `board bind <subject> --force` moves it; never without their ask. A session with no cards yet has no lesson to mismatch; carry on.
 
 Then reply by writing ONE new card with `board write <kind> <slug>`, its body on stdin. Not two. Check every fact and every line of arithmetic the card asserts before you write it; then write the card before any filing or transcribing, because it appears on their board the instant the file exists.
+
+When the student asks for a tool, run `board tools add <brew|cask|mise> <name> [--subject <id>] [--why ...]`, which declares it in the repo, commits and pushes it, and starts the install; `board tools list` shows the declarations.

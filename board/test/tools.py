@@ -75,6 +75,14 @@ def read(path):
         return ""
 
 
+def read_bytes(path):
+    try:
+        with open(path, "rb") as fh:
+            return fh.read()
+    except OSError:
+        return b""
+
+
 work = os.path.realpath(tempfile.mkdtemp(prefix="atlas-tools-"))
 home = os.path.join(work, "home")
 shims = os.path.join(work, "shims")
@@ -166,6 +174,8 @@ try:
     write(os.path.join(atlas, "Brewfile"),
           '# the root\nbrew "uv"            # every uv.lock\nbrew "mise"\n'
           'cask "font-x"   # a "quoted" # comment\n')
+    write(os.path.join(atlas, "mise.toml"), '[tools]\nnode = "22"\n')
+    write(os.path.join(atlas, "mise.lock"), "root lock\n")
     M = os.path.join(atlas, "projects", "M")
     write(os.path.join(M, "tutorboard.json"), json.dumps({"check": "cargo test"}))
     write(os.path.join(M, "mise.toml"),
@@ -202,6 +212,106 @@ try:
           and labels == ["Brewfile", "projects/M/Brewfile"], (got, labels))
 
     # =======================================================================
+    # declarations
+    # =======================================================================
+    decl = os.path.join(work, "decl")
+    write(os.path.join(decl, "Brewfile"),
+          "# kept header\nbrew \"uv\"  # every uv.lock\n")
+    write(os.path.join(decl, "courses", "C", "tutorboard.json"),
+          json.dumps({"check": "true"}))
+    write(os.path.join(decl, "courses", "C", "Brewfile"), 'brew "go"\n')
+    got = toolplan.declare(decl, "brew", "jq", why="json on the command line")
+    text = read(os.path.join(decl, "Brewfile"))
+    check("declare brew appends to the root Brewfile, header bytes and order kept",
+          got["changed"] and got["path"] == "Brewfile" and got["target"] == decl
+          and got["entry"] == 'brew "jq"  # json on the command line'
+          and text.startswith("# kept header\nbrew \"uv\"  # every uv.lock\n")
+          and text.endswith('brew "jq"  # json on the command line\n'), (got, text))
+    check("a duplicate of the same name is refused, changed False with a note",
+          not toolplan.declare(decl, "brew", "jq")["changed"]
+          and "already declared" in toolplan.declare(decl, "brew", "jq")["note"]
+          and read(os.path.join(decl, "Brewfile")).count('brew "jq"') == 1)
+    got = toolplan.declare(decl, "cask", "jq")
+    check("a name declared with the other kind is refused",
+          not got["changed"] and "already declared as a brew" in got["note"], got)
+    got = toolplan.declare(decl, "cask", "font-x", why="a face")
+    check("declare cask appends a cask line with its why",
+          got["changed"] and got["entry"] == 'cask "font-x"  # a face'
+          and 'cask "font-x"  # a face\n' in read(os.path.join(decl, "Brewfile")), got)
+    got = toolplan.declare(decl, "brew", "ripgrep", subject="courses/C", why="search")
+    sub_brew = os.path.join(decl, "courses", "C", "Brewfile")
+    check("declare --subject targets that subject's Brewfile",
+          got["changed"] and got["path"] == "courses/C/Brewfile"
+          and got["target"] == os.path.dirname(sub_brew)
+          and read(sub_brew).endswith('brew "ripgrep"  # search\n'), (got, read(sub_brew)))
+    root_brew = os.path.join(decl, "Brewfile")
+    write(root_brew, read(root_brew).rstrip("\n"))
+    got = toolplan.declare(decl, "brew", "bat")
+    text = read(root_brew)
+    check("a Brewfile with no final newline gets one before the new line",
+          got["changed"] and 'brew "uv"  # every uv.lock\n' in text
+          and 'cask "font-x"  # a face\nbrew "bat"\n' in text, text)
+    toml, lock = toolplan.root_mise(decl)
+    check("root_mise names both files whether or not they exist",
+          toml == os.path.join(decl, "mise.toml")
+          and lock == os.path.join(decl, "mise.lock")
+          and not os.path.exists(toml))
+    got = toolplan.declare(decl, "mise", "python", version="3.12", why="the board")
+    text = read(toml)
+    check("declare mise writes a root mise.toml with a [tools] entry",
+          got["changed"] and got["path"] == "mise.toml" and got["target"] == decl
+          and got["entry"] == 'python = "3.12"  # the board'
+          and "[tools]" in text and 'python = "3.12"  # the board' in text, (got, text))
+    got = toolplan.declare(decl, "mise", "python", version="3.13")
+    text = read(toml)
+    check("a second mise declaration replaces its entry, never duplicates it",
+          got["changed"] and text.count("python =") == 1
+          and 'python = "3.13"' in text, (got, text))
+    check("root_mise_tools reads the pins back",
+          toolplan.root_mise_tools(decl) == [("python", "3.13")],
+          toolplan.root_mise_tools(decl))
+    got = toolplan.declare(decl, "mise", "cargo:ripgrep")
+    check("a mise name that is not a TOML bare key is refused",
+          not got["changed"] and "bare key" in got["note"], got)
+    check("note_declared records the declaration in tools.json",
+          toolplan.note_declared(decl, {"name": "jq", "kind": "brew",
+                                        "path": "Brewfile", "subject": "",
+                                        "why": "json"})
+          and [r["name"] for r in toolplan.read().get("declared", [])] == ["jq"],
+          toolplan.read().get("declared"))
+    write(os.path.join(decl, "upkeep", "Brewfile"), 'brew "gh"\n')
+    got = toolplan.declare(decl, "brew", "gh")
+    check("a name upkeep/Brewfile already declares is refused",
+          not got["changed"] and "already declared" in got["note"], got)
+    spaced = os.path.join(work, "decl-spaced")
+    write(os.path.join(spaced, "mise.toml"), '[ tools ]\nnode = "20"\n')
+    got = toolplan.declare(spaced, "mise", "node", version="22")
+    text = read(os.path.join(spaced, "mise.toml"))
+    check("declare mise treats '[ tools ]' as the tools table",
+          got["changed"] and text.count("[ tools ]") == 1
+          and 'node = "22"' in text and "[tools]" not in text, (got, text))
+    write(os.path.join(spaced, "mise.toml"),
+          '[tools]\npython = "3.12"\n\n[tools.node]\nversion = "20"\n')
+    got = toolplan.declare(spaced, "mise", "node", version="22")
+    text = read(os.path.join(spaced, "mise.toml"))
+    check("declare mise updates a [tools.node] subtable's version line, not a bare key",
+          got["changed"] and "[tools.node]" in text and 'version = "22"' in text
+          and 'node = "22"' not in text and 'python = "3.12"' in text, (got, text))
+    crlf = os.path.join(work, "decl-crlf")
+    write(os.path.join(crlf, "Brewfile"), '# kept\r\nbrew "uv"\r\n')
+    write(os.path.join(crlf, "mise.toml"), '[tools]\r\nnode = "20"\r\n')
+    toolplan.declare(crlf, "brew", "jq", why="json")
+    toolplan.declare(crlf, "mise", "node", version="22")
+    brew_bytes = read_bytes(os.path.join(crlf, "Brewfile"))
+    mise_bytes = read_bytes(os.path.join(crlf, "mise.toml"))
+    check("declarations keep a CRLF file's line endings",
+          brew_bytes == b'# kept\r\nbrew "uv"\r\nbrew "jq"  # json\r\n'
+          and mise_bytes == b'[tools]\r\nnode = "22"\r\n', (brew_bytes, mise_bytes))
+    shutil.rmtree(decl)
+    shutil.rmtree(spaced)
+    shutil.rmtree(crlf)
+
+    # =======================================================================
     # setup.sh, twice
     # =======================================================================
     setup = os.path.join(atlas, "scripts", "setup.sh")
@@ -226,6 +336,10 @@ try:
           and not [l for l in calls("mise") if "target" in l or "zig-" in l]
           and "ok (mise install, cargo fetch, flutter pub get, zig build --fetch)" in out1,
           (calls(), out1))
+    check("setup installs Atlas's own root mise pins too, trusted and locked there",
+          calls("mise trust --quiet %s/mise.toml @ " % atlas)
+          and calls("mise install --locked node @ %s" % atlas)
+          and "atlas root" in out1, (calls("mise"), out1))
     check("a build.zig.zon whose mise.toml pins no zig is not fetched, and setup says so",
           not calls("mise exec -- zig build --fetch @ %s" % Z)
           and "ok (mise install, zig skipped (no zig pin))" in out1, (calls(), out1))
