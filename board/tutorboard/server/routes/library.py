@@ -459,12 +459,12 @@ def delete_doc(repo, subject, ident):
     """
     served = (subjects.find(repo.root) or {}).get("id") or ""
     if not subject or subject == served:
-        root = repo.root
+        root, target = repo.root, subject or served
     elif SUBJECT_ID.match(subject):
         found = subjects.find(subject)
         if not found or found["id"] != subject:
             return {"ok": False, "error": "no such subject"}, 404
-        root = found["root"]
+        root, target = found["root"], found["id"]
     else:
         return {"ok": False, "error": "no such subject"}, 404
     if not ident or not writing.ANN_DOC.match("doc/%s/p1" % ident):
@@ -483,6 +483,8 @@ def delete_doc(repo, subject, ident):
     got = artifacts.delete(root, os.path.join(root, *doc["artifact"].split("/")),
                            idents=library.mark_idents(root, doc), ink_dirs=ink)
     library.forget()
+    if got.get("ok"):
+        forget_doc(repo, target, doc["id"])
     got.pop("trash", None)
     return dict(got, id=doc["id"], title=doc["title"]), (200 if got["ok"] else 500)
 
@@ -514,7 +516,25 @@ def delete_material(repo, subject, name):
         status = 404 if str(exc).startswith("no material") else 500
         return {"ok": False, "error": str(exc)}, status
     library.forget()
+    forget_doc(repo, found["id"], (doc or {}).get("id"))
     return {"ok": True, "subject": found["id"], "name": name, "said": said}, 200
+
+
+def forget_doc(repo, subject, ident):
+    """Clear the document a session in `subject` was reading, when it is
+    `ident`: the document it named has gone."""
+    if not subject or not ident:
+        return
+    from ... import sessions                         # local: a cycle through artifacts
+    base = registry.base_of(repo)
+    for rec in sessions.all(base):
+        doc = rec.get("doc")
+        if rec.get("subject") == subject and isinstance(doc, dict) \
+                and doc.get("id") == ident:
+            try:
+                sessions.repo(rec.get("id"), base).set_state(doc=None)
+            except (LookupError, OSError):
+                pass
 
 
 def _pages(got):

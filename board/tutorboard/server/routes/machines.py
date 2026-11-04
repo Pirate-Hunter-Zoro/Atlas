@@ -16,6 +16,7 @@ WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
 import json
 import os
+import re
 import threading
 import time
 import urllib.parse
@@ -27,6 +28,10 @@ from ... import subjects
 from ... import sync
 from ... import stamp
 from ...lesson import state
+
+
+DOC_ID = re.compile(r"^[a-z0-9-]{1,40}$")
+DOC_NAME = 200
 
 
 def get(h, repo, path):
@@ -128,9 +133,37 @@ def post(h, repo, path):
     # Only the page can say somebody is looking.
     if path == "/seen":
         # The session's own `seen`: the home screen's Continue row counts the
-        # cards written after it as new.
+        # cards written after it as new. An optional `{doc}` also records what
+        # is on the glass, so the next visit resumes it.
+        try:
+            body = h.read_body()
+            payload = json.loads(body.decode("utf-8")) if body.strip() else {}
+        except (ValueError, UnicodeDecodeError):
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        wrote = {}
+        if "doc" in payload:
+            doc = payload.get("doc")
+            if doc is None:
+                wrote["doc"] = None
+            elif isinstance(doc, dict):
+                ident = doc.get("id")
+                if not isinstance(ident, str) or not DOC_ID.match(ident):
+                    return h.send_json({"ok": False, "error": "bad document"},
+                                       status=400)
+                page = doc.get("page")
+                if isinstance(page, bool) or not isinstance(page, int) \
+                        or not 1 <= page <= 9999:
+                    return h.send_json({"ok": False, "error": "bad document page"},
+                                       status=400)
+                wrote["doc"] = {"id": ident, "page": page,
+                                "name": str(doc.get("name") or "")[:DOC_NAME]}
+            else:
+                return h.send_json({"ok": False, "error": "bad document"},
+                                   status=400)
         if getattr(repo, "stored", False):
-            repo.set_state(seen=time.time())
+            repo.set_state(seen=time.time(), **wrote)
         h.hub.worker.dirty.set()
         return h.send_json({"ok": True})
 

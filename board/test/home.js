@@ -273,6 +273,17 @@ async function stubbed() {
         && /3 new/.test(rings.textContent));
   check('and opens that session\'s board',
         rings.getAttribute('href') === '/s/20261008-201500/board');
+  {
+    const listing = JSON.parse(JSON.stringify(answers['/sessions.json']));
+    listing.sessions[0].url = '/s/' + SID + '/board#/s/' + SID
+      + '/doc/slides-3/p4';
+    const dw = load('', { over: { '/sessions.json': listing } });
+    await sleep(80);
+    const row = dw.document.querySelector('a[data-session="' + SID + '"]');
+    check('a Continue row whose session was reading a document resumes it',
+          row && row.getAttribute('href') === listing.sessions[0].url);
+    dw.close();
+  }
   check('an unbound session says so', open[1] && /unbound/.test(open[1].textContent));
   const past = Array.from(d.querySelectorAll('#past-list .row'));
   check('Past sessions lists the newest ten ended ones, read only, and nothing open',

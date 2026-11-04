@@ -35,7 +35,7 @@ SESSION_JSON = "session.json"
 # The keys every session.json carries; `set_state` writes None into these as
 # null rather than dropping them.
 SESSION_KEYS = ("id", "title", "subject", "mode", "opened", "ended", "writeup",
-                "problem", "seen", "code", "view")
+                "problem", "seen", "code", "view", "doc")
 
 
 def is_stored(session):

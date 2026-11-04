@@ -32,7 +32,7 @@ for k, v in (("GIT_AUTHOR_NAME", "t"), ("GIT_AUTHOR_EMAIL", "t@t"),
              ("GIT_COMMITTER_NAME", "t"), ("GIT_COMMITTER_EMAIL", "t@t")):
     os.environ[k] = v
 
-from tutorboard import sessions                               # noqa: E402
+from tutorboard import artifacts, sessions                    # noqa: E402
 from tutorboard.server import app                             # noqa: E402
 from tutorboard.server.routes import writing                  # noqa: E402
 from tutorboard.runner import service as runner_service       # noqa: E402
@@ -227,6 +227,10 @@ check("/materials.json lists a subject's materials, nested ones by path",
       status == 200 and sorted(names) == ["book.pdf", "notes/week1.pdf"])
 status, _ = ask("GET", "/s/%s/materials.json" % open_one["id"])
 check("and a session's own subject's, under /s/<id>/", status == 200)
+reader = sessions.new("reading the book", base=atlas, now=1.7e9 + 50)
+sessions.bind(reader["id"], "courses/Keep", base=atlas)
+sessions.repo(reader["id"], atlas).set_state(
+    doc={"id": ident, "page": 1, "name": "book.pdf"})
 n = commits()
 status, _ = ask("POST", "/material/delete?subject=courses/Keep", {"name": "../TUTOR.md"})
 check("a material delete of ../TUTOR.md is 404", status == 404 and
@@ -238,9 +242,52 @@ check("a material goes to the trash", status == 200 and not os.path.exists(
 check("with its ink", not os.path.exists(ink) and any(
     os.path.isfile(os.path.join(TRASH, d, ".ink", os.path.basename(ink)))
     for d in os.listdir(TRASH)))
+check("and a session reading it forgets the document",
+      (sessions.get(reader["id"], atlas).get("doc") is None))
 check("and no commit, the file being ignored", commits() == n)
 status, _ = ask("POST", "/material/delete?subject=courses/Keep", {"name": "book.pdf"})
 check("asked again it is 404", status == 404)
+
+put("courses/Keep/materials/notes.pdf", "%PDF-1.4 notes\n")
+put("courses/Keep/materials/notes.txt", "the notes' source\n")
+notes_id = sessions.ink_ident("materials/notes.pdf")
+notes_reader = sessions.new("reading notes", base=atlas, now=1.7e9 + 70)
+sessions.bind(notes_reader["id"], "courses/Keep", base=atlas)
+sessions.repo(notes_reader["id"], atlas).set_state(
+    doc={"id": notes_id, "page": 2, "name": "notes.pdf"})
+status, _ = ask("POST", "/material/delete?subject=courses/Keep",
+                {"subject": "courses/Keep", "name": "notes.txt"})
+check("deleting notes.txt leaves a session reading notes.pdf alone",
+      status == 200 and (sessions.get(notes_reader["id"], atlas).get("doc") or {})
+      .get("id") == notes_id)
+status, _ = ask("POST", "/material/delete?subject=courses/Keep",
+                {"subject": "courses/Keep", "name": "notes.pdf"})
+check("and deleting the PDF itself clears it",
+      status == 200 and sessions.get(notes_reader["id"], atlas).get("doc") is None)
+
+# ---------------------------------------------------------------------------
+# a document
+# ---------------------------------------------------------------------------
+art = artifacts.create(os.path.join(atlas, "courses", "Keep"), "Delete me")
+put(os.path.relpath(os.path.join(art["dir"], art["source"]), atlas), "# Delete me\n")
+keep_a = sessions.new("first reading it", base=atlas, now=1.7e9 + 80)
+keep_b = sessions.new("second reading it", base=atlas, now=1.7e9 + 81)
+for one in (keep_a, keep_b):
+    sessions.bind(one["id"], "courses/Keep", base=atlas)
+    sessions.repo(one["id"], atlas).set_state(
+        doc={"id": art["id"], "page": 1, "name": "Delete me"})
+away = sessions.new("reading it elsewhere", base=atlas, now=1.7e9 + 82)
+sessions.bind(away["id"], "courses/Many", base=atlas)
+sessions.repo(away["id"], atlas).set_state(
+    doc={"id": art["id"], "page": 1, "name": "Delete me"})
+status, got = ask("POST", "/doc/delete?subject=courses/Keep",
+                  {"subject": "courses/Keep", "id": art["id"]})
+check("POST /doc/delete clears every session on that subject reading it",
+      status == 200 and got.get("ok")
+      and sessions.get(keep_a["id"], atlas).get("doc") is None
+      and sessions.get(keep_b["id"], atlas).get("doc") is None)
+check("and leaves a session on another subject with that id alone",
+      (sessions.get(away["id"], atlas).get("doc") or {}).get("id") == art["id"])
 
 # ---------------------------------------------------------------------------
 # a session

@@ -370,6 +370,28 @@ try:
     check("the session drawer lists it as a readable PDF",
           [u.get("doc") for u in state.get("uploads", [])] == ["uploads-slides"])
 
+    status, seen = server.js("/s/%s/seen" % sa, {
+        "doc": {"id": "uploads-slides", "page": 1, "name": "slides.pdf"}})
+    rec = json.load(open(os.path.join(atlas, "sessions", sa, "session.json")))
+    check("POST /seen records the document on the glass",
+          status == 200 and seen.get("ok")
+          and rec.get("doc") == {"id": "uploads-slides", "page": 1,
+                                 "name": "slides.pdf"}, rec.get("doc"))
+    start = [s for s in server.js("/sessions.json")[1].get("sessions", [])
+             if s["id"] == sa]
+    check("and the start screen's row resumes it, on its page",
+          start and start[0]["url"] == "/s/%s/board#/s/%s/doc/uploads-slides/p1"
+          % (sa, sa), start)
+
+    for bad in (float("inf"), True, "5", 0, 10000):
+        status, seen = server.js("/s/%s/seen" % sa,
+                                 {"doc": {"id": "uploads-slides", "page": bad}})
+        rec = json.load(open(os.path.join(atlas, "sessions", sa, "session.json")))
+        check("POST /seen refuses a page of %r and records nothing" % (bad,),
+              status == 400 and rec.get("doc") == {
+                  "id": "uploads-slides", "page": 1, "name": "slides.pdf"},
+              (status, rec.get("doc")))
+
     status, view = server.js("/s/%s/view/doc/uploads-slides" % sa)
     check("it renders in the reader", status == 200 and view.get("ok")
           and len(view.get("pages") or []) == 1, view)
@@ -409,6 +431,22 @@ try:
     check("`board file` puts the PDF in materials/",
           p.returncode == 0
           and os.path.isfile(os.path.join(demo, "materials", "slides.pdf")), p.stdout)
+    rec = json.load(open(os.path.join(atlas, "sessions", sa, "session.json")))
+    check("filing rewrites the stored document id to the new one",
+          (rec.get("doc") or {}).get("id") == "materials-slides"
+          and rec["doc"].get("page") == 1, rec.get("doc"))
+    start = [s for s in server.js("/sessions.json")[1].get("sessions", [])
+             if s["id"] == sa]
+    check("and its resume address follows the document",
+          start and start[0]["url"]
+          == "/s/%s/board#/s/%s/doc/materials-slides/p1" % (sa, sa), start)
+    status, _ = server.js("/s/%s/seen" % sa, {"doc": None})
+    rec = json.load(open(os.path.join(atlas, "sessions", sa, "session.json")))
+    start = [s for s in server.js("/sessions.json")[1].get("sessions", [])
+             if s["id"] == sa]
+    check("POST /seen {doc: null} clears it, back to the bare board",
+          rec.get("doc") is None and start and start[0]["url"] == "/s/%s/board" % sa,
+          (rec.get("doc"), start))
     status, lib = server.js("/library.json?subject=courses/Demo")
     mats = [d for d in lib.get("documents", []) if d.get("group") == "material"]
     check("the library lists it as a material", [d["id"] for d in mats]

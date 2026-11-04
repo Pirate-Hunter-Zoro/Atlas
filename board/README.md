@@ -75,9 +75,12 @@ A session is `sessions/<YYYYMMDD-HHMMSS>/` under the Atlas root. It is Mac-only 
 and the audit refuses any path under it.
 
 `session.json` holds `id`, `title`, `subject` (a subject id or null), `mode` (teach or do),
-`opened`, `ended`, `writeup`, `seen`, `code` (a coding session, or null) and `view`
-(`board`, or `slate` for a canvas). A canvas also keeps `canvas` (where its pages are filed),
-`given` and `transcribe`. Beside it: `cards/`, `slate/`, `answers/`,
+`opened`, `ended`, `writeup`, `seen`, `code` (a coding session, or null), `view`
+(`board`, or `slate` for a canvas) and `doc` (the document on the glass, `{id, page, name}`,
+or null). A canvas also keeps `canvas` (where its pages are filed),
+`given` and `transcribe`. `sessions.url(rec)` resumes a stored `doc` at
+`/s/<id>/board#/s/<id>/doc/<ident>[/p<n>]`, and a canvas not yet given at `/s/<id>/slate`.
+Beside it: `cards/`, `slate/`, `answers/`,
 `turns.jsonl`, `inbox/messages.jsonl`, `uploads/`, `annotations/`, `agent.json`,
 `cost.jsonl`, `agent.log`.
 

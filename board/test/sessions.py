@@ -140,7 +140,7 @@ try:
     want = {"id": a["id"], "title": None, "subject": None, "mode": "teach",
             "opened": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
             "ended": None, "writeup": None, "problem": None, "seen": 0,
-            "code": None, "view": "board"}
+            "code": None, "view": "board", "doc": None}
     on_disk = json.load(open(os.path.join(a_dir, "session.json")))
     check("session.json is exactly the specified record, unbound, in teach",
           on_disk == want, on_disk)
@@ -197,6 +197,25 @@ try:
           sessions.path("../" + a["id"], base) is None
           and sessions.path("20261008-120000/../x", base) is None
           and sessions.get("nope", base) is None)
+    doc_urls = [
+        ("no doc", {"doc": None}, "/s/%s/board" % a["id"]),
+        ("a doc with a page", {"doc": {"id": "stage2-walk", "page": 7,
+                                       "name": "The walk"}},
+         "/s/%s/board#/s/%s/doc/stage2-walk/p7" % (a["id"], a["id"])),
+        ("a doc without a page", {"doc": {"id": "stage2-walk", "page": None,
+                                          "name": "The walk"}},
+         "/s/%s/board#/s/%s/doc/stage2-walk" % (a["id"], a["id"])),
+        ("a bad ident", {"doc": {"id": "../x", "page": 1, "name": "x"}},
+         "/s/%s/board" % a["id"]),
+        ("a canvas not yet given", {"view": "slate",
+                                    "doc": {"id": "stage2-walk", "page": 2,
+                                            "name": "The walk"}},
+         "/s/%s/slate" % a["id"]),
+    ]
+    for name, extra, want_url in doc_urls:
+        rec = dict({"id": a["id"], "view": "board"}, **extra)
+        check("url resumes %s" % name, sessions.url(rec) == want_url,
+              sessions.url(rec))
 
     # ---- a bound session, its writeup and `board writeup` -------------------
     c = sessions.new("Ch 7", base=base, now=now + 5)
@@ -418,9 +437,15 @@ try:
           and not os.path.exists(os.path.join(galois, "materials")))
 
     head = git("rev-parse", "HEAD").stdout.strip()
+    sessions.repo(e["id"], base).set_state(
+        doc={"id": old_id, "page": 2, "name": "slides.pdf"})
     code, out = board(["file", "slides.pdf"], session=e_dir)
     new_id = sessions.ink_ident("materials/slides.pdf")
     new_keys = ["doc/%s/p%d" % (new_id, n) for n in (1, 2)]
+    e_doc = sessions.get(e["id"], base).get("doc") or {}
+    check("file rewrites the session's open document to its new id",
+          code == 0 and e_doc.get("id") == new_id and e_doc.get("page") == 2
+          and e_doc.get("name") == "slides.pdf", e_doc)
     check("file moves the upload into materials/ by default",
           code == 0 and os.path.isfile(os.path.join(galois, "materials", "slides.pdf"))
           and not os.path.exists(os.path.join(e_dir, "uploads", "slides.pdf")), out)
@@ -445,6 +470,17 @@ try:
     check("and leaves a [filed] line that wakes nothing",
           len(filed) == 1 and filed[0]["wake"] is False
           and "courses/Galois/materials/slides.pdf" in filed[0]["text"], filed)
+
+    h = sessions.new("Other document", base=base, now=now + 106)
+    h_dir = sessions.path(h["id"], base)
+    board(["bind", "courses/Galois"], session=h_dir)
+    write(os.path.join(h_dir, "uploads", "extra.pdf"), b"%PDF-1.4 extra\n")
+    h_doc = {"id": "different-doc", "page": 3, "name": "extra.pdf"}
+    sessions.repo(h["id"], base).set_state(doc=h_doc)
+    code, out = board(["file", "extra.pdf"], session=h_dir)
+    check("file leaves a session reading another document alone",
+          code == 0 and sessions.get(h["id"], base).get("doc") == h_doc,
+          out)
 
     write(os.path.join(e_dir, "uploads", "scan.png"), b"\x89PNG scan")
     # Ink drawn on it while the session was bound: the server put it in .ink/.
