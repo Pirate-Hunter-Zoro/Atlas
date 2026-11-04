@@ -92,7 +92,8 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   A `lean-toolchain` subject gets elan in `~/.elan` when it is missing, then `lake build`.
 - A subject pins a toolchain in `mise.toml` and `mise.lock` (written by `mise lock`, which records
   each platform's download URL that `--locked` requires): setup runs `mise install --locked` on
-  the tools that `mise.toml` names, so the owner's global mise tools never fail it. Then, through
+  the tools that `mise.toml` names, so the owner's global mise tools never fail it. Atlas's own
+  root `mise.toml` is installed the same way, before the subjects. Then, through
   `mise exec`, at the subject's root and one directory down: `cargo fetch --locked` for a
   `Cargo.toml`, `flutter pub get --enforce-lockfile` for a `pubspec.yaml`, and
   `zig build --fetch` for a `build.zig.zon`, which is its own lockfile, only when the nearest
@@ -103,6 +104,12 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   by `scripts/tools.sh` (its header lists the fields). Setup installs what is missing. One name
   in two subjects must be the same bytes. Nothing is uninstalled: a deleted subject's tools and
   Brewfile entries are named by `board doctor` while they stay installed.
+- A tool requested on the iPad is declared with `board tools add brew|cask|mise <name>
+  [--subject <id>] [--why ...]`. That writes a line in the root or subject `Brewfile`, or an
+  entry in its `mise.toml` (committing `mise.lock` with it), commits and pushes the file, and
+  starts the install. Setup and the hourly upkeep hook install what the repository declares, so
+  a declaration on one Mac reaches every clone through git. `board tools list` shows them, and
+  nothing is uninstalled.
 - Turn on automatic login, so the LaunchAgents come back after a reboot.
 - The DeepSeek key is `DEEPSEEK_API_KEY` in the environment, else in
   `~/.config/tutor-board/keys.env`, else the file `~/.config/api-keys/deepseek_key`. A file other
@@ -126,9 +133,11 @@ Atlas's part is `upkeep.d/hook`, which runs `scripts/brew-upgrade.py`:
   tailnet, and hands upkeep the Brewfile union (`~/.local/state/atlas-setup/Brewfile.all`).
 - After brew moves, it re-syncs a subject's broken `.venv` and reinstalls the board's LaunchAgent
   whose interpreter is gone. TeX and the board's reachability are reported, never touched.
-- Its toolchain phase runs uv's Pythons, `mise install --locked` in every subject with a
-  `mise.toml`, `mise prune --tools` of the tools those files name (never a bare prune, which
-  reaches the owner's other projects), and `scripts/tools.sh update`.
+- Its toolchain phase runs uv's Pythons, `mise install --locked` in Atlas's own root and every
+  subject with a `mise.toml` (running `mise lock` first when `mise.lock` is missing or older
+  than `mise.toml`), `mise prune --tools` of the tools those files name (never a bare prune,
+  which reaches the owner's other projects), and `scripts/tools.sh update`. The pins it installs
+  are the declarations committed on whichever Mac made them.
 - A failed tool shows as `tool:<name>`, and a mise pin behind (`mise outdated --json --bump
   --local` gives it a `bump`) as `pin behind`, in `atlas-brew status`, `board doctor` and on home.
   A pin behind is also in that subject's session brief, so the session proposes the bump: a

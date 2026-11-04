@@ -131,6 +131,8 @@ try:
         write(os.path.join(atlas, rel), read(os.path.join(ATLAS_REAL, rel)), EXE)
     os.symlink(BOARD, os.path.join(atlas, "board"))
     write(os.path.join(atlas, "Brewfile"), 'brew "texlive"\ncask "font-dejavu"\n')
+    write(os.path.join(atlas, "mise.toml"), '[tools]\npython = "3.13"\n')
+    write(os.path.join(atlas, "mise.lock"), "root lock\n")
     S = os.path.join(atlas, "projects", "S")
     write(os.path.join(S, "Brewfile"), 'brew "go"\nbrew "texlive"  # again\n')
     write(os.path.join(S, "pyproject.toml"),
@@ -198,11 +200,28 @@ try:
     check("toolchain upgrades uv's Pythons", calls("uv python upgrade"), read(CALLS))
     check("installs each mise directory's own tools, locked, there",
           "mise install --locked node @ %s" % S in calls("mise"), read(CALLS))
+    check("installs Atlas's own root mise pins too",
+          "mise install --locked python @ %s" % atlas in calls("mise"), read(CALLS))
     check("prunes only the pinned tools", any(l.startswith("mise prune --yes --tools node ")
                                              for l in calls("mise")), read(CALLS))
     st = hook_state()
     check("and, with nothing failed, stamps its success",
           st.get("failed") == {} and st.get("toolchain_success"), st)
+    # A lock older than its toml is refreshed first; a failure there is a
+    # problem, not a silent success.
+    write(os.path.join(work, "fail-mise"), "")
+    old = 1000.0
+    os.utime(os.path.join(S, "mise.lock"), (old, old))
+    before_success = hook_state().get("toolchain_success")
+    hook("hook", "toolchain")
+    st = hook_state()
+    check("a stale mise.lock is refreshed, and a lock failure is tool:mise-lock",
+          "mise lock @ %s" % S in calls("mise")
+          and st["failed"].get("tool:mise-lock") == "mise broke"
+          and st.get("toolchain_success") == before_success, st)
+    os.remove(os.path.join(work, "fail-mise"))
+    os.utime(os.path.join(S, "mise.lock"), None)
+    open(CALLS, "w").close()
     write(os.path.join(work, "fail-mise"), "")
     hook("hook", "toolchain")
     st = hook_state()

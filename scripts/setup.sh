@@ -76,6 +76,31 @@ else
   line "Brewfile" "FAILED -- $LOGS/brew.log"; failed=1
 fi
 
+# ---- 1b. Atlas's own pinned tools -------------------------------------------
+# Atlas's root is not a subject, so its mise.toml is read here rather than by
+# the subject loop below. Both setup and the upkeep hook install it.
+if [ -f "$ROOT/mise.toml" ]; then
+  : >"$LOGS/atlas-root.log"
+  root_bad=0
+  root_pins=()
+  while IFS= read -r t; do [ -n "$t" ] && root_pins+=("$t"); done < <(plan root-mise-tools)
+  if [ "$root_bad" = 0 ] && [ "${#root_pins[@]}" -gt 0 ]; then
+    if ! {
+      mise trust --quiet "$ROOT/mise.toml" \
+      && { [ -f "$ROOT/mise.lock" ] && [ "$ROOT/mise.lock" -nt "$ROOT/mise.toml" ] \
+           || (cd "$ROOT" && mise lock); } \
+      && (cd "$ROOT" && mise install --locked "${root_pins[@]}");
+    } >>"$LOGS/atlas-root.log" 2>&1; then
+      root_bad=1
+    fi
+  fi
+  if [ "$root_bad" = 0 ]; then
+    line "atlas root" "ok (mise install)"
+  else
+    line "atlas root" "FAILED -- $LOGS/atlas-root.log"; failed=1
+  fi
+fi
+
 # ---- 2. the workspaces -----------------------------------------------------
 # ai-config is the one private repository nested inside Atlas; a machine that
 # never cloned it is told the command that brings it in.
