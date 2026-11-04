@@ -291,6 +291,23 @@ process.exit(0);
         self.assertEqual(r["cfg"]["mcp"]["playwright"]["command"][-1], "@playwright/mcp@latest")
         self.assertEqual(r["kept"]["mcp"]["playwright"], {"type": "remote", "url": "x"})
 
+    def test_an_installed_capabilities_edit_reaches_a_running_server(self):
+        out = self.run_node("reread", r"""
+import { writeFileSync, utimesSync } from "node:fs";
+const P = await load(process.cwd());
+const a = { system: [] };
+await P["experimental.chat.system.transform"]({}, a);
+writeFileSync("capabilities.md", "edited while running\n");
+utimesSync("capabilities.md", new Date(), new Date(Date.now() + 5000));
+const b = { system: [] };
+await P["experimental.chat.system.transform"]({}, b);
+console.log(JSON.stringify({ before: a.system, after: b.system }));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertEqual(r["before"], [(HERE / "capabilities.md").read_text().strip()])
+        self.assertEqual(r["after"], ["edited while running"])
+
 
 if __name__ == "__main__":
     unittest.main()

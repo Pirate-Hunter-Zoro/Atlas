@@ -930,14 +930,21 @@ const LONG_WORK =
 
 // capabilities.md sits beside plugins/ in the config dir. It reaches the model through this
 // plugin, not through `instructions`, so `opencode --pure` (no plugins, so none of these tools)
-// is never told it has them.
-const CAPABILITIES = (() => {
+// is never told it has them. It is re-read whenever its mtime changes, because the server runs
+// for days and an installed edit must reach the next turn without a restart.
+const CAPABILITIES_FILE = join(dirname(fileURLToPath(import.meta.url)), "..", "capabilities.md");
+let capabilitiesCache = { mtime: -1, text: LONG_WORK };
+function capabilities(): string {
   try {
-    return readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "capabilities.md"), "utf-8").trim();
+    const mtime = statSync(CAPABILITIES_FILE).mtimeMs;
+    if (mtime !== capabilitiesCache.mtime) {
+      capabilitiesCache = { mtime, text: readFileSync(CAPABILITIES_FILE, "utf-8").trim() };
+    }
+    return capabilitiesCache.text;
   } catch {
     return LONG_WORK;
   }
-})();
+}
 
 // The browser MCP, added through the config hook for the same reason.
 const BROWSER_MCP = { type: "local", command: ["npx", "-y", "@playwright/mcp@latest"], enabled: true };
@@ -1424,7 +1431,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
     },
 
     "experimental.chat.system.transform": async (_input: any, output: any) => {
-      output.system.push(CAPABILITIES);
+      output.system.push(capabilities());
     },
 
     "tool.definition": async (input: any, output: any) => {
