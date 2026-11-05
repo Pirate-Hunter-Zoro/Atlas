@@ -7,7 +7,10 @@ one unscrollable page (`course/paper.py`).
 The constraint: the client never names a path. It names a kind (the lesson,
 the written-up homework) or an id, resolved through what discovery found:
 `export.json` and `hw.json` for built documents, `library.readable` for the
-rest.
+rest. A session reads a document in the subject the board names
+(`?subject=`) or its stored `doc` names, when that is not its own
+(`routes.doc_repo`).
+
 WHERE EACH IS SERVED (`handler.UNPREFIXED` is the table that serves them):
 
     session   under `/s/<id>/` only: GET /download/lesson  /download/homework
@@ -23,7 +26,7 @@ import os
 import re
 from urllib.parse import unquote
 
-from . import NOT_MINE
+from . import NOT_MINE, doc_repo
 from ...course import burn
 from ...course import paper
 from ...course import library
@@ -54,7 +57,10 @@ def get(h, repo, path):
         # A marked copy as an attachment; kind and name matched on disk
         # (`burn.marked_of`).
         kind, _slash, name = path[len("/marked/"):].rpartition("/")
-        found = burn.marked_of(repo, unquote(kind), unquote(name))
+        kind = unquote(kind)
+        if kind.startswith("doc/"):
+            repo = doc_repo(h, repo, kind[len("doc/"):])
+        found = burn.marked_of(repo, kind, unquote(name)) if repo else ""
         if not found:
             return h.send_json({"ok": False, "error": "no such copy"}, status=404)
         return h.send_file(found, download=os.path.basename(found))
@@ -63,7 +69,12 @@ def get(h, repo, path):
         # A document the course points at, an upload or a material: same
         # rasteriser, cache and page route; `library.readable` is the check.
         ident = path[len("/view/doc/"):]
-        return h.send_json(_inked(repo, library.drawer_pages(repo, ident), ident))
+        home = doc_repo(h, repo, ident)
+        if home is None:
+            return h.send_json({"ok": False, "why": "none", "detail":
+                                "That subject does not offer a document by "
+                                "that name."})
+        return h.send_json(_inked(home, library.drawer_pages(home, ident), ident))
 
     if path.startswith("/doc/"):
         # One page addressed by document and number, not by render digest, so
@@ -73,7 +84,10 @@ def get(h, repo, path):
         if not m:
             return h.send_bytes(b"not found", "text/plain", status=404)
         ident, page = m.group(1), int(m.group(2))
-        got = library.drawer_pages(repo, ident)
+        home = doc_repo(h, repo, ident)
+        if home is None:
+            return h.send_bytes(b"not found", "text/plain", status=404)
+        got = library.drawer_pages(home, ident)
         if not got.get("ok"):
             return h.send_bytes(b"not found", "text/plain", status=404)
         urls = got.get("pages") or []

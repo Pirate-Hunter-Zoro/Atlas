@@ -39,7 +39,8 @@ import { appendFileSync, existsSync, readFileSync } from "node:fs";
 export const CALLS = process.env.CALLS;
 export function record(o) { appendFileSync(CALLS, JSON.stringify({ pid: process.pid, ...o }) + "\n"); }
 // Tests steer the stub through globalThis: ON_PROMPT(id, body) after each prompt, MESSAGES(id,
-// limit) for a listing, STRUCTURED(id) for a schema reply, PARENTS[id] for session.get.
+// limit) for a listing, STRUCTURED(id) for a schema reply, PARENTS[id] and CREATED[id] for
+// session.get (a session not in CREATED was created long ago).
 export function makeClient() {
   let n = 0;
   return {
@@ -50,15 +51,16 @@ export function makeClient() {
         return { response: { status: 204 } };
       },
       create: async () => ({ data: { id: `child${process.pid}x${++n}` } }),
-      get: async (r) => ({ data: { id: r.path.id, title: "t", parentID: globalThis.PARENTS?.[r.path.id] } }),
+      get: async (r) => ({ data: { id: r.path.id, title: "t", parentID: globalThis.PARENTS?.[r.path.id],
+        time: { created: globalThis.CREATED?.[r.path.id] ?? 1 } } }),
       status: async () => ({ data: {} }),
       messages: async (r) => {
-        if (globalThis.MESSAGES) return globalThis.MESSAGES(r.path.id, r.query?.limit);
+        if (globalThis.MESSAGES) return globalThis.MESSAGES(r.path.id, r.query?.limit, r.query ?? {});
         return { data: [{ info: { role: "assistant", time: { created: Date.now(), completed: Date.now() },
           structured: globalThis.STRUCTURED?.(r.path.id) }, parts: [{ type: "text", text: "done" }] }] };
       },
       abort: async () => ({}),
-      children: async () => ({ data: [] }),
+      children: async (r) => globalThis.CHILDREN?.(r.path.id) ?? { data: [] },
     },
     tui: {},
   };
@@ -88,6 +90,25 @@ export function jobs() {
 }
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function until(path) { while (!existsSync(path)) await sleep(50); }
+// Sessions served as opencode 1.19.5 serves them: newest first by (time, id), `before` a
+// base64url {id, time} cursor, and 400 for any page that holds a message sent with a schema.
+// Every request is logged in `requests`, with bad=true for each one that answered 400.
+export function fakeSessions() {
+  const store = new Map(), requests = [];
+  globalThis.MESSAGES = (id, limit, q = {}) => {
+    let rows = [...(store.get(id) ?? [])].sort((a, b) => b.info.time.created - a.info.time.created || (b.info.id < a.info.id ? -1 : 1));
+    if (q.before) {
+      const c = JSON.parse(Buffer.from(q.before, "base64url").toString("utf-8"));
+      rows = rows.filter((m) => m.info.time.created < c.time || (m.info.time.created === c.time && m.info.id < c.id));
+    }
+    const page = limit ? rows.slice(0, limit) : rows;
+    const bad = page.some((m) => m.schema);
+    requests.push({ id, limit, before: !!q.before, bad });
+    if (bad) return { error: { name: "BadRequest", data: { message: "Expected OutputFormatJsonSchema" } } };
+    return { data: page.reverse().map(({ schema, ...m }) => m) };
+  };
+  return { store, requests };
+}
 """
 
 
@@ -355,12 +376,10 @@ process.exit(0);
 
     def assert_guard(self, refused, allowed, contains=None, **kw):
         res = self.checks(refused + allowed, **kw)
-        for case, r in zip(refused, res[:len(refused)]):
-            self.assertTrue(r.startswith("REFUSED"), (case, r))
-            if contains:
-                self.assertIn(contains, r, case)
-        for case, r in zip(allowed, res[len(refused):]):
-            self.assertEqual(r, "ok", case)
+        wrong = [("should refuse", case, r) for case, r in zip(refused, res[:len(refused)])
+                 if not r.startswith("REFUSED") or (contains and contains not in r)]
+        wrong += [("should allow", case, r) for case, r in zip(allowed, res[len(refused):]) if r != "ok"]
+        self.assertFalse(wrong, "\n" + "\n".join(f"{why}: {case[1].get('command', case[1])} [{case[1].get('workdir', '')[-20:]}] -> {r[:160]}" for why, case, r in wrong))
         return res
 
     def bash(self, *cmds, workdir=None):
@@ -696,11 +715,12 @@ await P["chat.message"]({ sessionID: "st", agent: "structured" }, { parts: [{ ty
             "sqlite3 db 'delete from t'", "sqlite3 db < q.sql", "awk '{print > \"out\"}' in", "sort -o f a", "uv pip install x",
             "uv add x", "curl -Of https://x", "curl -sSo f https://x", "gh pr merge 1", "gh api -X POST repos/x/y/issues",
             "gh issue comment 1 -b x", "black .", "ruff format .", "tar xf a.tar", "unzip a.zip", "git -c alias.c=commit c -m x",
+            "find . -name x -exec grep -l y {} +",
         )]
         allowed = [[t, a, "st"] for t, a in self.bash(
             "sqlite3 -readonly db 'select 1'", "sqlite3 db 'select * from t'", "awk '{print $1}' f", "sort a", "make -n",
             "find . -name x", "curl -s https://x", "gh pr view 1", "gh api repos/x/y", "black --check .", "ruff check .",
-            "tar tf a.tar", "python3 -c 'print(1)'", "find . -name x -exec grep -l y {} +", "echo a | xargs grep b",
+            "tar tf a.tar", "python3 -c 'print(1)'", "find . -name x | xargs grep -l y", "echo a | xargs grep b",
         )]
         res = self.assert_guard(refused, allowed, contains="read-only", setup=setup, HOME=str(self.home))
         self.assertTrue(all("Report the change" in r for r in res[:len(refused)]))
@@ -801,6 +821,10 @@ r.child = await commit("kid");
 await P["chat.message"]({ sessionID: "g1", agent: "build" }, { parts: [{ type: "text", text: "don't ship over it" }] });
 r.notOverride = await commit();
 await wf(`return [{ verdict: "pass" }]`);
+r.literalPass = await commit();
+autoIdle(P);
+globalThis.STRUCTURED = () => ({ verdict: "pass", reason: "verified" });
+await wf(`phase("verify"); return [await agent("verify it", { agent: "verifier", schema: { type: "object" } })]`);
 r.afterPass = await commit();
 await wf(`return { verdict: "fail", summary: "second failure" }`);
 r.again = await commit();
@@ -821,7 +845,7 @@ process.exit(0);
         self.assertEqual(r["before"], "ok")
         self.assertIn('verdict="fail"', r["failMsg"])
         self.assertIn("the Brewfile still takes a raw name", r["failMsg"])
-        for k in ("commit", "merge", "save", "child", "notOverride", "again", "forged"):
+        for k in ("commit", "merge", "save", "child", "notOverride", "literalPass", "again", "forged"):
             self.assertTrue(r[k].startswith("REFUSED"), (k, r[k]))
         self.assertIn("the Brewfile still takes a raw name", r["commit"])
         self.assertIn("ship over it", r["commit"])
@@ -902,7 +926,7 @@ const ok = await wf(`
   const fixes = [];
   const r = await verify_until_pass(
     async (failures, { round }) => { fixes.push([round, failures.map((f) => f.reason)]); return "fixed " + round; },
-    async ({ round }) => [await agent("verify the change", { schema: { type: "object" }, label: "verify" })],
+    async ({ round }) => [await agent("verify the change", { agent: "verifier", schema: { type: "object" }, label: "verify" })],
     { max: 3 });
   return { passed: r.passed, rounds: r.rounds.length, fixes, final: r.verdicts };
 `, "v1");
@@ -1005,33 +1029,77 @@ process.exit(0);
         self.assertEqual(run(sub, OPENCODE_DISABLE_CLAUDE_CODE="1"), [], "opencode loads the nearer AGENTS.md")
 
     def test_session_read_reads_a_schema_child(self):
-        wf = self.state / "workflows" / "wfx"
-        wf.mkdir(parents=True)
-        (wf / "journal.jsonl").write_text(json.dumps({"key": "k", "label": "survey", "ok": True, "session": "ses_schema",
-                                                       "result": {}, "prompt": "Map the tools pipeline."}) + "\n")
         out = self.run_node("sread", r"""
+import { fakeSessions } from "./lib.mjs";
+import { mkdirSync, writeFileSync } from "node:fs";
 const P = await load(process.cwd());
-const msg = (k) => ({ info: { role: "assistant", agent: "general", modelID: "deepseek-flash" },
-  parts: [{ type: "text", text: "finding " + k }, { type: "tool", tool: "read", state: { status: "completed", input: { filePath: "f" + k }, output: "body" } }] });
-globalThis.MESSAGES = (id, limit) => {
-  if (id === "ses_plain") return { data: [msg(1)] };
-  if (limit > 3) return { error: { name: "BadRequest", data: { message: "Expected OutputFormatJsonSchema" } } };
-  return { data: [msg(1), msg(2), msg(3)].slice(3 - limit) };
+const { store, requests } = fakeSessions();
+let seq = 0, finding = 0, prompts = 0;
+const newId = () => "msg_" + (BigInt(Date.now()) * 4096n + BigInt(++seq % 4096)).toString(16).slice(-12).padStart(12, "0") + "A".repeat(14);
+const push = (sid, m) => { store.set(sid, [...(store.get(sid) ?? []), m]); P.event({ event: { type: "message.updated", properties: { info: m.info } } }); };
+const reply = (sid, parent, structured) => ({ info: { id: newId(), sessionID: sid, role: "assistant", parentID: parent, agent: "general",
+  modelID: "deepseek-flash", time: { created: Date.now(), completed: Date.now() }, structured },
+  parts: [{ type: "text", text: "finding " + ++finding }, { type: "tool", tool: "read", state: { status: "completed", input: { filePath: "f" }, output: "body" } }] });
+// The server: a prompt becomes a user message (named by the plugin when it sends a schema), then
+// two replies, the second carrying the structured answer; the first answer misses a key, so
+// the agent retries with a second schema prompt.
+globalThis.ON_PROMPT = (sid, body) => {
+  const user = { info: { id: body.messageID ?? newId(), sessionID: sid, role: "user", time: { created: Date.now() } },
+    parts: [{ type: "text", text: body.parts[0].text }], schema: !!body.format };
+  push(sid, user);
+  const n = ++prompts;
+  setTimeout(() => {
+    push(sid, reply(sid, user.info.id));
+    setTimeout(() => {
+      push(sid, reply(sid, user.info.id, n === 1 ? { other: 1 } : { files: ["a.py"] }));
+      P.event({ event: { type: "session.idle", properties: { sessionID: sid } } });
+    }, 3);
+  }, 3);
 };
-const blocked = await P.tool.session_read.execute({ id: "ses_schema" }, ctx(process.cwd()));
+const wf = await P.tool.workflow.execute({ background: false, script:
+  `return await agent("Map the tools pipeline.", { schema: { type: "object", required: ["files"] }, label: "survey" });` }, ctx(process.cwd(), "wfS"));
+const child = [...store.keys()][0];
+const during = requests.filter((q) => q.bad).length;
+const tracked = await P.tool.session_read.execute({ id: child }, ctx(process.cwd()));
+const afterTracked = requests.filter((q) => q.bad).length;
+// A schema child from before tracking: two schema prompts, three replies.
+const t0 = Date.now() - 60000;
+const old = (k, role, schema, parent) => ({ info: { id: "msg_" + (BigInt(t0 + k * 10) * 4096n).toString(16).slice(-12).padStart(12, "0") + "B".repeat(14),
+  sessionID: "ses_old", role, parentID: parent, time: { created: t0 + k * 10 } }, parts: role === "user" ? [] : [{ type: "text", text: "old " + k }], schema });
+const u1 = old(1, "user", true), u2 = old(4, "user", true);
+store.set("ses_old", [u1, old(2, "assistant", false, u1.info.id), old(3, "assistant", false, u1.info.id), u2, old(5, "assistant", false, u2.info.id)]);
+mkdirSync(process.env.PARITY_STATE_DIR + "/workflows/wfold", { recursive: true });
+writeFileSync(process.env.PARITY_STATE_DIR + "/workflows/wfold/journal.jsonl", JSON.stringify({ key: "k", label: "survey", ok: true, session: "ses_old", result: {}, prompt: "Survey the old board." }) + "\n");
+const before = requests.length;
+const legacy = await P.tool.session_read.execute({ id: "ses_old" }, ctx(process.cwd()));
+const legacyBad = requests.slice(before).filter((q) => q.bad).length;
+store.set("ses_plain", [{ info: { id: newId(), role: "assistant", time: { created: Date.now() } }, parts: [{ type: "text", text: "plain reply" }] }]);
+const p0 = requests.length;
 const plain = await P.tool.session_read.execute({ id: "ses_plain" }, ctx(process.cwd()));
-console.log(JSON.stringify({ blocked, plain }));
+const plainRequests = requests.length - p0;
+globalThis.CHILDREN = () => ({ data: [{ id: child, title: "survey" }, { id: "ses_plain", title: "plain" }] });
+const list = await P.tool.agent_list.execute({}, ctx(process.cwd(), "wfS"));
+console.log(JSON.stringify({ wf, during, tracked, afterTracked, legacy, legacyBad, plain, plainRequests, list, sent: Object.keys(store).length }));
 process.exit(0);
 """)
         r = json.loads(out)
-        self.assertIn("Map the tools pipeline.", r["blocked"])
-        for k in (1, 2, 3):
-            self.assertIn(f"finding {k}", r["blocked"])
-        self.assertIn("json_schema", r["blocked"])
-        self.assertIn("-> read", r["blocked"])
-        self.assertIn("finding 1", r["plain"])
+        self.assertIn('"files"', r["wf"], "the retry's structured answer comes back")
+        self.assertEqual(r["during"], 0, "the workflow's own reads never ask for a schema prompt")
+        self.assertEqual(r["afterTracked"], 0, "session_read never asks for a schema prompt of a tracked child")
+        for k in (1, 2, 3, 4):
+            self.assertIn(f"finding {k}", r["tracked"])
+        self.assertIn("Map the tools pipeline.", r["tracked"])
+        self.assertIn("json_schema", r["tracked"])
+        self.assertIn("-> read", r["tracked"])
+        for k in (2, 3, 5):
+            self.assertIn(f"old {k}", r["legacy"])
+        self.assertIn("Survey the old board.", r["legacy"])
+        self.assertLessEqual(r["legacyBad"], 2, "an untracked child costs at most one refused page per schema prompt")
+        self.assertIn("plain reply", r["plain"])
         self.assertNotIn("json_schema", r["plain"])
-
+        self.assertEqual(r["plainRequests"], 1)
+        self.assertIn("schema'd: read it with session_read", r["list"])
+        self.assertEqual(r["list"].count("schema'd"), 1, r["list"])
 
     # ---------------------------------------------------------------- guards: evasions verifiers found
 
@@ -1201,6 +1269,1382 @@ process.exit(0);
         refused = self.bash("$CMD -A", "$(cat cmd.txt) -rf x", "`which rm` x", "\"$X\" y")
         allowed = self.bash("X=ls; $X -la", "$(echo ls) -la", "echo $HOME", "git status")
         self.assert_guard(refused, allowed, contains="cannot resolve")
+
+    # ---------------------------------------------------------------- guards: second round of evasions
+
+    def test_quote_removal_and_tabs_before_every_rule(self):
+        h = self.home
+        (h / ".ssh").mkdir()
+        (h / ".ssh" / "id_ed25519").write_text("k")
+        repo = self.root / "repo"
+        (repo / ".git").mkdir(parents=True)
+        setup = r"""
+await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ type: "text", text: "verify" }] });
+"""
+        refused = [
+            *self.bash("c''at ~/.ssh/id_ed25519", 'c"a"t ~/.ssh/id_""ed25519', "c\\at ~/.ssh/id_ed25519", "cat\t~/.ssh/id_ed25519",
+                       "cat ~/.ssh/$'id_ed25519'"),
+            *self.bash("git add -''A", 'git add "-A"', "git add -\\A", "git\tadd\t-A", "git add $'-A'", "git commit -''a -m x",
+                       workdir=str(repo)),
+            *[[t, a, "ver"] for t, a in self.bash("git log --o''utput=x", 'git log --o"u"tput=x', "git log --o\\utput=x",
+                                                   "git\tlog\t--output=x", "s''ort -o out f")],
+        ]
+        allowed = [
+            *self.bash("c''at README.md", "echo '--output'", "cat ~/.ssh/id_ed25519''.pub"),
+            *self.bash("git add x''.py", workdir=str(repo)),
+            *[[t, a, "ver"] for t, a in self.bash("git log --o''neline -3", "git\tlog\t-1")],
+        ]
+        self.assert_guard(refused, allowed, setup=setup)
+
+    def test_credentials_through_home_forms_arg_files_and_code(self):
+        h = self.home
+        (h / ".ssh").mkdir()
+        (h / ".ssh" / "id_ed25519").write_text("k")
+        (h / ".local" / "share" / "opencode").mkdir(parents=True)
+        (h / ".local" / "share" / "opencode" / "auth.json").write_text("{}")
+        work = self.root / "work"
+        work.mkdir()
+        (work / "list.txt").write_text("README.md\n")
+        (work / "bad.txt").write_text("keys.env\n")
+        (work / "keys.env").write_text("K=1")
+        (work / "README.md").write_text("x")
+        auth = ".local/share/opencode/auth.json"
+        refused = self.bash(
+            f"cat ~{os.environ.get('USER', 'mikeyferguson')}/{auth}", "cat ~root/.ssh/id_rsa", "cat ~mikeyferguson/.ssh/id_ed25519",
+            f"cat ${{HOME:-x}}/{auth}", f"cat ${{HOME/zz/yy}}/{auth}", f"cat ${{HOME%/}}/{auth}", f"cat ${{HOME:+$HOME}}/{auth}",
+            f'cat "$HOME"/{auth}', f"cat $(echo ~)/{auth}", f'cat $(echo "$HOME")/{auth}', f"cat `echo ~`/{auth}",
+            f"cat $(cd ~ && pwd)/{auth}", f"cat $(cd; pwd)/{auth}", f"cat $(eval echo ~$USER)/{auth}",
+            f"xargs -a ~/{auth} echo", "xargs --arg-file=$HOME/.ssh/id_ed25519 echo", "xargs -a bad.txt cat", "xargs -a nowhere.txt cat",
+            "python3 -c \"import pathlib;print((pathlib.Path.home()/'.local'/'share'/'opencode'/'auth.json').read_text())\"",
+            "python3 -c \"import os;print(open(os.path.expanduser('~') + '/.ssh/id_ed25519').read())\"",
+            "python3 -c \"import os;print(open(os.path.join(os.environ['HOME'], '.ssh', 'id_rsa')).read())\"",
+            "node -e \"const p=require('path'),o=require('os');console.log(require('fs').readFileSync(p.join(o.homedir(),'.ssh','id_ecdsa'),'utf8'))\"",
+            "perl -e 'open(F, \"$ENV{HOME}/.config/rclone/rclone.conf\"); print <F>'", "ruby -e 'puts File.read(Dir.home + \"/.config/media-syncer/s.json\")'",
+            "python3 - <<'EOF'\nfrom pathlib import Path\nprint((Path.home() / 'backup-private' / 'db').read_bytes())\nEOF",
+            "cat <<'EOF' | python3\nprint(open('keys.env').read())\nEOF", "python3 -c \"from dotenv import dotenv_values; print(dotenv_values())\"",
+            "uv run python -c \"print(open('.env').read())\"", "uv run --env-file keys.env python x.py", "node --env-file=keys.env x.js",
+            "mise exec -- cat ~/.ssh/id_ed25519", "mise x node@22 -- cat keys.env", "poetry run cat keys.env", "pipx run --spec x cat keys.env",
+            "npx -c 'cat keys.env'", "bunx cat keys.env", "nice -n 5 cat keys.env", "time -p cat keys.env", "timeout 5 cat keys.env",
+            "nohup cat keys.env", "sudo -u root cat ~/.ssh/id_ed25519", "env -i cat keys.env", "uvx --from x cat keys.env",
+            "cat $(cat ~/where.txt)/notes.txt",
+            workdir=str(work),
+        )
+        allowed = self.bash(
+            "cat ~root/notes.txt", "cat ${HOME}/notes.txt", "xargs -a list.txt cat", "python3 -c \"import os; print(os.environ.get('HOME'))\"",
+            "node -e 'console.log(process.env.HOME)'", "python3 -c 'print(1)'", "uv run python -c 'print(1)'", "time -p cat README.md",
+            "npx prettier --check README.md", "cat $(cd ~ && pwd)/notes.txt", "cat $(echo ~)/notes.txt",
+            workdir=str(work),
+        )
+        self.assert_guard(refused, allowed, contains="key_sync")
+
+    def test_grep_and_glob_tools_over_env_files(self):
+        h = self.home
+        board = h / ".config" / "tutor-board"
+        board.mkdir(parents=True)
+        (board / "keys.env").write_text("K=1")
+        (board / "settings.json").write_text("{}")
+        (h / ".ssh").mkdir()
+        ignored = self.root / "ignored"
+        ignored.mkdir()
+        subprocess.run(["git", "init", "-q", str(ignored)], check=True)
+        (ignored / ".gitignore").write_text("*.env\n")
+        (ignored / ".env").write_text("K=1")
+        (ignored / "a.py").write_text("x")
+        open_ = self.root / "open"
+        open_.mkdir()
+        subprocess.run(["git", "init", "-q", str(open_)], check=True)
+        (open_ / "sub").mkdir()
+        (open_ / "sub" / "prod.env").write_text("K=1")
+        refused = [
+            ["grep", {"pattern": "K", "path": str(board)}],
+            ["glob", {"pattern": "*", "path": str(board)}],
+            ["grep", {"pattern": "K", "path": str(open_)}],
+            ["grep", {"pattern": "K", "path": str(h / ".ssh")}],
+            ["glob", {"pattern": "**/*", "path": str(open_)}],
+        ]
+        allowed = [
+            ["grep", {"pattern": "K", "path": str(ignored)}],
+            ["glob", {"pattern": "*", "path": str(ignored)}],
+            ["grep", {"pattern": "K", "path": str(board), "include": "*.json"}],
+            ["glob", {"pattern": "*.json", "path": str(board)}],
+            ["grep", {"pattern": "K", "path": str(open_), "include": "*.py"}],
+        ]
+        self.assert_guard(refused, allowed, contains="key_sync")
+
+    def test_readonly_agents_through_wrappers_flags_and_writers(self):
+        work = self.root / "work"
+        (work / "test").mkdir(parents=True)
+        setup = r"""
+await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ type: "text", text: "verify it" }] });
+await P["chat.message"]({ sessionID: "rv", agent: "Reviewer" }, { parts: [{ type: "text", text: "review it" }] });
+"""
+        refused = [[t, a, "ver"] for t, a in self.bash(
+            "python3 -I script.py", "python3 -E -s script.py", "python3 -Bu script.py", "python3 -X dev -W ignore script.py",
+            "python3 -OO -q script.py", "python3 -I -m http.server", "node --no-warnings script.js", "node -r ./x.js test/a.test.js",
+            "uv run touch x", "uv run python script.py", "mise exec -- touch x", "poetry run rm x", "pipx run black .", "npx touch x",
+            "bunx rimraf x", "env FOO=1 rm x", "nice -n 5 rm x", "time -p rm x", "timeout 5 rm x", "nohup rm x", "sudo rm x",
+            "git log --outp=x", "git log --output x", "git grep --op=vim foo", "git grep --open-files-in-pager foo", "git grep -iO foo",
+            "git grep -Ovim foo", "git diff --ext-diff", "git diff --ext-d", "git show --textconv HEAD", "git format-patch -1 --output-dir x",
+            "sed -n 'w out' f", "sed '/x/W out' f", "sed 's/a/b/w out' f", "sed '1e date' f", "sed 's/a/b/e' f",
+            "sort -o out f", "sort -oout f", "sort -uo out f", "sort --output=out f",
+            "find . -delete", "find . -exec cat {} \\;", "find . -execdir ls \\;", "find . -ok rm {} \\;", "find . -okdir ls \\;",
+            "find . -fprint out", "find . -fprint0 out", "find . -fprintf out %p", "find . -fls out",
+            "sqlite3 -cmd '.system touch x' db", "sqlite3 db 'insert into t values(1)'", "sqlite3 -init missing.sql db 'select 1'",
+            "sqlite3 db -Ax", "sqlite3 db", "sqlite3 db < q.sql",
+        )] + [["bash", {"command": "echo x > a"}, "rv"]]
+        allowed = [[t, a, "ver"] for t, a in self.bash(
+            "python3 -I -m unittest test_x.py", "python3 -X dev -W ignore test/test_a.py", "uv run python -m unittest test_x.py",
+            "uv run --frozen pytest -q", "time -p git status", "nice git log -1", "env LC_ALL=C sort f", "timeout 5 cat f",
+            "git log --oneline", "git grep -i foo", "git diff --stat", "git show --text HEAD", "sed -n '1,5p' f", "sort -u f",
+            "sort -k2 -t, f", "find . -name x -type f", "sqlite3 -readonly db 'select 1'", "sqlite3 db 'select 1'",
+            "sqlite3 -cmd '.mode json' db 'select 1'", "node --check a.js", "perl -c a.pl",
+        )] + [["read", {"filePath": "a"}, "rv"]]
+        self.assert_guard(refused, allowed, setup=setup, directory=work)
+        out = self.run_node("roname", r"""
+const P = await load(process.cwd());
+for (const name of ["Verifier", "@reviewer", "structured", "worker"]) {
+  await P.tool.agent_spawn.execute({ prompt: "x", description: "d", agent: name }, ctx(process.cwd()));
+}
+console.log("{}");
+process.exit(0);
+""")
+        guards = {p.stem: json.loads(p.read_text()) for p in (self.state / "guard").glob("child*.json")}
+        marked = sorted(g.get("readonly") for g in guards.values() if g.get("readonly"))
+        self.assertEqual(marked, ["@reviewer", "@structured", "@verifier"])
+
+    def test_main_checkout_board_writes_through_wrappers(self):
+        main = self.home / "Developer" / "Atlas"
+        (main / "board").mkdir(parents=True)
+        (main / "board" / "a.py").write_text("x")
+        refused = self.bash(
+            "uv run touch board/x", "uv run --directory board touch x", "mise exec -- rm board/a.py", "poetry run sed -i s/a/b/ board/a.py",
+            "npx prettier --write board/a.py", "npx -c 'rm board/a.py'", "time -p rm board/a.py", "nohup touch board/x",
+            "python3 -I -c \"open('board/x', 'w').write('1')\"",
+        )
+        allowed = self.bash("uv run touch notes.txt", "mise exec -- touch /tmp/x", "npx prettier --check board/a.py", "time -p ls board")
+        self.assert_guard(refused, allowed, contains="Atlas-wt", directory=main)
+
+    def test_commit_gate_counts_only_verify_agents(self):
+        out = self.run_node("gate4", self.WF_VERDICTS + r"""
+autoIdle(P);
+let answer = { verdict: "pass", reason: "builder says done" };
+globalThis.STRUCTURED = () => answer;
+const S = "{ schema: { type: 'object' } }";
+const V = "{ agent: 'verifier', schema: { type: 'object' } }";
+const r = {};
+await wf(`return { verdicts: [{ verdict: "fail", reason: "injection still open" }] }`);
+r.closed = await commit();
+r.literal = await wf(`return { verdict: "pass" }`);
+r.afterLiteral = await commit();
+r.fixer = await wf(`const built = { files: ["a.py"], verdict: "pass", note: "fixed" }; return { built }`);
+r.afterFixer = await commit();
+r.builder = await wf(`phase("build"); return await agent("build it", ${S})`);
+r.afterBuilder = await commit();
+r.fixStage = await wf(`return await verify_until_pass(async () => { phase("verify the fix"); return await agent("fix it", ${V}); },
+  async ({ round }) => round === 1 ? [{ verdict: "fail", reason: "still open" }] : [{ verdict: "pass" }], { max: 2 })`);
+r.afterFixStage = await commit();
+r.forgedRound = await wf(`return await verify_until_pass(async () => {}, async () => [{ verdict: "pass" }])`);
+r.afterForgedRound = await commit();
+globalThis.PARENTS = { kid: "g1" };
+await wf(`phase("verify"); return [await agent("verify it", ${V})]`, "kid");
+r.kidOwnPass = await commit("kid");
+answer = { verdict: "pass", reason: "verified" };
+r.plainInVerify = await wf(`phase("verify"); return [await agent("check it", ${S})]`);
+r.afterPlainInVerify = await commit();
+r.verifierOutsideVerify = await wf(`phase("build"); return [await agent("check it", ${V})]`);
+r.afterVerifierOutside = await commit();
+r.verifierType = await wf(`phase("verify"); return [await agent("check it", ${V})]`);
+r.afterVerifier = await commit();
+answer = { verdict: "fail", reason: "verifier found a hole" };
+await wf(`phase("verify"); const v = await agent("verify", ${V}); return { v, summary: { verdict: "pass" } }`);
+r.verifyFail = await commit();
+answer = { verdict: "pass", reason: "fixed for real" };
+r.manual = await wf(`phase("verify"); await agent("verify", ${V}); phase("fix"); await agent("fix", { agent: "fixer", schema: { type: "object" } }); phase("verify again"); return [await agent("verify again", { readonly: true, schema: { type: "object" } })]`);
+r.afterManual = await commit();
+await wf(`return { verdict: "fail", reason: "reopened" }`);
+r.boardPush = await check(P, "bash", { command: "board/bin/board push 'msg' -- a.py" }, "g1");
+r.boardOther = await check(P, "bash", { command: "board tools list" }, "g1");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k in ("closed", "afterLiteral", "afterFixer", "afterBuilder", "afterFixStage", "afterForgedRound", "kidOwnPass", "verifyFail",
+                  "afterPlainInVerify", "afterVerifierOutside"):
+            self.assertTrue(r[k].startswith("REFUSED"), (k, r[k]))
+        self.assertNotIn('verdict="pass"', r["plainInVerify"], "a plain agent is not read-only")
+        self.assertNotIn('verdict="pass"', r["verifierOutsideVerify"], "a verifier outside a verify phase")
+        self.assertIn("do not count", r["literal"])
+        self.assertNotIn('verdict="pass"', r["literal"])
+        self.assertNotIn('verdict="pass"', r["fixer"])
+        self.assertNotIn('verdict="pass"', r["builder"])
+        self.assertIn("no verdict from a verify agent", r["forgedRound"])
+        self.assertIn('verdict="pass"', r["verifierType"])
+        self.assertEqual(r["afterVerifier"], "ok")
+        self.assertIn('verdict="pass"', r["manual"])
+        self.assertEqual(r["afterManual"], "ok")
+        self.assertIn("verifier found a hole", r["verifyFail"])
+        self.assertTrue(r["boardPush"].startswith("REFUSED") and "reopened" in r["boardPush"], r["boardPush"])
+        self.assertEqual(r["boardOther"], "ok")
+
+    def test_xargs_option_clusters_read_their_arg_file(self):
+        h = self.home
+        (h / ".ssh").mkdir()
+        (h / ".ssh" / "id_ed25519").write_text("k")
+        work = self.root / "work"
+        work.mkdir()
+        (work / "keys.env").write_text("K=1")
+        (work / "list.txt").write_text("README.md\n")
+        (work / "README.md").write_text("x")
+        refused = self.bash("xargs -0a ~/.ssh/id_ed25519 echo", "xargs -ra ~/.ssh/id_ed25519 echo", "xargs -ta keys.env echo",
+                            "xargs -takeys.env echo", "xargs -0 -t -a keys.env echo", "xargs --arg-file keys.env echo",
+                            workdir=str(work))
+        allowed = self.bash("xargs -0a list.txt cat", "xargs -ra list.txt cat", "xargs -ta list.txt cat", "xargs -n1 -a list.txt cat",
+                            workdir=str(work))
+        self.assert_guard(refused, allowed, contains="key_sync")
+
+    def test_readonly_sqlite_reads_sql_piped_in(self):
+        work = self.root / "work"
+        work.mkdir()
+        setup = r"""
+await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ type: "text", text: "verify it" }] });
+"""
+        refused = [[t, a, "ver"] for t, a in self.bash(
+            "echo 'delete from t' | sqlite3 db", "printf 'insert into t values(1);\\n' | sqlite3 db", "echo 'DROP TABLE t;' | sqlite3 app.db",
+            "cat <<'EOF' | sqlite3 db\ninsert into t values(1);\nEOF", "echo '.output x' | sqlite3 db", "echo '.shell touch x' | sqlite3 db",
+            "echo '.shell touch x' | sqlite3 -readonly db", "cat q.sql | sqlite3 db",
+        )]
+        allowed = [[t, a, "ver"] for t, a in self.bash(
+            "echo 'select 1;' | sqlite3 db", "printf 'select count(*) from t;' | sqlite3 db", "echo '.tables' | sqlite3 db",
+            "cat <<'EOF' | sqlite3 db\nselect * from t;\nEOF", "echo 'delete from t' | sqlite3 -readonly db",
+        )]
+        self.assert_guard(refused, allowed, contains="read-only", setup=setup, directory=work)
+
+    def test_main_checkout_board_writes_through_python_modules_and_package_dirs(self):
+        main = self.home / "Developer" / "Atlas"
+        (main / "board").mkdir(parents=True)
+        (main / "board" / "a.py").write_text("x")
+        (main / "courses").mkdir()
+        refused = self.bash(
+            "python3 -m black board/a.py", "uv run python -m black board", "python3 -m isort board", "python3 -m autopep8 -i board/a.py",
+            "python3 -I -m black board", "python3 -mblack board", "python3 -m ruff format board", "npm --prefix board install",
+            "npm --prefix=board ci", "pnpm -C board install", "pnpm --dir board add x", "yarn --cwd board add x", "bun --cwd board install",
+            "cd board && npm install", "uv run -m black board", "ruff format board", "black .", "echo 'delete from t' | sqlite3 board/db",
+        )
+        allowed = self.bash(
+            "python3 -m black --check board", "python3 -m isort --diff board", "python3 -m autopep8 board/a.py",
+            "python3 -m unittest board/test_x.py", "python3 -m black /tmp/x.py", "npm --prefix board test", "npm --prefix courses install",
+            "pnpm -C courses install", "npm install", "yarn --cwd board test", "black courses", "ruff format courses/x.py",
+            "echo 'select 1' | sqlite3 board/db",
+        )
+        self.assert_guard(refused, allowed, contains="Atlas-wt", directory=main)
+
+    def test_commit_gate_ignores_fix_and_build_phases_and_replayed_rounds(self):
+        out = self.run_node("gate5", self.WF_VERDICTS + r"""
+autoIdle(P);
+let answer = { verdict: "pass", reason: "checked" };
+globalThis.STRUCTURED = () => answer;
+const S = "{ schema: { type: 'object' } }";
+const V = "{ agent: 'verifier', schema: { type: 'object' } }";
+const r = { phases: {}, counted: {}, plain: {} };
+const close = () => wf(`return { verdicts: [{ verdict: "fail", reason: "still open" }] }`);
+// A phase counts when its name starts with verify; what else the name says is not judged.
+for (const name of ["fix and verify", "unverified build", "Build (verification next)", "fix the verify failures",
+  "apply verifier feedback", "build (unverified)", "build", "survey"]) {
+  await close();
+  const msg = await wf(`phase(${JSON.stringify(name)}); return [await agent("check it", ${V})]`);
+  r.phases[name] = [msg.includes('verdict="pass"'), await commit()];
+}
+for (const name of ["verify", "Verify the fix", "verification", "re-verify", "verify again", "verify (round 2)", "verifiers",
+  "verify-the-fix", "re_verify", "verify and fix", "verify + build"]) {
+  await close();
+  await wf(`phase(${JSON.stringify(name)}); return [await agent("check it", ${V})]`);
+  r.counted[name] = await commit();
+  await close();
+  await wf(`phase(${JSON.stringify(name)}); return [await agent("check it", ${S})]`);
+  r.plain[name] = await commit();
+}
+await close();
+let n = 0;
+globalThis.STRUCTURED = () => (++n === 1 ? { verdict: "pass" } : { verdict: "fail", reason: "round one hole" });
+r.replay = await wf(`return await verify_until_pass(async () => {}, async ({ round }) => round === 1
+  ? [await agent("verify a", ${V}), await agent("verify b", ${V})] : [{ verdict: "pass" }], { max: 2 })`);
+r.afterReplay = await commit();
+await close();
+globalThis.STRUCTURED = () => answer;
+r.twice = await wf(`return await verify_until_pass(async () => {}, async () => { const v = await agent("verify", ${V}); return [v, { verdict: "pass" }, { verdict: "pass" }]; })`);
+r.afterTwice = await commit();
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for name, (passed, gate) in r["phases"].items():
+            self.assertFalse(passed, name)
+            self.assertTrue(gate.startswith("REFUSED"), (name, gate))
+        for name, gate in r["counted"].items():
+            self.assertEqual(gate, "ok", name)
+        for name, gate in r["plain"].items():
+            self.assertTrue(gate.startswith("REFUSED"), ("a plain agent is not read-only", name, gate))
+        self.assertIn("no verdict from a verify agent", r["replay"])
+        self.assertTrue(r["afterReplay"].startswith("REFUSED"), r["afterReplay"])
+        self.assertIn('verdict="pass"', r["twice"])
+        self.assertEqual(r["afterTwice"], "ok", "the round's own pass counts; the copies are ignored, not failed")
+
+    def test_commit_gate_ignores_builder_and_fixer_reports_in_verify_phases(self):
+        out = self.run_node("gate6", self.WF_VERDICTS + r"""
+autoIdle(P);
+globalThis.STRUCTURED = () => ({ verdict: "pass", reason: "fixed it myself" });
+const S = "{ schema: { type: 'object' } }";
+const T = "schema: { type: 'object' }";
+const r = { closed: {}, counted: {} };
+const close = () => wf(`return { verdicts: [{ verdict: "fail", reason: "still open" }] }`);
+const closedTries = {
+  fixerInVerify: `phase("verify"); return [await agent("check the change", { agent: "fixer", ${T} })]`,
+  fixerReadonlyInVerify: `phase("verify"); return [await agent("check the change", { agent: "fixer", readonly: true, ${T} })]`,
+  workerInVerify: `phase("verify"); return [await agent("check it", { agent: "worker", ${T} })]`,
+  buildInVerify: `phase("verify"); return [await agent("check it", { agent: "build", readonly: true, ${T} })]`,
+  deepInVerify: `phase("verify"); return [await agent("check the proof", { agent: "deep", ${T} })]`,
+  generalInVerify: `phase("verify"); return [await agent("check it", { agent: "general", ${T} })]`,
+  readonlyFalse: `phase("verify"); return [await agent("check it", { readonly: false, ${T} })]`,
+  stageFixer: `return await verify_until_pass(async () => {}, async () => [await agent("check it", { agent: "fixer", ${T} })], { max: 1 })`,
+  stageWorker: `return await verify_until_pass(async () => {}, async () => [await agent("check it", { agent: "worker", ${T} })], { max: 1 })`,
+  stagePlain: `return await verify_until_pass(async () => {}, async () => [await agent("verify the fix", ${S})], { max: 1 })`,
+  verifierInFixStage: `return await verify_until_pass(async () => { phase("verify"); return await agent("check", { agent: "verifier", ${T} }); },
+    async ({ round }) => round === 1 ? [{ verdict: "fail", reason: "x" }] : [{ verdict: "pass" }], { max: 1 })`,
+};
+for (const [k, src] of Object.entries(closedTries)) {
+  await close();
+  let msg;
+  try { msg = await wf(src); } catch (e) { msg = String(e); }
+  r.closed[k] = [String(msg).includes('verdict="pass"'), await commit()];
+}
+// Read-only agents count whatever their brief says: they cannot change a file.
+const countedTries = {
+  verifier: `phase("verify"); return [await agent("check it", { agent: "verifier", ${T} })]`,
+  verifierBriefSaysFix: `phase("verify"); return [await agent("Please fix what is broken and report", { agent: "verifier", ${T} })]`,
+  reviewer: `phase("re-verify"); return [await agent("Make sure the tests pass", { agent: "reviewer", ${T} })]`,
+  structured: `phase("verify"); return [await agent("check it", { agent: "structured", ${T} })]`,
+  readonlyTrue: `phase("verify-the-fix"); return [await agent("apply the fixes below", { readonly: true, ${T} })]`,
+  stageReviewer: `return await verify_until_pass(async () => {}, async () => [await agent("verify the fix", { agent: "@reviewer", ${T} })], { max: 1 })`,
+};
+for (const [k, src] of Object.entries(countedTries)) {
+  await close();
+  await wf(src);
+  r.counted[k] = await commit();
+}
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k, (passed, gate) in r["closed"].items():
+            self.assertFalse(passed, k)
+            self.assertTrue(gate.startswith("REFUSED"), (k, gate))
+        for k, gate in r["counted"].items():
+            self.assertEqual(gate, "ok", k)
+
+    def test_commit_gate_never_counts_a_verdict_replayed_from_the_journal(self):
+        out = self.run_node("gate7", self.WF_VERDICTS + r"""
+import { readFileSync } from "node:fs";
+autoIdle(P);
+let answer = { verdict: "pass", reason: "first look" };
+globalThis.STRUCTURED = () => answer;
+const V = "{ agent: 'verifier', schema: { type: 'object' } }";
+const W = "{ agent: 'worker', schema: { type: 'object' } }";
+const prompts = (t) => readFileSync(process.env.CALLS, "utf-8").trim().split("\n").map((l) => JSON.parse(l)).filter((c) => c.op === "prompt" && c.text.includes(t)).length;
+const resume = (id, script) => P.tool.workflow.execute({ script, background: false, resume_run_id: id }, ctx(process.cwd(), "g1"));
+const idOf = (msg) => msg.match(/id="([^"]+)"/)[1];
+const r = {};
+const A = `phase("build"); const b = await agent("build step", ${W}); phase("verify"); return [await agent("verify step", ${V})]`;
+const runA = idOf(await wf(A));
+r.afterA = await commit();
+await wf(`return { verdict: "fail", reason: "newer hole" }`);
+r.afterNewerFail = await commit();
+// Resumed, the verifier runs again; its old pass in the journal is not replayed.
+answer = { verdict: "fail", reason: "still open on resume" };
+const before = [prompts("build step"), prompts("verify step")];
+r.resumedFail = await resume(runA, A);
+r.afterResumedFail = await commit();
+r.prompts = [prompts("build step") - before[0], prompts("verify step") - before[1]];
+// A fresh live pass on resume does count.
+answer = { verdict: "pass", reason: "fixed and checked again" };
+r.resumedPass = await resume(runA, A);
+r.afterResumedPass = await commit();
+// verify_until_pass on resume: round 1's journaled pass is not replayed either.
+answer = { verdict: "pass", reason: "round one" };
+const B = `return await verify_until_pass(async () => {}, async () => [await agent("verify loop", ${V})], { max: 0 })`;
+const runB = idOf(await wf(B));
+await wf(`return { verdict: "fail", reason: "newest hole" }`);
+answer = { verdict: "fail", reason: "loop still open" };
+r.loopResumed = await resume(runB, B);
+r.afterLoopResumed = await commit();
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertEqual(r["afterA"], "ok")
+        self.assertTrue(r["afterNewerFail"].startswith("REFUSED"), r["afterNewerFail"])
+        self.assertEqual(r["prompts"], [0, 1], "the builder comes from the journal; the verifier runs live")
+        self.assertIn('verdict="fail"', r["resumedFail"])
+        self.assertTrue(r["afterResumedFail"].startswith("REFUSED") and "still open on resume" in r["afterResumedFail"], r["afterResumedFail"])
+        self.assertIn('verdict="pass"', r["resumedPass"])
+        self.assertEqual(r["afterResumedPass"], "ok")
+        self.assertIn('verdict="fail"', r["loopResumed"])
+        self.assertTrue(r["afterLoopResumed"].startswith("REFUSED") and "loop still open" in r["afterLoopResumed"], r["afterLoopResumed"])
+
+    def test_commit_gate_counts_every_verify_agent_of_a_phase(self):
+        out = self.run_node("gate8", self.WF_VERDICTS + r"""
+const asked = {};
+globalThis.ON_PROMPT = (id, body) => { asked[id] = body.parts[0].text; setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), 10); };
+globalThis.STRUCTURED = (id) => /verifier A/.test(asked[id] ?? "") ? { verdict: "fail", reason: "A found a hole" } : { verdict: "pass", reason: "fine" };
+const V = (n) => `agent("verifier ${n}", { agent: "verifier", schema: { type: "object" } })`;
+const E = `agent("look around", { agent: "explore" })`;
+const close = () => wf(`return { verdicts: [{ verdict: "fail", reason: "still open" }] }`);
+const r = { held: {}, lifted: {} };
+const held = {
+  parallelWithExplore: `phase("verify"); const [a, e, b] = await parallel([() => ${V("A")}, () => ${E}, () => ${V("B")}]); return { verdicts: [a, b] }`,
+  sequentialWithExplore: `phase("verify"); const a = await ${V("A")}; await ${E}; const b = await ${V("B")}; return [a, b]`,
+  failNotReturned: `phase("verify"); await ${V("A")}; await ${E}; return [await ${V("B")}]`,
+  loopThenLaterVerifyFails: `await verify_until_pass(async () => {}, async () => [await ${V("B")}], { max: 0 }); phase("verify again"); return [await ${V("A")}]`,
+  loopThenScriptFail: `const v = await verify_until_pass(async () => {}, async () => [await ${V("B")}], { max: 0 }); return { loop: v, verdicts: [{ verdict: "fail", reason: "the script saw a hole" }] }`,
+  // A newer verify phase or verify_until_pass call never replaces an older phase's fail.
+  newerPhase: `phase("verify"); const a = await ${V("A")}; phase("fix"); await agent("fix it", { agent: "fixer" }); phase("verify"); const b = await ${V("B")}; return [a, b]`,
+  loopAfterPhase: `phase("verify"); const a = await ${V("A")}; const v = await verify_until_pass(async () => {}, async () => [await ${V("B")}], { max: 0 }); return { first: a, verdicts: v.verdicts }`,
+};
+for (const [k, src] of Object.entries(held)) {
+  await close();
+  const msg = await wf(src);
+  r.held[k] = [msg.includes('verdict="fail"'), await commit()];
+}
+const lifted = {
+  twoPasses: `phase("verify"); const b = await ${V("B")}; phase("fix"); await agent("fix it", { agent: "fixer" }); phase("verify"); return [b, await ${V("B2")}]`,
+  phaseThenLoopPass: `phase("verify"); const b = await ${V("B")}; const v = await verify_until_pass(async () => {}, async () => [await ${V("B2")}], { max: 0 }); return { first: b, verdicts: v.verdicts }`,
+};
+for (const [k, src] of Object.entries(lifted)) {
+  await close();
+  await wf(src);
+  r.lifted[k] = await commit();
+}
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k, (failed, gate) in r["held"].items():
+            self.assertTrue(failed, k)
+            self.assertTrue(gate.startswith("REFUSED"), (k, gate))
+        self.assertIn("A found a hole", r["held"]["parallelWithExplore"][1])
+        for k, gate in r["lifted"].items():
+            self.assertEqual(gate, "ok", k)
+
+    def test_credentials_through_defaults_rclone_and_env_loaders(self):
+        h = self.home
+        la = h / "Library" / "LaunchAgents"
+        la.mkdir(parents=True)
+        (la / "com.x.keys.plist").write_text("<plist><key>EnvironmentVariables</key><dict><key>DEEPSEEK_API_KEY</key></dict></plist>")
+        (la / "com.x.plain.plist").write_text("<plist><key>Label</key></plist>")
+        prefs = h / "Library" / "Preferences"
+        prefs.mkdir(parents=True)
+        (prefs / "com.x.secret.plist").write_text("<plist><key>API_TOKEN</key></plist>")
+        (prefs / "com.x.calm.plist").write_text("<plist><key>Theme</key></plist>")
+        work = self.root / "work"
+        work.mkdir()
+        (work / "keys.env").write_text("K=1")
+        (work / ".env").write_text("K=1")
+        refused = self.bash(
+            "defaults read ~/Library/LaunchAgents/com.x.keys", f"defaults read {la}/com.x.keys EnvironmentVariables",
+            "defaults export ~/Library/LaunchAgents/com.x.keys -", "defaults read com.x.secret",
+            "rclone config show", "rclone config dump", "rclone --config /tmp/x.conf config show myremote", "uv run rclone config dump",
+            "node -e \"process.loadEnvFile(); console.log(process.env.K)\"",
+            "python3 -c \"import glob; [print(open(f).read()) for f in glob.glob('*.env')]\"",
+            "python3 -c \"import pathlib; [print(p.read_text()) for p in pathlib.Path('.').glob('*.env')]\"",
+            "python3 -c \"import glob; print(glob.glob('.env*'))\"",
+            workdir=str(work),
+        )
+        allowed = self.bash(
+            "defaults read ~/Library/LaunchAgents/com.x.plain", "defaults read com.x.calm", "defaults read com.apple.dock autohide",
+            "rclone config file", "rclone config redacted", "rclone lsd remote:", "rclone version",
+            "node -e \"console.log(process.env.HOME)\"", "python3 -c \"import glob; print(glob.glob('*.py'))\"",
+            "python3 -c \"print('environment')\"",
+            workdir=str(work),
+        )
+        self.assert_guard(refused, allowed)
+
+    def test_grep_and_glob_tools_reach_env_files_in_nested_repositories(self):
+        outer = self.root / "outer"
+        outer.mkdir()
+        subprocess.run(["git", "init", "-q", str(outer)], check=True)
+        (outer / "a.py").write_text("x")
+        svc = outer / "vendor" / "svc"
+        svc.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(svc)], check=True)
+        (svc / ".env").write_text("K=1")
+        calm = self.root / "calm"
+        calm.mkdir()
+        subprocess.run(["git", "init", "-q", str(calm)], check=True)
+        lib = calm / "lib"
+        lib.mkdir()
+        subprocess.run(["git", "init", "-q", str(lib)], check=True)
+        (lib / ".gitignore").write_text("*.env\n")
+        (lib / ".env").write_text("K=1")
+        (lib / "b.py").write_text("y")
+        hidden = self.root / "hidden"
+        hidden.mkdir()
+        subprocess.run(["git", "init", "-q", str(hidden)], check=True)
+        (hidden / ".gitignore").write_text("vendor/\n")
+        (hidden / "vendor" / "svc").mkdir(parents=True)
+        subprocess.run(["git", "init", "-q", str(hidden / "vendor" / "svc")], check=True)
+        (hidden / "vendor" / "svc" / ".env").write_text("K=1")
+        refused = [
+            ["grep", {"pattern": "K", "path": str(outer)}],
+            ["glob", {"pattern": "**/*", "path": str(outer)}],
+            ["grep", {"pattern": "K", "path": str(outer / "vendor")}],
+            ["grep", {"pattern": "K", "path": str(svc)}],
+        ]
+        allowed = [
+            ["grep", {"pattern": "K", "path": str(calm)}],
+            ["glob", {"pattern": "**/*", "path": str(calm)}],
+            ["grep", {"pattern": "K", "path": str(hidden)}],
+            ["grep", {"pattern": "K", "path": str(outer), "include": "*.py"}],
+        ]
+        self.assert_guard(refused, allowed)
+
+    def test_node_clustered_eval_flags_are_inline_code(self):
+        h = self.home
+        (h / ".ssh").mkdir()
+        (h / ".ssh" / "id_ed25519").write_text("k")
+        work = self.root / "work"
+        work.mkdir()
+        (work / "keys.env").write_text("K=1")
+        refused = self.bash(
+            "node -pe \"require('fs').readFileSync('keys.env','utf8')\"", "node -p -e \"require('fs').readFileSync('keys.env','utf8')\"",
+            "node -ep \"require('fs').readFileSync('keys.env','utf8')\"", "node -e -p \"require('fs').readFileSync('keys.env','utf8')\"",
+            "node -pe \"require('fs').readFileSync(require('os').homedir()+'/.ssh/id_ed25519','utf8')\"",
+            "node --print --eval \"require('fs').readFileSync('keys.env','utf8')\"",
+            workdir=str(work),
+        )
+        allowed = self.bash("node -pe '1+1'", "node -p -e 'process.version'", "node -ep 'Math.max(1, 2)'", "node -pe \"require('os').platform()\"",
+                            workdir=str(work))
+        self.assert_guard(refused, allowed, contains="key_sync")
+        setup = r"""
+await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ type: "text", text: "verify it" }] });
+"""
+        refused = [[t, a, "ver"] for t, a in self.bash(
+            "node -pe \"require('fs').writeFileSync('a','1')\"", "node -p -e \"require('fs').writeFileSync('a','1')\"",
+            "node -ep \"require('fs').rmSync('a')\"", workdir=str(work))]
+        allowed = [[t, a, "ver"] for t, a in self.bash("node -pe '1+1'", "node -p -e 'JSON.stringify({a: 1})'", workdir=str(work))]
+        self.assert_guard(refused, allowed, contains="read-only", setup=setup)
+
+    def test_listers_piped_into_xargs_expand_their_globs(self):
+        h = self.home
+        (h / ".ssh").mkdir()
+        (h / ".ssh" / "id_ed25519").write_text("k")
+        (h / ".ssh" / "config").write_text("Host x")
+        work = self.root / "work"
+        (work / "sub").mkdir(parents=True)
+        (work / "keys.env").write_text("K=1")
+        (work / "sub" / "prod.env").write_text("K=1")
+        (work / "a.py").write_text("x")
+        (work / "b.py").write_text("y")
+        (work / "sub" / "c.py").write_text("z")
+        refused = self.bash(
+            "ls *.env | xargs cat", "ls -1 *.env | xargs cat", "ls -d *.env | xargs head", "ls -1 sub/*.env | xargs cat",
+            "ls k*.env | xargs -n1 cat", "find . -name '*.env' | xargs cat", "find sub -name '*.env' -print0 | xargs -0 cat",
+            "ls ~/.ssh | xargs cat", "ls ~/.ssh/* | xargs cat", "ls -1 ~/.ssh/id_* | xargs cat", "ls ~/.ssh | xargs -I{} cat ~/.ssh/{}",
+            "ls | xargs cat", "ls -a | xargs grep K",
+            "ls *.env | xargs -I{} sh -c 'cat {}'", "ls *.env | xargs -I{} bash -c 'cat \"{}\"'",
+            "ls *.env | xargs sh -c 'cat \"$@\"' _", "ls -1 ~/.ssh/id_* | xargs -n1 bash -c 'head \"$0\"'",
+            "find . -name '*.env' | xargs -I{} sh -c 'cat {}'", "echo keys.env | xargs sh -c 'cat \"$1\"' _",
+            workdir=str(work),
+        )
+        allowed = self.bash(
+            "ls *.py | xargs cat", "ls -1 sub/*.py | xargs cat", "find . -name '*.py' | xargs cat", "ls *.py | xargs wc -l",
+            "ls *.env | xargs echo", "ls ~/.ssh", "ls *.env", "ls -d sub/*.py | xargs head",
+            "ls *.py | xargs -I{} sh -c 'cat {}'", "ls *.py | xargs sh -c 'wc -l \"$@\"' _", "ls *.env | xargs -I{} sh -c 'echo {}'",
+            "echo a.py | xargs sh -c 'cat \"$1\"' _", "find sub -name '*.py' | xargs -I{} bash -c 'head {}'",
+            workdir=str(work),
+        )
+        self.assert_guard(refused, allowed, contains="key_sync")
+
+    def test_main_checkout_board_writes_through_code_with_home_paths(self):
+        main = self.home / "Developer" / "Atlas"
+        (main / "board").mkdir(parents=True)
+        (main / "courses").mkdir()
+        elsewhere = self.root / "elsewhere"
+        elsewhere.mkdir()
+        b = main / "board"
+        refused = []
+        for d in (str(main), str(elsewhere)):
+            refused += self.bash(
+                "python3 -c \"import os; open(os.path.expanduser('~/Developer/Atlas/board/x.py'), 'w').write('1')\"",
+                "python3 -c \"from pathlib import Path; (Path.home() / 'Developer' / 'Atlas' / 'board' / 'x.py').write_text('1')\"",
+                "python3 -c \"from pathlib import Path; (Path.home() / 'Developer/Atlas/board/x.py').write_text('1')\"",
+                "python3 -c \"from pathlib import Path; Path('~/Developer/Atlas/board/x.py').expanduser().write_text('1')\"",
+                "python3 -c \"import os; open(os.path.join(os.path.expanduser('~'), 'Developer', 'Atlas', 'board', 'x.py'), 'w')\"",
+                "python3 -c \"import os; open(os.environ['HOME'] + '/Developer/Atlas/board/x.py', 'w')\"",
+                f"python3 -c \"open('{b}/x.py', 'w').write('1')\"",
+                "python3 -c \"from pathlib import Path; open(f'{Path.home()}/Developer/Atlas/board/x.py', 'w')\"",
+                "python3 -c \"from pathlib import Path; (Path.home() / 'Developer/Atlas/board/x.py').open('w')\"",
+                "node -e \"require('fs').writeFileSync(require('path').join(require('os').homedir(), 'Developer/Atlas/board/x.js'), '1')\"",
+                "node -e \"require('fs').writeFileSync(require('os').homedir() + '/Developer/Atlas/board/x.js', '1')\"",
+                "node -e 'require(\"fs\").writeFileSync(`${require(\"os\").homedir()}/Developer/Atlas/board/x.js`, \"1\")'",
+                f"node -e \"require('fs').appendFileSync('{b}/x.js', '1')\"",
+                "python3 -c \"from pathlib import Path; Path.home().joinpath('Developer/Atlas/board/README.md').write_text('x')\"",
+                "python3 -c \"from pathlib import Path; Path.home().joinpath('Developer/Atlas/board/x.py').unlink()\"",
+                "python3 -c \"from pathlib import Path; Path(Path.home(), 'Developer/Atlas/board/x.py').write_text('1')\"",
+                "python3 -c \"from pathlib import Path; Path.home().joinpath('Developer', 'Atlas', 'board', 'x.py').write_text('1')\"",
+                "python3 -c \"import pathlib; pathlib.Path(pathlib.Path.home(), 'Developer', 'Atlas', 'board').joinpath('x.py').touch()\"",
+                "python3 -c \"from pathlib import Path; Path(Path.home() / 'Developer/Atlas/board/x.py').write_text('1')\"",
+                workdir=d,
+            )
+        # From the main checkout a home path whose end is computed may reach board/.
+        for d in (str(main), str(main / "courses")):
+            refused += self.bash(
+                "python3 -c \"import sys; from pathlib import Path; Path.home().joinpath(sys.argv[1]).write_text('1')\" x",
+                "python3 -c \"import os, sys; open(os.path.join(os.path.expanduser('~'), 'Developer', sys.argv[1]), 'w')\" x",
+                "python3 -c \"import sys; from pathlib import Path; (Path.home() / sys.argv[1]).write_text('1')\" x",
+                workdir=d,
+            )
+        allowed = []
+        for d in (str(main), str(elsewhere)):
+            allowed += self.bash(
+                "python3 -c \"import os; open(os.path.expanduser('~/Developer/Atlas/courses/x.md'), 'w').write('1')\"",
+                "python3 -c \"from pathlib import Path; (Path.home() / 'Developer' / 'Atlas' / 'courses' / 'x.md').write_text('1')\"",
+                "python3 -c \"from pathlib import Path; print((Path.home() / 'Developer/Atlas/board/x.py').read_text())\"",
+                "python3 -c \"import os; open(os.path.join(os.path.expanduser('~'), 'notes.txt'), 'w')\"",
+                "python3 -c \"from pathlib import Path; open(Path.home() / 'notes.txt', 'w')\"",
+                "python3 -c \"import os; open(os.environ['HOME'] + '/Developer/Atlas/courses/x.md', 'w')\"",
+                "node -e \"require('fs').writeFileSync(require('path').join(require('os').homedir(), 'Developer/Atlas/courses/x.md'), '1')\"",
+                f"node -e \"console.log(require('fs').readFileSync('{b}/x.js', 'utf8'))\"",
+                "python3 -c \"from pathlib import Path; Path.home().joinpath('Developer/Atlas/courses/x.md').write_text('1')\"",
+                "python3 -c \"from pathlib import Path; Path(Path.home(), 'notes.txt').write_text('1')\"",
+                "python3 -c \"from pathlib import Path; print(Path.home().joinpath('Developer', 'Atlas', 'board', 'x.py').read_text())\"",
+                workdir=d,
+            )
+        allowed += self.bash(
+            "python3 -c \"import sys; from pathlib import Path; Path.home().joinpath(sys.argv[1]).write_text('1')\" x",
+            "python3 -c \"import sys; from pathlib import Path; print(Path.home().joinpath(sys.argv[1]).read_text())\" x",
+            workdir=str(elsewhere),
+        )
+        self.assert_guard(refused, allowed, contains="Atlas-wt", directory=elsewhere)
+
+    def test_main_checkout_board_writes_through_code_joining_absolute_literals(self):
+        main = self.home / "Developer" / "Atlas"
+        (main / "board").mkdir(parents=True)
+        (main / "courses").mkdir()
+        elsewhere = self.root / "elsewhere"
+        elsewhere.mkdir()
+        refused, allowed = [], []
+        for d in (str(main), str(elsewhere)):
+            refused += self.bash(
+                f"python3 -c \"import os; open(os.path.join('{main}', 'board', 'x.py'), 'w').write('1')\"",
+                f"python3 -c \"import os.path; open(os.path.join('{main}/board', 'x.py'), 'a')\"",
+                f"python3 -c \"from pathlib import Path; Path('{main}', 'board', 'x.py').write_text('1')\"",
+                f"python3 -c \"from pathlib import Path; Path('{main}').joinpath('board', 'x.py').write_text('1')\"",
+                f"python3 -c \"from pathlib import Path; (Path('{main}') / 'board' / 'x.py').write_text('1')\"",
+                f"python3 -c \"import pathlib; pathlib.Path('{main}', 'board').joinpath('x.py').unlink()\"",
+                f"python3 -c \"open('{main}' + '/board/x.py', 'w')\"",
+                f"python3 -c \"import shutil; shutil.copy('/tmp/a', '{main}' + '/board' + '/x.py')\"",
+                f"node -e \"require('fs').writeFileSync(require('path').join('{main}', 'board', 'x.js'), '1')\"",
+                f"node -e \"const path = require('path'); require('fs').writeFileSync(path.join('{main}', 'board/x.js'), '1')\"",
+                f"node -e \"require('fs').writeFileSync(require('path').resolve('{main}', 'board', 'x.js'), '1')\"",
+                f"node -e \"require('fs').appendFileSync('{main}' + '/board/x.js', '1')\"",
+                # Raw-string, template and ~/ literals; whole-tree removal of a directory holding board/.
+                f"python3 -c \"import os; open(os.path.join(r'{main}', 'board', 'x.py'), 'w').write('1')\"",
+                f"python3 -c \"from pathlib import Path; Path(r'{main}', r'board', 'x.py').write_text('1')\"",
+                f"python3 -c \"from pathlib import Path; Path(R'{main}').joinpath(r'board', 'x.py').write_text('1')\"",
+                f"python3 -c \"import os; open(os.path.expanduser(os.path.join('~/Developer/Atlas', 'board', 'x.py')), 'w')\"",
+                f"node -e 'require(\"fs\").writeFileSync(require(\"path\").join(`{main}`, \"board\", \"x.js\"), \"1\")'",
+                f"node -e 'require(\"fs\").writeFileSync(require(\"path\").join(`{main}`, `board`, `x.js`), \"1\")'",
+                f"node -e 'require(\"fs\").writeFileSync(`{main}/board/x.js`, \"1\")'",
+                f"python3 -c \"import shutil; shutil.rmtree('{main}')\"",
+                f"python3 -c \"import shutil; shutil.move('{main}', '/tmp/old')\"",
+                f"node -e \"require('fs').rmSync('{main}', {{ recursive: true }})\"",
+                # Other ways to join the literals, and data-library writes.
+                f"python3 -c \"import os; open('/'.join(['{main}', 'board', 'x.py']), 'w')\"",
+                f"python3 -c \"open('%s/board/x.py' % '{main}', 'w')\"",
+                f"python3 -c \"open('{{}}/board/x.py'.format('{main}'), 'w')\"",
+                f"python3 -c \"from os.path import join as pjoin; open(pjoin('{main}', 'board', 'x.py'), 'w')\"",
+                f"python3 -c \"open('{main}' '/board/x.py', 'w')\"",
+                f"python3 -c \"import os; base = '{main}'; open(os.path.join(base, 'board', 'x.py'), 'w')\"",
+                f"node -e \"require('fs').writeFileSync(['{main}', 'board', 'x.js'].join('/'), '1')\"",
+                f"python3 -c \"import pandas as pd, os; pd.DataFrame().to_csv(os.path.join('{main}', 'board', 'x.csv'))\"",
+                f"python3 -c \"import pandas as pd; pd.DataFrame().to_csv('{main}/board/x.csv')\"",
+                f"python3 -c \"import pandas as pd; pd.DataFrame().to_parquet('{main}/board/x.parquet')\"",
+                f"python3 -c \"import numpy as np; np.save('{main}/board/x.npy', 1)\"",
+                f"python3 -c \"import matplotlib.pyplot as plt; plt.savefig('{main}/board/x.png')\"",
+                workdir=d,
+            )
+            allowed += self.bash(
+                f"python3 -c \"import os; open(os.path.join('{main}', 'courses', 'x.md'), 'w').write('1')\"",
+                f"python3 -c \"from pathlib import Path; Path('{main}', 'courses', 'x.md').write_text('1')\"",
+                f"python3 -c \"from pathlib import Path; Path('{main}').joinpath('courses', 'x.md').write_text('1')\"",
+                f"python3 -c \"open('{main}' + '/courses/x.md', 'w')\"",
+                f"python3 -c \"from pathlib import Path; print(Path('{main}', 'board', 'x.py').read_text())\"",
+                f"python3 -c \"import os; print(open(os.path.join('{main}', 'board', 'x.py')).read())\"",
+                f"node -e \"require('fs').writeFileSync(require('path').join('{main}', 'courses', 'x.md'), '1')\"",
+                f"node -e \"console.log(require('fs').readFileSync(require('path').join('{main}', 'board', 'x.js'), 'utf8'))\"",
+                f"python3 -c \"import os; open(os.path.join(r'{main}', 'courses', 'x.md'), 'w').write('1')\"",
+                f"python3 -c \"from pathlib import Path; Path(R'{main}').joinpath(r'courses', 'x.md').write_text('1')\"",
+                f"python3 -c \"import os; open(os.path.expanduser(os.path.join('~/Developer/Atlas', 'courses', 'x.md')), 'w')\"",
+                f"node -e 'require(\"fs\").writeFileSync(require(\"path\").join(`{main}`, \"courses\", \"x.md\"), \"1\")'",
+                f"node -e 'require(\"fs\").writeFileSync(`{main}/courses/x.md`, \"1\")'",
+                f"python3 -c \"import shutil; shutil.rmtree('{main}/courses/old')\"",
+                f"python3 -c \"import shutil; shutil.rmtree('/tmp/scratch-x')\"",
+                f"node -e \"require('fs').rmSync('{main}/courses/old', {{ recursive: true }})\"",
+                f"python3 -c \"import pandas as pd; pd.DataFrame().to_csv('{main}/courses/x.csv')\"",
+                f"python3 -c \"import numpy as np; np.save('/tmp/x.npy', 1)\"",
+                f"python3 -c \"import pandas as pd; print(pd.read_csv('{main}/board/x.csv').to_json())\"",
+                workdir=d,
+            )
+        # Joins the guard does not fold: judged by the literals from elsewhere. From the main
+        # checkout the target counts as unresolved and is refused.
+        unfolded = (
+            f"python3 -c \"import os; open('/'.join(['{main}', 'courses', 'x.md']), 'w')\"",
+            f"python3 -c \"open('%s/courses/x.md' % '{main}', 'w')\"",
+            f"python3 -c \"open('{{}}/courses/x.md'.format('{main}'), 'w')\"",
+            f"node -e \"require('fs').writeFileSync(['{main}', 'courses', 'x.md'].join('/'), '1')\"",
+        )
+        allowed += self.bash(*unfolded, workdir=str(elsewhere))
+        refused += self.bash(*unfolded, workdir=str(main))
+        self.assert_guard(refused, allowed, contains="Atlas-wt", directory=elsewhere)
+
+    def test_readonly_agents_cannot_download_with_gh(self):
+        setup = r"""
+await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ type: "text", text: "verify it" }] });
+"""
+        refused = [[t, a, "ver"] for t, a in self.bash(
+            "gh run download 123", "gh run download 123 -n logs -D out", "gh release download v1", "gh release download v1 -p '*.zip'",
+            "gh repo clone owner/repo", "gh repo clone owner/repo /tmp/../x", "gh gist clone abc", "gh attestation download x.tgz -o owner",
+            "gh -R owner/repo release download v1", "gh release download -R owner/repo v1",
+        )]
+        allowed = [[t, a, "ver"] for t, a in self.bash(
+            "gh run view 123", "gh run view 123 --log", "gh release view v1", "gh release list", "gh repo view owner/repo",
+            "gh pr diff 5", "gh pr view 5 --json title", "gh run list",
+        )]
+        self.assert_guard(refused, allowed, contains="read-only", setup=setup)
+        # Not read-only: gh downloads are ordinary work.
+        self.assert_guard([], self.bash("gh run download 123", "gh release download v1", "gh repo clone owner/repo"))
+
+    def test_listers_feeding_interpreters_are_checked(self):
+        h = self.home
+        (h / ".ssh").mkdir()
+        (h / ".ssh" / "id_ed25519").write_text("k")
+        work = self.root / "work"
+        work.mkdir()
+        (work / "keys.env").write_text("K=1")
+        (work / "a.py").write_text("x")
+        argv1 = "\"import sys; print(open(sys.argv[1]).read())\""
+        lines = "\"import sys; [print(open(l.strip()).read()) for l in sys.stdin]\""
+        refused = self.bash(
+            f"ls *.env | xargs python3 -c {argv1}", f"ls *.env | xargs -n1 python3 -c {argv1}",
+            "ls *.env | xargs -I{} python3 -c \"print(open('{}').read())\"", f"ls ~/.ssh/id_* | xargs python3 -c {argv1}",
+            "ls *.env | xargs node -e \"console.log(require('fs').readFileSync(process.argv[1], 'utf8'))\"",
+            "ls *.env | xargs perl -pe 1", "ls *.env | xargs ruby -e \"puts File.read(ARGV[0])\"", f"ls *.env | python3 -c {lines}",
+            f"ls -1 ~/.ssh | python3 -c {lines}", "find . -name '*.env' | xargs python3 -c \"import sys; [print(open(f).read()) for f in sys.argv[1:]]\"",
+            "ls | xargs perl -ne print", f"ls *.env | xargs -I{{}} sh -c 'python3 -c {argv1} {{}}'",
+            workdir=str(work),
+        )
+        allowed = self.bash(
+            f"ls *.py | xargs python3 -c {argv1}", f"ls *.py | python3 -c {lines}", "find . -name '*.py' | xargs perl -pe 1",
+            "ls *.py | xargs ruby -e \"puts File.read(ARGV[0])\"", "ls *.env | wc -l", "ls *.env | xargs echo",
+            "git log --oneline | python3 -c \"import sys; print(len(sys.stdin.read()))\"",
+            workdir=str(work),
+        )
+        self.assert_guard(refused, allowed, contains="key_sync")
+
+    def test_env_loaders_by_module_preload_and_command(self):
+        work = self.root / "work"
+        work.mkdir()
+        (work / ".env").write_text("K=1")
+        refused = self.bash(
+            "python3 -m dotenv list", "uv run python -m dotenv list", "dotenv list", "dotenv run -- node app.js",
+            "node -r dotenv/config -e 'console.log(1)'", "node --require=dotenv/config app.js", "node --import dotenv/config app.js",
+            "NODE_OPTIONS='-r dotenv/config' node app.js", "export NODE_OPTIONS='--require dotenv/config'; node app.js",
+            "ruby -rdotenv/load -e 'puts 1'", "dotenvx run -- node app.js", "npx env-cmd node app.js",
+            workdir=str(work),
+        )
+        allowed = self.bash(
+            "python3 -m json.tool a.json", "node -r ./setup.js -e 'console.log(1)'", "node --import tsx app.ts",
+            "NODE_OPTIONS=--max-old-space-size=4096 node app.js", "ruby -rjson -e 'puts 1'", "python3 -m unittest test_x.py",
+            workdir=str(work),
+        )
+        self.assert_guard(refused, allowed, contains="key_sync")
+
+    def test_a_verify_phase_without_verdicts_replaces_nothing(self):
+        out = self.run_node("gate9", self.WF_VERDICTS + r"""
+import { readFileSync } from "node:fs";
+const asked = {};
+globalThis.ON_PROMPT = (id, body) => { asked[id] = body.parts[0].text; setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), 10); };
+globalThis.STRUCTURED = (id) => /verify loop/.test(asked[id] ?? "") ? { verdict: "fail", reason: "loop hole" } : { verdict: "pass", reason: "docs fine" };
+const result = (msg) => JSON.parse(readFileSync(process.env.PARITY_STATE_DIR + "/workflows/" + msg.match(/id="([^"]+)"/)[1] + "/result.json", "utf-8"));
+const LOOP = `await verify_until_pass(async () => {}, async () => [await agent("verify loop", { agent: "verifier", schema: { type: "object" } })], { max: 0 });`;
+const r = {};
+r.plain = await wf(`${LOOP} phase("verify the docs"); return await agent("read the docs", { agent: "reviewer" })`);
+r.plainResult = result(r.plain);
+r.afterPlain = await commit();
+r.real = await wf(`${LOOP} phase("verify the docs"); return [await agent("check the docs", { agent: "reviewer", schema: { type: "object" } })]`);
+r.realResult = result(r.real);
+r.afterReal = await commit();
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertIn('verdict="fail"', r["plain"])
+        self.assertIn("loop hole", r["plain"])
+        # The reviewer's prose "done" names no verdict, so it adds a fail and replaces nothing.
+        reasons = [v["reason"] for v in r["plainResult"]["verify_verdicts"]]
+        self.assertEqual(reasons[0], "loop hole")
+        self.assertEqual(len(reasons), 2)
+        self.assertIn("named no verdict", reasons[1])
+        self.assertTrue(r["afterPlain"].startswith("REFUSED") and "loop hole" in r["afterPlain"], r["afterPlain"])
+        # A later phase's pass does not replace the loop's fail: only a later round of that loop could.
+        self.assertIn('verdict="fail"', r["real"])
+        self.assertEqual([v["reason"] for v in r["realResult"]["verify_verdicts"]], ["loop hole", "docs fine"])
+        self.assertTrue(r["afterReal"].startswith("REFUSED") and "loop hole" in r["afterReal"], r["afterReal"])
+
+    def test_commit_gate_keeps_every_live_verdict_of_the_newest_run(self):
+        out = self.run_node("gate10", self.WF_VERDICTS + r"""
+const asked = {};
+globalThis.ON_PROMPT = (id, body) => { asked[id] = body.parts[0].text; setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), 10); };
+// "verifier F..." fails, every other verifier passes; "loop" verifiers fail on their first call only.
+let loopCalls = 0;
+globalThis.STRUCTURED = (id) => {
+  const t = asked[id] ?? "";
+  if (/verifier F/.test(t)) return { verdict: "fail", reason: "F found a hole" };
+  if (/loop check/.test(t)) return ++loopCalls === 1 ? { verdict: "fail", reason: "loop round one hole" } : { verdict: "pass", reason: "loop fixed" };
+  return { verdict: "pass", reason: "fine" };
+};
+const V = (n) => `agent("verifier ${n}", { agent: "verifier", schema: { type: "object" } })`;
+const L = `agent("loop check", { agent: "verifier", schema: { type: "object" } })`;
+const open = () => wf(`phase("verify"); return [await ${V("P")}]`);
+const run = async (src) => { let msg; try { msg = await wf(src); } catch (e) { msg = "THREW " + e; } return msg; };
+const r = { held: {}, lifted: {} };
+const held = {
+  // (a) the script throws on the fail: the run ends failed, the verdict still counts.
+  throwOnFail: `phase("verify"); const v = await ${V("F")}; if (v.verdict !== "pass") throw new Error("verification failed"); return v`,
+  // (b) unit A fails, unit B passes after it: separate phases never supersede.
+  unitsAthenB: `phase("verify unit A"); const a = await ${V("F")}; phase("verify unit B"); const b = await ${V("B")}; return [a, b]`,
+  unitsBthenA: `phase("verify unit B"); const b = await ${V("B")}; phase("verify unit A"); const a = await ${V("F")}; return [b, a]`,
+  // A fail the script drops and never returns.
+  dropped: `phase("verify unit A"); await ${V("F")}; phase("verify unit B"); return [await ${V("B")}]`,
+  // A second verify_until_pass call's pass does not supersede the first call's fail.
+  twoLoops: `const a = await verify_until_pass(async () => {}, async () => [await ${V("F")}], { max: 0 });
+    const b = await verify_until_pass(async () => {}, async () => [await ${V("B")}], { max: 0 }); return [a.verdicts, b.verdicts]`,
+  // A loop's fail is not superseded by a later phase.
+  loopThenPhase: `await verify_until_pass(async () => {}, async () => [await ${V("F")}], { max: 0 }); phase("verify again"); return [await ${V("B")}]`,
+  // A passing loop, then a later phase that fails.
+  loopPassThenPhaseFail: `await verify_until_pass(async () => {}, async () => [await ${L}], { max: 0 }); phase("verify again"); return [await ${V("F")}]`,
+  // The loop's last round throws: round one's fail stands.
+  loopThrows: `await verify_until_pass(async () => {}, async ({ round }) => { const v = await ${L}; if (round === 2) throw new Error("crashed"); return [v]; }, { max: 2 })`,
+};
+for (const [k, src] of Object.entries(held)) {
+  await open();
+  loopCalls = k === "loopPassThenPhaseFail" ? 1 : 0;
+  const msg = await run(src);
+  r.held[k] = [msg.slice(0, 200), await commit()];
+}
+const lifted = {
+  throwNoFail: `phase("verify"); const v = await ${V("P")}; if (v.verdict !== "pass") throw new Error("verification failed"); return v`,
+  unitsBothPass: `phase("verify unit A"); const a = await ${V("A")}; phase("verify unit B"); const b = await ${V("B")}; return [a, b]`,
+  loopFailThenPass: `return await verify_until_pass(async () => {}, async () => [await ${L}], { max: 2 })`,
+};
+for (const [k, src] of Object.entries(lifted)) {
+  await wf(`phase("verify"); return [await ${V("F")}]`);
+  loopCalls = 0;
+  await run(src);
+  r.lifted[k] = await commit();
+}
+// A run that failed, then a later full run that passes everything: open. A later run with no
+// verify verdict (it throws first, or only writes its own pass) changes nothing.
+await run(held.throwOnFail);
+r.afterFailedRun = await commit();
+await run(`throw new Error("broke before verifying")`);
+r.afterNoVerdictRun = await commit();
+await wf(`return [{ verdict: "pass" }]`);
+r.afterLiteralRun = await commit();
+await wf(`phase("verify unit A"); const a = await ${V("A")}; phase("verify unit B"); return [a, await ${V("B")}]`);
+r.afterFullPass = await commit();
+// The verdict reaches the gate the moment it returns, while the run is still going.
+const bg = await P.tool.workflow.execute({ script: `phase("verify"); await ${V("F")}; await new Promise((r) => setTimeout(r, 400)); return 1` }, ctx(process.cwd(), "g1"));
+await sleep(250);
+r.midRun = await commit();
+await sleep(600);
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k, (msg, gate) in r["held"].items():
+            self.assertTrue(gate.startswith("REFUSED"), (k, msg, gate))
+        self.assertIn("F found a hole", r["held"]["throwOnFail"][1])
+        self.assertIn('state="failed"', r["held"]["throwOnFail"][0])
+        self.assertIn('verdict="fail"', r["held"]["throwOnFail"][0], "the failed run's message names its verdict")
+        self.assertIn("loop round one hole", r["held"]["loopThrows"][1])
+        for k, gate in r["lifted"].items():
+            self.assertEqual(gate, "ok", k)
+        for k in ("afterFailedRun", "afterNoVerdictRun", "afterLiteralRun"):
+            self.assertTrue(r[k].startswith("REFUSED") and "F found a hole" in r[k], (k, r[k]))
+        self.assertEqual(r["afterFullPass"], "ok")
+        self.assertTrue(r["midRun"].startswith("REFUSED") and "F found a hole" in r["midRun"], r["midRun"])
+
+    def test_commit_gate_holds_each_units_fail_across_scopes_and_concurrent_runs(self):
+        out = self.run_node("gate11", self.WF_VERDICTS + r"""
+const asked = {};
+// A prompt naming waitN goes idle after N ms.
+globalThis.ON_PROMPT = (id, body) => {
+  asked[id] = body.parts[0].text;
+  const w = asked[id].match(/wait(\d+)/);
+  setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), w ? +w[1] : 10);
+};
+// "F" fails; loop A always fails; any other loop fails on its first call only; the rest pass.
+const tally = {};
+globalThis.STRUCTURED = (id) => {
+  const t = asked[id] ?? "";
+  if (/verifier F|reviewer F/.test(t)) return { verdict: "fail", reason: "F found a hole" };
+  const l = t.match(/loop ([A-Z])/);
+  if (l) {
+    const n = tally[l[1]] = (tally[l[1]] ?? 0) + 1;
+    return l[1] === "A" || n === 1 ? { verdict: "fail", reason: `loop ${l[1]} hole` } : { verdict: "pass", reason: `loop ${l[1]} fixed` };
+  }
+  return { verdict: "pass", reason: "fine" };
+};
+const T = `{ agent: "verifier", schema: { type: "object" } }`;
+const V = (n) => `agent("verifier ${n}", ${T})`;
+const L = (n) => `verify_until_pass(async () => {}, async () => [await agent("loop ${n}", ${T})], { max: 1 })`;
+const run = async (src, sid) => { try { return await wf(src, sid); } catch (e) { return "THREW " + e; } };
+const bg = (src, sid) => P.tool.workflow.execute({ script: src }, ctx(process.cwd(), sid));
+const throwOn = (n) => `const v = await ${V(n)}; if (v.verdict !== "pass") throw new Error("verification failed"); return v`;
+const race = (n) => `const [a, b] = await parallel([
+  async () => { phase("verify unit A"); await sleep(50); const v = await ${V(n)}; if (v.verdict !== "pass") throw new Error("A failed"); return 1; },
+  async () => { phase("build unit B"); await sleep(200); return 2; }]); return [a, b]`;
+const fixBeside = (n) => `await parallel([
+  async () => { phase("verify unit A"); await sleep(50); await ${V(n)}; return 1; },
+  () => verify_until_pass(async () => { await sleep(300); }, async () => [await agent("loop D", ${T})], { max: 1 })]); return 1`;
+const r = { held: {}, lifted: {}, msg: {} };
+// (a) with no phase or a phase not named verify: a read-only agent's fail still counts.
+r.msg.noPhase = await run(throwOn("F"), "h1");
+r.held.noPhase = await commit("h1");
+await run(`phase("review"); ${throwOn("F")}`, "h2");
+r.held.reviewPhase = await commit("h2");
+await run(`phase("check unit A"); ${throwOn("F")}`, "h3");
+r.held.checkUnit = await commit("h3");
+await run(`phase("review"); ${throwOn("P")}`, "l1");
+await run(`phase("verify"); return [await ${V("P2")}]`, "l1");
+r.lifted.reviewPassThenVerify = await commit("l1");
+// Two units as concurrent background runs: A's slow fail is not lifted by B, which started
+// before it, whether B's pass arrives before or after it.
+await bg(`phase("verify unit A"); return [await ${V("F wait300")}]`, "h4");
+await sleep(30);
+await bg(`phase("verify unit B"); return [await ${V("P")}]`, "h4");
+await sleep(600);
+r.held.concurrentEarlyPass = await commit("h4");
+await bg(`phase("verify unit A"); return [await ${V("F wait150")}]`, "h5");
+await sleep(30);
+await bg(`phase("verify unit B"); return [await ${V("P wait400")}]`, "h5");
+await sleep(700);
+r.held.concurrentLatePass = await commit("h5");
+// A run started after the fail arrived decides.
+await bg(`phase("verify unit A"); return [await ${V("F")}]`, "l2");
+await sleep(200);
+r.l2Between = await commit("l2");
+await bg(`phase("verify units A and B"); return [await ${V("P")}, await ${V("P2")}]`, "l2");
+await sleep(200);
+r.lifted.laterRunPasses = await commit("l2");
+// verify_until_pass per unit in parallel: each call keeps its own rounds.
+r.msg.parallelLoops = await run(`const [a, b] = await parallel([() => ${L("A")}, () => ${L("B")}]); return { a: a.passed, b: b.passed }`, "h6");
+r.held.parallelLoops = await commit("h6");
+r.msg.parallelLoopsPass = await run(`const [b, c] = await parallel([() => ${L("C")}, () => ${L("E")}]); return { b: b.passed, c: c.passed }`, "l3");
+r.lifted.parallelLoopsPass = await commit("l3");
+// One unit's phase or fix stage never changes what another unit's verifier counts as.
+r.msg.race = await run(race("F"), "h7");
+r.held.phaseRace = await commit("h7");
+r.msg.racePass = await run(race("P"), "l4");
+r.lifted.phaseRace = await commit("l4");
+r.msg.fixBeside = await run(fixBeside("F"), "h8");
+r.held.fixStageBeside = await commit("h8");
+r.msg.fixBesidePass = await run(fixBeside("P"), "l5");
+r.lifted.fixStageBeside = await commit("l5");
+// A loop that fails, then passes: open. A full run after a failed one: open.
+await run(`return await ${L("G")}`, "l6");
+r.lifted.loopFailThenPass = await commit("l6");
+await run(`phase("verify"); ${throwOn("F")}`, "l7");
+r.l7Between = await commit("l7");
+await run(`phase("verify"); return [await ${V("P")}, await ${V("P2")}]`, "l7");
+r.lifted.laterFullRun = await commit("l7");
+// A read-only agent's fail replayed from the journal on resume still counts; its pass would not.
+const id = (await run(`phase("survey"); await agent("reviewer F", { agent: "reviewer", schema: { type: "object" } }); throw new Error("script bug")`, "h9")).match(/id="([^"]+)"/)[1];
+await P.tool.workflow.execute({ script: `phase("survey"); await agent("reviewer F", { agent: "reviewer", schema: { type: "object" } }); phase("verify"); return [await ${V("P")}]`,
+  background: false, resume_run_id: id }, ctx(process.cwd(), "h9"));
+r.held.replayedFail = await commit("h9");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k, gate in r["held"].items():
+            self.assertTrue(gate.startswith("REFUSED"), (k, gate))
+        for k, gate in r["lifted"].items():
+            self.assertEqual(gate, "ok", k)
+        for k in ("l2Between", "l7Between"):
+            self.assertTrue(r[k].startswith("REFUSED"), (k, r[k]))
+        self.assertIn('state="failed"', r["msg"]["noPhase"])
+        self.assertIn('verdict="fail"', r["msg"]["noPhase"])
+        self.assertIn("loop A hole", r["held"]["parallelLoops"])
+        self.assertNotIn("loop B hole", r["held"]["parallelLoops"], "B's round 2 pass supersedes its own round 1")
+        self.assertIn('"a": false', r["msg"]["parallelLoops"])
+        self.assertIn('"b": true', r["msg"]["parallelLoops"])
+        self.assertIn('"b": true', r["msg"]["parallelLoopsPass"])
+        self.assertIn('"c": true', r["msg"]["parallelLoopsPass"])
+        self.assertIn("F found a hole", r["held"]["phaseRace"])
+        self.assertIn("F found a hole", r["held"]["fixStageBeside"])
+        self.assertIn('verdict="pass"', r["msg"]["racePass"], "A's verifier counts though B changed its own phase")
+        self.assertIn('verdict="pass"', r["msg"]["fixBesidePass"], "A's verifier counts though B is in a fix stage")
+        self.assertIn("F found a hole", r["held"]["replayedFail"])
+
+    # Replies come from PROSE[tag] for a prompt naming the tag (the default stub replies "done").
+    PROSE = r"""
+const asked = {};
+globalThis.ON_PROMPT = (id, body) => { asked[id] = body.parts[0].text; setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), 10); };
+const PROSE = {};
+globalThis.MESSAGES = (id) => {
+  const tag = Object.keys(PROSE).find((k) => (asked[id] ?? "").includes(k));
+  const text = typeof PROSE[tag] === "function" ? PROSE[tag]() : PROSE[tag] ?? "done";
+  return { data: [{ info: { role: "assistant", time: { created: Date.now(), completed: Date.now() },
+    structured: globalThis.STRUCTURED?.(id) }, parts: [{ type: "text", text }] }] };
+};
+const run = async (src, sid) => { try { return await wf(src, sid); } catch (e) { return "THREW " + e; } };
+"""
+
+    def test_commit_gate_reads_a_verifiers_prose_verdict(self):
+        out = self.run_node("gate12", self.WF_VERDICTS + self.PROSE + r"""
+PROSE["tagFAIL"] = "\n  FAIL\n- requirement X: the Brewfile still takes a raw name";
+PROSE["tagPASS"] = "Verdict: pass\n- requirement X: ran the brewfile test, 12 ok";
+PROSE["tagLower"] = "fail: the docs name a flag the code lacks";
+PROSE["tagNone"] = "Looks good to me overall.";
+PROSE["tagFailing"] = "Failing tests: none found";
+PROSE["tagSurvey"] = "The commit gate lives in parity.ts.";
+let n = 0;
+PROSE["tagLoop"] = () => ++n === 1 ? "FAILED\n- round one hole" : "PASS\n- fixed";
+const V = (tag) => `agent("verify ${tag}", { agent: "verifier" })`;
+const r = {};
+r.failMsg = await run(`phase("verify"); const t = await ${V("tagFAIL")}; throw new Error("script bug")`, "h1");
+r.failThrown = await commit("h1");
+await run(`phase("verify"); return await ${V("tagPASS")}`, "h1");
+r.passAfter = await commit("h1");
+await run(`phase("verify"); return await ${V("tagPASS")}`, "l1");
+r.passOnly = await commit("l1");
+await run(`phase("review"); return await agent("check tagLower", { agent: "reviewer" })`, "h2");
+r.lowerOutside = await commit("h2");
+r.noneMsg = await run(`phase("verify"); return await ${V("tagNone")}`, "h3");
+r.none = await commit("h3");
+await run(`phase("verify"); return await ${V("tagFailing")}`, "h4");
+r.failingWord = await commit("h4");
+await run(`phase("survey"); return await agent("read tagSurvey", { readonly: true })`, "l2");
+r.surveyNoVerdict = await commit("l2");
+r.loopMsg = await run(`const o = await verify_until_pass(async () => {}, async () => [await ${V("tagLoop")}], { max: 2 }); return { passed: o.passed, rounds: o.rounds.length }`, "l3");
+r.loop = await commit("l3");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertIn('verdict="fail"', r["failMsg"])
+        self.assertTrue(r["failThrown"].startswith("REFUSED") and "the Brewfile still takes a raw name" in r["failThrown"], r["failThrown"])
+        self.assertEqual(r["passAfter"], "ok")
+        self.assertEqual(r["passOnly"], "ok")
+        self.assertTrue(r["lowerOutside"].startswith("REFUSED") and "a flag the code lacks" in r["lowerOutside"], r["lowerOutside"])
+        self.assertIn('verdict="fail"', r["noneMsg"])
+        self.assertTrue(r["none"].startswith("REFUSED") and "named no verdict" in r["none"] and "Looks good" in r["none"], r["none"])
+        self.assertTrue(r["failingWord"].startswith("REFUSED") and "named no verdict" in r["failingWord"], r["failingWord"])
+        self.assertEqual(r["surveyNoVerdict"], "ok", "a read-only agent outside a verify phase that names no verdict holds nothing")
+        self.assertIn('"passed": true', r["loopMsg"])
+        self.assertIn('"rounds": 2', r["loopMsg"])
+        self.assertEqual(r["loop"], "ok")
+
+    def test_commit_gate_holds_a_descendants_fail(self):
+        out = self.run_node("gate13", self.WF_VERDICTS + r"""
+autoIdle(P);
+globalThis.STRUCTURED = () => ({ verdict: "pass", reason: "verified" });
+globalThis.PARENTS = { p1: "root", c1: "p1", sib: "root", p2: "root", c2: "p2", gc2: "c2" };
+const say = (text, sid) => P["chat.message"]({ sessionID: sid, agent: "build" }, { parts: [{ type: "text", text }] });
+const r = {};
+r.before = await commit("p1");
+await wf(`return { verdict: "fail", reason: "child hole" }`, "c1");
+r.childFail = await commit("p1");
+r.rootOverChild = await commit("root");
+r.siblingOfChild = await commit("sib");
+await wf(`phase("verify"); return [await agent("verify it", { agent: "verifier", schema: { type: "object" } })]`, "c1");
+r.childPassed = await commit("p1");
+await wf(`return { verdict: "fail", reason: "sibling hole" }`, "sib");
+r.siblingFail = await commit("p1");
+r.childOfOther = await commit("c1");
+r.rootOverSibling = await commit("root");
+await wf(`return { verdict: "fail", reason: "grandchild hole" }`, "gc2");
+r.grandchild = await commit("p2");
+r.middle = await commit("c2");
+await sleep(5);
+await say("Ship over it.", "p2");
+await sleep(5);
+r.ownerInParent = await commit("p2");
+await wf(`return { verdict: "fail", reason: "after the word" }`, "gc2");
+r.afterOwner = await commit("p2");
+await wf(`return { verdict: "fail", reason: "on disk" }`, "c9");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k in ("before", "childPassed", "siblingFail", "childOfOther", "siblingOfChild", "ownerInParent"):
+            self.assertEqual(r[k], "ok", (k, r[k]))
+        for k, why in (("childFail", "child hole"), ("rootOverChild", "child hole"), ("rootOverSibling", "sibling hole"),
+                       ("grandchild", "grandchild hole"), ("middle", "grandchild hole"), ("afterOwner", "after the word")):
+            self.assertTrue(r[k].startswith("REFUSED") and why in r[k], (k, r[k]))
+        self.assertIn("subagent session c1", r["childFail"])
+        # A new process finds the child's fail in guard/ and resolves its parent through the client.
+        again = self.run_node("gate13b", self.WF_VERDICTS + r"""
+globalThis.PARENTS = { c9: "p9" };
+console.log(JSON.stringify({ parent: await commit("p9"), other: await commit("p8") }));
+process.exit(0);
+""")
+        r2 = json.loads(again)
+        self.assertTrue(r2["parent"].startswith("REFUSED") and "on disk" in r2["parent"], r2["parent"])
+        self.assertEqual(r2["other"], "ok")
+
+    def test_commit_gate_reads_a_verifier_by_type_in_any_phase(self):
+        out = self.run_node("gate14", self.WF_VERDICTS + self.PROSE + r"""
+PROSE["tagRamble"] = "I checked the change. Requirement X is broken: the Brewfile still takes a raw name.";
+PROSE["tagStarFail"] = "**FAIL** - requirement X: the Brewfile still takes a raw name";
+PROSE["tagHeading"] = "## Verdict\n\nFAIL\n- requirement X: heading hole";
+PROSE["tagVerdictStar"] = "**Verdict:** FAIL\n- requirement X: bold verdict hole";
+PROSE["tagQuote"] = "> `FAIL`: quoted hole";
+PROSE["tagStarPass"] = "**PASS**\n- requirement X: ran the brewfile test, 12 ok";
+PROSE["tagPassHeading"] = "### Verdict\nPassed: 12 ok";
+PROSE["tagPlainPass"] = "PASS\n- 12 ok";
+PROSE["tagSurvey"] = "The commit gate lives in parity.ts.";
+const r = {};
+await run(`const t = await agent("verify tagRamble", { agent: "verifier" }); throw new Error("x")`, "t1");
+r.rambleNoPhase = await commit("t1");
+await run(`phase("check"); const t = await agent("verify tagRamble", { agent: "verifier" }); throw new Error("x")`, "t2");
+r.rambleCheck = await commit("t2");
+await run(`return await agent("review tagRamble", { agent: "reviewer" })`, "t3");
+r.reviewerRamble = await commit("t3");
+await run(`return await agent("verify tagStarFail", { agent: "verifier" })`, "t4");
+r.bold = await commit("t4");
+await run(`phase("review"); return await agent("verify tagHeading", { agent: "verifier" })`, "t5");
+r.heading = await commit("t5");
+await run(`return await agent("verify tagVerdictStar", { agent: "verifier" })`, "t6");
+r.boldVerdict = await commit("t6");
+await run(`return await agent("review tagStarFail", { agent: "reviewer" })`, "t7");
+r.reviewerBold = await commit("t7");
+await run(`phase("check"); return await agent("read tagQuote", { readonly: true })`, "t8");
+r.quotedReadonly = await commit("t8");
+// A pass outside a verify phase holds nothing and lifts nothing.
+await run(`phase("check"); return await agent("verify tagPlainPass", { agent: "verifier" })`, "t9");
+r.passOutside = await commit("t9");
+await run(`phase("check"); return await agent("verify tagPlainPass", { agent: "verifier" })`, "t4");
+r.passOutsideLifts = await commit("t4");
+// A markdown pass in a verify phase is a pass and decides.
+await run(`phase("verify"); return await agent("verify tagStarPass", { agent: "verifier" })`, "t4");
+r.boldPass = await commit("t4");
+await run(`phase("verify"); return await agent("verify tagPassHeading", { agent: "verifier" })`, "t5");
+r.headingPass = await commit("t5");
+// A survey and a schema agent outside a verify phase stay judged only by a fail they name.
+await run(`phase("survey"); return await agent("read tagSurvey", { readonly: true })`, "t10");
+r.survey = await commit("t10");
+await run(`return await agent("read tagSurvey", { agent: "structured" })`, "t11");
+r.structured = await commit("t11");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k, why in (("rambleNoPhase", "named no verdict"), ("rambleCheck", "named no verdict"), ("reviewerRamble", "named no verdict"),
+                       ("bold", "the Brewfile still takes a raw name"), ("heading", "heading hole"), ("boldVerdict", "bold verdict hole"),
+                       ("reviewerBold", "the Brewfile still takes a raw name"), ("quotedReadonly", "quoted hole"),
+                       ("passOutsideLifts", "the Brewfile still takes a raw name")):
+            self.assertTrue(r[k].startswith("REFUSED") and why in r[k], (k, r[k]))
+        self.assertIn("Requirement X is broken", r["rambleNoPhase"])
+        for k in ("passOutside", "boldPass", "headingPass", "survey", "structured"):
+            self.assertEqual(r[k], "ok", (k, r[k]))
+
+    def test_commit_gate_lets_a_later_run_above_a_descendant_decide(self):
+        out = self.run_node("gate15", self.WF_VERDICTS + self.PROSE + r"""
+PROSE["tagFAIL"] = "FAIL\n- requirement X: child hole";
+PROSE["tagPASS"] = "PASS\n- requirement X: 12 ok";
+PROSE["tagSlowPASS"] = "PASS\n- requirement X: slow 12 ok";
+const prompted = globalThis.ON_PROMPT;
+globalThis.ON_PROMPT = (id, body) => {
+  if (!body.parts[0].text.includes("tagSlow")) return prompted(id, body);
+  asked[id] = body.parts[0].text;
+  setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), 400);
+};
+globalThis.PARENTS = { k1: "pp", k2: "qq", s2: "qq", g3: "m3", m3: "rr", k4: "ss" };
+const fail = (sid) => run(`phase("verify"); const t = await agent("verify tagFAIL", { agent: "verifier" }); throw new Error("x")`, sid);
+const pass = (sid, tag = "tagPASS") => run(`phase("verify"); return await agent("verify ${tag}", { agent: "verifier" })`, sid);
+const r = {};
+await fail("k1");
+r.childFail = await commit("pp");
+await sleep(5);
+await pass("pp");
+r.parentPassAfter = await commit("pp");
+await fail("k2");
+await sleep(5);
+await pass("s2");
+r.siblingPassAfter = await commit("qq");
+await fail("g3");
+r.grandchildFail = await commit("rr");
+await sleep(5);
+await pass("m3");
+r.middlePassAfter = await commit("rr");
+// A parent run started before the child's fail arrived never lifts it, however late its pass.
+const slow = pass("ss", "tagSlowPASS");
+await sleep(50);
+await fail("k4");
+await slow;
+r.parentPassBefore = await commit("ss");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k in ("childFail", "siblingPassAfter", "grandchildFail", "parentPassBefore"):
+            self.assertTrue(r[k].startswith("REFUSED") and "child hole" in r[k], (k, r[k]))
+        for k in ("parentPassAfter", "middlePassAfter"):
+            self.assertEqual(r[k], "ok", (k, r[k]))
+
+    def test_commit_gate_holds_a_subagent_a_held_session_starts_after_the_fail(self):
+        out = self.run_node("gate16", self.WF_VERDICTS + self.PROSE + r"""
+PROSE["tagFAIL"] = "FAIL\n- requirement X: child hole";
+PROSE["tagPASS"] = "PASS\n- requirement X: 12 ok";
+globalThis.PARENTS = { c1: "pp", old: "pp", fresh: "pp", fresh2: "pp", gold: "old", gfresh: "fresh" };
+globalThis.CREATED = {};
+const fail = (sid) => run(`phase("verify"); const t = await agent("verify tagFAIL", { agent: "verifier" }); throw new Error("x")`, sid);
+const pass = (sid) => run(`phase("verify"); return await agent("verify tagPASS", { agent: "verifier" })`, sid);
+const r = {};
+await fail("c1");
+await sleep(5);
+// Sessions the held parent starts after the fail arrived, and their children, are held with it.
+for (const id of ["fresh", "fresh2", "gold"]) CREATED[id] = Date.now();
+CREATED.gfresh = Date.now();
+r.parent = await commit("pp");
+r.fresh = await commit("fresh");
+r.grandFresh = await commit("gfresh");
+// A sibling that existed before the fail is not held, nor is a child it starts later.
+r.oldSibling = await commit("old");
+r.childOfOld = await commit("gold");
+// A done run in the fresh session, started after the fail, decides for it alone.
+await pass("fresh2");
+r.freshPassed = await commit("fresh2");
+r.freshStill = await commit("fresh");
+// A done run in the parent decides for the whole tree.
+await pass("pp");
+r.parentPassed = await commit("pp");
+r.freshAfterParent = await commit("fresh");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k in ("parent", "fresh", "grandFresh", "freshStill"):
+            self.assertTrue(r[k].startswith("REFUSED") and "child hole" in r[k], (k, r[k]))
+        self.assertIn("in session c1 below pp, which started this session after that fail arrived", r["fresh"])
+        self.assertIn("which started session fresh after", r["grandFresh"])
+        for k in ("oldSibling", "childOfOld", "freshPassed", "parentPassed", "freshAfterParent"):
+            self.assertEqual(r[k], "ok", (k, r[k]))
+
+    def test_commit_gate_lets_no_run_that_threw_lift_a_fail(self):
+        out = self.run_node("gate17", self.WF_VERDICTS + self.PROSE + r"""
+PROSE["tagA"] = "PASS\n- A ok";
+let bFails = true;
+PROSE["tagB"] = () => bFails ? "FAIL\n- B hole" : "PASS\n- B ok";
+PROSE["tagSlowA"] = "PASS\n- slow A ok";
+const prompted = globalThis.ON_PROMPT;
+globalThis.ON_PROMPT = (id, body) => {
+  if (!body.parts[0].text.includes("tagSlow")) return prompted(id, body);
+  asked[id] = body.parts[0].text;
+  setTimeout(() => P.event({ event: { type: "session.idle", properties: { sessionID: id } } }), 10);
+};
+const V = (tag) => `await agent("verify ${tag}", { agent: "verifier" })`;
+const r = {};
+await run(`phase("verify"); return [${V("tagA")}, ${V("tagB")}]`);
+r.first = await commit();
+await sleep(5);
+// A later run passes A, then throws before it reaches B: B's fail stands.
+r.crashMsg = await run(`phase("verify"); const a = ${V("tagA")}; throw new Error("crash before B")`);
+r.afterCrash = await commit();
+// A later run that has passed A and is still going decides nothing yet.
+await P.tool.workflow.execute({ script: `phase("verify"); ${V("tagSlowA")}; await sleep(400); return 1` }, ctx(process.cwd(), "g1"));
+await sleep(200);
+r.midRun = await commit();
+await sleep(400);
+r.afterSlowDone = await commit();
+// A thrown run's own fail holds, and is lifted only by a done run started after it.
+await run(`phase("verify"); const b = ${V("tagB")}; throw new Error("x")`, "g2");
+await sleep(5);
+await run(`phase("verify"); const a = ${V("tagA")}; throw new Error("y")`, "g2");
+r.thrownFailHolds = await commit("g2");
+bFails = false;
+await sleep(5);
+await run(`phase("verify"); return [${V("tagA")}, ${V("tagB")}]`, "g2");
+r.fullPass = await commit("g2");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        for k in ("first", "afterCrash", "midRun", "thrownFailHolds"):
+            self.assertTrue(r[k].startswith("REFUSED") and "B hole" in r[k], (k, r[k]))
+        self.assertIn('state="failed"', r["crashMsg"])
+        self.assertEqual(r["afterSlowDone"], "ok", "a run that returns after passing decides")
+        self.assertEqual(r["fullPass"], "ok")
+
+    def test_commit_gate_reads_a_verifier_subagent_outside_a_workflow(self):
+        out = self.run_node("gate18", self.WF_VERDICTS + r"""
+const REPLY = {};
+globalThis.MESSAGES = (id) => ({ data: [{ info: { role: "assistant", time: { created: Date.now(), completed: Date.now() } },
+  parts: [{ type: "text", text: REPLY[id] ?? "done" }] }] });
+globalThis.PARENTS = { v1: "tp", v2: "tp", v3: "tq", v4: "tr", v5: "tr", e1: "te", w1: "tw" };
+const ask = (id, agent = "verifier") => P["chat.message"]({ sessionID: id, agent }, { parts: [{ type: "text", text: "check the change" }] });
+const idle = (id) => P.event({ event: { type: "session.idle", properties: { sessionID: id } } });
+const after = (parent, id) => P["tool.execute.after"]({ tool: "task", sessionID: parent, callID: "t" },
+  { title: "x", output: `task_id: ${id} (for resuming to continue this task if needed)\n\n<task_result>\n${REPLY[id]}\n</task_result>`, metadata: {} });
+const r = {};
+// A verifier started by the task tool replies FAIL: its parent may not commit.
+await ask("v1");
+REPLY.v1 = "FAIL\n- requirement X: subagent hole";
+await idle("v1");
+r.fail = await commit("tp");
+await sleep(5);
+// A fresh verifier, prompted after the fail, replies PASS: read when the task tool returns.
+await ask("v2");
+REPLY.v2 = "**PASS**\n- requirement X: 12 ok";
+await after("tp", "v2");
+r.passAfter = await commit("tp");
+await idle("v2");
+r.idleAgain = await commit("tp");
+// A reply naming no verdict is a fail.
+await ask("v3", "reviewer");
+REPLY.v3 = "Looks good to me overall.";
+await idle("v3");
+r.none = await commit("tq");
+// Two verifiers prompted together: one's pass never lifts the other's fail.
+await ask("v4");
+await ask("v5");
+await sleep(5);
+REPLY.v5 = "FAIL\n- requirement X: parallel hole";
+await idle("v5");
+REPLY.v4 = "PASS\n- fine";
+await idle("v4");
+r.parallel = await commit("tr");
+// An agent that is not a verifier or reviewer records nothing, and neither does a top session.
+await ask("e1", "explore");
+REPLY.e1 = "FAIL\n- not a verdict";
+await idle("e1");
+r.explore = await commit("te");
+await ask("top");
+REPLY.top = "FAIL\n- owner's own verifier chat";
+await idle("top");
+await ask("top", "build");
+r.top = await commit("top");
+console.log(JSON.stringify(r));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertTrue(r["fail"].startswith("REFUSED") and "subagent hole" in r["fail"] and "@verifier subagent v1" in r["fail"], r["fail"])
+        self.assertTrue(r["none"].startswith("REFUSED") and "named no verdict" in r["none"], r["none"])
+        self.assertTrue(r["parallel"].startswith("REFUSED") and "parallel hole" in r["parallel"], r["parallel"])
+        for k in ("passAfter", "idleAgain", "explore", "top"):
+            self.assertEqual(r[k], "ok", (k, r[k]))
 
 if __name__ == "__main__":
     unittest.main()

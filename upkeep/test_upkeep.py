@@ -467,6 +467,137 @@ class Parsers(unittest.TestCase):
         self.assertEqual(U.flutter_doctor_problems(u"[✓] Flutter\n"), [])
 
 
+class BrewfileUnion(unittest.TestCase):
+    """union_text over Brewfiles in a temp dir, one group per repo."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.saved = U.brewfile_groups, U.log
+        self.logged = []
+        U.log = self.logged.append
+        self.groups = []
+        U.brewfile_groups = lambda: self.groups
+
+    def tearDown(self):
+        U.brewfile_groups, U.log = self.saved
+        shutil.rmtree(self.tmp)
+
+    def repo(self, *texts):
+        paths = []
+        for text in texts:
+            path = os.path.join(self.tmp, "Brewfile%d" % len(os.listdir(self.tmp)))
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            paths.append(path)
+        self.groups.append(paths)
+
+    def entries(self):
+        return [l for l in U.union_text().splitlines() if l and not l.startswith("#")]
+
+    def test_bare_lines_are_rebuilt_taps_first(self):
+        self.repo('brew "zz-a"  # why\n\tcask "font-x@1"\r\nbrew "c++lib.2_x"\n',
+                  'tap "own/er"\nbrew "own/er/zz"\ncask "zz-a"\nbrew "zz-a"\n')
+        self.assertEqual(self.entries(), ['tap "own/er"', 'brew "zz-a"', 'cask "font-x@1"',
+                                          'brew "c++lib.2_x"', 'brew "own/er/zz"',
+                                          'cask "zz-a"'])
+        self.assertEqual(self.logged, [])
+
+    def test_probes_are_refused_and_never_echoed(self):
+        probes = [
+            'brew "zz", postinstall: "touch /tmp/pwned"',
+            'cask "zz", postinstall: "id"',
+            'cask "zz", args: ["no-quarantine"]',
+            'brew "zz", restart_service: true',
+            'brew "zz"',
+            'brew "zz١"',
+            'brew "zé"',
+            'brew "ZZ"',
+            'brew "-zz"',
+            'brew "../zz"',
+            'brew ""',
+            'brew "zz"; system("id")',
+            'brew "zz" if system("id")',
+            'brew "zz" system("id")',
+            'brew "#{`id`}"',
+            'brew "z\\"z"',
+            'mas "Final Cut Pro", id: 424389933',
+            'vscode "ms-python.python"',
+            'whalebrew "x/y"',
+            'tap "a/b", "https://example.com/evil.git"',
+            'tap "a/b/c"',
+            'tap "zz"',
+            'brew "a/b/zz"',
+            'system("id")',
+        ]
+        self.repo("\n".join(probes) + "\n")
+        self.assertEqual(self.entries(), [])
+        self.assertEqual(len(self.logged), len(probes))
+        for line in self.logged:
+            self.assertIn("left out a line that is not a bare tap, brew or cask", line)
+            line.encode("ascii")
+
+    def test_a_tapped_name_needs_its_tap_in_the_same_repo(self):
+        self.repo('tap "own/er"\nbrew "own/er/zz"\n')
+        self.repo('brew "own/er/yy"\n')
+        self.assertEqual(self.entries(), ['tap "own/er"', 'brew "own/er/zz"'])
+        self.assertEqual(len(self.logged), 1)
+        self.assertIn("own/er/yy", self.logged[0])
+
+    def test_a_tap_declared_later_in_the_repo_counts(self):
+        self.repo('brew "own/er/zz"\n', 'tap "own/er"\n')
+        self.assertEqual(self.entries(), ['tap "own/er"', 'brew "own/er/zz"'])
+
+    def test_upkeeps_own_brewfile_is_bare(self):
+        U.brewfile_groups = self.saved[0]
+        saved = U.load_repos
+        U.load_repos = lambda: []
+        try:
+            got = self.entries()
+        finally:
+            U.load_repos = saved
+        self.assertIn('brew "python"', got)
+        self.assertEqual(self.logged, [])
+
+
+class ParityChanges(unittest.TestCase):
+    def test_the_count_decides(self):
+        out = ("install /h/.config/opencode/plugins/parity.ts\n"
+               "install /h/.config/opencode/capabilities.md\nchanged: 2\n")
+        self.assertEqual(U.parity_changes(out),
+                         ["install /h/.config/opencode/plugins/parity.ts"])
+        self.assertEqual(U.parity_changes("install /h/x\nchanged: 0\n"), [])
+        self.assertEqual(U.parity_changes("opencode parity layer up to date\nchanged: 0\n"),
+                         [])
+
+    def test_dry_run_lines_carry_would(self):
+        out = "would: install /h/x\nwould: changed: 1\n"
+        self.assertEqual(U.parity_changes(out), ["install /h/x"])
+        self.assertEqual(U.parity_changes("would: changed: 0\n"), [])
+
+    def test_no_count_is_none(self):
+        self.assertIsNone(U.parity_changes("install /h/x\n"))
+        self.assertIsNone(U.parity_changes(""))
+        self.assertIsNone(U.parity_changes("changed: two\n"))
+
+    def test_the_real_installer_prints_its_count(self):
+        home = tempfile.mkdtemp()
+        try:
+            for dry, want in ((True, "would: changed: "), (False, "changed: ")):
+                out = subprocess.run([sys.executable, os.path.join(HERE, "opencode",
+                                                                   "install.py"),
+                                      "--home", home] + (["--dry-run"] if dry else []),
+                                     capture_output=True, text=True).stdout
+                last = out.splitlines()[-1]
+                self.assertTrue(last.startswith(want), out)
+                self.assertGreater(len(U.parity_changes(out)), 0, out)
+            out = subprocess.run([sys.executable, os.path.join(HERE, "opencode", "install.py"),
+                                  "--home", home], capture_output=True, text=True).stdout
+            self.assertEqual(out.splitlines()[-1], "changed: 0", out)
+            self.assertEqual(U.parity_changes(out), [])
+        finally:
+            shutil.rmtree(home)
+
+
 # ---------------------------------------------------------------- install
 
 class Install(Case):
@@ -832,21 +963,26 @@ class FullRun(Case):
                                                      "ComicMono.ttf")))
         self.assertIn("cask font-comic-mono", b.state()["failed"])
 
-    def test_only_plain_declarations_join_the_union(self):
+    def test_only_bare_declarations_join_the_union(self):
         b = self.b
         extra = os.path.join(b.root, "Extra.Brewfile")
-        b.write(extra, 'brew "zzplain", args: ["with-x"], link: false\n'
+        b.write(extra, 'brew "zzplain"   # a comment\n'
+                       'tap "zz/tap"\n'
+                       'brew "zz/tap/zztapped"\n'
+                       'brew "zzopt", postinstall: "touch /tmp/pwned-upkeep"\n'
                        'mas "Final Cut Pro", id: 424389933\n'
                        'brew "zzuniq"; system("touch /tmp/pwned-upkeep")\n'
                        'brew "zz2" if system("id")\n'
                        'cask "zzfoo", args: { appdir: "#{`id`}" }\n')
         b.upkeep("run", "--force")
         union = b.read(os.path.join(b.state_dir, "Brewfile.all"))
-        self.assertIn('brew "zzplain", args: ["with-x"], link: false', union)
-        self.assertIn('mas "Final Cut Pro", id: 424389933', union)
-        for bad in ("zzuniq", "zz2", "zzfoo", "system", "appdir"):
+        self.assertIn('brew "zzplain"\n', union)
+        self.assertIn('tap "zz/tap"\n', union)
+        self.assertIn('brew "zz/tap/zztapped"\n', union)
+        for bad in ("zzopt", "postinstall", "Final Cut", "zzuniq", "zz2", "zzfoo",
+                    "system", "appdir", "comment"):
             self.assertNotIn(bad, union)
-        self.assertIn("left out a line that is not a plain declaration", b.log())
+        self.assertIn("left out a line that is not a bare tap, brew or cask", b.log())
         self.assertTrue(any(a.startswith("bundle install --no-upgrade --file=")
                             for a in b.argv("brew")))
 
@@ -1194,6 +1330,27 @@ class SelfUpdate(Case):
                       "~/.local/state/upkeep/upkeep.log", b.state()["problems"])
         self.assertIn("parity: 2 things", b.log())
 
+    def test_parity_install_without_its_count_is_a_problem(self):
+        b = self.b
+        b.green()
+        b.write(os.path.join(b.repo, "upkeep", "opencode", "install.py"),
+                "print('install /nowhere/parity.ts')\n")
+        b.install()
+        full_scenario(b)
+        b.upkeep("run", "--force")
+        self.assertIn("opencode/install.py printed no `changed: N` line; see "
+                      "~/.local/state/upkeep/upkeep.log", b.state()["problems"])
+
+    def test_parity_install_with_its_count_is_no_problem(self):
+        b = self.b
+        b.green()
+        b.write(os.path.join(b.repo, "upkeep", "opencode", "install.py"),
+                "print('install /nowhere/parity.ts')\nprint('changed: 1')\n")
+        b.install()
+        full_scenario(b)
+        b.upkeep("run", "--force")
+        self.assertFalse([p for p in b.state()["problems"] if "install.py" in p])
+
     def test_absent_parity_layer_is_skipped_cleanly(self):
         b = self.b
         b.green()
@@ -1479,6 +1636,496 @@ class Pull(Case):
         self.assertIn("would fast-forward 1 commit(s) from origin/main", out)
 
 
+# --------------------------------------------------------------- worktrees
+
+class Worktrees(Case):
+    """A registered repo with linked worktrees in <repo>-wt: only a merged,
+    clean, unlocked one idle for 24 h goes, with its branch (-d) and the
+    emptied parent. The repo is Pull's, opted out of the pull."""
+
+    git, commit, refuse_gate = Pull.git, Pull.commit, Pull.refuse_gate
+
+    def setUp(self):
+        Pull.setUp(self)
+        os.remove(os.path.join(self.b.repo, "upkeep.d", "pull"))
+        self.commit(self.b.repo, "no pull")
+        self.wt = os.path.join(self.b.root, "repo-wt")
+
+    def add(self, name, branch=True, where=None):
+        path = os.path.join(where or self.wt, name)
+        if branch:
+            self.git(self.b.repo, "worktree", "add", "-q", "-b", name, path, "main")
+        else:
+            self.git(self.b.repo, "worktree", "add", "-q", "--detach", path, "main")
+        return path
+
+    def age(self, path, hours=48):
+        """Every file of the worktree and of its admin dir, `hours` old."""
+        admin = self.git(path, "rev-parse", "--absolute-git-dir")
+        then = time.time() - hours * 3600
+        for top in (path, admin):
+            for d, dirs, files in os.walk(top):
+                for n in dirs + files:
+                    os.utime(os.path.join(d, n), (then, then), follow_symlinks=False)
+                os.utime(d, (then, then))
+
+    def branches(self):
+        return self.git(self.b.repo, "branch", "--format=%(refname:short)").split()
+
+    def said(self, path):
+        return ((self.b.state().get("worktrees") or {}).get("said") or {}).get(path, "")
+
+    def test_merged_clean_old_is_removed_with_branch_and_parent(self):
+        b = self.b
+        path = self.add("done")
+        self.age(path)
+        code, out = b.upkeep("run")
+        self.assertEqual(code, 0, out)
+        self.assertFalse(os.path.exists(path))
+        self.assertFalse(os.path.exists(self.wt))
+        self.assertNotIn("done", self.branches())
+        self.assertIn("main", self.branches())
+        self.assertTrue(os.path.isdir(os.path.join(b.repo, ".git")))
+        self.assertNotIn(path, self.git(b.repo, "worktree", "list"))
+        self.assertEqual(self.said(path), "removed; branch done deleted")
+        code, out = b.upkeep("status")
+        self.assertIn("worktree:  %s removed; branch done deleted" % path, out)
+
+    def test_detached_at_merged_commit_is_removed(self):
+        path = self.add("loose", branch=False)
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.said(path), "removed")
+
+    def test_unmerged_is_kept(self):
+        path = self.add("work")
+        self.b.write(os.path.join(path, "new.txt"), "x\n")
+        self.commit(path, "unmerged")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertIn("work", self.branches())
+        self.assertEqual(self.said(path),
+                         "kept: work is not merged into the default branch")
+
+    def test_dirty_is_kept(self):
+        path = self.add("dirty")
+        self.b.write(os.path.join(path, "README.md"), "mine\n")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertEqual(self.b.read(os.path.join(path, "README.md")), "mine\n")
+        self.assertEqual(self.said(path), "kept: it has changes or untracked files")
+
+    def test_untracked_is_kept_even_when_status_hides_untracked(self):
+        path = self.add("scratch")
+        self.git(self.b.repo, "config", "status.showUntrackedFiles", "no")
+        self.b.write(os.path.join(path, "deep", "notes.txt"), "mine\n")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertEqual(self.b.read(os.path.join(path, "deep", "notes.txt")), "mine\n")
+        self.assertEqual(self.said(path), "kept: it has changes or untracked files")
+
+    def test_ignored_file_does_not_keep_it(self):
+        path = self.add("built")
+        with open(os.path.join(self.b.repo, ".git", "info", "exclude"), "a") as fh:
+            fh.write("/cache/\n")
+        self.b.write(os.path.join(path, "cache", "x"), "built\n")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+
+    def ignore(self, pattern):
+        with open(os.path.join(self.b.repo, ".git", "info", "exclude"), "a") as fh:
+            fh.write(pattern + "\n")
+
+    def test_a_worktree_nested_in_an_ignored_dir_keeps_it(self):
+        """Claude Code's layout: B at A/.claude/worktrees/b, ignored, so A
+        looks clean and idle; removing A would delete B's work."""
+        self.ignore("/.claude/")
+        a = self.add("a")
+        b = self.add("b", where=os.path.join(a, ".claude", "worktrees"))
+        self.b.write(os.path.join(b, "README.md"), "mine\n")
+        self.b.write(os.path.join(b, "new.txt"), "untracked\n")
+        self.age(a)
+        self.b.upkeep("run")
+        self.assertEqual(self.b.read(os.path.join(b, "README.md")), "mine\n")
+        self.assertEqual(self.b.read(os.path.join(b, "new.txt")), "untracked\n")
+        self.assertIn("a", self.branches())
+        self.assertEqual(self.said(a), "kept: worktree %s is in it" % b)
+
+    def test_a_clone_nested_in_an_ignored_dir_keeps_it(self):
+        self.ignore("/ign/")
+        a = self.add("a")
+        clone = os.path.join(a, "ign", "deep", "clone")
+        os.makedirs(clone)
+        self.git(clone, "init", "-q")
+        self.b.write(os.path.join(clone, "f"), "y\n")
+        self.commit(clone, "unpushed")
+        self.age(a)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(os.path.join(clone, ".git")))
+        self.assertEqual(self.said(a), "kept: a git repo or worktree is in an "
+                         "ignored directory: ign/deep/clone/.git")
+
+    def test_an_ignored_dir_without_git_does_not_keep_it(self):
+        self.ignore("/ign/")
+        a = self.add("a")
+        self.b.write(os.path.join(a, "ign", "deep", "built.o"), "x\n")
+        self.age(a)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(a))
+        self.assertEqual(self.said(a), "removed; branch a deleted")
+
+    def test_hidden_edits_keep_it(self):
+        """skip-worktree and assume-unchanged hide an edit from git status."""
+        for flag in ("--skip-worktree", "--assume-unchanged"):
+            path = self.add(flag.strip("-"))
+            self.git(path, "update-index", flag, "README.md")
+            self.b.write(os.path.join(path, "README.md"), "mine\n")
+            self.age(path)
+            self.b.upkeep("run")
+            self.assertEqual(self.b.read(os.path.join(path, "README.md")), "mine\n")
+            self.assertIn(flag.strip("-"), self.branches())
+            self.assertEqual(self.said(path), "kept: files flagged skip-worktree or "
+                             "assume-unchanged hide changes from git status")
+
+    def test_a_missing_directory_is_never_pruned(self):
+        """A moved or unmounted worktree keeps its admin dir, and with it the
+        only ref to its unmerged commit, even while another one goes."""
+        b = self.b
+        done, loose = self.add("done"), self.add("loose", branch=False)
+        b.write(os.path.join(loose, "new.txt"), "x\n")
+        self.commit(loose, "unmerged detached work")
+        sha = self.git(loose, "rev-parse", "HEAD")
+        self.age(done)
+        self.age(loose)
+        os.rename(loose, loose + "-moved")
+        code, out = b.upkeep("run")
+        self.assertEqual(code, 0, out)
+        self.assertFalse(os.path.exists(done))
+        self.assertIn(loose, self.git(b.repo, "worktree", "list"))
+        self.assertIn(sha, self.git(b.repo, "rev-list", "--all"))
+        self.assertEqual(self.git(loose + "-moved", "rev-parse", "HEAD"), sha)
+        self.assertTrue(self.said(loose).startswith("kept: its directory is gone"),
+                        self.said(loose))
+        self.assertIn("git worktree prune skipped, directory gone: %s" % loose,
+                      b.log())
+
+    def test_locked_is_kept(self):
+        path = self.add("held")
+        self.git(self.b.repo, "worktree", "lock", path)
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: locked")
+
+    def test_fresh_is_kept_and_parent_stays(self):
+        old, fresh = self.add("old"), self.add("fresh")
+        self.age(old)
+        self.age(fresh, hours=2)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(old))
+        self.assertTrue(os.path.isdir(fresh))
+        self.assertTrue(os.path.isdir(self.wt))
+        self.assertIn("fresh", self.branches())
+        self.assertTrue(self.said(fresh).startswith("kept: touched 2.0 h ago"),
+                        self.said(fresh))
+
+    def test_a_fresh_admin_dir_keeps_it(self):
+        path = self.add("checkedout")
+        self.age(path)
+        admin = self.git(path, "rev-parse", "--absolute-git-dir")
+        os.utime(os.path.join(admin, "HEAD"))
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+
+    def test_main_worktree_and_default_branch_are_kept(self):
+        self.git(self.b.repo, "checkout", "-q", "-b", "side")
+        path = self.add("main-copy", branch=False)
+        self.git(path, "checkout", "-q", "main")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertIn("main", self.branches())
+        self.assertEqual(self.said(path), "kept: it holds the default branch main")
+        self.assertTrue(os.path.isdir(os.path.join(self.b.repo, ".git")))
+        self.assertNotIn(self.b.repo, (self.b.state().get("worktrees") or {})
+                         .get("said") or {})
+
+    def test_a_registered_worktree_is_kept(self):
+        path = self.add("registered")
+        self.b.write(os.path.join(self.b.home, ".config", "upkeep", "repos.json"),
+                     json.dumps([self.b.repo, path]))
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: a registered repo is in it")
+
+    def test_branch_is_deleted_only_with_d(self):
+        """Merged into origin/main but not into local main: the worktree goes,
+        git branch -d refuses, and the branch stays."""
+        b = self.b
+        path = self.add("pushed")
+        b.write(os.path.join(path, "feature.txt"), "x\n")
+        self.commit(path, "feature")
+        self.git(path, "push", "-q", "origin", "pushed:main")
+        self.git(b.repo, "fetch", "-q", "origin")
+        self.age(path)
+        b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertIn("pushed", self.branches())
+        self.assertTrue(self.said(path).startswith("removed; branch pushed kept: "),
+                        self.said(path))
+
+    def lost_commit(self, path, reset_to="main"):
+        """A commit made in the worktree, then left: HEAD goes back to main,
+        so only the worktree's own history still reaches it."""
+        self.b.write(os.path.join(path, "lost.txt"), "x\n")
+        self.commit(path, "about to be left behind")
+        sha = self.git(path, "rev-parse", "HEAD")
+        if reset_to:
+            self.git(path, "reset", "-q", "--hard", reset_to)
+        return sha
+
+    def test_an_unmerged_per_worktree_ref_keeps_it(self):
+        for ref in ("refs/worktree/keep", "refs/bisect/bad"):
+            name = ref.split("/")[1]
+            path = self.add(name)
+            sha = self.lost_commit(path, reset_to=None)
+            self.git(path, "update-ref", ref, sha)
+            self.git(path, "reset", "-q", "--hard", "main")
+            self.git(path, "reflog", "expire", "--expire=now", "--all")
+            self.assertNotIn(sha, self.git(path, "reflog", "--format=%H"))
+            self.age(path)
+            self.b.upkeep("run")
+            self.assertTrue(os.path.isdir(path))
+            self.assertIn(name, self.branches())
+            self.assertEqual(self.git(path, "rev-parse", ref), sha)
+            self.assertEqual(self.said(path), "kept: its per-worktree ref %s is not "
+                             "merged into the default branch" % ref)
+
+    def test_a_merged_per_worktree_ref_does_not_keep_it(self):
+        path = self.add("refd")
+        self.git(path, "update-ref", "refs/worktree/mark", "main")
+        self.git(path, "update-ref", "refs/bisect/good", "main~1")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.said(path), "removed; branch refd deleted")
+
+    def test_a_bisect_in_progress_keeps_it(self):
+        path = self.add("bisecting")
+        self.git(path, "bisect", "start")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: a bisect is in progress")
+        self.git(path, "bisect", "reset")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.said(path), "removed; branch bisecting deleted")
+
+    def test_an_unreachable_commit_in_the_head_reflog_keeps_it(self):
+        """Detached or on a branch: a commit only the worktree's HEAD reflog
+        reaches would go with worktrees/<name>/."""
+        for name, branch in (("detached", False), ("branched", True)):
+            path = self.add(name, branch=branch)
+            sha = self.lost_commit(path)
+            self.age(path)
+            self.b.upkeep("run")
+            self.assertTrue(os.path.isdir(path))
+            self.assertIn(sha, self.git(path, "reflog", "--format=%H"))
+            self.assertEqual(self.said(path), "kept: its HEAD reflog holds commit %s, on "
+                             "neither the default branch nor any other ref" % sha[:12])
+
+    def test_a_reflog_commit_another_ref_holds_does_not_keep_it(self):
+        made = {}
+        for name, branch, keep in (("tagged", False, "tag"), ("saved", True, "branch")):
+            path = self.add(name, branch=branch)
+            sha = self.lost_commit(path)
+            self.git(self.b.repo, keep, name + "-kept", sha)
+            made[name] = path
+            self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(made["tagged"]))
+        self.assertFalse(os.path.exists(made["saved"]))
+        self.assertEqual(self.said(made["tagged"]), "removed")
+        self.assertEqual(self.said(made["saved"]), "removed; branch saved deleted")
+
+    def test_a_reflog_commit_already_gone_does_not_keep_it(self):
+        path = self.add("gcd", branch=False)
+        reflog = self.git(path, "rev-parse", "--path-format=absolute",
+                          "--git-path", "logs/HEAD")
+        main = self.git(path, "rev-parse", "HEAD")
+        with open(reflog, "a") as fh:
+            fh.write("%s %s t <t@t> 0 +0000\tcheckout: gone\n" % (main, "1" * 40))
+            fh.write("%s %s t <t@t> 0 +0000\tcheckout: back\n" % ("1" * 40, main))
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+
+    def reftable(self):
+        """The repo, moved to the reftable ref backend: no logs/HEAD file, and
+        CHERRY_PICK_HEAD and the like are refs, not files."""
+        p = subprocess.run(["git", "refs", "migrate", "--ref-format=reftable"],
+                           cwd=self.b.repo, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, universal_newlines=True)
+        if p.returncode != 0:
+            self.skipTest("git cannot migrate to reftable: %s" % p.stdout.strip())
+        self.assertEqual(self.git(self.b.repo, "rev-parse", "--show-ref-format"),
+                         "reftable")
+
+    def test_reftable_reflog_commit_keeps_it(self):
+        """Under reftable the HEAD reflog has no file, and is read through git."""
+        self.reftable()
+        for name, branch in (("detached", False), ("branched", True)):
+            path = self.add(name, branch=branch)
+            sha = self.lost_commit(path)
+            reflog = self.git(path, "rev-parse", "--path-format=absolute",
+                              "--git-path", "logs/HEAD")
+            self.assertFalse(os.path.exists(reflog))
+            self.assertIn(sha, self.git(path, "reflog", "--format=%H"))
+            self.age(path)
+            self.b.upkeep("run")
+            self.assertTrue(os.path.isdir(path))
+            self.assertIn(sha, self.git(path, "reflog", "--format=%H"))
+            self.assertEqual(self.said(path), "kept: its HEAD reflog holds commit %s, on "
+                             "neither the default branch nor any other ref" % sha[:12])
+
+    def test_reftable_reflog_commit_another_ref_holds_does_not_keep_it(self):
+        self.reftable()
+        path = self.add("tagged", branch=False)
+        sha = self.lost_commit(path)
+        self.git(self.b.repo, "tag", "tagged-kept", sha)
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.said(path), "removed")
+
+    def rebase_to_break(self, path, *opts):
+        """git rebase -i main with a todo of just `break`: it stops at once,
+        HEAD detached at main, its state in worktrees/<name>/rebase-merge."""
+        editor = os.path.join(self.b.root, "todo-break")
+        self.b.write(editor, "#!/bin/sh\necho break > \"$1\"\n")
+        os.chmod(editor, 0o755)
+        self.git(path, "-c", "sequence.editor=" + editor, "rebase", "-q", "-i",
+                 *(opts + ("main",)))
+
+    def test_a_rebase_in_progress_keeps_it(self):
+        path = self.add("rebasing")
+        self.rebase_to_break(path)
+        self.assertTrue(os.path.isdir(self.git(path, "rev-parse", "--path-format=absolute",
+                                                "--git-path", "rebase-merge")))
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: a rebase is in progress")
+        self.git(path, "rebase", "--continue")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.said(path), "removed; branch rebasing deleted")
+
+    def test_a_rebase_autostash_keeps_it(self):
+        """The uncommitted edit is a stash commit only rebase-merge/autostash
+        names, while HEAD sits merged and git status is clean."""
+        path = self.add("stashed")
+        self.lost_commit(path, reset_to=None)
+        self.b.write(os.path.join(path, "README.md"), "mine\n")
+        self.rebase_to_break(path, "--autostash")
+        stash = self.git(path, "rev-parse", "--path-format=absolute",
+                         "--git-path", "rebase-merge/autostash")
+        with open(stash) as fh:
+            sha = fh.read().strip()
+        self.assertEqual(self.git(path, "status", "--porcelain"), "")
+        self.assertEqual(self.git(path, "rev-parse", "HEAD"),
+                         self.git(self.b.repo, "rev-parse", "main"))
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: a rebase is in progress")
+        self.assertEqual(self.git(path, "cat-file", "-t", sha), "commit")
+        self.assertTrue(os.path.isfile(stash))
+
+    def test_a_merge_autostash_keeps_it(self):
+        path = self.add("merging")
+        stash = self.git(path, "rev-parse", "--path-format=absolute",
+                         "--git-path", "MERGE_AUTOSTASH")
+        self.b.write(stash, self.git(path, "rev-parse", "main") + "\n")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: a merge is in progress")
+        os.remove(stash)
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+
+    def test_reftable_cherry_pick_head_keeps_it(self):
+        """Under reftable CHERRY_PICK_HEAD is a ref with no file to find."""
+        self.reftable()
+        path = self.add("picking")
+        self.git(path, "update-ref", "CHERRY_PICK_HEAD", "main")
+        self.assertFalse(os.path.exists(self.git(
+            path, "rev-parse", "--path-format=absolute", "--git-path", "CHERRY_PICK_HEAD")))
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertTrue(os.path.isdir(path))
+        self.assertEqual(self.said(path), "kept: a cherry-pick is in progress")
+        self.git(path, "update-ref", "-d", "CHERRY_PICK_HEAD")
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertEqual(self.said(path), "removed; branch picking deleted")
+
+    def remove_parent(self, names, removed):
+        parent = os.path.realpath(os.path.join(self.b.root, "x-wt"))
+        for n in names:
+            self.b.write(os.path.join(parent, n), "x\n")
+        logged, saved = [], U.log
+        U.log = logged.append
+        try:
+            U.remove_parent(parent, [os.path.join(parent, n) for n in removed], [])
+        finally:
+            U.log = saved
+        return parent, logged
+
+    def test_parent_deletes_only_ds_store(self):
+        """A name the prune thinks it removed but is still there means the
+        directory is not empty: nothing in it is deleted."""
+        parent, logged = self.remove_parent([".DS_Store", "stray"], removed=["stray"])
+        self.assertEqual(sorted(os.listdir(parent)), [".DS_Store", "stray"])
+        self.assertEqual(logged, ["worktrees: %s kept, not empty: stray" % parent])
+
+    def test_parent_with_only_ds_store_goes(self):
+        parent, logged = self.remove_parent([".DS_Store"], removed=[])
+        self.assertFalse(os.path.exists(parent))
+        self.assertEqual(logged, ["worktrees: removed %s, now empty" % parent])
+
+    def test_parent_not_named_for_worktrees_stays(self):
+        other = os.path.join(self.b.root, "elsewhere")
+        path = self.add("away", where=other)
+        self.age(path)
+        self.b.upkeep("run")
+        self.assertFalse(os.path.exists(path))
+        self.assertTrue(os.path.isdir(other))
+
+    def test_dry_run_removes_nothing(self):
+        b = self.b
+        path = self.add("done")
+        self.age(path)
+        code, out = b.upkeep("run", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.isdir(path))
+        self.assertIn("done", self.branches())
+        self.assertIn("would run git -C %s worktree remove %s" % (b.repo, path), out)
+        self.assertIn("would run git -C %s branch -d done" % b.repo, out)
+        self.assertIn("would run git -C %s worktree prune" % b.repo, out)
+        self.assertIn("would remove %s, then empty" % self.wt, out)
+
+
 # ------------------------------------------------------------- upkeep opencode
 
 FAKE_PARITY = r"""import os, sys
@@ -1493,6 +2140,7 @@ for target in due:
     if not dry:
         os.makedirs(os.path.dirname(target), exist_ok=True)
         open(target, "w").write("x\n")
+print(("would: " if dry else "") + "changed: %d" % len(due))
 """
 
 

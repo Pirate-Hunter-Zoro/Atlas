@@ -16,7 +16,9 @@ state directories are temp dirs. brew, mise and upkeep are shims that only log.
   - an injected brew name or mise version is refused with no commit; --why
     lands as one line; `npm:@scope/pkg[@v]` parses, and its key is quoted.
   - the install is narrow: `brew bundle install --no-upgrade` on Brewfile.all
-    for a brew, `mise install --locked <name>` for a pin; upkeep never runs.
+    for a brew, `mise install --locked -- <name>` for a pin; upkeep never runs.
+  - a name shaped like an option (`-y`, `--force`) is refused for every kind,
+    and `_tools_kick` passes no such name to mise.
   - mise trusts exactly the configs it reads there, reads none above the
     Atlas root and answers no prompt (MISE_YES=0) even when the caller's env
     says yes; a sibling config with [hooks] refuses the declaration, and
@@ -213,6 +215,25 @@ try:
           code == 0 and read(os.path.join(atlas, "Brewfile")).endswith(
               'brew "ripgrep"  # search system(touch PWNED) q\n'),
           (out, read(os.path.join(atlas, "Brewfile"))))
+    refused = []
+    head = git(atlas, "rev-parse", "HEAD")
+    toml_before = read(os.path.join(atlas, "mise.toml"))
+    kick_before = read(kick_marker)
+    for kind, spec in (("mise", "-y"), ("mise", "--yes"), ("mise", "-C"),
+                       ("mise", "--force@1"), ("mise", "npm:-x"), ("brew", "-y"),
+                       ("cask", "--force"), ("brew", "--HEAD")):
+        code, out = board("tools", "add", kind, spec, env=dict(ENV, BOARD_TOOLS_NO_KICK=""))
+        if code != 1 or "not declared" not in out:
+            refused.append((kind, spec, code, out))
+    check("a name shaped like an option is refused for every kind, with no write, "
+          "commit or install",
+          not refused and git(atlas, "rev-parse", "HEAD") == head
+          and read(os.path.join(atlas, "mise.toml")) == toml_before
+          and read(kick_marker) == kick_before, refused)
+    code, out = board("tools", "add", "mise", "y-1@2", "--why", "a dash inside is fine")
+    check("and a dash inside a name is not refused",
+          code == 0 and 'y-1 = "2"  # a dash inside is fine' in read(
+              os.path.join(atlas, "mise.toml")), out)
     code, out = board("tools", "add", "mise", "npm:@scope/pkg")
     code2, out2 = board("tools", "add", "mise", "npm:prettier@3.3.0")
     text = read(os.path.join(atlas, "mise.toml"))
@@ -240,15 +261,16 @@ try:
     start = len(read(kick_marker).splitlines())
     code, out = board("tools", "add", "mise", "python@3.12", env=env)
     got = kicked(start)
-    check("add installs a mise pin narrowly: mise install --locked <name> in its directory",
-          code == 0 and got[-1:] == ["mise install --locked python @ %s nau= trust=%s%s"
+    check("add installs a mise pin narrowly: mise install --locked -- <name> in its "
+          "directory",
+          code == 0 and got[-1:] == ["mise install --locked -- python @ %s nau= trust=%s%s"
                                      % (atlas, os.path.join(atlas, "mise.toml"), SAFE)]
           and not [l for l in got if l.startswith(("brew ", "upkeep "))], (out, got))
     check("and mise lock and install trust that mise.toml alone, read nothing above "
           "the root and answer no prompt, whatever MISE_YES the caller had",
           got == ["mise lock @ %s nau= trust=%s%s" % (atlas, os.path.join(atlas, "mise.toml"),
                                                      SAFE),
-                  "mise install --locked python @ %s nau= trust=%s%s"
+                  "mise install --locked -- python @ %s nau= trust=%s%s"
                   % (atlas, os.path.join(atlas, "mise.toml"), SAFE)], got)
 
     # A config mise would also read there, with [hooks], refuses the pin.
@@ -283,10 +305,15 @@ try:
               started is False and "ruby not installed: .mise.toml has a [hooks] table" in log
               and read(kick_marker).splitlines()[start:] == [], (started, log))
         os.remove(sibling)
+        before_kick = read(kick_marker)
+        started = cli._tools_kick(atlas, {"kind": "mise", "name": "-y", "target": atlas})
+        time.sleep(0.3)
+        check("_tools_kick passes no option-shaped name to mise, even one declare never "
+              "wrote", started is False and read(kick_marker) == before_kick, started)
         started = cli._tools_kick(atlas, {"kind": "mise", "name": "ruby", "target": atlas})
         got = kicked(start)
         check("and starts it, trusting the checked mise.toml only, once the chain is clean",
-              started is True and got == ["mise install --locked ruby @ %s nau= trust=%s%s"
+              started is True and got == ["mise install --locked -- ruby @ %s nau= trust=%s%s"
                                           % (atlas, os.path.join(atlas, "mise.toml"), SAFE)],
               got)
     finally:

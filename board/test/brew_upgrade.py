@@ -24,7 +24,18 @@ installed or upgraded on this machine.
   - STATUS: problems, failed tools and tools.json lines but pins, exit 0;
     the host's board agent and reachability report only.
   - atlas-brew status, install and usage; brewcare's upkeep and hook lines.
-  - upkeep calls every phase the hook knows.
+  - upkeep calls every phase the hook knows, six of them.
+  - LOCKED-INSTALL: only `mise install --locked -- <tools>` in each mise
+    directory; no uv, brew, lock, prune or outdated.
+  - REFUSED: a mise directory whose configs toolplan's `mise_chain_problem`
+    refuses ([hooks], [env], a template) gets no mise call of any kind in
+    toolchain or locked-install, blocks the prune, and is a problem line with
+    toolplan's own reason; once clean it installs again. A refused root
+    refuses every directory. Each mise run trusts only its checked chain.
+  - THE PRUNE'S TRUST: it runs at the root trusting the checked chains, never
+    the tree. A config mise tracks under Atlas that no check passed, written
+    or reached through a link, skips it as tool:mise-prune; a checked one, one
+    outside Atlas or one that is gone does not.
 """
 
 import json
@@ -84,18 +95,24 @@ PATH = os.pathsep.join([shims, "/opt/homebrew/bin", "/usr/local/bin",
 ENV = dict(os.environ, HOME=home, PATH=PATH,
            XDG_CONFIG_HOME=os.path.join(home, ".config"),
            XDG_STATE_HOME=os.path.join(home, ".local", "state"),
-           BOARD_STATE_DIR=state, UPKEEP_STATE_DIR=upkeep_state, HOOK_CALLS=CALLS)
+           BOARD_STATE_DIR=state, UPKEEP_STATE_DIR=upkeep_state, HOOK_CALLS=CALLS,
+           PYTHONDONTWRITEBYTECODE="1")
 for k in ("TUTORBOARD_COURSES", "TUTORBOARD_SESSION", "TUTORBOARD_TURN", "PYTHONPATH",
-          "UPKEEP_DRY_RUN"):
+          "UPKEEP_DRY_RUN", "MISE_STATE_DIR"):
     ENV.pop(k, None)
+# mise's tracked-configs, under the fixture's XDG_STATE_HOME.
+TRACKED = os.path.join(home, ".local", "state", "mise", "tracked-configs")
 
 EXE = stat.S_IRWXU
 LOG = 'echo "$(basename "$0") $* @ $PWD" >>"$HOOK_CALLS"\n'
 for tool in ("brew", "launchctl", "tailscale"):
     write(os.path.join(shims, tool), "#!/bin/bash\n" + LOG + "exit 0\n", EXE)
 # uv and mise fail when a file in the work dir says so.
+MISE_ENV_LOG = os.path.join(work, "mise-env.log")
 for tool in ("uv", "mise"):
     write(os.path.join(shims, tool), "#!/bin/bash\n" + LOG +
+          ('echo "$* @ $PWD|$MISE_YES|$MISE_TRUSTED_CONFIG_PATHS|$MISE_CEILING_PATHS" >>"%s"\n'
+           % MISE_ENV_LOG if tool == "mise" else "") +
           '[ -f "%s/fail-%s" ] && { echo "%s broke" >&2; exit 4; }\n'
           'case "$*" in "outdated --json --bump --local") echo "{}" ;;\n'
           '  "ls --no-global --json") cat "%s/mise-ls.json" 2>/dev/null ;; esac\nexit 0\n'
@@ -157,6 +174,7 @@ try:
     write(os.path.join(atlas, "Brewfile"), 'brew "texlive"\ncask "font-dejavu"\n')
     write(os.path.join(atlas, "mise.toml"), '[tools]\npython = "3.13"\n')
     write(os.path.join(atlas, "mise.lock"), ROOT_LOCK)
+    write(os.path.join(atlas, ".gitignore"), "__pycache__/\n")
     S = os.path.join(atlas, "projects", "S")
     write(os.path.join(S, "Brewfile"), 'brew "go"\nbrew "texlive"  # again\n')
     write(os.path.join(S, "pyproject.toml"),
@@ -228,11 +246,11 @@ try:
     code, out, err = hook("hook", "toolchain")
     check("toolchain upgrades uv's Pythons", calls("uv python upgrade"), read(CALLS))
     check("installs each mise directory's own tools, locked, there",
-          "mise install --locked node npm:prettier @ %s" % S in calls("mise"), read(CALLS))
+          "mise install --locked -- node npm:prettier @ %s" % S in calls("mise"), read(CALLS))
     check("installs Atlas's own root mise pins too",
-          "mise install --locked python @ %s" % atlas in calls("mise"), read(CALLS))
+          "mise install --locked -- python @ %s" % atlas in calls("mise"), read(CALLS))
     check("prunes only the pinned tools",
-          any(l.startswith("mise prune --yes --tools node npm:prettier ")
+          any(l.startswith("mise prune --yes --tools -- node npm:prettier ")
               for l in calls("mise")), read(CALLS))
     check("a clean checkout whose locks cover their tomls is not re-locked",
           not calls("mise lock"), read(CALLS))
@@ -254,8 +272,8 @@ try:
                        stderr=subprocess.PIPE, universal_newlines=True, timeout=300, cwd=clone)
     check("a fresh clone whose locks are older by mtime is not re-locked, and installs",
           p.returncode == 0 and not calls("mise lock")
-          and "mise install --locked node npm:prettier @ %s" % CS in calls("mise")
-          and "mise install --locked python @ %s" % clone in calls("mise"),
+          and "mise install --locked -- node npm:prettier @ %s" % CS in calls("mise")
+          and "mise install --locked -- python @ %s" % clone in calls("mise"),
           (read(CALLS), p.stderr))
     check("and the clone stays clean", git(clone, "status", "--porcelain") == "",
           git(clone, "status", "--porcelain"))
@@ -330,7 +348,7 @@ try:
     open(CALLS, "w").close()
     hook("hook", "toolchain")
     check("an untracked lock newer than its toml is not re-locked, and installs",
-          not calls("mise lock") and "mise install --locked zig @ %s" % U in calls("mise"),
+          not calls("mise lock") and "mise install --locked -- zig @ %s" % U in calls("mise"),
           read(CALLS))
     shutil.rmtree(U)
 
@@ -588,8 +606,165 @@ try:
     known = set(re.search(r'PHASES = \(([^)]*)\)', read(os.path.join(
         ATLAS_REAL, "scripts", "brew-upgrade.py"))).group(1).replace('"', "").replace(
             " ", "").split(","))
-    check("upkeep asks only phases the hook knows",
-          len(asked) == 5 and asked <= known, (asked, known))
+    check("upkeep asks only phases the hook knows, all six",
+          len(asked) == 6 and asked <= known and "locked-install" in asked, (asked, known))
+
+    # ===================================================================
+    # locked-install
+    # ===================================================================
+    write(HOOK_STATE, json.dumps({"failed": {"tool:mise:projects/S": "old"}}))
+    open(CALLS, "w").close()
+    open(MISE_ENV_LOG, "w").close()
+    code, out, err = hook("hook", "locked-install")
+    check("locked-install runs only mise install --locked -- <tools>, in each mise "
+          "directory",
+          code == 0 and sorted(calls()) == sorted([
+              "mise install --locked -- python @ %s" % atlas,
+              "mise install --locked -- node npm:prettier @ %s" % S]), (read(CALLS), err))
+    check("and clears a failure it has now installed",
+          (hook_state().get("failed") or {}) == {}, hook_state())
+    envs = read(MISE_ENV_LOG).splitlines()
+    check("each mise run answers no prompt, trusts only its checked chain and reads "
+          "nothing above the root",
+          sorted(envs) == sorted([
+              "install --locked -- python @ %s|0|%s|%s" % (
+                  atlas, os.path.join(atlas, "mise.toml"), work),
+              "install --locked -- node npm:prettier @ %s|0|%s|%s" % (
+                  S, os.pathsep.join([os.path.join(S, "mise.toml"),
+                                      os.path.join(atlas, "mise.toml")]), work)]), envs)
+    write(os.path.join(work, "fail-mise"), "")
+    open(CALLS, "w").close()
+    code, out, err = hook("hook", "locked-install")
+    os.remove(os.path.join(work, "fail-mise"))
+    check("a failed locked install exits 1, names the directory and records it",
+          code == 1 and "mise:projects/S: mise broke" in out
+          and hook_state()["failed"].get("tool:mise:projects/S") == "mise broke",
+          (out, hook_state()))
+
+    # ===================================================================
+    # the prune's trust and mise's tracked configs
+    # ===================================================================
+    def prune_run():
+        open(CALLS, "w").close()
+        open(MISE_ENV_LOG, "w").close()
+        hook("hook", "toolchain")
+        return ([l for l in read(MISE_ENV_LOG).splitlines() if l.startswith("prune ")],
+                hook_state().get("failed") or {})
+
+    def track(name, target):
+        os.makedirs(TRACKED, exist_ok=True)
+        os.symlink(target, os.path.join(TRACKED, name))
+    S_CHAIN = os.pathsep.join([os.path.join(atlas, "mise.toml"), os.path.join(S, "mise.toml")])
+    PRUNE_ENV = "prune --yes --tools -- node npm:prettier @ %s|0|%s|%s" % (atlas, S_CHAIN, work)
+    got = prune_run()
+    check("the prune runs at the root and trusts only the checked chains, for that "
+          "call, never the whole tree",
+          got == ([PRUNE_ENV], {}), got)
+    elsewhere = os.path.join(work, "elsewhere")
+    write(os.path.join(elsewhere, "mise.toml"), '[tools]\nnode = "20"\n')
+    track("a1", os.path.join(S, "mise.toml"))
+    track("a2", os.path.join(elsewhere, "mise.toml"))
+    track("a3", os.path.join(atlas, "projects", "gone", "mise.toml"))
+    got = prune_run()
+    check("tracked configs that were checked, lie outside Atlas or are gone leave "
+          "the prune to run, with the same trust", got == ([PRUNE_ENV], {}), got)
+    deep = os.path.join(S, "deep", "er", "mise.toml")
+    write(deep, '[tools]\nnode = "{{ exec(command=\'touch PWNED\') }}"\n')
+    track("b1", deep)
+    got = prune_run()
+    why = got[1].get("tool:mise-prune", "")
+    check("a tracked Atlas config no check passed skips the prune, as a problem naming "
+          "it, while installs still run",
+          got[0] == [] and not calls("mise prune")
+          and why.startswith("skipped: mise tracks %s, an Atlas config no check passed"
+                             % deep)
+          and "mise install --locked -- node npm:prettier @ %s" % S in calls("mise"),
+          (got, read(CALLS)))
+    os.remove(os.path.join(TRACKED, "b1"))
+    alias = os.path.join(work, "alias")
+    os.symlink(atlas, alias)
+    track("b2", os.path.join(alias, "projects", "S", "deep", "er", "mise.toml"))
+    got = prune_run()
+    check("  and so does one reached through a link to Atlas",
+          got[0] == [] and got[1].get("tool:mise-prune", "").startswith(
+              "skipped: mise tracks %s" % os.path.join(alias, "projects", "S", "deep")),
+          got)
+    os.remove(os.path.join(TRACKED, "b2"))
+    shutil.rmtree(os.path.join(S, "deep"))
+    got = prune_run()
+    check("once it is gone, the prune runs again and the problem clears",
+          got == ([PRUNE_ENV], {}), got)
+    shutil.rmtree(TRACKED)
+    check("  and nothing it carried ran", not os.path.exists(os.path.join(S, "PWNED"))
+          and not os.path.exists(os.path.join(S, "deep")))
+
+    # ===================================================================
+    # refused mise directories
+    # ===================================================================
+    plan = __import__("tutorboard.toolplan", fromlist=["toolplan"])
+    for label, rel, text in (
+            ("a [hooks] table", ".mise.toml", '[hooks]\nenter = "touch PWNED"\n'),
+            ("an [env] table", "mise.local.toml", '[env]\nX = "1"\n'),
+            ("a postinstall", "mise.local.toml",
+             '[tools.node]\nversion = "22"\npostinstall = "touch PWNED"\n'),
+            ("a template", ".tool-versions", "node {{ exec(command='touch PWNED') }}\n")):
+        bad = os.path.join(S, rel)
+        write(bad, text)
+        why = plan.mise_chain_problem(S, atlas)
+        open(CALLS, "w").close()
+        hook("hook", "toolchain")
+        st = hook_state()
+        at_s = [l for l in calls("mise") if l.endswith("@ %s" % S)]
+        check("toolchain: a subject whose %s has %s gets no mise call there and no prune"
+              % (rel, label),
+              why and not at_s and not calls("mise prune")
+              and "mise install --locked -- python @ %s" % atlas in calls("mise"),
+              (why, read(CALLS)))
+        check("  and is a problem line with toolplan's own reason",
+              st["failed"].get("tool:mise:projects/S") == "refused, not installed: " + why
+              and why.startswith("projects/S/" + rel), st)
+        code, out, err = hook("hook", "status")
+        check("  which status prints", "mise:projects/S did not update: refused, not "
+              "installed: " + why in out, out)
+        open(CALLS, "w").close()
+        code, out, err = hook("hook", "locked-install")
+        check("locked-install: the same subject gets no mise call and exits 1, the root "
+              "still installs",
+              code == 1 and not [l for l in calls() if l.endswith("@ %s" % S)]
+              and calls() == ["mise install --locked -- python @ %s" % atlas]
+              and "mise:projects/S: refused, not installed: " + why in out
+              and hook_state()["failed"].get("tool:mise:projects/S")
+              == "refused, not installed: " + why, (out, read(CALLS)))
+        os.remove(bad)
+        check("  and nothing it carried ran", not os.path.exists(os.path.join(S, "PWNED")))
+    open(CALLS, "w").close()
+    code, out, err = hook("hook", "locked-install")
+    check("once clean, the subject installs again and its refusal clears",
+          code == 0 and "mise install --locked -- node npm:prettier @ %s" % S in calls()
+          and "tool:mise:projects/S" not in (hook_state().get("failed") or {}),
+          (read(CALLS), hook_state()))
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("and toolchain installs and prunes again",
+          "mise install --locked -- node npm:prettier @ %s" % S in calls("mise")
+          and calls("mise prune") and hook_state().get("failed") == {}, (read(CALLS),
+                                                                         hook_state()))
+    root_toml = os.path.join(atlas, "mise.toml")
+    write(root_toml, '[tools]\npython = "3.13"\n[env]\nX = "1"\n')
+    open(CALLS, "w").close()
+    code, out, err = hook("hook", "locked-install")
+    st = hook_state()["failed"]
+    check("a refused root refuses every directory: no mise call at all",
+          code == 1 and not calls("mise") and st.get("tool:mise:root", "").startswith(
+              "refused, not installed: mise.toml has a [env] table")
+          and st.get("tool:mise:projects/S", "").startswith(
+              "refused, not installed: mise.toml has a [env] table"), (read(CALLS), st))
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("  in toolchain too, prune included", not calls("mise"), read(CALLS))
+    git(atlas, "checkout", "--", "mise.toml")
+    check("the fixture is clean at the end", git(atlas, "status", "--porcelain") == "",
+          git(atlas, "status", "--porcelain"))
 finally:
     shutil.rmtree(work, ignore_errors=True)
 

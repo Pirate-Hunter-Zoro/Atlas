@@ -48,8 +48,11 @@ Each failure is recorded and the run goes on.
    app ran at three ticks in a row. Left alone, in `protected` and never a problem line:
    names a hook prints for `protected-casks` (the hook upgrades them itself).
 3. `brew bundle install --no-upgrade` over `Brewfile` plus each hook's `brewfiles`.
-   Only plain declarations join (a kind, a quoted name, literal arguments); any other
-   Ruby line is logged and left out, since a pulled Brewfile runs off the gate. Never `--cleanup`. Hand-copied fonts that block a font cask move to
+   Only a bare `tap "x"`, `brew "x"` or `cask "x"` joins, rebuilt from its kind and name:
+   a name is `[a-z0-9][a-z0-9+._@-]*`, and `owner/repo/name` needs a `tap` line from
+   the same repo. Any other line, options included, is logged and left out, since a
+   pulled Brewfile runs off the gate and an option such as `postinstall:` runs a
+   command. Never `--cleanup`. Hand-copied fonts that block a font cask move to
    `~/Library/Fonts/.before-upkeep/`, and back if the cask fails; a hand-installed app keeps its cask out of the bundle.
 4. `npm update -g` with brew's npm, after npm's `allow-scripts` names opencode-ai.
 5. The opencode doctor, the DeepSeek key sync, then `opencode/install.py` and
@@ -88,6 +91,7 @@ Each failure is recorded and the run goes on.
 - **Retired**: `install` and every run boot out `atlas.brew-upgrade` and remove its plist.
 - **Pull**: every tick fast-forwards each repo carrying `upkeep.d/pull`, only on its default branch with a clean tree and index; anything else is skipped and logged, never forced.
   Off the gate, a moved `Brewfile*` gets `brew bundle --no-upgrade` and a moved mise file the hook's `locked-install`.
+- **Worktrees**: every tick, a registered repo's linked worktree is removed (`git worktree remove`, `git branch -d`, `git worktree prune`, then its `<repo>-wt` or `worktrees` parent when nothing but `.DS_Store` is left in it) only when unlocked, merged into main, master or origin/HEAD and not on it, no bisect, rebase, merge, cherry-pick, revert or `git am` in progress (their state and any autostash live in `worktrees/<name>/`), every per-worktree ref (`refs/worktree/*`, `refs/bisect/*`, `refs/rewritten/*`) merged, every commit in its HEAD reflog (read through `git reflog`, so reftable repos count) reachable from the default branch or another ref (removal deletes `worktrees/<name>/`, the only thing reaching them; an amended or rebased commit therefore keeps it), clean with untracked files counted and no skip-worktree or assume-unchanged file, holding no other worktree and no `.git` in an ignored directory (removal would delete it), and idle 24 h by the newest mtime of its directory, top-level entries and admin dir in the common git dir. `git worktree prune` waits while any worktree's directory is missing, since it would drop that worktree's commits. Anything else is logged and kept, never forced.
 - **Hooks**: `upkeep.d/hook <phase>`, run in the repo root with `UPKEEP_STATE_DIR`,
   `UPKEEP_LOG` and `UPKEEP_DRY_RUN`; a repo with no hook is fine.
 - **Protected casks fail closed**: each repo's last `protected-casks` answer is kept in

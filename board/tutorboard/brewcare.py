@@ -143,8 +143,9 @@ def read_tools(state_dir=None):
 def tool_lines_of(doc, now=None, skip=(), prefix=None):
     """The `tools:` sentences for tools.json: each failed tool (unless in
     `skip`), each one not updated in its T_STALE_DAYS, each conflict, each
-    tool or Brewfile entry no longer declared but still installed, and each
-    mise pin behind."""
+    Brewfile line the union refused (`refused_brew`, once per file and
+    reason), each tool or Brewfile entry no longer declared but still
+    installed, and each mise pin behind."""
     now = now or datetime.now()
     prefix = prefix if prefix is not None else _prefix()
     out = []
@@ -167,6 +168,15 @@ def tool_lines_of(doc, now=None, skip=(), prefix=None):
         if isinstance(c, dict):
             out.append("tools: %s is declared differently in %s; the copies must be "
                        "the same bytes" % (c.get("name"), " and ".join(c.get("paths") or [])))
+    refusals = []
+    for r in doc.get("refused_brew") or []:
+        if isinstance(r, dict):
+            said = "tools: refused Brewfile line %s: %s" % (
+                toolplan._printable(str(r.get("file") or "?")),
+                toolplan._printable(str(r.get("why") or "refused")))
+            if said not in refusals:
+                refusals.append(said)
+    out += refusals
     for name, rec in sorted((doc.get("left") or {}).items()):
         rec = rec if isinstance(rec, dict) else {}
         where = rec.get("dir") or ""

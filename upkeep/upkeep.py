@@ -600,15 +600,6 @@ def hook(root, phase, timeout):
     return code, lines
 
 
-def hook_lists(phase):
-    out = []
-    for root in load_repos():
-        code, lines = hook(root, phase, T_HOOK_LIST)
-        if code == 0:
-            out += [l for l in lines if l not in out]
-    return out
-
-
 def protected_casks(r, state):
     """(names, known) the registered repos' hooks protect. Fails closed: a
     repo whose hook gives no answer (not executable, a crash, a timeout, gone
@@ -1121,38 +1112,63 @@ def phase_brew(r, state):
     state["cask_defers"] = defers
 
 
-BREWFILE_KINDS = ("tap", "brew", "cask", "mas", "vscode")
-# A Brewfile is Ruby. A line joins the union only as a declaration: a kind, a
-# quoted name, then plain literal arguments. A Ruby string's only specials
-# are the quote, the backslash and # (interpolation), so none is allowed.
-_BF_STR = r'"[^"\\#]*"'
-_BF_ITEM = r'(?:%s|:\w+)' % _BF_STR
-_BF_VAL = r'(?:%s|true|false|nil|-?\d+|\[\s*(?:%s(?:\s*,\s*%s)*)?\s*\])' \
-    % (_BF_ITEM, _BF_ITEM, _BF_ITEM)
-BREWFILE_LINE = re.compile(r'^(\w+)\s+"([^"\\#]+)"(?:\s*,\s*(?:\w+:\s*)?%s)*$' % _BF_VAL)
+# A Brewfile is Ruby that `brew bundle` runs, and an option such as
+# postinstall: runs a shell command. So a line joins the union only as a bare
+# `tap "x"`, `brew "x"` or `cask "x"`, written again from its kind and name.
+# The registered repos' Brewfiles use no options, so none is allowed.
+BREWFILE_LINE = re.compile(r'(tap|brew|cask)[ \t]+"([^"]*)"', re.ASCII)
+# A formula or cask name, and each part of a tap's owner/repo.
+BREW_NAME = re.compile(r"[a-z0-9][a-z0-9+._@-]*", re.ASCII)
+
+
+def brewfile_entry(kind, name, taps):
+    """Is `name` a `kind` entry? A tap is owner/repo. A formula or cask is a
+    BREW_NAME, or owner/repo/<name> for a tap in `taps`."""
+    parts = name.split("/")
+    if not all(BREW_NAME.fullmatch(p) for p in parts):
+        return False
+    if kind == "tap":
+        return len(parts) == 2
+    return len(parts) == 1 or (len(parts) == 3 and "/".join(parts[:2]) in taps)
+
+
+def brewfile_groups():
+    """[[path]]: upkeep's own Brewfile, then each registered repo's Brewfiles
+    (its hook's `brewfiles`)."""
+    groups = [[os.path.join(HERE, "Brewfile")]]
+    for root in load_repos():
+        code, lines = hook(root, "brewfiles", T_HOOK_LIST)
+        if code == 0 and lines:
+            groups.append(lines)
+    return groups
 
 
 def union_text():
     """The upkeep Brewfile joined with every repo's, taps first, one line per
-    entry, comments dropped. A line that is not a plain declaration
-    (BREWFILE_LINE) is left out and logged, never run."""
-    files = [os.path.join(HERE, "Brewfile")] + hook_lists("brewfiles")
+    entry, comments dropped. Each entry is rebuilt from a BREWFILE_LINE that
+    passes brewfile_entry, where a tapped name needs a `tap` line from the
+    same repo. Any other line is left out and logged, never run."""
     seen, taps, rest = set(), [], []
-    for path in files:
-        for raw in (read_text(path) or "").splitlines():
-            line = raw.split("#")[0].strip()
-            if not line:
-                continue
-            m = BREWFILE_LINE.match(line)
-            if not m or m.group(1) not in BREWFILE_KINDS:
-                log("! %s: left out a line that is not a plain declaration: %s"
-                    % (tilde(path), line[:120]))
+    for group in brewfile_groups():
+        lines = []
+        for path in group:
+            for raw in (read_text(path) or "").split("\n"):
+                line = raw.split("#")[0].strip(" \t\r")
+                if line:
+                    lines.append((path, line, BREWFILE_LINE.fullmatch(line)))
+        tapped = set(m.group(2) for _, _, m in lines
+                     if m and m.group(1) == "tap" and brewfile_entry("tap", m.group(2), ()))
+        for path, line, m in lines:
+            if not m or not brewfile_entry(m.group(1), m.group(2), tapped):
+                log("! %s: left out a line that is not a bare tap, brew or cask: %s"
+                    % (tilde(path), line[:120].encode("ascii", "backslashreplace")
+                       .decode("ascii")))
                 continue
             key = (m.group(1), m.group(2))
             if key in seen:
                 continue
             seen.add(key)
-            (taps if m.group(1) == "tap" else rest).append(line)
+            (taps if key[0] == "tap" else rest).append('%s "%s"' % key)
     return "# Written by upkeep: the union of every registered Brewfile.\n" + \
         "\n".join(taps + rest) + "\n"
 
@@ -1585,7 +1601,10 @@ def parity_install(r):
     if code != 0:
         r.problem("the opencode parity layer reports %d problem(s); see %s"
                   % (code, tilde(LOG)))
-    r.changes += parity_changes(out)
+    changes = parity_changes(out)
+    if changes is None and code == 0:
+        r.problem("opencode/install.py printed no `changed: N` line; see %s" % tilde(LOG))
+    r.changes += changes or []
     if DRY or r.report_only:
         for path in said_paths(out):
             would_write(path)
@@ -1596,23 +1615,25 @@ PARITY_SAID_NOTHING = "opencode parity layer up to date"
 
 
 def parity_changes(out):
-    """The changes install.py printed (made, or under --dry-run due): every
-    line but a problem, its up-to-date line and capabilities.md, which the
-    plugin re-reads live. A `changed: N` line, when it prints one, is the
-    count; N = 0 means none."""
+    """The changes install.py printed (made, or under --dry-run due), by its
+    closing `changed: N` line: [] when N is 0, else every line it printed but
+    a problem and capabilities.md, which the plugin re-reads live. None when
+    it printed no count, so its output says nothing reliable."""
     said = []
     count = None
     for line in (out or "").splitlines():
         line = line.strip()
         if line.startswith("would: "):
             line = line[len("would: "):]
-        m = re.match(r"^changed:\s*(\d+)$", line)
+        m = re.match(r"^changed: (\d+)$", line)
         if m:
             count = int(m.group(1))
         elif line and not line.startswith("problem:") and line != PARITY_SAID_NOTHING \
                 and not line.endswith("/capabilities.md"):
             said.append(line)
-    return [] if count == 0 else said
+    if count is None:
+        return None
+    return said if count else []
 
 
 def said_paths(out):
@@ -2208,6 +2229,390 @@ def narrow_install(state, brew_due, mise_due):
         notify(state)
 
 
+# ---------------------------------------------------------------- worktrees
+
+WORKTREE_IDLE_H = 24
+WORKTREE_PARENT = re.compile(r"(-wt|^worktrees)$")
+
+
+def worktree_list(root):
+    """The repo's worktrees, main first: dicts with path, head, branch (a
+    short name, None when detached), locked, prunable. None when git cannot
+    list them."""
+    code, out, _ = git(root, ["worktree", "list", "--porcelain", "-z"])
+    if code != 0:
+        return None
+    trees = []
+    for block in out.split("\0\0"):
+        rec = {"path": None, "head": None, "branch": None, "locked": False,
+               "prunable": False}
+        for field in block.split("\0"):
+            key, _, value = field.partition(" ")
+            if key == "worktree":
+                rec["path"] = value
+            elif key == "HEAD":
+                rec["head"] = value
+            elif key == "branch":
+                rec["branch"] = value[len("refs/heads/"):] \
+                    if value.startswith("refs/heads/") else value
+            elif key in ("locked", "prunable"):
+                rec[key] = True
+        if rec["path"]:
+            trees.append(rec)
+    return trees
+
+
+def default_branches(root):
+    """(default branch names, their tip commits): local main and master, and
+    the branch origin/HEAD names."""
+    names, tips = [], []
+    refs = ["refs/heads/main", "refs/heads/master"]
+    code, head, _ = git(root, ["symbolic-ref", "--quiet", "--short",
+                               "refs/remotes/origin/HEAD"])
+    if code == 0 and head.startswith("origin/"):
+        names.append(head[len("origin/"):])
+        refs.append("refs/remotes/origin/HEAD")
+    for ref in refs:
+        code, sha, _ = git(root, ["rev-parse", "--verify", "--quiet", ref + "^{commit}"])
+        if code == 0 and sha:
+            tips.append(sha)
+            if ref.startswith("refs/heads/"):
+                names.append(ref[len("refs/heads/"):])
+    return names, tips
+
+
+def idle_hours(path):
+    """Hours since the worktree last moved: the newest mtime of its directory,
+    each top-level entry (its .git file among them), and its admin dir in the
+    common git dir (worktrees/<name>/ and its HEAD, index, ORIG_HEAD,
+    logs/HEAD), which a checkout, add or commit touches. An edit deeper down
+    makes the tree dirty, which keeps it anyway. None when unreadable."""
+    stamps = []
+    try:
+        stamps.append(os.lstat(path).st_mtime)
+        for entry in os.scandir(path):
+            stamps.append(entry.stat(follow_symlinks=False).st_mtime)
+    except OSError:
+        return None
+    code, admin, _ = git(path, ["rev-parse", "--absolute-git-dir"])
+    if code != 0 or not admin:
+        return None
+    for rel in ("", "HEAD", "index", "ORIG_HEAD", os.path.join("logs", "HEAD")):
+        try:
+            stamps.append(os.lstat(os.path.join(admin, rel)).st_mtime)
+        except OSError:
+            pass
+    return (time.time() - max(stamps)) / 3600.0
+
+
+def inside(path, top):
+    """path is top or below it, both resolved."""
+    path, top = os.path.realpath(path), os.path.realpath(top)
+    return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
+
+
+def raise_it(exc):
+    raise exc
+
+
+def nested_git(path):
+    """Why path holds a .git (a repo, clone or worktree) that git status cannot
+    see, being in an ignored directory, or None. git worktree remove would
+    delete it with the rest; an untracked one shows in git status already."""
+    code, out, err = git(path, ["ls-files", "-z", "--others", "--ignored",
+                                "--exclude-standard", "--directory"])
+    if code != 0:
+        return "git ls-files failed: %s" % (last_line(err) or code)
+    for rel in (e for e in out.split("\0") if e):
+        top = os.path.join(path, rel.rstrip("/"))
+        if not os.path.lexists(top):
+            return "ignored path %s cannot be found" % rel
+        if os.path.basename(top) == ".git":
+            found = top
+        elif os.path.islink(top) or not os.path.isdir(top):
+            continue
+        else:
+            try:
+                found = next((os.path.join(d, ".git") for d, dirs, files
+                              in os.walk(top, onerror=raise_it)
+                              if ".git" in dirs or ".git" in files), None)
+            except OSError as exc:
+                return "ignored path %s cannot be read: %s" % (rel, exc.strerror or exc)
+        if found:
+            return "a git repo or worktree is in an ignored directory: %s" % \
+                os.path.relpath(found, path)
+    return None
+
+
+PER_WORKTREE_REFS = ("refs/worktree/", "refs/bisect/", "refs/rewritten/")
+GIT_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+
+
+def merged(main, sha, tips):
+    """sha is an ancestor of one of the default branch tips."""
+    return any(git(main, ["merge-base", "--is-ancestor", sha, tip])[0] == 0
+               for tip in tips)
+
+
+IN_PROGRESS = (("BISECT_START", "a bisect"), ("rebase-merge", "a rebase"),
+               ("rebase-apply", "a rebase or git am"), ("REBASE_HEAD", "a rebase"),
+               ("sequencer", "a cherry-pick or revert"), ("MERGE_HEAD", "a merge"),
+               ("MERGE_AUTOSTASH", "a merge"), ("CHERRY_PICK_HEAD", "a cherry-pick"),
+               ("REVERT_HEAD", "a revert"))
+
+
+def in_progress(path):
+    """Why an operation is under way in the worktree, or None. Its state, and
+    the autostash of a rebase or merge, live in worktrees/<name>/. A file
+    there names it, or, for the *_HEAD ones, a ref in the reftable."""
+    args = ["rev-parse", "--path-format=absolute"]
+    for name, _ in IN_PROGRESS:
+        args += ["--git-path", name]
+    code, out, err = git(path, args)
+    paths = out.splitlines()
+    if code != 0 or len(paths) != len(IN_PROGRESS):
+        return "git rev-parse failed: %s" % (last_line(err) or code)
+    heads = [n for n, _ in IN_PROGRESS if n.endswith("_HEAD")]
+    code, out, err = run(["git", "-C", path, "cat-file", "--batch-check=%(objectname)"],
+                         T_PROBE, env=GIT_ENV, stdin_text="\n".join(heads) + "\n")
+    found = out.splitlines()
+    if code != 0 or len(found) != len(heads):
+        return "git cat-file failed: %s" % (last_line(err) or code)
+    named = {n for n, line in zip(heads, found) if not line.endswith(" missing")}
+    for (name, what), where in zip(IN_PROGRESS, paths):
+        if name in named or os.path.lexists(where):
+            return "%s is in progress" % what
+    return None
+
+
+def reflog_commits(main, path):
+    """(the commits the worktree's HEAD reflog names that still exist, None),
+    or (None, why not). git worktree remove deletes this reflog. git reflog
+    reads it under either ref backend; the files backend's logs/HEAD adds
+    each entry's old commit, which git reflog does not print."""
+    code, out, err = git(path, ["reflog", "show", "--format=%H", "HEAD", "--"])
+    if code != 0:
+        return None, "git reflog failed: %s" % (last_line(err) or code)
+    lines = out.splitlines()
+    code, log_path, err = git(path, ["rev-parse", "--path-format=absolute",
+                                     "--git-path", "logs/HEAD"])
+    if code != 0 or not log_path:
+        return None, "git rev-parse failed: %s" % (last_line(err) or code)
+    try:
+        with open(log_path, errors="replace") as fh:
+            lines += [w for l in fh.read().splitlines() for w in l.split(" ")[:2]]
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        return None, "its HEAD reflog cannot be read: %s" % (exc.strerror or exc)
+    shas = []
+    for sha in lines:
+        if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha) and sha.strip("0") \
+                and sha not in shas:
+            shas.append(sha)
+    if not shas:
+        return [], None
+    code, out, err = run(["git", "-C", main, "cat-file",
+                          "--batch-check=%(objectname) %(objecttype)"], T_PROBE,
+                         env=GIT_ENV, stdin_text="\n".join(shas) + "\n")
+    if code != 0:
+        return None, "git cat-file failed: %s" % (last_line(err) or code)
+    return [l.split()[0] for l in out.splitlines() if l.endswith(" commit")], None
+
+
+def worktree_history_keep(main, path, branch, tips):
+    """Why commits only this worktree's admin dir reaches (an operation under
+    way, its per-worktree refs, its HEAD reflog) keep it, or None. git worktree
+    remove deletes worktrees/<name>/, and with it the only way back to them."""
+    busy = in_progress(path)
+    if busy:
+        return busy
+    code, out, err = git(path, ["for-each-ref", "--format=%(refname)"])
+    if code != 0:
+        return "git for-each-ref failed: %s" % (last_line(err) or code)
+    for ref in (r for r in out.splitlines() if r.startswith(PER_WORKTREE_REFS)):
+        code, sha, _ = git(path, ["rev-parse", "--verify", "--quiet", ref + "^{commit}"])
+        if code != 0 or not sha:
+            return "its per-worktree ref %s names no commit" % ref
+        if not merged(main, sha, tips):
+            return "its per-worktree ref %s is not merged into the default branch" % ref
+    commits, why = reflog_commits(main, path)
+    if why:
+        return why
+    if not commits:
+        return None
+    own = "refs/heads/%s" % branch if branch else None
+    code, out, err = git(main, ["for-each-ref", "--format=%(refname)"])
+    if code != 0:
+        return "git for-each-ref failed: %s" % (last_line(err) or code)
+    others = [r for r in out.splitlines()
+              if r != own and not r.startswith(PER_WORKTREE_REFS)]
+    code, out, err = run(["git", "-C", main, "rev-list", "--stdin", "--max-count=1"],
+                         T_GIT, env=GIT_ENV,
+                         stdin_text="\n".join(commits + ["--not"] + list(tips) + others)
+                         + "\n")
+    if code != 0:
+        return "git rev-list failed: %s" % (last_line(err) or code)
+    if out.strip():
+        return ("its HEAD reflog holds commit %s, on neither the default branch nor "
+                "any other ref" % out.strip()[:12])
+    return None
+
+
+def worktree_keep(main, tree, names, tips, roots, trees=()):
+    """Why this linked worktree stays, or None when it is merged, clean and
+    idle, and may go."""
+    path = tree["path"]
+    if tree["locked"]:
+        return "locked"
+    if not os.path.isdir(path):
+        return "its directory is gone (moved or unmounted?); repair or prune it by hand"
+    if any(inside(r, path) for r in roots):
+        return "a registered repo is in it"
+    held = [t["path"] for t in trees if t["path"] != path and inside(t["path"], path)]
+    if held:
+        return "worktree %s is in it" % tilde(held[0])
+    if inside(HERE, path):
+        return "upkeep runs from it"
+    if tree["branch"] and tree["branch"] in names:
+        return "it holds the default branch %s" % tree["branch"]
+    if not tree["head"] or not tips:
+        return "no default branch to compare with"
+    if not merged(main, tree["head"], tips):
+        return "%s is not merged into the default branch" % (
+            tree["branch"] or "its detached HEAD")
+    history = worktree_history_keep(main, path, tree["branch"], tips)
+    if history:
+        return history
+    code, dirty, err = git(path, ["status", "--porcelain", "--ignored=no",
+                                  "--untracked-files=all"])
+    if code != 0:
+        return "git status failed: %s" % (last_line(err) or code)
+    if dirty:
+        return "it has changes or untracked files"
+    code, listed, err = git(path, ["ls-files", "-v", "-z"])
+    if code != 0:
+        return "git ls-files failed: %s" % (last_line(err) or code)
+    if any(e[:1] == "S" or e[:1].islower() for e in listed.split("\0") if e):
+        return "files flagged skip-worktree or assume-unchanged hide changes from git status"
+    nested = nested_git(path)
+    if nested:
+        return nested
+    idle = idle_hours(path)
+    if idle is None:
+        return "its files cannot be read"
+    if idle < WORKTREE_IDLE_H:
+        return "touched %.1f h ago, under %d h" % (idle, WORKTREE_IDLE_H)
+    return None
+
+
+def remove_parent(parent, removed, roots):
+    """A dedicated worktree directory (named <repo>-wt, or worktrees) goes once
+    only .DS_Store is left; never HOME, ~/Developer, or one holding a
+    registered repo."""
+    real = os.path.realpath(parent)
+    if not WORKTREE_PARENT.search(os.path.basename(real)) \
+            or any(inside(p, real) for p in [HOME, os.path.join(HOME, "Developer")]
+                   + list(roots)):
+        return
+    try:
+        left = [n for n in os.listdir(real)
+                if n != ".DS_Store" and os.path.join(real, n) not in removed]
+    except OSError:
+        return
+    if left:
+        return
+    if DRY:
+        log("[dry-run] would remove %s, then empty" % tilde(real))
+        return
+    try:
+        found = os.listdir(real)
+        stray = sorted(n for n in found if n != ".DS_Store")
+        if stray:
+            log("worktrees: %s kept, not empty: %s" % (tilde(real), ", ".join(stray)))
+            return
+        if ".DS_Store" in found:
+            os.remove(os.path.join(real, ".DS_Store"))
+        os.rmdir(real)
+        log("worktrees: removed %s, now empty" % tilde(real))
+    except OSError as exc:
+        log("worktrees: %s left: %s" % (tilde(real), exc))
+
+
+def prune_admin(main):
+    """git worktree prune, only while no linked worktree is prunable: it drops
+    the admin dir of every worktree whose directory is missing, unmerged commits
+    and all, and a moved or unmounted worktree is not ours to judge."""
+    trees = worktree_list(main) or []
+    missing = [t["path"] for t in trees[1:] if t["prunable"]]
+    if missing:
+        log("worktrees: git worktree prune skipped, directory gone: %s"
+            % ", ".join(tilde(p) for p in missing))
+        return
+    git(main, ["worktree", "prune"], T_GIT, mutating=True)
+
+
+def prune_repo(root, roots):
+    """{worktree path: what happened} for one repo's linked worktrees."""
+    trees = worktree_list(root)
+    if not trees:
+        return {}
+    main = trees[0]["path"]
+    names, tips = default_branches(main)
+    said, removed = {}, []
+    for tree in trees[1:]:
+        path = tree["path"]
+        why = worktree_keep(main, tree, names, tips, roots, trees)
+        if why:
+            said[path] = "kept: " + why
+            continue
+        code, out, err = git(main, ["worktree", "remove", path], T_GIT, mutating=True)
+        if code != 0:
+            said[path] = "kept: git worktree remove refused: %s" % (
+                last_line(err, out) or code)
+            continue
+        removed.append(os.path.realpath(path))
+        line = "would be removed" if DRY else "removed"
+        if tree["branch"]:
+            code, out, err = git(main, ["branch", "-d", tree["branch"]], T_GIT,
+                                 mutating=True)
+            line += "; branch %s %s" % (tree["branch"], "deleted" if code == 0 else
+                                        "kept: %s" % (last_line(err, out) or code))
+        said[path] = line
+    if removed:
+        prune_admin(main)
+    for parent in sorted(set(os.path.dirname(p) for p in removed)):
+        remove_parent(parent, removed, roots)
+    return said
+
+
+def prune_worktrees(state):
+    """Every registered repo's merged, clean, idle linked worktrees go: git
+    worktree remove (never --force), git branch -d (never -D), git worktree
+    prune, then an emptied <repo>-wt. Anything else stays, said why."""
+    roots = registered()
+    said, seen = {}, set()
+    for root in roots:
+        code, common, _ = git(root, ["rev-parse", "--git-common-dir"])
+        if code != 0 or not common:
+            continue
+        common = os.path.realpath(os.path.join(root, common))
+        if common in seen:
+            continue
+        seen.add(common)
+        try:
+            got = prune_repo(root, roots)
+        except Exception as exc:                             # noqa: BLE001
+            got = {root: "skipped: %r" % exc}
+        for path, line in sorted(got.items()):
+            log("worktree %s: %s" % (tilde(path), line))
+        said.update(got)
+    if said or state.pop("worktrees", None) is not None:
+        if said:
+            state["worktrees"] = {"at": stamp(), "said": said}
+        save_state(state)
+
+
 # -------------------------------------------------------------------- hooks
 
 def phase_hooks(r):
@@ -2405,6 +2810,7 @@ def cmd_run(force=False):
             state["first_seen"] = stamp()
             save_state(state)
         brew_due, mise_due = pull_repos(state)
+        prune_worktrees(state)
         if DRY:
             go, why = gate(state)
             log("gate: %s (%s)" % ("would run" if go else "would skip", why))
@@ -2641,6 +3047,9 @@ def cmd_status():
     pulls = state.get("pulls") if isinstance(state.get("pulls"), dict) else {}
     for root, line in sorted((pulls.get("said") or {}).items()):
         print("pull:      %s %s (%s)" % (tilde(root), line, pulls.get("at") or "?"))
+    trees = state.get("worktrees") if isinstance(state.get("worktrees"), dict) else {}
+    for path, line in sorted((trees.get("said") or {}).items()):
+        print("worktree:  %s %s (%s)" % (tilde(path), line, trees.get("at") or "?"))
     for line in state.get("app_store_outdated") or []:
         print("APP STORE %s" % line)
     lines = problem_lines(state)

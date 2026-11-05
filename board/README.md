@@ -85,16 +85,20 @@ session. The server passes its own Atlas (`registry.atlas`), never the code's tr
 `GET /sessions.json` lists each session after `sessions.resumed`, so `doc` and `url` agree:
 
 - a canvas not yet given at `/s/<id>/slate`;
-- a `doc` at `/s/<id>/board#/s/<id>/doc/<ident>[/p<n>]`;
-- a `doc` whose `subject` is not the session's (`sessions.elsewhere`) at the bare
-  `/s/<id>/board`, because a board reads only its own subject. The bare board's `resumeDoc`
-  skips it too, since the same id there names another document or none. `bind` stamps the
-  old subject on a `doc` that names none. A session's own upload (`uploads-<name>`) is in
-  no subject's library, so it gets no subject and always opens on the board.
+- a `doc` at `/s/<id>/board#/s/<id>/doc/<ident>[/p<n>]`, whatever subject it is in.
+  A `doc` whose `subject` is not the session's (bound elsewhere since) is read, inked,
+  burned and `/seen` in that subject (`sessions.reading`): the board names it as
+  `?subject=` (`docSubject` in board.js), and a request naming none takes the stored
+  `doc`'s when the id is that one's. The subject must be an existing `courses/<X>` or
+  `projects/<X>` (`sessions.subject_dir`) whose library holds the id; anything else is
+  refused, and a `doc` naming one that is not opens the bare `/s/<id>/board`. `bind` stamps
+  the old subject on a `doc` that names none. A session's own upload (`uploads-<name>`) is
+  in no subject's library, so it gets no subject and is always the session's.
 - With no `doc`, the newest `[filed] uploads/X.pdf -> <S>/<path>.pdf` line whose PDF is still
   in `<S>`'s library becomes `doc`, on its newest inked page (`sessions.resumed`). It is saved
   with that line's time as `filed_seen`, and only a newer line backfills again, so a document
-  closed afterwards stays closed. `file` sets `filed_seen` when a document is open.
+  closed afterwards stays closed. `file` sets `filed_seen` when a document is open. A
+  session whose backfill raises is logged and listed without a `doc`.
 
 Beside it: `cards/`, `slate/`, `answers/`,
 `turns.jsonl`, `inbox/messages.jsonl`, `uploads/`, `annotations/`, `agent.json`,
@@ -170,7 +174,7 @@ no marker file.
 - **Tools.** `board tools add brew|cask|mise <name>` writes one line to the subject's or the
   root's `Brewfile` or `mise.toml` (`toolplan.declare`), commits and pushes it, and installs
   only that: `brew bundle install --no-upgrade` on `Brewfile.all`, or
-  `mise install --locked <name>` in its directory. It never runs `upkeep run`, because a
+  `mise install --locked -- <name>` in its directory. It never runs `upkeep run`, because a
   brew upgrade can replace the board's python mid-lesson. brew bundle runs `Brewfile.all` as
   Ruby, and mise runs a `mise.toml`'s hooks, so the tutor's text is checked first:
   - a brew or cask name matches `^[a-z0-9][a-z0-9+._@-]*$`. A tap, or an
@@ -186,9 +190,17 @@ no marker file.
     (a `postinstall`, an `install_env`), a dotted key, a multi-line value, or a string with
     a brace, `%`, `#`, `$`, a paren or a quote refuses the pin, and the owner edits it by
     hand. mise renders every string as a tera template, so `{{ exec(...) }}` would run;
-  - mise runs in `toolplan.mise_env`: it trusts only those files, reads no config above the
-    Atlas root (`MISE_CEILING_PATHS`), and has `MISE_YES=0`, because `yes` answers mise's
-    trust prompt for a config nobody checked.
+  - mise runs in `toolplan.mise_env`: it trusts only those files, for that run, reads no
+    config above the Atlas root (`MISE_CEILING_PATHS`), and has `MISE_YES=0`, because `yes`
+    answers mise's trust prompt for a config nobody checked. Nothing runs `mise trust`:
+    mise trusts a path, and upkeep's hourly pull changes what is behind it.
+
+  Setup and the upkeep hook check the same chain (`toolplan.mise_chain_problem`) in every
+  directory before any mise run there, through `toolplan mise-run` in setup. A refused
+  directory is skipped and reported: a `REFUSED` line from setup, `tool:mise:<dir>` from the
+  hook. The hook's `mise prune --yes` reads every config mise tracks, so it trusts the
+  checked chains only and is skipped, as `tool:mise-prune`, while a refusal stands or mise
+  tracks an Atlas config no check passed.
 
   `Brewfile.all` takes only bare `tap "x"`, `brew "x"` and `cask "x"` lines, rebuilt from the
   checked name (`toolplan.checked`). Any other line, hand-written or not, is left out, printed

@@ -34,7 +34,8 @@ ref. A canvas (`view: slate`) records where its pages are filed as `canvas`
 ({subject, dir}), when it was last handed to the tutor as `given`, and
 whether its End asked for a transcript as `transcribe`. `doc` is the document on
 the glass, `{id, page, name, subject?}`, or null; `subject` names the subject the
-document is in when that is not the session's. `url` resumes it. A session with no
+document is in when that is not the session's, and the board reads it there
+(`reading`). `url` resumes it. A session with no
 `doc` resumes the newest PDF a `[filed]` line names (`resumed`), once per line:
 `filed_seen` keeps that line's time, so a document closed afterwards stays closed.
 
@@ -733,23 +734,24 @@ def current():
 FILED_SEEN = "filed_seen"
 
 
-def url(rec, base=None):
+def url(rec, base=None, resume=True):
     """Where a session opens, never outside it: its board, or the slate of a
-    canvas not yet handed to the tutor (`given`). Its document (`resumed`)
-    opens on the board on the page it was read at. A board reads only its
-    own subject, so a document in another one, the session bound elsewhere
-    since, leaves the bare board; a session's own upload is in no subject and
-    always opens. `base` is the Atlas the session is in, as for `path`."""
+    canvas not yet handed to the tutor (`given`). Its document (`resumed`,
+    unless `resume` is False) opens on the board on the page it was read at,
+    in the subject the document is in (`doc_home`); a document naming a
+    subject that is not one leaves the bare board. `base` is the Atlas the
+    session is in, as for `path`."""
     sid = rec.get("id")
     canvas = rec.get("view") == "slate" and not rec.get("given")
     if canvas:
         return "/s/%s/slate" % sid
-    rec = resumed(rec, base)
+    if resume:
+        rec = resumed(rec, base)
     doc = rec.get("doc")
     if isinstance(doc, dict):
         ident = doc.get("id")
         if isinstance(ident, str) and DOC_ID.match(ident) \
-                and not elsewhere(rec, doc):
+                and doc_home(rec, doc, base) is not None:
             out = "/s/%s/board#/s/%s/doc/%s" % (
                 sid, sid, urllib.parse.quote(ident, safe=""))
             page = doc.get("page")
@@ -760,12 +762,68 @@ def url(rec, base=None):
     return "/s/%s/board" % sid
 
 
-def elsewhere(rec, doc):
-    """Whether `doc` is in another subject than session `rec` is bound to,
-    so its board cannot read it. A session's own upload never is."""
-    subject = doc.get("subject")
-    return bool(subject) and subject != rec.get("subject") \
-        and not str(doc.get("id") or "").startswith(UPLOAD_DOC)
+def subject_dir(subject, base=None):
+    """The subject record `subject` names when it is exactly an existing
+    `courses/<X>` or `projects/<X>` directory of the Atlas at `base`; else
+    None. What a document's `subject` must be before anything reads there."""
+    if not isinstance(subject, str) or "\\" in subject or "\0" in subject:
+        return None
+    bits = subject.split("/")
+    if len(bits) != 2 or bits[0] not in dict(subjects.DIRS) \
+            or bits[1] in ("", ".", ".."):
+        return None
+    found = subjects.find(subject, base)
+    if not found or found["id"] != subject or not os.path.isdir(found["root"]):
+        return None
+    return found
+
+
+def doc_home(rec, doc, base=None):
+    """The subject session `rec` reads `doc` in: "" for its own (a session's
+    upload is always its own), the id `doc.subject` names when that is
+    another existing subject (`subject_dir`), None when it names none."""
+    subject = doc.get("subject") if isinstance(doc, dict) else None
+    if not subject or subject == rec.get("subject") \
+            or str(doc.get("id") or "").startswith(UPLOAD_DOC):
+        return ""
+    return subject if subject_dir(subject, base) else None
+
+
+class NotReadable(LookupError):
+    """A document asked for in a subject that is none, or that does not hold
+    it; the message says which."""
+
+
+def reading(repo, ident, subject=None):
+    """The Repo session `repo` reads document `ident` through: its own, or
+    one over the subject the document is in, sharing the session's
+    directory. `subject` is the subject the board names (`?subject=`); None
+    takes the subject the session's stored `doc` names when it is `ident`.
+    Another subject than the session's must be an existing subject
+    (`subject_dir`) whose library holds `ident`, else `NotReadable`. A
+    sessionless Repo is already its subject's, and an upload the session's."""
+    if not getattr(repo, "stored", False):
+        return repo
+    ident = str(ident or "")
+    if not DOC_ID.match(ident) or ident.startswith(UPLOAD_DOC):
+        return repo
+    state = repo.state()
+    if subject is None:
+        doc = state.get("doc")
+        if isinstance(doc, dict) and doc.get("id") == ident:
+            subject = doc.get("subject")
+    if not subject or subject == state.get("subject"):
+        return repo
+    found = subject_dir(subject, repo.atlas)
+    if not found:
+        raise NotReadable("no such subject")
+    home = course_repo.Repo(found["root"], repo.session, create=False)
+    from .course import library                        # local: a cycle
+    target, _name = library.readable(home, ident)
+    root = os.path.realpath(found["root"])
+    if not target or not os.path.realpath(target).startswith(root + os.sep):
+        raise NotReadable("%s holds no document by that name" % subject)
+    return home
 
 
 def resumed(rec, base=None):
@@ -827,6 +885,8 @@ def _filed_pdf(where, base, after):
     for at, shown in sorted(lines, key=lambda one: one[0], reverse=True):
         bits = shown.replace("\\", "/").split("/")
         if len(bits) < 3 or any(b in ("", ".", "..") for b in bits):
+            continue
+        if any("\0" in b for b in bits):
             continue
         subject, rel = "/".join(bits[:2]), "/".join(bits[2:])
         found = subjects.find(subject, base)

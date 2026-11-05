@@ -26,15 +26,23 @@
 #    and by what it pins, each counted at its root and one directory down
 #    (never in target/, build/, .dart_tool/, .venv/, node_modules/, zig-out/,
 #    .zig-cache/ or zig-pkg/):
-#      mise.toml        mise trust, then mise install --locked <its tools>,
-#                       which installs only what mise.lock records (with a
-#                       URL for this platform; `mise lock` writes it)
+#      mise.toml        mise install --locked -- <its tools>, which installs
+#                       only what mise.lock records (with a URL for this
+#                       platform; `mise lock` writes it)
 #      Cargo.toml       mise exec -- cargo fetch --locked
 #      pubspec.yaml     mise exec -- flutter pub get --enforce-lockfile
 #      build.zig.zon    mise exec -- zig build --fetch, only when the nearest
 #                       mise.toml pins zig (else "zig skipped"); it is its
 #                       own lockfile, holding each dependency's hash
-#    A pin moves only by a commit of mise.toml and mise.lock.
+#    A pin moves only by a commit of mise.toml and mise.lock. mise runs in a
+#    directory only once toolplan's `mise_chain_problem` passes every config
+#    it reads there: mise renders each as a template and runs its hooks, and
+#    a clone brings them. A refused directory is skipped, a REFUSED line.
+#    Every mise run goes through toolplan's `mise-run`, which trusts the
+#    checked configs for that run only (`mise_env`). Nothing runs `mise
+#    trust`: mise trusts a path, and a later pull changes what is behind it.
+#    Atlas's root mise.toml is installed first, re-locked only where
+#    brew-upgrade.py's `lock_stale` says, so a clean clone never is.
 # 3. The subjects' tool descriptors, <subject>/tools/<name>.sh: each one this
 #    role uses and lacks is installed (scripts/tools.sh install).
 #
@@ -61,6 +69,27 @@ export PATH
 # board/tutorboard/toolplan.py, which reads the Brewfiles, markers and descriptors.
 plan() { (cd "$ROOT/board" && TUTORBOARD_COURSES="$ROOT" python3 -B -m tutorboard.toolplan "$@" --atlas "$ROOT"); }
 
+# Runs the rest of the arguments in directory $1 under toolplan's mise_env,
+# after the same check mise_ok makes.
+mise_in() {
+  local d="$1"; shift
+  (cd "$ROOT/board" && TUTORBOARD_COURSES="$ROOT" python3 -B -m tutorboard.toolplan --atlas "$ROOT" mise-run "$d" -- "$@")
+}
+
+# May mise run in directory $1? toolplan checks every config mise reads
+# there. When not, the reason goes on the array `refused` (once) and in $2,
+# the log, and this fails.
+refused=()
+mise_ok() {
+  local why r
+  why="$(plan mise-chain "$1" 2>>"$2")" && return 0
+  [ -n "$why" ] || why="the mise config check did not answer"
+  printf 'mise refused in %s: %s\n' "$1" "$why" >>"$2"
+  for r in ${refused[@]+"${refused[@]}"}; do [ "$r" = "$why" ] && return 1; done
+  refused+=("$why")
+  return 1
+}
+
 failed=0
 
 line() { printf '%-32s %s\n' "$1" "$2"; }
@@ -81,23 +110,29 @@ fi
 # the subject loop below. Both setup and the upkeep hook install it.
 if [ -f "$ROOT/mise.toml" ]; then
   : >"$LOGS/atlas-root.log"
-  root_bad=0
-  root_pins=()
-  while IFS= read -r t; do [ -n "$t" ] && root_pins+=("$t"); done < <(plan root-mise-tools)
-  if [ "$root_bad" = 0 ] && [ "${#root_pins[@]}" -gt 0 ]; then
-    if ! {
-      mise trust --quiet "$ROOT/mise.toml" \
-      && { [ -f "$ROOT/mise.lock" ] && [ "$ROOT/mise.lock" -nt "$ROOT/mise.toml" ] \
-           || (cd "$ROOT" && mise lock); } \
-      && (cd "$ROOT" && mise install --locked "${root_pins[@]}");
-    } >>"$LOGS/atlas-root.log" 2>&1; then
-      root_bad=1
-    fi
-  fi
-  if [ "$root_bad" = 0 ]; then
-    line "atlas root" "ok (mise install)"
+  refused=()
+  if ! mise_ok "$ROOT" "$LOGS/atlas-root.log"; then
+    line "atlas root" "REFUSED -- ${refused[0]}"; failed=1
   else
-    line "atlas root" "FAILED -- $LOGS/atlas-root.log"; failed=1
+    root_bad=0
+    root_pins=()
+    while IFS= read -r t; do [ -n "$t" ] && root_pins+=("$t"); done < <(plan root-mise-tools)
+    if [ "${#root_pins[@]}" -gt 0 ]; then
+      # Why the lock needs `mise lock` (brew-upgrade.py's lock_stale), or nothing.
+      stale="$(python3 -B "$ROOT/scripts/brew-upgrade.py" lock-stale "$ROOT" "${root_pins[@]}" 2>>"$LOGS/atlas-root.log")"
+      [ -n "$stale" ] && echo "mise lock: $stale" >>"$LOGS/atlas-root.log"
+      if ! {
+        { [ -z "$stale" ] || mise_in "$ROOT" mise lock; } \
+        && mise_in "$ROOT" mise install --locked -- "${root_pins[@]}";
+      } >>"$LOGS/atlas-root.log" 2>&1; then
+        root_bad=1
+      fi
+    fi
+    if [ "$root_bad" = 0 ]; then
+      line "atlas root" "ok (mise install)"
+    else
+      line "atlas root" "FAILED -- $LOGS/atlas-root.log"; failed=1
+    fi
   fi
 fi
 
@@ -163,6 +198,7 @@ for id in $workspaces; do
   : >"$log"
   did=""
   bad=0
+  refused=()
 
   if [ -f "$ws/pyproject.toml" ]; then
     extras=()
@@ -196,17 +232,20 @@ for id in $workspaces; do
     pins=()
     while IFS= read -r t; do [ -n "$t" ] && pins+=("$t"); done < <(plan pinned "$d")
     [ "${#pins[@]}" -gt 0 ] || continue
-    { mise trust --quiet "$d/mise.toml" && (cd "$d" && mise install --locked "${pins[@]}"); } >>"$log" 2>&1 || bad=1
+    mise_ok "$d" "$log" || continue
+    mise_in "$d" mise install --locked -- "${pins[@]}" >>"$log" 2>&1 || bad=1
     case "$did" in *"mise install"*) ;; *) did="${did:+$did, }mise install" ;; esac
   done < <(marker_dirs "$id" mise.toml)
   while IFS= read -r d; do
     [ -n "$d" ] || continue
-    (cd "$d" && mise exec -- cargo fetch --locked) >>"$log" 2>&1 || bad=1
+    mise_ok "$d" "$log" || continue
+    mise_in "$d" mise exec -- cargo fetch --locked >>"$log" 2>&1 || bad=1
     case "$did" in *"cargo fetch"*) ;; *) did="${did:+$did, }cargo fetch" ;; esac
   done < <(marker_dirs "$id" Cargo.toml)
   while IFS= read -r d; do
     [ -n "$d" ] || continue
-    (cd "$d" && mise exec -- flutter pub get --enforce-lockfile) >>"$log" 2>&1 || bad=1
+    mise_ok "$d" "$log" || continue
+    mise_in "$d" mise exec -- flutter pub get --enforce-lockfile >>"$log" 2>&1 || bad=1
     case "$did" in *"flutter pub get"*) ;; *) did="${did:+$did, }flutter pub get" ;; esac
   done < <(marker_dirs "$id" pubspec.yaml)
   # Zig is pre-1.0, so a fetch runs only under a zig the nearest mise.toml
@@ -215,7 +254,8 @@ for id in $workspaces; do
     [ -n "$d" ] || continue
     pd="$ws"; [ -f "$d/mise.toml" ] && pd="$d"
     if plan pinned "$pd" | grep -qx zig; then
-      (cd "$d" && mise exec -- zig build --fetch) >>"$log" 2>&1 || bad=1
+      mise_ok "$d" "$log" || continue
+      mise_in "$d" mise exec -- zig build --fetch >>"$log" 2>&1 || bad=1
       case "$did" in *"zig build --fetch"*) ;; *) did="${did:+$did, }zig build --fetch" ;; esac
     else
       echo "$d/build.zig.zon: no zig pin in $pd/mise.toml, not fetched" >>"$log"
@@ -223,8 +263,11 @@ for id in $workspaces; do
     fi
   done < <(marker_dirs "$id" build.zig.zon)
 
+  for r in ${refused[@]+"${refused[@]}"}; do
+    line "$id" "REFUSED -- $r"; failed=1
+  done
   if [ -z "$did" ]; then
-    line "$id" "nothing to build"
+    [ "${#refused[@]}" -gt 0 ] || line "$id" "nothing to build"
   elif [ "$bad" = 0 ]; then
     line "$id" "ok ($did)"
   else

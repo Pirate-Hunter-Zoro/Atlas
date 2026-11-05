@@ -21,7 +21,9 @@ keeps them current.
                their toolchains. `marker_dirs` finds a marker at a subject's
                root and one directory down, skipping SKIP. Atlas's root is not
                a subject, so `root_mise` and `root_mise_tools` read it for
-               setup.sh and the upkeep hook only.
+               setup.sh and the upkeep hook only. Each runs mise in a
+               directory only once `mise_chain_problem` passes every config
+               mise reads there; a refused directory is skipped and named.
   DESCRIPTORS  `<subject>/tools/<name>.sh`, read by scripts/tools.sh. One name
                in two subjects must be the same bytes (`descriptors`).
   DECLARED     `declare` writes one tool into the repository's own files: a
@@ -48,6 +50,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from datetime import datetime
 
 # A marker's lockfile, which must sit beside it. build.zig.zon is its own:
@@ -622,7 +625,11 @@ def pins_of(said, subject, where=None):
 
 # ------------------------------------------------------------- declarations
 
-BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+\Z")
+# A bare mise tool name. It starts with a letter or digit, so it never reads
+# as an option when it reaches mise's command line.
+BARE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\Z")
+# A TOML key that needs no quotes.
+TOML_BARE = re.compile(r"^[A-Za-z0-9_-]+\Z")
 # mise backends a declaration may name, as `<backend>:<package>`. Not asdf,
 # vfox or http: their plugins or URLs are code from anywhere.
 BACKENDS = ("aqua", "cargo", "dotnet", "gem", "github", "gitlab", "go", "npm",
@@ -650,6 +657,10 @@ MISE_ARR = re.compile(r"^%s\Z" % _ARR)
 _PAIR = r"[A-Za-z_]+\s*=\s*(?:%s|%s)" % (_STR, _ARR)
 MISE_INLINE = re.compile(r"^\{\s*(?:%s(?:\s*,\s*%s)*)?\s*\}\Z" % (_PAIR, _PAIR))
 MISE_INLINE_PAIR = re.compile(r"([A-Za-z_]+)\s*=\s*(%s|%s)" % (_STR, _ARR))
+# What starts a tera tag, `{{`, `{%` or `{#`; a .tool-versions holds none of
+# these characters at all, comments included.
+TEMPLATE_CHARS = ("{", "}", "%")
+TEMPLATE_OPEN = re.compile(r"\{[{%#]")
 WHY_MAX = 120
 
 
@@ -673,7 +684,7 @@ def mise_name_problem(name):
     if colon and BARE_KEY.match(backend) and backend not in BACKENDS:
         return "mise backend %s is not one of %s" % (backend, ", ".join(BACKENDS))
     return ("a mise tool is a bare key, or <backend>:<package> of letters, digits "
-            "and + . _ @ / -")
+            "and + . _ @ / -, starting with a letter or digit")
 
 
 def mise_version_problem(version):
@@ -684,7 +695,7 @@ def mise_version_problem(version):
 
 def mise_key(name):
     """`name` as a TOML key: bare when it can be, else double-quoted."""
-    return name if BARE_KEY.match(name) else '"%s"' % name
+    return name if TOML_BARE.match(name) else '"%s"' % name
 
 
 def _unquote(token):
@@ -697,11 +708,17 @@ def mise_text_problem(text, label="mise.toml"):
     be min_version at the top, a [tools] or [tools.<name>] header, or a tool
     pinned to a string, an array of strings or an inline table of
     TOOL_OPTIONS; under [tools.<name>], a TOOL_OPTIONS key. Dotted keys,
-    multi-line values, a tool defined twice, and a name `mise_name_problem`
-    refuses are out too. When tomllib is here the text must also parse.
+    multi-line values, a tool defined twice, a name `mise_name_problem`
+    refuses, a `path:` pin and a tera opener anywhere, comments included,
+    are out too. When tomllib is here the text must also parse.
     `pins` maps each tool to its version string, or None."""
     hand = "; only [tools] versions are declared, so edit it by hand"
     pins = {}
+    opened = TEMPLATE_OPEN.search(text)
+    if opened:
+        n = text.count("\n", 0, opened.start()) + 1
+        return ("%s line %d opens a template (%s)%s"
+                % (label, n, opened.group(0), hand)), pins
     heads = set()
     # None at the top, TOOLS under [tools], else the tool [tools.<name>] sets.
     head = None
@@ -711,6 +728,8 @@ def mise_text_problem(text, label="mise.toml"):
         if not line:
             continue
         shown = _printable(line)[:40]
+        if re.search(r"[\"']path:", line):
+            return ("%s line %d pins a path: %s%s" % (label, n, shown, hand)), pins
         if line.startswith("["):
             m = MISE_HEAD.match(line)
             first = _unquote(m.group(1)) if m else ""
@@ -788,15 +807,19 @@ VERSION_WORD = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:@/<>=~^-]*\Z")
 
 def tool_versions_problem(text, label=TOOL_VERSIONS):
     """Why the asdf-style `.tool-versions` `text` is not safe for mise to
-    read, or "". mise renders it as a tera template too, without asking for
-    trust, so each line but a comment or a blank must be a tool
-    `mise_name_problem` passes and versions of VERSION_WORD."""
+    read, or "". mise renders the whole text as a tera template, comments
+    included, without asking for trust: no line may hold a brace or %, and
+    each line but a comment or a blank must be a tool `mise_name_problem`
+    passes and versions of VERSION_WORD, none a `path:`."""
     for n, raw in enumerate(text.splitlines(), 1):
+        if any(c in raw for c in TEMPLATE_CHARS):
+            return ("%s line %d has a template character (%s); edit it by hand"
+                    % (label, n, " ".join(TEMPLATE_CHARS)))
         words = raw.split("#", 1)[0].split()
         if not words:
             continue
         if mise_name_problem(words[0]) or len(words) < 2 or not all(
-                VERSION_WORD.match(w) for w in words[1:]):
+                VERSION_WORD.match(w) and not w.startswith("path:") for w in words[1:]):
             return ("%s line %d is not a tool and its versions: %s; edit it by hand"
                     % (label, n, _printable(raw.strip())[:40]))
     return ""
@@ -805,9 +828,20 @@ def tool_versions_problem(text, label=TOOL_VERSIONS):
 def mise_problem(path, label="mise.toml"):
     """Why `declare` will not write beside the mise config at `path`
     (`mise_text_problem`, or `tool_versions_problem` for a .tool-versions),
-    or "". A missing file has none."""
+    or "". A missing file has none. A miserc is refused whatever it holds,
+    and so is a directory link or anything else that is not a regular file.
+    Names match as `_fold` compares them."""
     if not os.path.lexists(path):
         return ""
+    name = _fold(os.path.basename(path))
+    if MISERC.match(name):
+        return ("%s is a miserc, which can point mise at unchecked files; "
+                "edit it by hand" % label)
+    if os.path.isdir(path):
+        return ("%s is a linked directory, which mise follows to unchecked files; "
+                "edit it by hand" % label)
+    if not os.path.isfile(path):
+        return "%s is not a regular file, so edit it by hand" % label
     try:
         with open(path, encoding="utf-8", newline="") as fh:
             text = fh.read()
@@ -815,19 +849,35 @@ def mise_problem(path, label="mise.toml"):
         return "%s is not UTF-8, so edit it by hand" % label
     except OSError as e:
         return "%s cannot be read (%s), so edit it by hand" % (label, e.strerror or "error")
-    if os.path.basename(path) == TOOL_VERSIONS:
+    if name == TOOL_VERSIONS:
         return tool_versions_problem(text, label)
     return mise_text_problem(text, label)[0]
 
 
+def _fold(name):
+    """`name` as macOS compares file names, or looser: case folded in full,
+    compatibility forms decomposed and accents dropped. APFS opens
+    mise.local.toml as MISE.LOCAL.TOML or as "mi\u017fe.local.toml" (a long s), so
+    a name is matched against mise's file names only through this."""
+    s = unicodedata.normalize("NFKD", unicodedata.normalize("NFKD", name).casefold())
+    return "".join(c for c in s if not unicodedata.combining(c))
+
+
 MISE_FILE = re.compile(r"^\.?mise(\.[^/]+)?\.toml\Z")
+# mise's early settings (.miserc.toml, miserc.local.toml, ...): they can
+# point mise at other config files, so a directory holding one is refused.
+MISERC = re.compile(r"^\.?miserc")
 
 
 def _mise_files_in(d):
     """Every file in directory `d` that mise reads as config, sorted:
     mise.toml, .mise.toml, mise.<env>.toml, mise.local.toml and their dot
     forms, .tool-versions, .config/mise*.toml, and every .toml under mise/,
-    .mise/ and .config/mise/ (config.toml, conf.d/)."""
+    .mise/ and .config/mise/ (config.toml, conf.d/), plus any miserc file
+    in `d`, .config/ or those directories. Names match through `_fold`,
+    since macOS opens a file under any name that folds to the one asked for. A linked directory among .config/, mise/, .mise/,
+    .config/mise/ or anything under them is listed rather than walked:
+    mise follows it, so `mise_problem` refuses it."""
     found = []
 
     def listed(where):
@@ -836,19 +886,34 @@ def _mise_files_in(d):
         except OSError:
             return []
     for name in listed(d):
-        if MISE_FILE.match(name) or name == TOOL_VERSIONS:
+        low = _fold(name)
+        if MISE_FILE.match(low) or low == TOOL_VERSIONS or MISERC.match(low):
             found.append(os.path.join(d, name))
-    for name in listed(os.path.join(d, ".config")):
-        if MISE_FILE.match(name) and not name.startswith("."):
-            found.append(os.path.join(d, ".config", name))
-    for sub in ("mise", ".mise", os.path.join(".config", "mise")):
+    config = os.path.join(d, ".config")
+    if os.path.islink(config) and os.path.isdir(config):
+        found.append(config)
+        tops = ("mise", ".mise")
+    else:
+        for name in listed(config):
+            low = _fold(name)
+            if (MISE_FILE.match(low) and not low.startswith(".")) or MISERC.match(low):
+                found.append(os.path.join(config, name))
+        tops = ("mise", ".mise", os.path.join(".config", "mise"))
+    for sub in tops:
         top = os.path.join(d, sub)
         if not os.path.isdir(top):
             continue
+        if os.path.islink(top):
+            found.append(top)
+            continue
         for where, dirs, files in os.walk(top):
             dirs.sort()
+            for name in [n for n in dirs if os.path.islink(os.path.join(where, n))]:
+                found.append(os.path.join(where, name))
+                dirs.remove(name)
             for name in sorted(files):
-                if name.endswith(".toml"):
+                low = _fold(name)
+                if low.endswith(".toml") or MISERC.match(low):
                     found.append(os.path.join(where, name))
     return found
 
@@ -857,8 +922,8 @@ def mise_configs(target, base):
     """The mise config files mise reads when run in `target`: those of
     `target` and of each directory above it up to and including `base`, or of
     `target` alone when it is not inside `base`. `mise_env` trusts exactly
-    these, and the board runs mise only after `mise_chain_problem` passes
-    them."""
+    these, and the board, setup.sh and the upkeep hook run mise only after
+    `mise_chain_problem` passes them."""
     target = os.path.realpath(target)
     base = os.path.realpath(base)
     dirs = [target]
@@ -1176,8 +1241,20 @@ def _cli(argv):
         markers           one line per marker: subject, marker, lock, dir
         pinned <dir>      the tools <dir>'s own mise.toml pins, one a line
         root-mise-tools   Atlas's own mise.toml pins, one name a line
+        mise-chain <dir>  why a mise run in <dir> is not safe
+                          (`mise_chain_problem`), and exit 3; silent and 0
+                          when it is
+        mise-run <dir> -- <argv>...
+                          checks <dir> as mise-chain does, then runs <argv>
+                          in <dir> under `mise_env`, so trust lasts that one
+                          run and is never written. Options after `--` are
+                          <argv>'s own
     """
     args = list(argv)
+    tail = []
+    if "--" in args:
+        i = args.index("--")
+        args, tail = args[:i], args[i + 1:]
     base = None
     if "--atlas" in args:
         i = args.index("--atlas")
@@ -1234,6 +1311,24 @@ def _cli(argv):
         for name in pinned_in(args[1]):
             print(name)
         return 0
+    if cmd == "mise-chain" and len(args) == 2:
+        problem = mise_chain_problem(args[1], base)
+        if problem:
+            print(_printable(problem))
+            return 3
+        return 0
+    if cmd == "mise-run" and len(args) == 2 and tail:
+        problem = mise_chain_problem(args[1], base)
+        if problem:
+            print(_printable(problem))
+            return 3
+        env = mise_env(args[1], base)
+        try:
+            os.chdir(args[1])
+            os.execvpe(tail[0], tail, env)
+        except OSError as exc:
+            sys.stderr.write("%s: %s\n" % (_printable(tail[0]), exc))
+            return 127
     if cmd == "root-mise-tools":
         for name, _version in root_mise_tools(base):
             print(name)

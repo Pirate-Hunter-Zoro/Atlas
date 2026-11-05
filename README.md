@@ -25,6 +25,7 @@ sessions and the invariants. How a tutor turn teaches is
 ```
 Atlas/
   README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
+  Brewfile.taps          the only taps a Brewfile may name, one owner/repo a line
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
   scripts/setup-opencode.sh  OpenCode, DeepSeek and the parity layer; setup-mac.sh runs it
   scripts/setup.sh       builds every subject's environment; setup-mac.sh runs it
@@ -49,7 +50,7 @@ Inside a subject:
 | Path | What it is | Tracked |
 | --- | --- | --- |
 | `tutorboard.json` | `name`, `check`, `speech` | yes |
-| `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs | yes |
+| `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs; a tap must be in the root `Brewfile.taps` | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
 | `TUTOR.md` | the tutor's memory, written only with `board memo`; committed with End or real work, never alone | yes |
 | `README.md` | the owner's own notes; never fed to a turn | yes |
@@ -109,7 +110,10 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   `mise exec`, at the subject's root and one directory down: `cargo fetch --locked` for a
   `Cargo.toml`, `flutter pub get --enforce-lockfile` for a `pubspec.yaml`, and
   `zig build --fetch` for a `build.zig.zon`, which is its own lockfile, only when the nearest
-  `mise.toml` pins zig. A pin moves only by a commit. Each marker needs its lockfile beside it
+  `mise.toml` pins zig. A pin moves only by a commit. mise runs in a directory only when every
+  config it reads there holds plain `[tools]` versions, with no template character even in a
+  comment, no `path:` pin and no miserc (toolplan's `mise_chain_problem`); a refused directory is
+  skipped and named, never installed. Each marker needs its lockfile beside it
   and a check in `tutorboard.json`.
   `scripts/setup.sh` refuses any machine but a Mac.
 - A tool neither brew nor mise keeps current is a descriptor, `<subject>/tools/<name>.sh`, read
@@ -117,11 +121,18 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   in two subjects must be the same bytes. Nothing is uninstalled: a deleted subject's tools and
   Brewfile entries are named by `board doctor` while they stay installed.
 - A tool requested on the iPad is declared with `board tools add brew|cask|mise <name>
-  [--subject <id>] [--why ...]`. That writes a line in the root or subject `Brewfile`, or an
-  entry in its `mise.toml` (committing `mise.lock` with it), commits and pushes the file, and
-  starts the install. Setup and the hourly upkeep hook install what the repository declares, so
-  a declaration on one Mac reaches every clone through git. `board tools list` shows them, and
+  [--subject <id>] [--why ...]`. The name, the version and `--why` are checked first, and every
+  mise config in the target directory and above it must hold only `[tools]` versions. It writes a
+  line in the root or subject `Brewfile`, or an entry in its `mise.toml` (committing `mise.lock`
+  with it), and commits and pushes the file. Then it installs narrowly: `brew bundle
+  --no-upgrade` on `Brewfile.all`, or `mise install --locked` of that one tool. It never
+  upgrades. Setup and the hourly upkeep hook install what the repository declares, so a
+  declaration on one Mac reaches every clone through git. `board tools list` shows them, and
   nothing is uninstalled.
+- A Brewfile line that is not a bare `tap`, `brew` or `cask` with a checked name never reaches
+  `Brewfile.all`: it shows as `refused Brewfile line` in `board doctor` and `atlas-brew status`.
+  A mise directory whose configs hold anything but `[tools]` versions is never installed by
+  setup or the hook, and shows as refused.
 - Turn on automatic login, so the LaunchAgents come back after a reboot.
 - The DeepSeek key is `DEEPSEEK_API_KEY` in the environment, else in
   `~/.config/tutor-board/keys.env`, else the file `~/.config/api-keys/deepseek_key`. A file other
@@ -146,10 +157,11 @@ Atlas's part is `upkeep.d/hook`, which runs `scripts/brew-upgrade.py`:
 - After brew moves, it re-syncs a subject's broken `.venv` and reinstalls the board's LaunchAgent
   whose interpreter is gone. TeX and the board's reachability are reported, never touched.
 - Its toolchain phase runs uv's Pythons, `mise install --locked` in Atlas's own root and every
-  subject with a `mise.toml` (running `mise lock` first when `mise.lock` is missing or older
-  than `mise.toml`), `mise prune --tools` of the tools those files name (never a bare prune,
+  subject with a `mise.toml`, `mise prune --tools` of the tools those files name (never a bare prune,
   which reaches the owner's other projects), and `scripts/tools.sh update`. The pins it installs
-  are the declarations committed on whichever Mac made them.
+  are the declarations committed on whichever Mac made them. It runs `mise lock` first only
+  when `mise.lock` is missing, `mise.toml` or `mise.lock` differs from HEAD, or a pinned tool
+  has no lock entry (`lock_stale`), so a clean clone is never re-locked.
 - A failed tool shows as `tool:<name>`, and a mise pin behind (`mise outdated --json --bump
   --local` gives it a `bump`) as `pin behind`, in `atlas-brew status`, `board doctor` and on home.
   A pin behind is also in that subject's session brief, so the session proposes the bump: a

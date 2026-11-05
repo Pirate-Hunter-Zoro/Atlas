@@ -17,6 +17,7 @@
 // is up; `opencode run` and other subcommands never adopt. Within one process the registry is
 // global (globalThis), so plugin instances for several directories share it.
 import { tool } from "@opencode-ai/plugin";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn, execFile, execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
@@ -636,22 +637,14 @@ function waitIdle(sessionID: string, directory: string, startedAt: number, signa
   });
 }
 
-// Reads only the newest messages: opencode 1.19.5 cannot list a user message that carried a
-// json_schema format, so a full listing of a schema child session fails.
+// The newest assistant message, read around any schema prompt (readSession).
 async function lastAssistant(sessionID: string, directory: string) {
-  const client = clientFor(directory);
-  let lastErr: any;
-  for (const limit of [1, 4, 16, 64]) {
-    const r = await client.session.messages({ path: { id: sessionID }, query: { directory, limit } });
-    if (r?.error) { lastErr = r.error; break; }
-    const msgs: any[] = r?.data ?? [];
-    for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].info?.role === "assistant") return msgs[i];
-    if (msgs.length < limit) return undefined;
-  }
-  if (lastErr) {
-    const { msgs } = await newestMessages(client, sessionID, directory, 64);
-    for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i].info?.role === "assistant") return msgs[i];
-    throw new Error(`could not read session ${sessionID}: ${JSON.stringify(lastErr).slice(0, 300)}`);
+  const isReply = (m: any) => m?.info?.role === "assistant";
+  for (const want of [1, 16, 64]) {
+    const { msgs, hidden, error } = await readSession(clientFor(directory), sessionID, directory, want, isReply);
+    for (let i = msgs.length - 1; i >= 0; i--) if (isReply(msgs[i])) return msgs[i];
+    if (error) throw new Error(`could not read session ${sessionID}: ${error}`);
+    if (msgs.length + hidden < want) return undefined;
   }
   return undefined;
 }
@@ -760,7 +753,7 @@ function parseJsonText(text: string) {
 
 async function runWorkflow(opts: {
   run: string; code: string; isModule: boolean; scriptPath?: string; args: any;
-  session: string; directory: string; signal: AbortSignal;
+  session: string; directory: string; signal: AbortSignal; ledger: VerdictLedger;
 }) {
   const runDir = join(STATE_DIR, "workflows", opts.run);
   mkdirSync(runDir, { recursive: true });
@@ -775,7 +768,16 @@ async function runWorkflow(opts: {
   }
   const seen = new Map<string, number>();
   const stats = { agents: 0, cached: 0, failed: 0 };
-  let verify: { passed: boolean; verdicts: any[] } | undefined;
+  // Where the script is: its phase, and whether it is in a verify_until_pass verify or fix
+  // stage (and which call and round). Each parallel() thunk and each stage gets its own copy, so
+  // concurrent units never see each other's phase or round.
+  const scope = new AsyncLocalStorage<Marks>();
+  const top: Marks = { phase: "", inVerify: false, inFix: false };
+  const here = () => scope.getStore() ?? top;
+  const within = <T>(over: Partial<Marks>, fn: () => T): T => scope.run({ ...here(), ...over }, fn);
+  let loops = 0;
+  const vt: VerifyTrail = { objects: new WeakSet(), json: new Set() };
+  const ledger = opts.ledger;
   const client = clientFor(opts.directory);
   const children = new Set<string>();
   opts.signal.addEventListener("abort", () => {
@@ -785,19 +787,45 @@ async function runWorkflow(opts: {
     const line = parts.map((p) => (typeof p === "string" ? p : JSON.stringify(p))).join(" ");
     appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`);
   };
-  const phase = (name: string) => wlog(`== phase: ${name}`);
+  const phase = (name: string) => { here().phase = String(name ?? ""); wlog(`== phase: ${name}`); };
 
   async function agent(prompt: string, o: AgentOpts = {}) {
+    // A read-only agent (verdictAgent) outside a fix stage: any fail it returns counts. It is a
+    // verify agent, whose pass counts too, inside a phase named verify or a verify stage. A
+    // verifier or reviewer by type is judged as one wherever it runs: a reply naming no verdict,
+    // or no reply, is a fail even outside a verify phase.
+    const m = here();
+    const judged = verdictAgent(o) && !m.inFix;
+    const verifying = judged && (m.inVerify || verifyPhase(m.phase));
+    const byType = judged && VERIFY_TYPES.has(agentName(o.agent));
+    // The verify_until_pass call and round this agent belongs to, fixed when it starts.
+    const at = verifying ? m.loop : undefined;
+    try {
+      // A verify agent always runs live: a verdict replayed from the journal is no verification.
+      const { result, cached } = await runAgent(prompt, o, verifying);
+      // A verify agent's reply that names no verdict is a fail: a verifier that cannot say pass
+      // has not passed.
+      if (verifying && !cached) ledger.add(noteVerifyResult(vt, m.round, replyVerdicts(result, true)), at?.id, at?.round);
+      // Any other read-only agent's fail counts, replayed or not, and its pass never does.
+      else if (judged) ledger.add(replyVerdicts(result, byType).filter((v) => !isPass(v)));
+      return result;
+    } catch (e: any) {
+      if (verifying || byType) ledger.add([{ verdict: "fail", reason: `the verify agent did not finish: ${e?.message ?? e}` }], at?.id, at?.round);
+      throw e;
+    }
+  }
+
+  async function runAgent(prompt: string, o: AgentOpts, live: boolean): Promise<{ result: any; cached: boolean }> {
     if (opts.signal.aborted) throw new Error("workflow aborted");
     const base = hash(JSON.stringify([prompt, o.agent ?? "", o.schema ?? null, o.model ?? "", o.think ?? false, ...(o.readonly ? [true] : [])]));
     const n = (seen.get(base) ?? 0) + 1;
     seen.set(base, n);
     const key = `${base}#${n}`;
     const label = o.label ?? prompt.slice(0, 60).replace(/\s+/g, " ");
-    if (journal.has(key)) {
+    if (journal.has(key) && !live) {
       stats.cached++;
       wlog(`agent (journal) ${label}`);
-      return journal.get(key);
+      return { result: journal.get(key), cached: true };
     }
     stats.agents++;
     const directory = o.cwd ? resolve(opts.directory, o.cwd) : opts.directory;
@@ -808,8 +836,8 @@ async function runWorkflow(opts: {
     const id = created?.data?.id;
     if (!id) throw new Error(`could not create agent session: ${JSON.stringify(created?.error ?? {})}`);
     children.add(id);
-    guards.set(id, { ...guardOf(id), parent: opts.session });
-    const readonly = o.readonly ? "readonly: true" : o.agent && READONLY_AGENTS.has(o.agent) ? `@${o.agent}` : undefined;
+    guards.set(id, { ...guardOf(id), parent: opts.session, created: Date.now(), workflow: opts.run });
+    const readonly = o.readonly ? "readonly: true" : READONLY_AGENTS.has(agentName(o.agent)) ? `@${agentName(o.agent)}` : undefined;
     if (readonly) markReadonly(id, readonly);
     const lead = readonly ? "You are read-only: every edit, file write and git write is refused. Read, run read-only checks, and report.\n\n" : "";
     const attempts = (o.retries ?? 2) + 1;
@@ -822,9 +850,13 @@ async function runWorkflow(opts: {
       if (model) body.model = model;
       if (o.variant) body.variant = o.variant;
       if (o.schema && !o.think) {
-        // No retryCount: the server accepts it but then fails to list the session's messages.
+        // opencode 1.19.5 cannot list a message sent with this format, so the plugin names the
+        // message itself and records it: its own reads page around it (readSession).
         body.format = { type: "json_schema", schema: o.schema };
         body.variant = o.variant ?? "nothink";
+        const mid = messageId();
+        body.messageID = mid.id;
+        noteSchemaPrompt(id, mid.id, mid.time);
       } else if (o.schema) {
         body.parts[0].text += `\n\nReply with only a JSON value matching this JSON schema, no prose:\n${JSON.stringify(o.schema)}`;
       }
@@ -858,12 +890,12 @@ async function runWorkflow(opts: {
         continue;
       }
       journal.set(key, result);
-      appendFileSync(journalPath, JSON.stringify({ key, label, ok: true, session: id, result, prompt }) + "\n");
+      appendFileSync(journalPath, JSON.stringify({ key, label, ok: true, session: id, result, prompt, schema: !!o.schema && !o.think }) + "\n");
       wlog(`agent done ${label}`);
-      return result;
+      return { result, cached: false };
     }
     stats.failed++;
-    appendFileSync(journalPath, JSON.stringify({ key, label, ok: false, session: id, error: lastErr, prompt }) + "\n");
+    appendFileSync(journalPath, JSON.stringify({ key, label, ok: false, session: id, error: lastErr, prompt, schema: !!o.schema && !o.think }) + "\n");
     throw new Error(`agent "${label}" failed: ${lastErr}`);
   }
 
@@ -875,7 +907,7 @@ async function runWorkflow(opts: {
       while (next < thunks.length) {
         const i = next++;
         try {
-          out[i] = await thunks[i]();
+          out[i] = await within({}, () => thunks[i]());
         } catch (e: any) {
           if (!o.settle) throw e;
           out[i] = { error: e?.message ?? String(e) };
@@ -915,7 +947,8 @@ async function runWorkflow(opts: {
   }
 
   // Verify, and while any verdict fails: fix with the failures, then verify again with fresh
-  // agents, for at most `max` fix rounds. Each round's verdicts go to the commit gate.
+  // agents, for at most `max` fix rounds. Each round's verdicts go to the commit gate, and a
+  // round that passes supersedes this call's earlier rounds, and nothing else.
   async function verify_until_pass(
     fixStage: (failures: any[], ctx: { round: number; verdicts: any[] }) => any,
     verifyStage: (ctx: { round: number; failures: any[] }) => any,
@@ -926,21 +959,41 @@ async function runWorkflow(opts: {
     }
     const max = Math.max(0, Math.floor(o.max ?? 3));
     const rounds: Array<{ round: number; verdicts: any[]; fix?: any }> = [];
-    let failures: any[] = [];
+    let failures: any[] = [], last: any[] = [];
+    // Each stage runs in its own scope: the script's phase is untouched, and a call running
+    // beside this one (parallel units) keeps its own round.
+    const loop = ++loops;
     for (let round = 1; ; round++) {
-      phase(`verify (round ${round})`);
-      const verdicts = collectVerdicts(await verifyStage({ round, failures }), true);
-      if (!verdicts.length) throw new Error(`verify_until_pass: round ${round}'s verify stage returned no verdict; return objects with verdict: "pass" or "fail"`);
+      const mine: RoundTrail = { objects: new WeakSet(), json: new Map() };
+      const name = `verify (round ${round})`;
+      wlog(`== phase: ${name}`);
+      const raw = collectVerdicts(await within({ phase: name, inVerify: true, round: mine, loop: { id: loop, round } },
+        () => verifyStage({ round, failures })), true);
+      // A fail counts from anywhere; a pass only when a verify agent returned it in this round.
+      const verdicts = raw.filter((v) => !isPass(v) || fromRound(mine, v));
+      if (raw.length > verdicts.length) wlog(`verify round ${round}: ${raw.length - verdicts.length} pass verdicts no verify agent returned were ignored`);
+      // A verdict the plugin read from a verify agent's prose, or the fail it gave one that named
+      // none, counts in this round whether or not the stage returned the reply.
+      for (const e of ledger.entries) {
+        if (e.loop === loop && e.round === round && MADE.has(e.v) && !verdicts.includes(e.v)) verdicts.push(e.v);
+      }
+      if (!verdicts.length) {
+        throw new Error(`verify_until_pass: round ${round}'s verify stage returned no verdict from a verify agent; ` +
+          `start read-only agents there (agent: "verifier" or readonly: true) and return the objects they returned, each with verdict: "pass" or "fail"`);
+      }
       failures = verdicts.filter((v) => !isPass(v));
-      recordVerdicts(opts.session, verdicts, opts.run, round);
-      verify = { passed: failures.length === 0, verdicts };
+      ledger.add(verdicts, loop, round);
+      ledger.roundDone(loop, round);
+      last = verdicts;
       rounds.push({ round, verdicts });
       wlog(`verify round ${round}: ${verdicts.length - failures.length} pass, ${failures.length} fail`);
       if (!failures.length || round > max) break;
-      phase(`fix (round ${round})`);
-      rounds[rounds.length - 1].fix = await fixStage(failures, { round, verdicts });
+      wlog(`== phase: fix (round ${round})`);
+      const fv = failures;
+      rounds[rounds.length - 1].fix = await within({ phase: `fix (round ${round})`, inFix: true, inVerify: false, round: undefined, loop: undefined },
+        () => fixStage(fv, { round, verdicts }));
     }
-    return { passed: failures.length === 0, verdicts: verify!.verdicts, failures, rounds };
+    return { passed: failures.length === 0, verdicts: last, failures, rounds };
   }
 
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -956,24 +1009,149 @@ async function runWorkflow(opts: {
     const fn = new AsyncFunction(...Object.keys(api), opts.code);
     result = await fn(...Object.values(api));
   }
-  return { result, stats, verify };
+  return { result, stats, trail: vt };
 }
 
-// result.json carries the final verify verdicts. A run without verify_until_pass records any
-// verdicts its result carries (a top-level `verdicts` array first).
-function settleVerdicts(result: any, verify: { passed: boolean; verdicts: any[] } | undefined, session: string, run: string) {
-  let verdicts: any[];
-  if (verify) {
-    verdicts = verify.verdicts;
+// What verify agents returned in one run: the objects themselves and their verdicts as JSON
+// (so a copied verdict is still known as theirs).
+// RoundTrail: what verify agents returned in one verify_until_pass round; a copy counts once per
+// verdict a verify agent returned, so an earlier round's pass cannot be replayed.
+type RoundTrail = { objects: WeakSet<object>; json: Map<string, number> };
+type VerifyTrail = { objects: WeakSet<object>; json: Set<string> };
+// Where a workflow script is (runWorkflow's scope): loop is the verify_until_pass call and round
+// whose verify stage is running, round what its verify agents returned so far.
+type Marks = { phase: string; inVerify: boolean; inFix: boolean; round?: RoundTrail; loop?: { id: number; round: number } };
+
+// Notes the verdicts a verify agent returned and gives them back.
+function noteVerifyResult(vt: VerifyTrail, round: RoundTrail | undefined, out: any[]): any[] {
+  for (const v of out) {
+    vt.objects.add(v);
+    vt.json.add(JSON.stringify(v));
+    if (round) {
+      round.objects.add(v);
+      const j = JSON.stringify(v);
+      round.json.set(j, (round.json.get(j) ?? 0) + 1);
+    }
+  }
+  return out;
+}
+
+const fromVerifier = (vt: VerifyTrail, v: any) =>
+  v !== null && typeof v === "object" && (vt.objects.has(v) || vt.json.has(JSON.stringify(v)));
+
+function fromRound(r: RoundTrail, v: any): boolean {
+  if (v === null || typeof v !== "object") return false;
+  const j = JSON.stringify(v), n = r.json.get(j) ?? 0;
+  if (n > 0) r.json.set(j, n - 1);
+  return n > 0 || r.objects.has(v);
+}
+
+// A phase named verify: its name starts with verify, verification, verifier or re-verify.
+// Hyphens and underscores read as spaces. What the phase also does is not judged here: only a
+// read-only agent's verdict counts, and a read-only agent cannot build or fix.
+function verifyPhase(name: string): boolean {
+  return /^\W*(re\s?)?verif(y|ying|ication|ications|ier|iers|ies)\b/i.test(String(name).replace(/[-_]+/g, " "));
+}
+
+// The agents whose verdict can count: read-only by type or by readonly: true. A builder or
+// fixer type never counts, even when started read-only, because it is briefed to change files.
+const VERDICT_AGENTS = new Set(["verifier", "reviewer", "structured"]);
+const BUILDER_AGENTS = new Set(["worker", "fixer", "build"]);
+// Verify agents by type: briefed to judge, so a reply naming no verdict is a fail in any phase.
+const VERIFY_TYPES = new Set(["verifier", "reviewer"]);
+function verdictAgent(o: AgentOpts): boolean {
+  const name = agentName(o.agent);
+  if (BUILDER_AGENTS.has(name)) return false;
+  return o.readonly === true || VERDICT_AGENTS.has(name);
+}
+
+// One workflow run's verify verdicts, as the commit gate reads them. Each verify agent's verdict
+// is saved the moment it returns, so a run that throws, is cancelled or crashes afterwards keeps
+// it. A verdict stands unless a later round of the same verify_until_pass call passed: phases,
+// units and separate calls never supersede each other. A resumed run is a new run here. The run
+// is done once it returns; until then (and for ever, if it throws, is cancelled or crashes) its
+// record decides over no other run's fail, though its own fails hold.
+type Entry = { v: any; loop?: number; round?: number; at: number };
+class VerdictLedger {
+  entries: Entry[] = [];
+  // verify_until_pass call -> its newest round that finished with every verdict pass.
+  passed = new Map<number, number>();
+  start: number;
+  done = false;
+  exec: string;
+  session: string;
+  run: string;
+  constructor(session: string, run: string, start = Date.now()) {
+    this.session = session;
+    this.run = run;
+    this.start = start;
+    this.exec = `${run}@${this.start}@${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  finish() {
+    this.done = true;
+    this.save();
+  }
+
+  holds(v: any, loop?: number, round?: number, any = false) {
+    const j = JSON.stringify(v);
+    return this.entries.some((e) => (any || (e.loop === loop && e.round === round)) && (e.v === v || JSON.stringify(e.v) === j));
+  }
+
+  add(vs: any[], loop?: number, round?: number) {
+    const fresh = vs.filter((v) => v !== null && typeof v === "object" && !this.holds(v, loop, round));
+    if (!fresh.length) return;
+    const at = Date.now();
+    for (const v of fresh) this.entries.push({ v, loop, round, at });
+    this.save();
+  }
+
+  roundDone(loop: number, round: number) {
+    const mine = this.entries.filter((e) => e.loop === loop && e.round === round);
+    if (!mine.length || !mine.every((e) => isPass(e.v))) return;
+    this.passed.set(loop, Math.max(round, this.passed.get(loop) ?? 0));
+    this.save();
+  }
+
+  standingEntries() {
+    return this.entries.filter((e) => e.loop === undefined || (this.passed.get(e.loop) ?? 0) <= e.round!);
+  }
+
+  standing() { return this.standingEntries().map((e) => e.v); }
+
+  save() {
+    if (!this.entries.length) return;
+    const fails = this.standingEntries().filter((e) => !isPass(e.v));
+    const rec: Verdicts = {
+      at: fails.length ? Math.max(...fails.map((e) => e.at)) : this.start, start: this.start, run: this.run, exec: this.exec,
+      pass: fails.length === 0, done: this.done, failed: fails.map((e) => verdictText(e.v, 2000)),
+    };
+    const g = guardOf(this.session, true);
+    const all = [...(g.verdicts ?? []).filter((x) => x.exec !== this.exec), rec];
+    // Every run that still holds the gate is kept; of the rest, the newest 20.
+    const holding = all.filter((r) => holds(r, all));
+    const rest = all.filter((r) => !holds(r, all)).sort((a, b) => (a.start ?? a.at) - (b.start ?? b.at)).slice(-20);
+    g.verdicts = [...holding, ...rest];
+    saveGuard(this.session, g);
+  }
+}
+
+// result.json carries the run's standing verify verdicts. A fail the result carries that no
+// verify agent returned is added to them. A pass in the result that no verify agent returned
+// (the script's own value, a builder's or fixer's report) is ignored.
+function settleVerdicts(result: any, ledger: VerdictLedger, vt: VerifyTrail) {
+  const carried = collectVerdicts(Array.isArray(result?.verdicts) ? result.verdicts : result);
+  const counted = (v: any) => fromVerifier(vt, v);
+  const ignored = carried.filter((v) => isPass(v) && !counted(v)).length;
+  ledger.add(carried.filter((v) => !isPass(v) && !counted(v) && !ledger.holds(v, undefined, undefined, true)));
+  const verdicts = ledger.standing();
+  if (verdicts.length) {
     const plain = result && typeof result === "object" && !Array.isArray(result);
-    if (plain && !("verdicts" in result) && !("verify_verdicts" in result)) result = { ...result, verify_verdicts: verdicts };
+    if (plain && !("verify_verdicts" in result)) result = { ...result, verify_verdicts: verdicts };
     else if (!plain) result = { result, verify_verdicts: verdicts };
-  } else {
-    verdicts = collectVerdicts(Array.isArray(result?.verdicts) ? result.verdicts : result);
-    recordVerdicts(session, verdicts, run);
   }
   const failed = verdicts.filter((v) => !isPass(v));
-  return { result, verdict: verdicts.length ? (failed.length ? "fail" : "pass") : undefined, failed };
+  return { result, verdict: verdicts.length ? (failed.length ? "fail" : "pass") : undefined, failed, ignored };
 }
 
 // ---------------------------------------------------------------- notify
@@ -996,14 +1174,33 @@ function notifyDesktop(title: string, message: string) {
 // Per-session state (agent, read-only, /ultracode read budget, verify verdicts) lives in
 // guard/<session>.json, so the commit gate holds across processes and restarts.
 
-type Verdicts = { at: number; run?: string; round?: number; pass: boolean; failed: string[] };
+// One run's standing verify verdicts (a workflow run, or one reply of a verifier subagent).
+// at: when its newest standing fail arrived (an owner's "ship over it" after that lifts it);
+// start: when the run started; done: the run returned.
+type Verdicts = { at: number; start?: number; run?: string; exec?: string; round?: number; pass: boolean; done?: boolean; failed: string[] };
+
+// Whether a run's record may decide over another run's fail: only a run that returned. One that
+// threw, was cancelled or crashed (or is still going) never re-verified what it did not reach.
+const decides = (s: Verdicts) => s.done === true;
+
+// A run's standing fail holds the gate until a done run that started after it arrived produces
+// a verify verdict: that run decides. A run started before the fail (a unit run beside it, in
+// the background) never lifts it, however late its own verdicts arrive.
+function holds(r: Verdicts, all: Verdicts[]): boolean {
+  return !r.pass && !all.some((s) => s !== r && decides(s) && (s.exec === undefined || s.exec !== r.exec) && (s.start ?? s.at) >= r.at);
+}
 type Guard = {
   agent?: string; readonly?: string; ultracode?: boolean; reads?: number; planned?: boolean;
-  parent?: string | null; verdicts?: Verdicts[]; override_at?: number;
+  parent?: string | null; verdicts?: Verdicts[]; override_at?: number; id?: string;
+  // When the session was created; a workflow's own agent session (by run); when a verifier or
+  // reviewer subagent was last prompted, until its reply is read.
+  created?: number; workflow?: string; asked_at?: number;
 };
 
 const GUARD_DIR = join(STATE_DIR, "guard");
+// Agents read-only by name, whatever their permissions say.
 const READONLY_AGENTS = new Set(["reviewer", "verifier", "structured", "explore"]);
+const agentName = (name: unknown) => String(name ?? "").trim().replace(/^@/, "").toLowerCase();
 const READ_TOOLS = new Set(["read", "grep", "glob", "list", "lsp", "bash", "bg_shell", "monitor", "bg_output", "session_read",
   "webfetch", "websearch", "codesearch"]);
 const READ_BUDGET = 5;
@@ -1031,7 +1228,8 @@ function saveGuard(session: string, g: Guard) {
   try {
     mkdirSync(GUARD_DIR, { recursive: true });
     const tmp = `${guardFile(session)}.${process.pid}.tmp`;
-    writeFileSync(tmp, JSON.stringify(g));
+    // The id, because the file name escapes it: the commit gate finds a descendant's verdicts here.
+    writeFileSync(tmp, JSON.stringify({ ...g, id: session }));
     renameSync(tmp, guardFile(session));
   } catch (e: any) {
     log(`guard state for ${session} not saved: ${e?.message ?? e}`);
@@ -1190,14 +1388,48 @@ function braceExpand(word: string, cap = 64): string[] {
 
 type Vars = Map<string, string>;
 
-const expandTilde = (w: string) => (w === "~" || w.startsWith("~/") ? home() + w.slice(1) : w);
+// ~user is that user's home, as the shell finds it: /var/root for root, else /Users/<user>.
+const userHome = (name: string) => (name === "root" ? "/var/root" : join("/Users", name));
+const expandTilde = (w: string) => {
+  if (w === "~" || w.startsWith("~/")) return home() + w.slice(1);
+  const m = w.match(/^~([A-Za-z_][\w.-]*)(\/[\s\S]*)?$/);
+  return m ? userHome(m[1]) + (m[2] ?? "") : w;
+};
 // A variable whose value the guard cannot know (a loop variable, `read` from a pipe).
 const UNKNOWN = "$__parity_unknown__";
 
-// A shell word as a path: ~, ~+, $HOME, $PWD, $(pwd), $(git rev-parse --show-toplevel),
-// $(echo words) and variables the same call assigned are expanded, and a relative word
-// resolves against cwd. A word that still holds another variable cannot be resolved and comes
-// back undefined.
+// A substitution that opens a word, $(...) or `...`: its text and where it ends.
+function leadingSub(w: string): [string, number] | undefined {
+  if (w.startsWith("$(") && !w.startsWith("$((")) {
+    let depth = 1, q: string | null = null;
+    for (let j = 2; j < w.length; j++) {
+      const c = w[j];
+      if (q) { if (c === q) q = null; else if (c === "\\" && q === '"') j++; continue; }
+      if (c === "'" || c === '"') q = c;
+      else if (c === "\\") j++;
+      else if (c === "(") depth++;
+      else if (c === ")" && --depth === 0) return [w.slice(2, j), j + 1];
+    }
+    return undefined;
+  }
+  if (w.startsWith("`")) {
+    const k = w.indexOf("`", 1);
+    return k > 0 ? [w.slice(1, k), k + 1] : undefined;
+  }
+  return undefined;
+}
+
+// A substitution that prints the home directory: a printer of it (echo, printf, realpath,
+// readlink, cd ... pwd, eval, an interpreter's one-liner) whose text names it: ~ or ~$USER,
+// $HOME in any form, a bare cd, or code asking for it (expanduser, homedir, Path.home).
+const HOME_PRINTERS = /^\s*(echo|printf|realpath|readlink|cd|eval|python3?|node|perl|ruby|dscl|getent)\b/;
+const HOMEISH = /(^|[\s=:'"(])~(?=$|[\s\/'")]|\$\{?(USER|LOGNAME)\b)|\$\{?HOME\b|^\s*cd\s*($|;|&&|\|\|)|\bexpanduser\b|\bhomedir\b|\bPath\.home\b|\bgetpwuid\b/;
+
+// A shell word as a path: ~, ~user, ~+, $HOME and ${HOME...} in any form, $PWD, $(pwd),
+// $(git rev-parse --show-toplevel), $(echo words), $(cd dir && pwd), a substitution that
+// opens the word and names the home directory, and variables the same call assigned are
+// expanded, and a relative word resolves against cwd. A word that still holds another variable
+// cannot be resolved and comes back undefined.
 function expandVars(word: string, cwd: string, vars?: Vars): string {
   let w = expandTilde(word);
   if (w === "~+" || w.startsWith("~+/")) w = cwd + w.slice(2);
@@ -1206,12 +1438,21 @@ function expandVars(word: string, cwd: string, vars?: Vars): string {
   w = w.replace(/\$\(\s*git\s+rev-parse\s+--show-toplevel\s*\)|`\s*git\s+rev-parse\s+--show-toplevel\s*`/g, (m) => repoRoot(cwd) ?? m);
   w = w.replace(/\$\(\s*echo\s+([^()$`;|&<>]*)\)|`\s*echo\s+([^()$`;|&<>]*)`/g, (m, a, b) =>
     (tokenize(a ?? b)[0]?.words ?? []).filter((x) => x !== "-n").map(expandTilde).join(" "));
-  w = w.replace(/\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/g, (m, name) => {
-    if (vars?.has(name)) return vars.get(name)!;
+  w = w.replace(/\$\(\s*cd\s+([^()$`;|&<>\s]+)\s*(?:&&|;)\s*pwd\s*\)/g, (m, d) => {
+    const e = expandVars(d, cwd, vars);
+    return /[$`]/.test(e) ? m : resolve(cwd, e);
+  });
+  const lead = leadingSub(w);
+  if (lead && HOME_PRINTERS.test(lead[0]) && HOMEISH.test(lead[0])) w = home() + w.slice(lead[1]);
+  w = w.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)([^{}]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (m, braced, op, bare) => {
+    const name = braced ?? bare;
+    // HOME in any form (${HOME:-x}, ${HOME%/}, ${HOME/a/b}) is taken as HOME.
     if (name === "HOME") return home();
-    if (name === "PWD") return cwd;
-    if (name === "TMPDIR") return (process.env.TMPDIR || "/tmp").replace(/\/$/, "");
-    return m;
+    const v = vars?.has(name) ? vars.get(name)! : name === "PWD" ? cwd :
+      name === "TMPDIR" ? (process.env.TMPDIR || "/tmp").replace(/\/$/, "") : undefined;
+    if (v === undefined) return m;
+    if (!op) return v;
+    return /^:?[-=?]/.test(op) && v !== "" ? v : m;
   });
   return expandTilde(w);
 }
@@ -1248,18 +1489,31 @@ function keyPlistIn(dir: string, re?: RegExp) {
   return undefined;
 }
 
-// Where credentials live, canonical. Each is a directory or file a model must never read, copy or print.
-function credentialRoots() {
-  const h = home();
-  return {
-    auth: canon(join(h, ".local", "share", "opencode", "auth.json")),
-    dirs: [
-      [canon(join(h, ".ssh")), "SSH keys"],
-      [canon(join(h, ".config", "rclone")), "rclone's config"],
-      [canon(join(h, ".config", "media-syncer")), "media-syncer's config"],
-      [canon(join(h, ".config", "api-keys")), "the API key store"],
-    ] as Array<[string, string]>,
-  };
+// The homes a path may reach, canonical: the owner's, the one the path is in (/Users/<user>,
+// /var/root), and every home when the path holds /Users or /var/root.
+function homesNear(p?: string): string[] {
+  const out = new Set([canon(home())]);
+  if (p) {
+    const m = p.match(/^\/users\/[^\/]+/) ?? p.match(/^(\/private)?\/var\/root(?=\/|$)/);
+    if (m) out.add(m[0].startsWith("/var") ? "/private" + m[0] : m[0]);
+    if (under("/users", p) || under("/private/var/root", p) || p === "/var") {
+      out.add("/private/var/root");
+      try { for (const n of readdirSync("/Users")) if (!n.startsWith(".")) out.add(canon(join("/Users", n))); } catch {}
+    }
+  }
+  return [...out];
+}
+
+// Where credentials live, canonical, in every home near p. Each is a directory or file a model
+// must never read, copy or print.
+function credentialRoots(p?: string) {
+  const auths: string[] = [], dirs: Array<[string, string]> = [];
+  for (const h of homesNear(p)) {
+    auths.push(join(h, ".local", "share", "opencode", "auth.json"));
+    dirs.push([join(h, ".ssh"), "SSH keys"], [join(h, ".config", "rclone"), "rclone's config"],
+      [join(h, ".config", "media-syncer"), "media-syncer's config"], [join(h, ".config", "api-keys"), "the API key store"]);
+  }
+  return { auths, dirs };
 }
 
 const AUTH_WHAT = "OpenCode's auth.json, which holds the DeepSeek key";
@@ -1274,8 +1528,8 @@ function credentialOf(raw: string, expand = true): string | undefined {
   const p = real.toLowerCase();
   const glob = GLOB_CHARS.test(p);
   const re = glob ? globRegex(p) : undefined;
-  const { auth, dirs } = credentialRoots();
-  if (re ? re.test(auth) : p === auth) return AUTH_WHAT;
+  const { auths, dirs } = credentialRoots(p);
+  if (auths.some((auth) => (re ? re.test(auth) : p === auth))) return AUTH_WHAT;
   const prefix = glob ? p.split(/[*?[]/)[0] : p;
   const base = basename(p);
   for (const [dir, what] of dirs) {
@@ -1316,8 +1570,8 @@ function holdsCredential(raw: string): string | undefined {
     return undefined;
   }
   const p = canon(raw);
-  const { auth, dirs } = credentialRoots();
-  for (const target of [auth, ...dirs.map(([d]) => d)]) {
+  const { auths, dirs } = credentialRoots(p);
+  for (const target of [...auths, ...dirs.map(([d]) => d)]) {
     if (under(target, p) && target !== p) return `${raw}, which holds ${credentialOf(target, false)}`;
   }
   const plist = keyPlistIn(realish(raw));
@@ -1338,13 +1592,15 @@ type Raw = { words: string[]; redirs: Redir[]; code: string[]; piped?: Raw };
 // feeder: the command piping into this one; opaque: it runs code from stdin the guard cannot
 // read; assigns: NAME=value words stripped from its front; links: symlinks and hard links the
 // call made, link -> what it names; written: text the call wrote to a file, by path.
+// lister: for a command inside a shell that xargs runs, the command piping into that xargs.
 type Shared = { links: Map<string, { named: string; seq: number }>; written: Map<string, string>; seq: number; aliases?: Map<string, string> };
 type Cmd = {
   words: string[]; redirs: Redir[]; code: string[]; cwd: string; vars: Vars; xargs?: boolean; stdin: string[]; scope?: string[];
   feeder?: { words: string[]; cwd: string; vars: Vars }; opaque?: boolean; assigns: string[]; shared: Shared; seq?: number;
+  argFiles?: string[]; reads?: string[]; lister?: { words: string[]; cwd: string; vars: Vars };
 };
 
-const KEYWORDS = new Set(["if", "then", "else", "elif", "while", "until", "do", "!", "{", "time", "}", "fi", "done", "esac"]);
+const KEYWORDS = new Set(["if", "then", "else", "elif", "while", "until", "do", "!", "{", "}", "fi", "done", "esac"]);
 const ANSI_ESC: Record<string, string> = {
   n: "\n", t: "\t", r: "\r", a: "\x07", b: "\b", e: "\x1b", E: "\x1b", f: "\f", v: "\v", "\\": "\\", "'": "'", '"': '"', "?": "?",
 };
@@ -1545,14 +1801,36 @@ const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
 const INTERPRETERS = /^(python(\d(\.\d+)?)?|node|nodejs|perl|ruby|bun|deno|osascript)$/;
 const ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 
+// Runners that run the command after their options: the options that take a value, and the
+// ones that move the directory (chdir), read a file (reads), run a shell string (shell) or run
+// a module (module). Ones marked tools take tool specs up to a `--` before the command.
+type Runner = { sub?: string; valued: RegExp; chdir?: RegExp; reads?: RegExp; shell?: RegExp; module?: RegExp; tools?: boolean };
+const RUNNERS: Record<string, Runner> = {
+  uv: { sub: "run", valued: /^(--with|--with-editable|--with-requirements|-p|--python|--project|--directory|--package|--extra|--group|--only-group|--no-group|--index|--default-index|--index-url|--extra-index-url|-i|--find-links|-f|--env-file|--config-file|--cache-dir|--python-preference|--resolution|--prerelease|--exclude-newer|--index-strategy|--keyring-provider|--link-mode|--refresh-package|--reinstall-package|-P|--upgrade-package|--no-binary-package|--no-build-package|--color|--allow-insecure-host|-C|--config-setting)$/,
+    chdir: /^--directory$/, reads: /^--env-file$/, module: /^(-m|--module)$/ },
+  uvx: { valued: /^(--from|--with|--with-editable|--with-requirements|-p|--python|--index|--default-index|--index-url|--extra-index-url|-i|--find-links|-f|--cache-dir|--color|-C|--config-setting)$/ },
+  mise: { sub: "exec|x", valued: /^(-C|--cd|-c|--command|-j|--jobs|-E|--env)$/, chdir: /^(-C|--cd)$/, shell: /^(-c|--command)$/, tools: true },
+  poetry: { sub: "run", valued: /^(-C|--directory|-P|--project)$/, chdir: /^(-C|--directory)$/ },
+  pipx: { sub: "run", valued: /^(--spec|--python|--pip-args|--index-url|--fetch-python)$/ },
+  npx: { valued: /^(-p|--package|-c|--call|--prefix|--registry|--cache|-w|--workspace)$/, shell: /^(-c|--call)$/ },
+  bunx: { valued: /^(-p|--package)$/ },
+  pnpx: { valued: /^(--package)$/ },
+  pnpm: { sub: "exec|dlx", valued: /^(--package|-C|--dir|--filter|-F)$/, chdir: /^(-C|--dir)$/, shell: /^(-c|--shell-mode)$/ },
+  yarn: { sub: "dlx|exec", valued: /^(-p|--package)$/ },
+  npm: { sub: "exec|x", valued: /^(-p|--package|-c|--call|-w|--workspace|--prefix)$/, shell: /^(-c|--call)$/ },
+};
+
 // Strips what runs a command without being it: NAME=value prefixes, sudo, env (its -S string
-// is split into words), command, exec, nice, nohup, time, timeout, xargs and the like. Returns
-// the assignments it stripped and the directory env -C or sudo -D moves to.
-function unwrap(words: string[]): { words: string[]; xargs: boolean; chdir?: string; assigns: string[] } {
+// is split into words), command, exec, nice, nohup, time, timeout, xargs, and the runners above
+// (uv run, mise exec, poetry run, pipx run, npx, bunx and the like). Returns the assignments it
+// stripped, the directory env -C, sudo -D or a runner moves to, the files xargs -a reads its
+// arguments from (argFiles), and other files a wrapper reads (reads).
+function unwrap(words: string[]): { words: string[]; xargs: boolean; chdir?: string; assigns: string[]; argFiles: string[]; reads: string[] } {
   let w = [...words];
   let xargs = false;
   let chdir: string | undefined;
-  const assigns: string[] = [];
+  const assigns: string[] = [], argFiles: string[] = [], reads: string[] = [];
+  const done = () => ({ words: w, xargs, chdir, assigns, argFiles, reads });
   for (let guard = 0; guard < 20 && w.length; guard++) {
     while (w.length && ASSIGN.test(w[0])) assigns.push(w.shift()!);
     while (w.length && KEYWORDS.has(w[0])) w.shift();
@@ -1568,6 +1846,33 @@ function unwrap(words: string[]): { words: string[]; xargs: boolean; chdir?: str
       }
       if (w[0] === "--") w.shift();
     };
+    const runner = RUNNERS[prog];
+    if (runner && (!runner.sub || new RegExp(`^(${runner.sub})$`).test(w[1] ?? ""))) {
+      w.shift();
+      if (runner.sub) w.shift();
+      let shell: string | undefined, module: string | undefined, dashed = false;
+      while (w.length && w[0].startsWith("-") && w[0] !== "-") {
+        const f = w.shift()!;
+        if (f === "--") { dashed = true; break; }
+        const eq = f.match(/^(--[\w-]+)=([\s\S]*)$/);
+        const name = eq ? eq[1] : f;
+        const value = eq ? eq[2] : runner.valued.test(f) && w.length ? w.shift() : undefined;
+        if (value === undefined) continue;
+        if (runner.chdir?.test(name)) chdir = value;
+        else if (runner.reads?.test(name)) reads.push(value);
+        else if (runner.shell?.test(name)) shell = value;
+        else if (runner.module?.test(name)) module = value;
+      }
+      if (shell !== undefined) { w = ["sh", "-c", shell]; break; }
+      if (module !== undefined) { w = ["python", "-m", module, ...w]; break; }
+      if (runner.tools && !dashed) {
+        const k = w.indexOf("--");
+        w = k < 0 ? [] : w.slice(k + 1);
+      }
+      // A package runner names a package, perhaps with a version: its program is the bare name.
+      if (w.length && /^(npx|bunx|pnpx|uvx|pipx|pnpm|yarn|npm)$/.test(prog)) w[0] = w[0].replace(/(?!^)@[^\/]*$/, "");
+      continue;
+    }
     if (prog === "sudo") skipOpts(/^-[ugpChrtUD]$/);
     else if (prog === "env") {
       w.shift();
@@ -1583,20 +1888,40 @@ function unwrap(words: string[]): { words: string[]; xargs: boolean; chdir?: str
       if (w[0] === "--") w.shift();
       while (w.length && ASSIGN.test(w[0])) assigns.push(w.shift()!);
     } else if (prog === "command" || prog === "builtin") {
-      if (w[1] === "-v" || w[1] === "-V") return { words: [], xargs, chdir, assigns };
+      if (w[1] === "-v" || w[1] === "-V") return { ...done(), words: [] };
       skipOpts();
-    } else if (prog === "exec" || prog === "nohup" || prog === "caffeinate" || prog === "stdbuf") skipOpts(/^-[a]$/);
+    } else if (prog === "exec" || prog === "nohup" || prog === "caffeinate" || prog === "stdbuf") skipOpts(/^-[aw]$/);
     else if (prog === "nice") skipOpts(/^-n$/);
+    else if (prog === "time" || prog === "gtime") skipOpts(/^-[of]$/);
     else if (prog === "arch") skipOpts();
     else if (prog === "timeout" || prog === "gtimeout") {
       skipOpts(/^-[sk]$/);
       w.shift();
     } else if (prog === "xargs" || prog === "parallel") {
       xargs = true;
-      skipOpts(/^-[IinPLsEJRd]$/);
+      w.shift();
+      while (w.length && w[0].startsWith("-") && w[0] !== "--") {
+        const f = w.shift()!;
+        if (f === "--arg-file" && w.length) { argFiles.push(w.shift()!); continue; }
+        if (f.startsWith("--arg-file=")) { argFiles.push(f.slice(11)); continue; }
+        if (/^--(delimiter|max-args|max-procs|max-chars|process-slot-var)$/.test(f) && w.length) { w.shift(); continue; }
+        if (f.startsWith("--")) continue;
+        // A cluster of short options (-0a FILE, -ra FILE, -tafile): a, I, E, d, L, n, P, s, J
+        // and R take the rest of the cluster or the next word; i, e and l take only the rest.
+        for (let j = 1; j < f.length; j++) {
+          const ch = f[j];
+          if ("aIEdLnPsJR".includes(ch)) {
+            const v = f.slice(j + 1) || w.shift();
+            if (ch === "a" && v !== undefined) argFiles.push(v);
+            break;
+          }
+          if ("iel".includes(ch)) break;
+        }
+      }
+      if (w[0] === "--") w.shift();
     } else break;
   }
-  return { words: w, xargs, chdir, assigns };
+  return done();
 }
 
 // git subcommands; any other word is an alias, looked up in the repository's config.
@@ -1693,11 +2018,25 @@ function parseCommands(src: string, cwd: string, depth = 0, vars: Vars = new Map
       }
     }
     const fedRaw = raw.piped ? unwrap(raw.piped.words).words : [];
-    const fedByEcho = ["echo", "printf"].includes(basename(fedRaw[0] ?? ""));
+    // A pipe from echo or printf, or from a bare cat fed a here-document or here-string,
+    // carries text the guard can read.
+    const fedByCat = fedRaw.length === 1 && basename(fedRaw[0]) === "cat" &&
+      !!raw.piped && (raw.piped.code.length > 0 || raw.piped.redirs.some((r) => r.op === "<<<"));
+    const fedByEcho = ["echo", "printf"].includes(basename(fedRaw[0] ?? "")) || fedByCat;
     const stdin = [
       ...raw.redirs.filter((r) => r.op === "<<<").map((r) => r.target),
-      ...(fedByEcho ? fedRaw.slice(1) : []),
+      ...(fedByCat ? [...raw.piped!.code, ...raw.piped!.redirs.filter((r) => r.op === "<<<").map((r) => r.target)] :
+        fedByEcho ? fedRaw.slice(1) : []),
     ];
+    // xargs -a FILE takes its arguments from FILE: its text, when it is readable and no credential.
+    if (xargs && un.argFiles.length) {
+      const texts = un.argFiles.map((f) => {
+        const p = wordPath(f, dir, vars);
+        return p && !credentialOf(p, false) ? fileText(p, { shared } as Cmd) : undefined;
+      });
+      stdin.length = 0;
+      if (texts.every((x) => x !== undefined)) stdin.push(...(texts as string[]));
+    }
     const prog0 = basename(words[0] ?? "");
     // Variables a loop or `read` sets: known from a here-string, else unknown.
     if (prog0 === "read" || prog0 === "mapfile" || prog0 === "readarray" || prog0 === "getopts") {
@@ -1719,6 +2058,7 @@ function parseCommands(src: string, cwd: string, depth = 0, vars: Vars = new Map
     const here = un.chdir !== undefined ? wordPath(un.chdir, dir, vars) ?? dir + "/" + UNKNOWN : dir;
     const cmd: Cmd = {
       words, redirs: raw.redirs, code: [...raw.code], cwd: here, vars: new Map(vars), xargs, stdin, assigns: [...assigns, ...un.assigns], shared,
+      argFiles: un.argFiles, reads: un.reads,
       feeder: raw.piped && !fedByEcho ? { words: fedRaw, cwd: dir, vars: new Map(vars) } : undefined, seq: ++shared.seq,
     };
     out.push(cmd);
@@ -1737,8 +2077,20 @@ function parseCommands(src: string, cwd: string, depth = 0, vars: Vars = new Map
     if (depth > 4) continue;
     if (SHELLS.has(prog)) {
       const ci = words.findIndex((x, k) => k > 0 && /^-[a-zA-Z]*c[a-zA-Z]*$/.test(x));
-      if (ci > 0 && words[ci + 1] !== undefined) out.push(...sub(words[ci + 1], here, new Map(vars)));
-      else {
+      if (ci > 0 && words[ci + 1] !== undefined) {
+        const inner = sub(words[ci + 1], here, new Map(vars));
+        // Under xargs the script's arguments ({}, "$@", $1) are the names xargs reads, so each
+        // command it runs takes them as xargs cat would.
+        if (xargs) {
+          const known = stdin.flatMap((x) => x.split(/\s+/).filter(Boolean));
+          for (const c of inner) {
+            c.xargs = true;
+            if (known.length) { c.words = [...c.words, ...known]; c.stdin = [...c.stdin, ...stdin]; }
+            c.lister ??= cmd.lister ?? cmd.feeder;
+          }
+        }
+        out.push(...inner);
+      } else {
         const script = words.slice(1).find((x, k, a) => !x.startsWith("-") && !x.startsWith("+") && !/^[-+][oO]$/.test(a[k - 1] ?? ""));
         if (script) {
           const text = scriptText(script, cmd);
@@ -1799,27 +2151,95 @@ function shellInCode(code: string): string[] {
   return outs.slice(0, 40);
 }
 
-// The word an interpreter runs as its script file, if it runs one.
-function interpreterScript(cmd: Cmd): string | undefined {
+// How an interpreter was called: its inline code (-c, -e, --eval, -p), the module it runs (-m),
+// the script file it runs, whether it reads its program from stdin, the files its options read
+// (node --env-file), the modules it loads first (node -r/--import, ruby -r), and whether it only
+// checks syntax. Options are parsed per language, so python3 -I script.py runs script.py and
+// perl -ne 'code' runs code.
+type Interp = { lang: string; code: string[]; module?: string; moduleArgs?: string[]; script?: string; stdin: boolean; reads: string[]; preloads: string[]; check: boolean };
+
+function interpreterOf(cmd: Cmd): Interp {
+  const prog = basename(cmd.words[0] ?? "");
+  const lang = /^python/.test(prog) ? "python" : prog === "nodejs" ? "node" : prog;
+  const out: Interp = { lang, code: [], stdin: false, reads: [], preloads: [], check: false };
+  if (!INTERPRETERS.test(prog)) return out;
   const w = cmd.words;
-  for (let k = 1; k < w.length; k++) {
-    const a = w[k];
-    if (/^(-c|-e|-E|--eval|-p|--print|-m|-r|--require|--import|--input-type|-W|-X|-I)$/.test(a)) {
-      if (/^(-c|-e|-E|--eval|-p|--print|-m)$/.test(a)) return undefined;
-      k++;
-      continue;
+  // Single-letter option clusters: in `valued` a letter takes the rest of the cluster, else the
+  // next word; in `attached` it takes only the rest of the cluster.
+  const cluster = (a: string, k: number, valued: string, attached: string, onValue: (ch: string, v: string | undefined) => void): number => {
+    for (let j = 1; j < a.length; j++) {
+      const ch = a[j];
+      if (valued.includes(ch)) {
+        const rest = a.slice(j + 1);
+        onValue(ch, rest || w[k + 1]);
+        return rest ? k : k + 1;
+      }
+      if (attached.includes(ch)) { onValue(ch, a.slice(j + 1)); return k; }
+      if (ch === "c" && (lang === "perl" || lang === "ruby")) out.check = true;
     }
-    if (/^-[a-zA-Z]*[ce]$/.test(a) && !/^--/.test(a)) return undefined;
-    if (a === "-" || a === "--") return undefined;
-    if (a.startsWith("-")) continue;
-    return a;
+    return k;
+  };
+  let k = 1;
+  if ((lang === "bun" || lang === "deno") && /^(run|test|x)$/.test(w[1] ?? "")) k = 2;
+  if ((lang === "bun" || lang === "deno") && w[1] === "eval") { if (w[2] !== undefined) out.code.push(w[2]); return out; }
+  for (; k < w.length; k++) {
+    const a = w[k];
+    if (a === "-") { out.stdin = true; return out; }
+    if (a === "--") { out.script = w[k + 1]; return out; }
+    if (!a.startsWith("-")) {
+      if (!out.code.length && out.module === undefined) out.script = a;
+      return out;
+    }
+    if (lang === "python") {
+      if (a.startsWith("--")) { if (a === "--check-hash-based-pycs") k++; continue; }
+      let stop = false;
+      k = cluster(a, k, "cmWX", "", (ch, v) => {
+        if (ch === "c" && v !== undefined) { out.code.push(v); stop = true; }
+        if (ch === "m") { out.module = v; stop = true; }
+      });
+      if (out.module !== undefined) out.moduleArgs = w.slice(k + 1);
+      if (stop) return out;
+    } else if (lang === "node" || lang === "bun" || lang === "deno") {
+      const eq = a.indexOf("=");
+      const name = a.startsWith("--") && eq > 0 ? a.slice(0, eq) : a;
+      const value = a.startsWith("--") && eq > 0 ? a.slice(eq + 1) : undefined;
+      // -e, -p, --eval, --print, and clusters of them (-pe, -ep): the next word is the code,
+      // unless it is the other flag (-p -e CODE).
+      if (/^(-[ep]+|--eval|--print)$/.test(name)) {
+        if (value === undefined && /^(-[ep]+|--eval|--print)$/.test(w[k + 1] ?? "")) continue;
+        const v = value ?? w[++k];
+        if (v !== undefined) out.code.push(v);
+        return out;
+      }
+      if (/^(-c|--check)$/.test(name)) { out.check = true; continue; }
+      if (/^--env-file(-if-exists)?$/.test(name)) { const v = value ?? w[++k]; if (v !== undefined) out.reads.push(v); continue; }
+      if (/^(-r|--require|--import|--loader|--experimental-loader)$/.test(name)) { const v = value ?? w[++k]; if (v !== undefined) out.preloads.push(v); continue; }
+      if (value === undefined && /^(-r|--require|--import|--loader|--experimental-loader|-C|--conditions|--input-type|--title|--inspect-port|--debug-port|--redirect-warnings|--diagnostic-dir|--report-dir|--icu-data-dir|--openssl-config|--stack-size|--experimental-config-file)$/.test(name)) k++;
+    } else if (lang === "perl") {
+      k = cluster(a, k, "eEI", "iMmFxl0CdD", (ch, v) => {
+        if ((ch === "e" || ch === "E") && v !== undefined) out.code.push(v);
+        if ((ch === "M" || ch === "m") && v) out.preloads.push(v);
+      });
+    } else if (lang === "ruby") {
+      k = cluster(a, k, "eIrEC", "Fx0iWT", (ch, v) => {
+        if (ch === "e" && v !== undefined) out.code.push(v);
+        if (ch === "r" && v !== undefined) out.preloads.push(v);
+      });
+    } else if (lang === "osascript") {
+      if (a === "-e" && w[k + 1] !== undefined) out.code.push(w[++k]);
+      else if (/^-[lsi]$/.test(a)) k++;
+    }
   }
-  return undefined;
+  return out;
 }
 
-// The inline code flags an interpreter was given (-c, -e, --eval, -p, -m).
+// The word an interpreter runs as its script file, if it runs one.
+const interpreterScript = (cmd: Cmd) => interpreterOf(cmd).script;
+
+// The inline code an interpreter was given on its command line (-c, -e, --eval, -p, -m).
 function codeArgs(cmd: Cmd): string[] {
-  return cmd.words.slice(1).filter((a) => /^(-c|-e|-E|--eval|-p|--print|-m)$/.test(a) || (/^-[a-zA-Z]*[ce]$/.test(a) && !a.startsWith("--")));
+  const i = interpreterOf(cmd);
+  return [...i.code, ...(i.module !== undefined ? [i.module] : [])];
 }
 
 // The text of a file redirected into stdin (cmd < file), if it can be read.
@@ -1942,22 +2362,22 @@ function globPathsOf(word: string, cmd: Cmd): Array<string | undefined> {
 
 // The code an interpreter runs from its command line, a here-document or a here-string.
 function codeOf(cmd: Cmd): string[] {
-  const prog = basename(cmd.words[0] ?? "");
-  if (!INTERPRETERS.test(prog)) return [];
-  const code: string[] = [];
-  for (let k = 1; k < cmd.words.length; k++) {
-    if (/^(-c|-e|-E|--eval|-p|--print|-x)$/.test(cmd.words[k]) || /^-[a-zA-Z]*[ce]$/.test(cmd.words[k])) {
-      if (cmd.words[k + 1] !== undefined) code.push(cmd.words[k + 1]);
-    }
-  }
-  return [...code, ...cmd.code, ...cmd.redirs.filter((r) => r.op === "<<<").map((r) => r.target)];
+  if (!INTERPRETERS.test(basename(cmd.words[0] ?? ""))) return [];
+  return [...interpreterOf(cmd).code, ...cmd.code, ...cmd.redirs.filter((r) => r.op === "<<<").map((r) => r.target)];
 }
 
 const SUBPROCESS = /\bsubprocess\b|\bos\.(system|popen|exec\w*|spawn\w*|posix_spawn\w*)\b|\bpty\.spawn|child_process|\bexec(File)?(Sync)?\s*\(|\bspawn(Sync)?\s*\(|Bun\.spawn|Deno\.(run|Command)|\bsystem\b\s*[("'$]|\bqx\s*[({\/]|%x[({]|\bIO\.popen|\bOpen3\b|do\s+shell\s+script|\bexec\s+["'$]/;
 
+// Call arguments with up to three levels of nested parentheses: open(os.path.join(f(x)), 'w').
+const ARGS3 = (() => { let a = "[^()]*"; for (let k = 0; k < 3; k++) a = `(?:[^()]|\\(${a}\\))*`; return a; })();
 const CODE_WRITES: Array<[RegExp, string]> = [
-  [/\bopen\s*\([^)]*,\s*(?:mode\s*=\s*)?f?['"][rbt]*[wax+]/, "open() for writing"],
+  [new RegExp(`\\bopen\\s*\\(${ARGS3}?,\\s*(?:mode\\s*=\\s*)?f?['"][rbt]*[wax+]`), "open() for writing"],
+  [/\.open\s*\(\s*(?:mode\s*=\s*)?['"][rbt]*[wax+]/, "open() for writing"],
   [/\.write_(text|bytes)\s*\(/, "write_text()"],
+  // Data libraries: pandas' to_csv and kin (the string-returning ones only when given a target),
+  // numpy's save, matplotlib's savefig, torch, joblib, and any .save(...).
+  [/\.to_(parquet|excel|pickle|feather|hdf|stata|orc)\s*\(|\.to_(csv|json|html|latex|markdown|xml|string)\s*\(\s*(?![)\s]|\w+\s*=(?!=))|\.to_\w+\s*\([^)]*\b(path_or_buf|buf|path)\s*=/, "a pandas write"],
+  [/\b(np|numpy)\.(save|savez|savez_compressed|savetxt)\s*\(|\.(savefig|tofile|save)\s*\(|\b(torch|joblib)\.(save|dump)\s*\(/, "a data-library save"],
   [/\bshutil\.(copy\w*|move|rmtree|make_archive|unpack_archive)\s*\(/, "shutil"],
   [/\bos\.(remove|unlink|rename|replace|mkdir|makedirs|rmdir|removedirs|symlink|link|truncate)\s*\(/, "os file calls"],
   [/\.(mkdir|touch|unlink|rmdir|rename|symlink_to|hardlink_to)\s*\(/, "a pathlib write"],
@@ -1970,17 +2390,137 @@ const CODE_WRITES: Array<[RegExp, string]> = [
   [SUBPROCESS, "a subprocess; run the command itself in bash so it can be checked"],
 ];
 
+// Code calls that remove or move a directory with everything in it.
+const SWEEP_CODE = /\bshutil\.(rmtree|move)\s*\(|\bos\.(rename|renames|replace|removedirs)\s*\(|\b(rm|rmSync|rmdir|rmdirSync|cp|cpSync)\s*\([^)]*\brecursive\b|\b(rename|renameSync)\s*\(|\bFileUtils\.(rm_r|rm_rf|remove_dir|remove_entry|mv|move)\b/;
+
 function codeWrite(code: string): string | undefined {
   for (const [re, what] of CODE_WRITES) if (re.test(code)) return what;
   return undefined;
 }
+
+// Code with each path it builds from the home directory or an absolute literal written as one
+// string literal: Path.home() / 'a' / 'b', Path.home().joinpath('a', 'b'), Path(Path.home(), 'a'),
+// os.path.join(os.path.expanduser('~'), 'a'), os.environ['HOME'] + '/a', path.join(os.homedir(),
+// 'a'), `${os.homedir()}/a`, os.path.join('/x', 'a'), Path('/x').joinpath('a'), '/x' + '/a' and
+// the like become "/Users/me/a/b" or "/x/a". open lists each such path whose build goes on with a
+// part that is no literal (Path.home() / name): its end is unknown. Paths built any other way,
+// a variable holding the base included, stay as they are (best-effort, for code a model writes
+// in ordinary work).
+const HOME_ANCHOR = new RegExp([
+  String.raw`\b(?:pathlib\.)?Path\.home\(\s*\)`,
+  String.raw`\b(?:os\.path\.)?expanduser\(\s*(['"])~\1\s*\)`,
+  String.raw`\b(?:pathlib\.)?Path\(\s*(['"])~\2\s*\)\.expanduser\(\s*\)`,
+  String.raw`\bos\.environ\[\s*(['"])HOME\3\s*\]`,
+  String.raw`\b(?:os\.environ\.get|os\.getenv)\(\s*(['"])HOME\4[^()]*\)`,
+  String.raw`(?:\brequire\(\s*(['"])(?:node:)?os\5\s*\)\.|\b\w+\.)?homedir\(\s*\)`,
+  String.raw`\bprocess\.env(?:\.HOME\b|\[\s*(['"])HOME\6\s*\])`,
+  String.raw`\$ENV\{\s*['"]?HOME['"]?\s*\}`,
+  String.raw`\bDir\.home\b`,
+  String.raw`\bENV\[\s*(['"])HOME\7\s*\]`,
+  // An absolute or ~/ path literal, raw or byte prefixes included: group 9 is its text. A JS
+  // template without a ${...} is a literal too: group 10 is its text.
+  String.raw`(?:\b[rRbBuU]{1,2})?(['"])((?:\/|~\/)(?:\\.|(?!\8)[^\\])*)\8`,
+  String.raw`\x60((?:\/|~\/)(?:\\.|(?!\x60|\$\{)[^\\])*)\x60`,
+].join("|"), "g");
+const JOIN_OPEN = /(?:\b(?:os\.path|posixpath|path)\.(?:join|resolve)|\bjoin|\bresolve|\b(?:pathlib\.)?(?:Pure|Posix)?Path)\s*\(\s*$/;
+// A string literal (group 2 its text): quoted, prefixed (r'', b''), or a template without ${...}.
+const STR_LIT = String.raw`(?:[rRbBuU]{1,2})?(['"\x60])((?:\\.|(?!\1|\$\{).)*)\1`;
+
+// Folded until nothing changes, so Path('/x').joinpath('a') becomes "/x".joinpath('a'), then "/x/a".
+function homeExprs(code: string): { code: string; paths: string[]; open: string[] } {
+  const paths: string[] = [], open: string[] = [];
+  for (let k = 0; k < 4; k++) {
+    const r = foldPaths(code);
+    paths.push(...r.paths);
+    open.push(...r.open);
+    if (r.code === code) break;
+    code = r.code;
+  }
+  return { code, paths: [...new Set(paths)], open: [...new Set(open)] };
+}
+
+function foldPaths(code: string): { code: string; paths: string[]; open: string[] } {
+  let out = "", last = 0;
+  const paths: string[] = [], open: string[] = [];
+  for (const m of code.matchAll(HOME_ANCHOR)) {
+    const start = m.index!;
+    if (start < last) continue;
+    const literal = m[9] ?? m[10];
+    let end = start + m[0].length;
+    const segs: string[] = [];
+    // How each part joins: "+" concatenates, anything else is a path join.
+    const ops: string[] = [];
+    let tail = false, more = false;
+    // Inside join(...) or Path(...) the parts follow commas; elsewhere / (pathlib), + (strings)
+    // or .joinpath(...).
+    const opener = code.slice(0, start).match(JOIN_OPEN);
+    const sep = new RegExp(String.raw`^\s*${opener ? "[,\/+]" : "[\/+]"}\s*${STR_LIT}`);
+    for (;;) {
+      const rest = code.slice(end);
+      const lit = rest.match(sep);
+      if (lit) { segs.push(lit[2]); ops.push(lit[0].trim()[0]); end += lit[0].length; continue; }
+      const jp = opener ? null : rest.match(/^\s*\.joinpath\(\s*/);
+      if (jp) {
+        let k = end + jp[0].length;
+        const parts: string[] = [];
+        for (;;) {
+          const a = code.slice(k).match(new RegExp(String.raw`^${STR_LIT}\s*(,\s*)?`));
+          if (!a) break;
+          parts.push(a[2]);
+          k += a[0].length;
+        }
+        const close = code.slice(k).match(/^\)/);
+        if (!close || !parts.length) { more = true; break; }
+        segs.push(...parts);
+        ops.push(...parts.map(() => ","));
+        end = k + 1;
+        continue;
+      }
+      // Inside a template or f-string, ${os.homedir()}/a or {Path.home()}/a: the text after it.
+      const t = !literal && /\{\s*$/.test(code.slice(0, start)) ? rest.match(/^\s*\}([^`'"{}$]*)/) : null;
+      if (t && !segs.length) { segs.push(t[1]); tail = true; break; }
+      if ((opener ? /^\s*[,\/+]/ : /^\s*[\/+]/).test(rest)) more = true;
+      break;
+    }
+    let path = literal !== undefined ? expandTilde(literal) : home();
+    segs.forEach((x, i) => { path = ops[i] === "+" ? path + x : join(path, x.replace(/^\/+/, "")); });
+    path = join(path);
+    const close0 = code.slice(end).match(/^\s*\)/);
+    // A literal with nothing joined to it stays as it is: the literal checks read it.
+    if (literal !== undefined && !segs.length && !(opener && close0)) {
+      if (more) open.push(path);
+      continue;
+    }
+    if (literal === undefined || segs.length) paths.push(path);
+    if (more) open.push(path);
+    if (tail) {
+      // The template keeps its quotes; the home directory's text replaces the expression.
+      const pre = code.slice(0, start).match(/\$?\{\s*$/)![0].length;
+      const close = code.slice(end).match(/^\s*\}/)![0].length;
+      out += code.slice(last, start - pre) + home();
+      last = end + close;
+      continue;
+    }
+    let from = start, to = end;
+    // path.join(home, 'a', 'b') and Path(home, 'a') as a whole.
+    const close = code.slice(end).match(/^\s*\)/);
+    if (opener && close) { from = start - opener[0].length; to = end + close[0].length; }
+    if (from < last) { from = start; to = end; }
+    out += code.slice(last, from) + JSON.stringify(path);
+    last = to;
+  }
+  return { code: out + code.slice(last), paths, open };
+}
+
+// JS template literals without a ${...}: plain strings.
+const templates = (code: string) => [...code.matchAll(/\x60((?:\\.|(?!\x60|\$\{)[^\\])*)\x60/g)].map((m) => m[1]);
 
 // The string literals in code that may name a file it writes: the first argument of a file
 // call, and any literal shaped like a path (a slash or an extension). A bare word such as a
 // subprocess's program name is not one.
 function codeLiterals(code: string) {
   const first = [...code.matchAll(/\b(open|Path|write_text|write_bytes|writeFile(?:Sync)?|appendFile(?:Sync)?|createWriteStream|copyfile|copy2?|move|rename|remove|unlink|rmtree)\s*\(\s*(['"])((?:\\.|(?!\2).)*)\2/g)].map((m) => m[3]);
-  const shaped = [...code.matchAll(/(['"])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2])
+  const shaped = [...code.matchAll(/(['"])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]).concat(templates(code))
     .filter((s) => s.length < 400 && !/\s/.test(s) && (s.includes("/") || /\.[A-Za-z0-9]{1,8}$/.test(s) || GLOB_CHARS.test(s)));
   return [...new Set([...first, ...shaped])];
 }
@@ -2037,6 +2577,29 @@ function operandsOf(cmd: Cmd): { paths: string[]; names: string[]; roots: string
   return { paths, names: [], roots: [] };
 }
 
+// What inline code (an interpreter's -c/-e, a here-document or script fed to it) names that
+// is a credential: a path segment or file name, however the path is built (pathlib's /,
+// os.path.join, expanduser, string concatenation).
+const CODE_CREDENTIALS: Array<[RegExp, string]> = [
+  [/\.local[\/'"\s,]+share[\/'"\s,]+opencode/i, "OpenCode's data directory, which holds auth.json"],
+  [/\bid_(rsa|dsa|ecdsa|ed25519)(_sk)?\b(?!\.pub)/i, "an SSH private key"],
+  [/(^|[^\w])\.ssh\b/i, "~/.ssh, where SSH keys live"],
+  [/\bkeys\.env\b/i, "keys.env"],
+  [/(['"`\/])[\w.*?-]*\.env(?=['"`\/*])/i, "an env file of keys"],
+  [/\bdotenv\b/i, "dotenv, which reads .env files of keys"],
+  [/\bloadEnvFile\b|--env-file\b/, "Node's .env loader, which reads env files of keys"],
+  [/\brclone\b/i, "rclone's config"],
+  [/media-syncer/i, "media-syncer's config"],
+  [/backup-private/i, "backup-private/"],
+  [/api-keys/i, "the API key store"],
+];
+
+function codeCredential(code: string): string | undefined {
+  if (/\bauth\.json\b/i.test(code) && /opencode/i.test(code)) return "OpenCode's auth.json, which holds the DeepSeek key";
+  for (const [re, what] of CODE_CREDENTIALS) if (re.test(code)) return what;
+  return undefined;
+}
+
 function credentialInCommand(cmd: Cmd): string | undefined {
   for (const r of cmd.redirs) {
     if (r.op === "<<<" || DEV_TARGET.test(r.target)) continue;
@@ -2045,12 +2608,29 @@ function credentialInCommand(cmd: Cmd): string | undefined {
       if (what) return `${r.op.includes("<") ? "reads" : "writes"} ${what}`;
     }
   }
+  // Files a wrapper or xargs -a reads (uv run --env-file, node --env-file, xargs -a).
+  for (const f of [...(cmd.argFiles ?? []), ...(cmd.reads ?? []), ...interpreterOf(cmd).reads]) {
+    for (const p of pathsOf(f, cmd)) {
+      const what = p && credentialOf(p);
+      if (what) return `reads ${what}`;
+    }
+  }
   for (const body of codeOf(cmd)) {
-    const m = body.match(/\.local\/share\/opencode|opencode\/auth|keys\.env|rclone\.conf|\.config\/(rclone|media-syncer|api-keys)|backup-private|\.ssh\/id_|['"][^'"\s]*\.env['"]/i);
-    if (m) return `runs code that touches ${m[0].replace(/['"]/g, "")}`;
+    const what = codeCredential(body);
+    if (what) return `runs code that names ${what}`;
+  }
+  // A module the interpreter runs or loads first (python3 -m dotenv, node -r dotenv/config), and
+  // the options variables that load one (NODE_OPTIONS, RUBYOPT, PERL5OPT).
+  const it = interpreterOf(cmd);
+  const opts = [...cmd.assigns.map((a) => a.match(/^(NODE_OPTIONS|RUBYOPT|PERL5OPT)=(.*)$/s)?.[2]),
+    ...["NODE_OPTIONS", "RUBYOPT", "PERL5OPT"].map((n) => cmd.vars.get(n))].filter((x): x is string => typeof x === "string");
+  for (const m of [...it.preloads, ...(it.module !== undefined ? [it.module] : []), ...opts]) {
+    const what = codeCredential(m);
+    if (what) return `loads a module that names ${what}`;
   }
   if (!cmd.words.length) return undefined;
   const prog = basename(cmd.words[0]);
+  if (ENV_LOADERS.test(prog)) return `runs ${prog}, which loads .env files of keys`;
   const env = environmentDump(cmd);
   if (env) return env;
   if (NAME_ONLY.has(prog)) return undefined;
@@ -2077,6 +2657,10 @@ function credentialInCommand(cmd: Cmd): string | undefined {
     // curl -F f=@path, --data @path, name=path; and the words inside $(...) or backticks.
     const forms = [word, word.replace(/^[^=@]*[=@]+/, ""), word.replace(/^@/, "")];
     if (/\$\(|`/.test(word)) forms.push(...word.split(/[\s()`'"$;|&<>]+/));
+    // defaults reads a plist named without its extension, by path or by domain.
+    if (prog === "defaults" && !word.startsWith("-") && !word.endsWith(".plist")) {
+      forms.push(word.includes("/") ? `${word}.plist` : join(home(), "Library", "Preferences", `${word}.plist`));
+    }
     for (const f of new Set(forms)) {
       if (!f || f.startsWith("-")) continue;
       for (const p of pathsOf(f, cmd)) {
@@ -2093,13 +2677,27 @@ function credentialInCommand(cmd: Cmd): string | undefined {
   }
   // A reader whose file the guard cannot resolve (a substitution, a loop variable, a pipe into
   // xargs) passes only when every file it could reach is checked and none is a credential.
+  const lister = cmd.lister ?? cmd.feeder;
+  if (INTERPRETERS.test(prog)) {
+    // Code given a lister's names, as arguments through xargs or as lines on stdin, may open
+    // each one: everything the lister names is checked. Other feeders stay unchecked.
+    const named = (cmd.xargs && !cmd.stdin.length && !cmd.scope) ||
+      (!!cmd.feeder && !cmd.xargs && (it.code.length > 0 || it.module !== undefined || it.script !== undefined));
+    const scope = named && lister ? listerScope(lister.words, lister.cwd, lister.vars) : undefined;
+    for (const root of scope?.roots ?? []) {
+      const r = credentialUnder(root, scope!.names);
+      if (r.what) return `runs code on the names a lister gives it, which may reach ${r.what}`;
+      if (r.unchecked) return `runs code on the names a lister gives it, and ${root} is too large to check. Name the files`;
+    }
+    return undefined;
+  }
   if (!CONTENT_READERS.has(prog)) return undefined;
   const opaque: Array<[string, Scope | undefined]> = [];
   for (const word of paths) {
     if (word.startsWith("-") || DEV_TARGET.test(word)) continue;
     if (pathsOf(word, cmd).some((p) => p === undefined)) opaque.push([word, scopeOfWord(word, cmd)]);
   }
-  if (cmd.xargs && !cmd.stdin.length && !cmd.scope) opaque.push(["the names xargs reads", cmd.feeder ? listerScope(cmd.feeder.words, cmd.feeder.cwd, cmd.feeder.vars) : undefined]);
+  if (cmd.xargs && !cmd.stdin.length && !cmd.scope) opaque.push(["the names xargs reads", lister ? listerScope(lister.words, lister.cwd, lister.vars) : undefined]);
   for (const [word, scope] of opaque) {
     const cannot = `reads ${word}, which the guard cannot resolve to a file`;
     if (!scope) return `${cannot}. Name the file, or use the read and grep tools`;
@@ -2111,6 +2709,9 @@ function credentialInCommand(cmd: Cmd): string | undefined {
   }
   return undefined;
 }
+
+// Command-line env loaders: each reads a .env file of keys into a program's environment.
+const ENV_LOADERS = /^(dotenv|dotenvx|dotenv-cli|env-cmd|dotenv-run)$/;
 
 // Programs that read the content of the files they are given.
 const CONTENT_READERS = new Set(["cat", "head", "tail", "less", "more", "bat", "nl", "od", "xxd", "hexdump", "strings", "base64",
@@ -2154,13 +2755,20 @@ function scopeOfWord(word: string, cmd: Cmd): Scope | undefined {
 }
 
 // The files a listing command names: find, ls, git ls-files, grep -l and the like, by root and
-// (find -name) by pattern. Undefined for any other command.
+// (find -name) by pattern. Undefined for any other command. A root holding a glob is expanded
+// on disk as the shell would, relative to cwd, so ls *.env names each match.
 function listerScope(words: string[], cwd: string, vars: Vars): Scope | undefined {
   const prog = basename(words[0] ?? "");
   const resolveAll = (ws: string[]) => {
     const roots = ws.length ? ws : ["."];
-    const out = roots.map((r) => wordPath(r, cwd, vars));
-    return out.some((r) => r === undefined) ? undefined : (out as string[]);
+    const out: string[] = [];
+    for (const r of roots.flatMap((x) => braceExpand(x))) {
+      const p = wordPath(r, cwd, vars);
+      if (p === undefined) return undefined;
+      const hits = GLOB_CHARS.test(p) ? expandGlob(p) : [];
+      out.push(...(hits.length ? hits : [p]));
+    }
+    return out;
   };
   if (prog === "find") {
     const args = words.slice(1);
@@ -2198,9 +2806,9 @@ const SKIP_DIRS = new Set([".git", "node_modules", ".venv", "venv", "__pycache__
 function credentialUnder(root: string, names: RegExp[] = [], budget = 20000): { what?: string; unchecked?: boolean } {
   const fits = (n: string) => !names.length || names.some((re) => re.test(n));
   // The known credential locations below root count whether or not they exist yet.
-  const { auth, dirs } = credentialRoots();
   const c = canon(root);
-  if (under(auth, c) && auth !== c && fits("auth.json")) return { what: AUTH_WHAT };
+  const { auths, dirs } = credentialRoots(c);
+  if (auths.some((auth) => under(auth, c) && auth !== c) && fits("auth.json")) return { what: AUTH_WHAT };
   for (const [d, what] of dirs) if (under(d, c) && d !== c) return { what };
   let st;
   try { st = statSync(root); } catch { return {}; }
@@ -2233,10 +2841,16 @@ function credentialUnder(root: string, names: RegExp[] = [], budget = 20000): { 
   return {};
 }
 
-// launchctl and ps can print a job's or a process's environment, where the keys live.
+// launchctl and ps can print a job's or a process's environment, where the keys live, and
+// rclone config show/dump prints rclone.conf.
 function environmentDump(cmd: Cmd): string | undefined {
   const prog = basename(cmd.words[0] ?? "");
   const args = cmd.words.slice(1);
+  if (prog === "rclone") {
+    const k = args.indexOf("config");
+    const sub = k < 0 ? undefined : args.slice(k + 1).find((a) => !a.startsWith("-"));
+    if (sub === "show" || sub === "dump") return `prints rclone's config (rclone config ${sub}), which holds its remotes' tokens`;
+  }
   if (prog === "launchctl") {
     const pos = args.filter((a) => !a.startsWith("-"));
     if (pos[0] === "export") return "prints launchd's environment, which may hold keys";
@@ -2277,11 +2891,31 @@ const GIT_WRITES = new Set(["read-tree", "checkout-index", "commit-tree", "write
   "cherry-pick", "revert", "am", "apply", "rm", "mv", "restore", "clean", "pull", "init", "clone", "gc", "update-ref",
   "update-index", "notes", "filter-branch", "replace", "fetch", "prune", "repack", "maintenance", "sparse-checkout", "bisect"]);
 
+// A git long option as itself or as an abbreviation git accepts (parse-options takes a unique
+// prefix): name is the option, min its shortest prefix counted.
+function gitLong(a: string, name: string, min: string): boolean {
+  const opt = a.split("=")[0];
+  return opt.startsWith(min) && name.startsWith(opt);
+}
+
+// An option that makes git write a file or run a program: --output, --ext-diff, --textconv,
+// and git grep's -O / --open-files-in-pager (also inside a cluster such as -iO).
+function gitRisky(g: { sub: string; args: string[] }): string | undefined {
+  for (const a of g.args) {
+    if (a === "--") break;
+    if (gitLong(a, "--output", "--ou") || gitLong(a, "--output-directory", "--output-")) return "--output";
+    if (gitLong(a, "--ext-diff", "--ext")) return "--ext-diff";
+    if (gitLong(a, "--textconv", "--textc")) return "--textconv";
+    if (g.sub === "grep" && (gitLong(a, "--open-files-in-pager", "--op") || /^-[a-zA-Z]*O/.test(a))) return "-O (opens a pager program)";
+  }
+  return undefined;
+}
+
 function gitWrite(g: { sub: string; args: string[] }): boolean {
   const pos = g.args.filter((a) => !a.startsWith("-"));
-  if (g.args.some((a) => a === "--output" || a.startsWith("--output=") || a === "--ext-diff")) return true;
+  if (gitRisky(g)) return true;
   switch (g.sub) {
-    case "grep": return g.args.some((a) => /^(-O|--open-files-in-pager)/.test(a));
+    case "grep": return false;
     case "format-patch": return !g.args.includes("--stdout");
     case "bundle": return pos[0] !== "verify" && pos[0] !== "list-heads";
     case "archive": return g.args.some((a) => /^-o|^--output/.test(a));
@@ -2311,8 +2945,30 @@ const PKG_WRITES: Record<string, RegExp> = {
   go: /^(install|get|build|generate|mod)$/, gem: /^(install|uninstall|update)$/, launchctl: /^(load|unload|bootstrap|bootout|kickstart|enable|disable)$/,
   uv: /^(add|remove|sync|lock|venv|init|build|publish|tool|pip)$/,
 };
+// A package manager's subcommand, past its global options, and the directory one of them
+// moves it to (npm --prefix, pnpm -C/--dir, yarn and bun --cwd).
+const PKG_OPTS: Record<string, { valued: RegExp; chdir: RegExp }> = {
+  npm: { valued: /^(--prefix|-C|-w|--workspace|--userconfig|--cache|--registry|--loglevel)$/, chdir: /^(--prefix|-C)$/ },
+  pnpm: { valued: /^(-C|--dir|-F|--filter|--loglevel|--reporter)$/, chdir: /^(-C|--dir)$/ },
+  yarn: { valued: /^(--cwd)$/, chdir: /^--cwd$/ },
+  bun: { valued: /^(--cwd|-c|--config)$/, chdir: /^--cwd$/ },
+};
+function pkgCall(prog: string, args: string[]): { sub?: string; dir?: string } {
+  const o = PKG_OPTS[prog];
+  let dir: string | undefined;
+  for (let k = 0; k < args.length; k++) {
+    const a = args[k];
+    if (!a.startsWith("-")) return { sub: a, dir };
+    if (!o) continue;
+    const eq = a.match(/^(--[\w-]+)=([\s\S]*)$/);
+    if (eq) { if (o.chdir.test(eq[1])) dir = eq[2]; continue; }
+    if (o.valued.test(a) && args[k + 1] !== undefined) { if (o.chdir.test(a)) dir = args[k + 1]; k++; }
+  }
+  return { dir };
+}
+
 // What a gh subcommand group does that writes.
-const GH_WRITES = /^(create|merge|close|reopen|edit|comment|review|ready|checkout|delete|transfer|lock|unlock|pin|unpin|upload|fork|clone|rename|archive|unarchive|sync|set|run|rerun|cancel|enable|disable|add|remove|develop|deploy)$/;
+const GH_WRITES = /^(create|merge|close|reopen|edit|comment|review|ready|checkout|delete|transfer|lock|unlock|pin|unpin|upload|download|fork|clone|rename|archive|unarchive|sync|set|run|rerun|cancel|enable|disable|add|remove|develop|deploy)$/;
 const SQL_WRITE = /\b(insert|update|delete|drop|create|alter|replace|vacuum|attach|reindex|upsert)\b|\bpragma\s+\w+\s*=|(^|;)\s*\.(import|save|backup|restore|clone|output|once|shell|system|load|excel|open|log)\b/im;
 const SQL_EXEC = /(^|;|\n)\s*\.(shell|system|load|output|once|excel|log|save|backup|import|clone|dump\s+\S)|\b(writefile|edit|load_extension)\s*\(/i;
 const DRY_RUN = /^(-n|--dry-run|--just-print|--recon|-q|--question|--check|--diff)$/;
@@ -2372,8 +3028,8 @@ function gitOutputs(g: { sub: string; args: string[] }): { files: string[]; dir?
   let dir: string | undefined;
   const a = g.args;
   for (let k = 0; k < a.length; k++) {
-    if (a[k] === "--output" && a[k + 1] !== undefined) files.push(a[++k]);
-    else if (a[k].startsWith("--output=")) files.push(a[k].slice(9));
+    if (gitLong(a[k], "--output", "--ou") && !a[k].includes("=") && a[k + 1] !== undefined) files.push(a[++k]);
+    else if (gitLong(a[k], "--output", "--ou") && a[k].includes("=")) files.push(a[k].slice(a[k].indexOf("=") + 1));
     else if (g.sub === "archive" && a[k] === "-o" && a[k + 1] !== undefined) files.push(a[++k]);
     else if (g.sub === "archive" && /^-o./.test(a[k])) files.push(a[k].slice(2));
   }
@@ -2412,6 +3068,12 @@ function writesOf(cmd: Cmd): { targets: string[]; other?: string; here?: string;
     return undefined;
   };
   const dir = (v: string | undefined) => (v === undefined ? cmd.cwd : wordPath(v, cmd.cwd, cmd.vars) ?? cmd.cwd);
+  // A formatter rewrites the paths it is given, and everything below them; given none, where it runs.
+  const rewrites = (ops: string[]) => {
+    deep = true;
+    if (ops.length) targets.push(...ops);
+    else here = cmd.cwd;
+  };
   switch (prog) {
     case "tee": targets.push(...plain); break;
     case "tree": { const o = valueOf(/^-o$/); if (o !== undefined) targets.push(o); break; }
@@ -2433,7 +3095,18 @@ function writesOf(cmd: Cmd): { targets: string[]; other?: string; here?: string;
       targets.push(...(prog === "chmod" || prog === "chown" ? plain.slice(1) : plain));
       break;
     case "dd": for (const a of args) if (a.startsWith("of=")) targets.push(a.slice(3)); break;
-    case "sort": { const o = valueOf(/^(-o|--output)$/); if (o !== undefined) targets.push(o); break; }
+    case "sort": {
+      const o = valueOf(/^(-o|--output)$/);
+      if (o !== undefined) targets.push(o);
+      // -ofile, or o inside a cluster (-uo file).
+      for (let k = 0; k < args.length; k++) {
+        const m = args[k].match(/^-([a-zA-Z]*?)o(.*)$/);
+        if (!m || args[k].startsWith("--") || args[k] === "-o") continue;
+        const v = m[2] || args[k + 1];
+        if (v !== undefined) targets.push(v);
+      }
+      break;
+    }
     case "sed": case "gsed": case "perl": case "ruby":
       if (prog === "sed" || prog === "gsed") {
         const s = sedWrites(cmd);
@@ -2499,9 +3172,11 @@ function writesOf(cmd: Cmd): { targets: string[]; other?: string; here?: string;
     case "zip": case "gzip": case "xz": case "bzip2": other = prog; break;
     case "gunzip": case "unxz": case "bunzip2": targets.push(...plain); break;
     case "patch": other = "patch"; here = dir(valueOf(/^(-d|--directory)$/)); deep = true; break;
-    case "find":
-      if (args.some((a) => /^-(delete|fprint0?|fprintf|fls)$/.test(a))) { other = "find -delete"; here = cmd.cwd; deep = true; }
+    case "find": {
+      const act = args.find((a) => /^-(delete|fprint0?|fprintf|fls)$/.test(a));
+      if (act) { other = `find ${act}`; here = cmd.cwd; deep = true; }
       break;
+    }
     case "make": case "gmake": case "ninja":
       if (!args.some((a) => DRY_RUN.test(a))) { other = `${prog} (build recipes write files)`; here = dir(valueOf(/^(-C|--directory)$/)); deep = true; }
       break;
@@ -2509,30 +3184,34 @@ function writesOf(cmd: Cmd): { targets: string[]; other?: string; here?: string;
     case "black": case "isort": case "autopep8": case "yapf": case "rustfmt": case "prettier": case "eslint": case "biome":
       if (["black", "isort", "rustfmt"].includes(prog) ? !args.some((a) => DRY_RUN.test(a)) : args.some((a) => /^(-i|--in-place|-w)$/.test(a))) {
         other = `${prog} rewrites files`;
-        here = cmd.cwd;
-        deep = true;
+        rewrites(prog === "biome" ? plain.slice(1) : plain);
       }
       break;
     case "ruff":
-      if ((plain[0] === "format" && !args.some((a) => DRY_RUN.test(a))) || args.includes("--fix")) { other = "ruff rewrites files"; here = cmd.cwd; deep = true; }
+      if ((plain[0] === "format" && !args.some((a) => DRY_RUN.test(a))) || args.includes("--fix")) { other = "ruff rewrites files"; rewrites(plain.slice(1)); }
       break;
     case "gofmt": case "goimports": if (args.includes("-w")) { other = `${prog} -w`; here = cmd.cwd; deep = true; } break;
     case "sqlite3": {
-      if (SQL_EXEC.test(plain.slice(1).join(" ")) || cmd.code.some((x) => SQL_EXEC.test(x))) { other = "sqlite3 dot-commands that write files or run programs"; break; }
-      if (args.includes("-readonly")) break;
-      const sql = plain.slice(1).join(" ");
-      if (SQL_WRITE.test(sql) || cmd.code.length || cmd.feeder || cmd.redirs.some((r) => r.op === "<" || r.op === "<<<")) {
+      const q = sqliteParts(cmd);
+      if (q.archive) { other = "sqlite3 -A, which can extract an archive"; here = cmd.cwd; deep = true; break; }
+      if ([...q.sql, ...cmd.code, ...cmd.stdin].some((x) => SQL_EXEC.test(x))) { other = "sqlite3 dot-commands that write files or run programs"; break; }
+      if (q.init.some((x) => x === undefined)) { other = "sqlite3 -init with a file the guard cannot read"; break; }
+      if (q.readonly) break;
+      if (sqliteMayWrite(cmd, q)) {
         other = "sqlite3 that may write the database (use sqlite3 -readonly)";
-        if (plain[0]) targets.push(plain[0]);
+        if (q.db) targets.push(q.db);
       }
       break;
     }
-    case "gh":
-      if (plain[0] === "api") {
+    case "gh": {
+      // gh's subcommand words, without the repository a -R/--repo names.
+      const words = args.filter((a, k) => !a.startsWith("-") && !/^(-R|--repo)$/.test(args[k - 1] ?? ""));
+      if (words[0] === "api") {
         const method = valueOf(/^(-X|--method)$/) ?? args.find((a) => /^-X[A-Za-z]+$/.test(a))?.slice(2);
         if (args.some((a) => /^(-f|-F|--field|--raw-field|--input)$/.test(a)) || (method && method.toUpperCase() !== "GET")) other = "gh api writing";
-      } else if (plain[1] && GH_WRITES.test(plain[1])) other = `gh ${plain[0]} ${plain[1]}`;
+      } else if (words[1] && GH_WRITES.test(words[1])) other = `gh ${words[0]} ${words[1]}`;
       break;
+    }
     case "save-and-push.sh": case "ship.sh": other = `${prog} (a commit)`; break;
     case "opencode": if (plain[0] === "run") other = "opencode run (an agent that can write)"; break;
   }
@@ -2549,10 +3228,24 @@ function writesOf(cmd: Cmd): { targets: string[]; other?: string; here?: string;
     if (out.dir !== undefined) { other = `git ${g.sub}`; here = out.dir === "" ? g.dir : wordPath(out.dir, g.dir, cmd.vars) ?? g.dir; }
     if (gitWrite(g)) other = `git ${g.sub}`;
   }
-  if (PKG_WRITES[prog] && plain[0] && PKG_WRITES[prog].test(plain[0])) other = `${prog} ${plain[0]}`;
+  if (PKG_WRITES[prog]) {
+    const pk = pkgCall(prog, args);
+    if (pk.sub && PKG_WRITES[prog].test(pk.sub)) {
+      other = `${prog} ${pk.sub}`;
+      // A JavaScript package manager writes node_modules and its lockfile where it runs.
+      if (/^(npm|pnpm|yarn|bun)$/.test(prog)) here = dir(pk.dir);
+    }
+  }
   if (/^(npx|bunx|pnpx)$/.test(prog) && args.some((a) => /^(-w|--write|--fix)$/.test(a))) { other = `${prog} rewriting files`; here = cmd.cwd; deep = true; }
   if (/^python/.test(prog) && args.includes("-m") && /^(pip|tutorboard\.gitops)$/.test(args[args.indexOf("-m") + 1] ?? "")) {
     other = `python -m ${args[args.indexOf("-m") + 1]}`;
+  }
+  // python -m black board/ writes what black board/ writes.
+  const it = INTERPRETERS.test(prog) ? interpreterOf(cmd) : undefined;
+  if (it?.lang === "python" && it.module && !other) {
+    const inner = writesOf({ ...cmd, words: [it.module, ...(it.moduleArgs ?? [])], redirs: [], code: [], opaque: false });
+    targets.push(...inner.targets);
+    if (inner.other) ({ other, here, deep = false } = inner);
   }
   for (const body of codeOf(cmd)) {
     const what = codeWrite(body);
@@ -2615,6 +3308,79 @@ function credentialRule(call: Call, cmds: Cmd[] | undefined): string | undefined
     const what = credentialOf(p, content) ?? (content && call.tool === "grep" ? holdsCredential(p) : undefined);
     if (what) return `Refused: ${call.tool} on ${what}. ${CRED_MOVE}`;
   }
+  if (call.tool === "grep" || call.tool === "glob") {
+    const a = call.args ?? {};
+    const root = paths[0];
+    const env = root ? envFileUnder(root, call.tool === "grep" ? a.include : a.pattern) : undefined;
+    if (env) return `Refused: ${call.tool} over ${root} would reach ${env}. ${CRED_MOVE} Search a narrower path, or exclude it with include.`;
+  }
+  return undefined;
+}
+
+// An env file a ripgrep search from root would reach, as the grep and glob tools run it
+// (--hidden, .gitignore honoured inside a git work tree): a *.env or .env file below root that
+// no git work tree ignores and whose name the pattern can match. In a work tree, git lists the
+// candidates; elsewhere the tree is walked, and one too large to walk counts as reaching one.
+function envFileUnder(root: string, pattern?: string): string | undefined {
+  let st;
+  try { st = statSync(root); } catch { return undefined; }
+  if (!st.isDirectory()) return undefined;
+  const names = pattern ? braceExpand(basename(String(pattern))).map(globRegex) : [];
+  const fits = (n: string) => ENV_FILE.test(n) && n !== "env" && (!names.length || names.some((re) => re.test(n)));
+  const ignored = (p: string) => {
+    if (!repoRoot(dirname(p))) return false;
+    try {
+      execFileSync("git", ["-C", dirname(p), "check-ignore", "-q", "--", basename(p)], { timeout: 3000, stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (repoRoot(root)) {
+    const r = envFileInRepo(root, fits, { repos: 0 });
+    if (r !== null) return r;
+  }
+  const stack = [root];
+  let count = 0, checks = 0;
+  while (stack.length) {
+    const d = stack.pop()!;
+    let entries;
+    try { entries = readdirSync(d, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (++count > 20000) return `everything under ${root}, too many files to check for env files of keys`;
+      const p = join(d, e.name);
+      if (e.isDirectory()) { if (e.name !== ".git") stack.push(p); continue; }
+      if (!fits(e.name)) continue;
+      if (++checks > 20 || !ignored(p)) return `${p}, an env file of keys`;
+    }
+  }
+  return undefined;
+}
+
+// envFileUnder in a git work tree: git lists the unignored *.env files below root, then each
+// repository nested below it (an untracked one, or a checked-out submodule) is asked in turn,
+// since ripgrep walks into it and honours only its ignore rules. Null when git fails.
+function envFileInRepo(root: string, fits: (n: string) => boolean, seen: { repos: number }): string | undefined | null {
+  const git = (...a: string[]) => execFileSync("git", ["-C", root, ...a], {
+    encoding: "utf-8", timeout: 5000, stdio: ["ignore", "pipe", "ignore"], maxBuffer: 64 * 1024 * 1024,
+  }).split("\0").filter(Boolean);
+  let nested: string[];
+  try {
+    const hit = git("ls-files", "-co", "--exclude-standard", "-z", "--", "*.env").find((f) => fits(basename(f)));
+    if (hit) return `${join(root, hit)}, an env file of keys`;
+    nested = git("ls-files", "-o", "--exclude-standard", "-z").filter((f) => f.endsWith("/")).map((f) => f.slice(0, -1));
+    nested.push(...git("ls-files", "-s", "-z").filter((l) => l.startsWith("160000 ")).map((l) => l.split("\t").slice(1).join("\t")));
+  } catch {
+    return null;
+  }
+  for (const n of nested) {
+    const dir = join(root, n);
+    if (!existsSync(join(dir, ".git"))) continue;
+    if (++seen.repos > 50) return `everything under ${root}, too many nested repositories to check for env files of keys`;
+    const r = envFileInRepo(dir, fits, seen);
+    if (r === null) return `${dir}, a nested repository the guard could not check for env files of keys`;
+    if (r) return r;
+  }
   return undefined;
 }
 
@@ -2625,7 +3391,7 @@ function readonlyRule(call: Call, g: Guard, cmds: Cmd[] | undefined): string | u
   if (READONLY_DENIED.has(call.tool)) return `Refused: ${why}, so it may not use ${call.tool}. ${move}`;
   if (call.tool === "task") {
     const sub = String(call.args?.subagent_type ?? "");
-    if (!READONLY_AGENTS.has(sub)) return `Refused: ${why}; it may start only read-only subagents (explore, reviewer, verifier), not "${sub}". ${move}`;
+    if (!READONLY_AGENTS.has(agentName(sub))) return `Refused: ${why}; it may start only read-only subagents (explore, reviewer, verifier), not "${sub}". ${move}`;
   }
   for (const c of cmds ?? []) {
     const { targets, other } = writesOf(c);
@@ -2688,13 +3454,20 @@ function readonlyBlocked(c: Cmd): string | undefined {
       const g = gitParts(c);
       if (!g) return undefined;
       if (c.words.slice(1, c.words.indexOf(g.sub)).some((a) => /^(-c|--config-env|--exec-path|-p|--paginate)/.test(a))) return notRead("git with -c or a pager");
+      const risky0 = gitRisky(g);
+      if (risky0) return notRead(`git ${g.sub} ${risky0}, which writes a file or runs a program`);
       if (!GIT_READS.has(g.sub) || gitWrite(g)) return notRead(`git ${g.sub}`);
-      if (g.args.some((a) => /^--(output|ext-diff|textconv|open-files-in-pager)|^-O/.test(a))) return notRead(`git ${g.sub} with a write or external program option`);
+      const risky = gitRisky(g) ?? (g.args.some((a) => /^-[a-zA-Z]*O/.test(a)) ? "-O" : undefined);
+      if (risky) return notRead(`git ${g.sub} ${risky}, which writes a file or runs a program`);
       if (g.sub === "config" && g.args.some((a) => /^(-e|--edit)$/.test(a))) return notRead("git config --edit");
       if (g.sub === "stash" && !["list", "show"].includes(g.args.filter((a) => !a.startsWith("-"))[0] ?? "")) return notRead("git stash");
       return undefined;
     }
     case "sort": return args.some((a) => /^--compress-program/.test(a)) ? notRead("sort --compress-program") : undefined;
+    case "find": {
+      const act = args.find((a) => /^-(delete|exec|execdir|ok|okdir|fprint0?|fprintf|fls)$/.test(a));
+      return act ? `runs find ${act}, which writes or runs a program (list with find, then read with grep -r or xargs grep)` : undefined;
+    }
     case "rg": case "ag": return args.some((a) => /^--pre(=|$)|^--pre-glob/.test(a)) ? notRead(`${prog} --pre (runs a program)`) : undefined;
     case "tar": return /^-?[a-zA-Z]*t/.test(args[0] ?? "") || args.some((a) => /^(-[a-zA-Z]*t[a-zA-Z]*|--list)$/.test(a)) ? undefined : notRead("tar without -t");
     case "unzip": return args.some((a) => /^-[a-zA-Z]*[ltpvZ]/.test(a)) ? undefined : notRead("unzip without -l");
@@ -2746,9 +3519,34 @@ function valueOfArgs(args: string[], re: RegExp): string | undefined {
   return undefined;
 }
 
+// sqlite3's arguments: the database, the SQL it runs (its -cmd values and the words after the
+// database), the text of its -init files (undefined when unreadable), -readonly, and -A.
+function sqliteParts(c: Cmd): { db?: string; sql: string[]; init: Array<string | undefined>; readonly: boolean; archive: boolean } {
+  const args = c.words.slice(1);
+  const pos: string[] = [], sql: string[] = [], init: Array<string | undefined> = [];
+  let readonly = false, archive = false;
+  for (let k = 0; k < args.length; k++) {
+    const a = args[k], o = a.replace(/^--/, "-");
+    if (o === "-cmd") { if (args[k + 1] !== undefined) sql.push(args[++k]); continue; }
+    if (o === "-init") { const p = args[k + 1] !== undefined ? wordPath(args[++k], c.cwd, c.vars) : undefined; init.push(p ? fileText(p, c) : undefined); continue; }
+    if (o === "-readonly") { readonly = true; continue; }
+    if (/^-(A|archive)/.test(o)) { archive = true; continue; }
+    if (/^-(separator|nullvalue|newline|vfs|maxsize|mmap|pagecache|lookaside|heap|escape)$/.test(o)) { k++; continue; }
+    if (a.startsWith("-")) continue;
+    pos.push(a);
+  }
+  return { db: pos[0], sql: [...sql, ...pos.slice(1), ...(init.filter((x) => x !== undefined) as string[])], init, readonly, archive };
+}
+
+// SQL piped in from echo, printf or a cat here-document is read like SQL on the command line.
+function sqliteMayWrite(c: Cmd, q = sqliteParts(c)): boolean {
+  return [...q.sql, ...c.stdin].some((x) => SQL_WRITE.test(x) || SQL_EXEC.test(x)) || c.code.length > 0 || !!c.feeder ||
+    c.redirs.some((r) => r.op === "<" || r.op === "<<<") || (q.sql.length === 0 && !c.stdin.length);
+}
+
 function cmd_hasWriteSql(c: Cmd): boolean {
-  const plain = c.words.slice(1).filter((a) => !a.startsWith("-"));
-  return SQL_WRITE.test(plain.slice(1).join(" ")) || c.code.length > 0 || !!c.feeder || c.redirs.some((r) => r.op === "<" || r.op === "<<<") || plain.length < 2;
+  const q = sqliteParts(c);
+  return q.archive || q.init.some((x) => x === undefined) || sqliteMayWrite(c, q);
 }
 
 // An interpreter run by a read-only agent: tests, syntax checks and inline code that neither
@@ -2760,20 +3558,21 @@ function interpreterBlocked(c: Cmd, prog: string): string | undefined {
     if (args.some((a) => /^-[a-zA-Z]*i/.test(a))) return `runs ${prog} -i, which edits files`;
     if (args.some((a) => /^-M/.test(a) && !/^-M(strict|warnings|utf8|List::Util|Data::Dumper|JSON::PP)\b/.test(a))) return `runs ${prog} with a module the guard does not know`;
   }
-  const lang = /^python/.test(prog) ? "python" : prog;
+  const it = interpreterOf(c);
+  const lang = it.lang;
   if (args.some((a) => /^(-r|--require|--import|--loader|--experimental-loader)(=|$)/.test(a))) return `runs ${prog} with a preloaded module`;
-  const runsTests = (lang === "python" && args.includes("-m")) || (lang === "node" && args.includes("--test")) || interpreterScript(c) !== undefined;
+  const runsTests = it.module !== undefined || (lang === "node" && args.includes("--test")) || it.script !== undefined;
   if (runsTests && testFromScratch(c)) return `runs ${prog} on code from /tmp, where this agent can write`;
-  const m = args.indexOf("-m");
-  if (lang === "python" && m >= 0) {
-    const mod = args[m + 1] ?? "";
+  if (lang === "python" && it.module !== undefined) {
+    const mod = it.module;
     if (mod === "unittest" || mod === "pytest" || mod === "pydoc" || mod === "tabnanny") return undefined;
-    if (mod === "json.tool" && args.slice(m + 2).filter((a) => !a.startsWith("-")).length <= 1) return undefined;
+    const after = args.slice(args.indexOf(mod) + 1);
+    if (mod === "json.tool" && after.filter((a) => !a.startsWith("-")).length <= 1) return undefined;
     return `runs python -m ${mod}, which is not a test or a read`;
   }
-  if (lang === "node" && args.some((a) => a === "--test" || a === "--check" || a === "-c")) return undefined;
-  if ((lang === "ruby" || lang === "perl") && args.some((a) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a)) && !args.some((a) => /^-[a-zA-Z]*e/.test(a))) return undefined;
-  const script = interpreterScript(c);
+  if (lang === "node" && (args.includes("--test") || it.check) && !it.code.length) return undefined;
+  if ((lang === "ruby" || lang === "perl") && it.check && !it.code.length) return undefined;
+  const script = it.script;
   if (script !== undefined) return TEST_FILE.test(script) ? undefined : `runs ${script}, a script (only test files run for a read-only agent)`;
   if (c.opaque) return `runs ${prog} on code from a pipe the guard cannot read`;
   for (const body of codeOf(c)) {
@@ -2918,19 +3717,42 @@ function worktreeRule(call: Call, cmds: Cmd[] | undefined): string | undefined {
     }
     if (other?.startsWith("code")) {
       // Literals shaped like paths, and any literal naming an entry that exists where it runs.
-      const bodies = codeOf(c);
+      // Paths built from the home directory are judged as the literal path they make.
+      const homed = codeOf(c).map(homeExprs);
+      const bodies = homed.map((h) => h.code);
+      // Code that removes or moves a whole tree reaches board/ from any path holding it, as rm -r does.
+      const sweepCode = bodies.some((b) => SWEEP_CODE.test(b));
+      for (const p of homed.flatMap((h) => h.paths)) if (sweepCode ? covers(p) : inBoard(p)) return refuse(p);
+      const fileWrite = bodies.some((b) => CODE_WRITES.some(([re]) => re !== SUBPROCESS && re.test(b)));
+      // A literal base that holds board/ and a literal naming the rest, however the code joins
+      // them ('/'.join, % or .format, an alias of join, a variable between): judged as joined.
+      // A leading %s or {} placeholder is the base's place.
+      if (fileWrite) {
+        const strs = bodies.flatMap((b) => [...b.matchAll(/(['"\x60])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]))
+          .filter((x) => x && x.length < 400 && !/\s/.test(x));
+        const bases = strs.filter((x) => /^(\/|~\/)/.test(x)).map((x) => resolve(expandTilde(x))).filter((p) => covers(p) && !inBoard(p));
+        for (const base of bases) {
+          for (const x of strs) {
+            const p = join(base, x.replace(/^(%[sr]|\{\w*\})/, "").replace(/^\/+/, ""));
+            if (!x.startsWith("~") && inBoard(p)) return refuse(p);
+          }
+        }
+      }
+      // A path built from the home directory whose end is not a literal may reach board/.
+      const open = homed.flatMap((h) => h.open).filter(covers);
+      if (fileWrite && open.length && (fromMain || underC(c.cwd, atlasMain()))) return unknown(`${open[0]}/...`);
       const lits = [...new Set([...bodies.flatMap(codeLiterals), ...bodies.flatMap((b) => [...b.matchAll(/(['"])((?:\\.|(?!\1).)*)\1/g)]
         .map((m) => m[2]).filter((l) => l && l.length < 400 && !/\s/.test(l) && existsSync(resolve(c.cwd, expandTilde(l)))))])];
       for (const lit of lits) {
-        // A literal naming the working directory itself ('.') is not a file the code writes.
+        // A literal naming the working directory itself ('.') is not a file the code writes,
+        // unless the code removes or moves whole trees.
         for (const p of globPathsOf(lit, c)) {
-          if (p && (GLOB_CHARS.test(lit) ? covers(p) : inBoard(p)) && canon(p) !== canon(c.cwd)) return refuse(p);
+          if (p && (GLOB_CHARS.test(lit) || sweepCode ? covers(p) : inBoard(p)) && (sweepCode || canon(p) !== canon(c.cwd))) return refuse(p);
         }
       }
       // Code run inside board/ that writes files it does not name elsewhere writes board/.
       // A path the code computes (concatenation, format, join) cannot be read from its literals.
-      const fileWrite = bodies.some((b) => CODE_WRITES.some(([re]) => re !== SUBPROCESS && re.test(b)));
-      const computed = bodies.some((b) => /['"`]\s*\+|\+\s*['"`]|\bf['"]|\.format\s*\(|%\s*[(\w]|\bjoin\s*\(|\/\s*['"]|\$\{|\blistdir\b|\bglob\b|\bwalk\b|\breaddir|\bscandir\b|\biterdir\b/.test(b));
+      const computed = open.length > 0 || bodies.some((b) => /['"`]\s*\+|\+\s*['"`]|\bf['"]|\.format\s*\(|%\s*[(\w]|\bjoin(path)?\s*\(|\/\s*['"]|\$\{|\blistdir\b|\bglob\b|\bwalk\b|\breaddir|\bscandir\b|\biterdir\b/.test(b));
       const elsewhere = !computed && lits.some((l) => pathsOf(l, c).some((p) => p && !covers(p)));
       if ((fileWrite || c.opaque) && !elsewhere && covers(c.cwd)) return refuse(c.cwd);
     }
@@ -3033,23 +3855,28 @@ function stagingRule(cmds: Cmd[] | undefined): string | undefined {
   return undefined;
 }
 
+// A session's parent and creation time: as the plugin recorded them when it started the
+// session, else from the client, asked once per process (an error reads as no parent and an
+// unknown time).
+async function sessionInfo(id: string, client: any, directory: string): Promise<Guard> {
+  const g = guardOf(id);
+  if (g.parent === undefined || g.created === undefined) {
+    let data: any;
+    try { data = (await client?.session?.get?.({ path: { id }, query: { directory } }))?.data; } catch {}
+    if (g.parent === undefined) g.parent = data?.parentID ?? null;
+    const c = data?.time?.created;
+    if (g.created === undefined && typeof c === "number") g.created = c;
+    guards.set(id, g);
+  }
+  return g;
+}
+
 // The session, then its parents: a subagent may not commit over its orchestrator's failed verify.
 async function lineage(session: string, client: any, directory: string): Promise<string[]> {
   const chain = [session];
   let id = session;
   for (let k = 0; k < 5; k++) {
-    const g = guardOf(id);
-    let parent = g.parent;
-    if (parent === undefined) {
-      try {
-        const r = await client?.session?.get?.({ path: { id }, query: { directory } });
-        parent = r?.data?.parentID ?? null;
-      } catch {
-        parent = null;
-      }
-      g.parent = parent;
-      guards.set(id, g);
-    }
+    const parent = (await sessionInfo(id, client, directory)).parent;
     if (!parent) break;
     chain.push(parent);
     id = parent;
@@ -3116,6 +3943,7 @@ function shipsOf(c: Cmd): string | undefined {
   }
   const prog = basename(c.words[0] ?? "");
   if (prog === "save-and-push.sh" || prog === "ship.sh") return prog;
+  if (prog === "board" && c.words[1] === "push") return "board push (a commit)";
   if (/^python/.test(prog) && c.words.includes("tutorboard.gitops")) return "tutorboard.gitops";
   if (prog === "gh" && c.words[1] === "pr" && c.words[2] === "merge") return "gh pr merge";
   if (prog === "gh" && c.words[1] === "api" && c.words.some((x) => /\/(merges?|git\/refs)\b/.test(x)) &&
@@ -3146,16 +3974,77 @@ function opaqueRule(cmds: Cmd[] | undefined): string | undefined {
 async function commitGate(call: Call, cmds: Cmd[] | undefined, client: any): Promise<string | undefined> {
   const ships = (cmds ?? []).map(shipsOf).find(Boolean);
   if (!ships) return undefined;
-  for (const id of await lineage(call.session, client, call.directory)) {
-    const g = guardOf(id, true);
-    const last = g.verdicts?.[g.verdicts.length - 1];
-    if (!last) continue;
-    if (last.pass || (g.override_at ?? 0) > last.at) return undefined;
+  // A verifier subagent's reply still being read counts before the gate decides.
+  await Promise.all([...settling.values()]);
+  // In each session, a run holding a fail no later run has re-verified (holds) closes the gate,
+  // and so does one in any session of the lineage: a subagent's own pass never lifts its
+  // orchestrator's fail.
+  const refuse = (last: Verdicts, where = "") => {
     const quoted = last.failed.slice(0, 2).map((f) => `"${clip1(f, 300)}"`).join("; ");
-    return `Refused: ${ships} after a failed verify. The newest verify verdicts${last.run ? ` (workflow ${last.run})` : ""} include fail and none has passed since: ${quoted}. ` +
-      `Fix it and re-verify with verify_until_pass, or put the failing verdict to the owner; only the owner saying "ship over it" lifts this.`;
+    const sub = last.run?.startsWith("@");
+    const who = sub ? `The ${last.run}` : `Workflow run${last.run ? ` ${last.run}` : ""}`;
+    const since = sub ? "no run started since has re-verified" : "no later round of its own verify_until_pass passed and no run started since has re-verified";
+    return `Refused: ${ships} after a failed verify. ${who}${where} holds a fail that ${since}: ${quoted}. ` +
+      `Fix it and run a fresh verify that passes, or put the failing verdict to the owner; only the owner saying "ship over it" lifts this.`;
+  };
+  const chain = await lineage(call.session, client, call.directory);
+  for (const id of chain) {
+    const last = standingFail(guardOf(id, true));
+    if (last) return refuse(last);
+  }
+  // So does one in a descendant of the committing session or of an ancestor (a session whose
+  // parent chain reaches it): a workflow a worker or task subagent ran holds the sessions above
+  // it. Of the committing session's chain, the nearest session the descendant's chain reaches
+  // (the meeting point) is held by it. The committing session is held with it when it is the
+  // meeting point, or when the meeting point started the committing session's branch after the
+  // fail arrived: a held session may not ship through a fresh subagent. A branch that existed
+  // before the fail (a sibling working beside it) is not held. The owner's word lifts it in the
+  // descendant, the meeting point or the committing session, and so does the newest-run rule
+  // across the tree: a done run started after the fail arrived, in a session on the path from
+  // the descendant (not included) through the meeting point to the committing session, decides
+  // it (its own fail holds through the lineage loop above). A finished subagent cannot run again.
+  const over = (s: string) => guardOf(s, true).override_at ?? 0;
+  for (const id of sessionsWithVerdicts()) {
+    if (chain.includes(id)) continue;
+    const below = await lineage(id, client, call.directory);
+    const k = chain.findIndex((s) => below.indexOf(s) > 0);
+    if (k < 0) continue;
+    const j = below.indexOf(chain[k]);
+    const last = standingFail(guardOf(id, true), Math.max(over(call.session), over(chain[k])));
+    if (!last) continue;
+    const path = [...below.slice(1, j + 1), ...chain.slice(0, k)];
+    if (path.some((s) => (guardOf(s, true).verdicts ?? []).some((r) => decides(r) && (r.start ?? r.at) >= last.at))) continue;
+    if (k === 0) return refuse(last, ` in subagent session ${id}`);
+    const branch = chain[k - 1];
+    // An unknown creation time counts as after the fail.
+    const created = (await sessionInfo(branch, client, call.directory)).created ?? Infinity;
+    if (created < last.at) continue;
+    return refuse(last, ` in session ${id} below ${chain[k]}, which started ${branch === call.session ? "this session" : `session ${branch}`} after that fail arrived,`);
   }
   return undefined;
+}
+
+// A session's newest run holding a fail no owner's word since has lifted.
+function standingFail(g: Guard, override = 0): Verdicts | undefined {
+  const all = g.verdicts ?? [], lift = Math.max(g.override_at ?? 0, override);
+  let last: Verdicts | undefined;
+  for (const v of all) if (holds(v, all) && lift <= v.at && (!last || v.at >= last.at)) last = v;
+  return last;
+}
+
+// Every session with saved verify verdicts: those this process holds and those in guard/.
+function sessionsWithVerdicts(): string[] {
+  const ids = new Set<string>();
+  for (const [id, g] of guards) if (g.verdicts?.length) ids.add(id);
+  let files: string[] = [];
+  try { files = readdirSync(GUARD_DIR).filter((f) => f.endsWith(".json")); } catch {}
+  for (const f of files) {
+    try {
+      const j = JSON.parse(readFileSync(join(GUARD_DIR, f), "utf-8"));
+      if (j?.verdicts?.length) ids.add(typeof j.id === "string" ? j.id : f.slice(0, -5));
+    } catch {}
+  }
+  return [...ids];
 }
 
 const clip1 = (s: string, max: number) => (s.length <= max ? s : s.slice(0, max - 1) + "…");
@@ -3261,20 +4150,89 @@ function collectVerdicts(value: any, errors = false, depth = 0, out: any[] = [])
   return out;
 }
 
-function recordVerdicts(session: string, verdicts: any[], run?: string, round?: number) {
-  if (!verdicts.length) return;
-  const g = guardOf(session, true);
-  const failed = verdicts.filter((v) => !isPass(v)).map((v) => verdictText(v, 2000));
-  g.verdicts = [...(g.verdicts ?? []), { at: Date.now(), run, round, pass: failed.length === 0, failed }].slice(-20);
-  saveGuard(session, g);
+// Verdicts the plugin made from a reply: read from prose, or the fail for a reply naming none.
+const MADE = ((G as any).madeVerdicts ??= new WeakSet<object>()) as WeakSet<object>;
+const made = (v: any) => (MADE.add(v), v);
+
+// A read-only agent's verdicts. A text reply's verdict is its first non-blank line, which
+// starts with PASS or FAIL (PASSED and FAILED too, any case, "Verdict:" before it allowed).
+// Markdown around it is read through: heading and quote marks, `*`, `_` and backticks, and a
+// first line that is only "Verdict" (a heading) hands over to the next non-blank line. The
+// rest of the reply is its reason. With noneFails, a reply naming no verdict is one fail.
+function replyVerdicts(result: any, noneFails = false): any[] {
+  let out: any[] = [];
+  if (typeof result === "string") {
+    const lines = result.split("\n");
+    const plain = (l: string) => l.replace(/[*_`]/g, "").replace(/^[\s#>]+/, "");
+    let i = lines.findIndex((l) => plain(l).trim());
+    if (i >= 0 && /^verdict\s*:?\s*$/i.test(plain(lines[i]).trim())) {
+      const j = lines.findIndex((l, k) => k > i && plain(l).trim());
+      if (j > 0) i = j;
+    }
+    const m = i < 0 ? null : plain(lines[i]).match(/^\s*(?:verdict\s*:\s*)?(pass|fail)(?:ed)?\b[\s:.\-–—]*(.*)$/i);
+    if (m) {
+      const rest = [m[2], ...lines.slice(i + 1)].join("\n").trim();
+      out = [made({ verdict: m[1].toLowerCase(), reason: clip1(rest || `the verify agent replied ${m[1].toUpperCase()} with no reason`, 4000) })];
+    }
+  } else {
+    out = collectVerdicts(result);
+  }
+  if (out.length || !noneFails) return out;
+  const said = typeof result === "string" ? result : JSON.stringify(result) ?? String(result);
+  return [made({
+    verdict: "fail",
+    reason: `the verify agent's reply named no verdict (no first line starting PASS or FAIL, no verdict field): ${clip1(said.replace(/\s+/g, " ").trim(), 300)}`,
+  })];
 }
+
+// A verifier or reviewer subagent started outside a workflow (the task tool, agent_spawn,
+// agent_send, an @ mention): each reply it finishes is one run in its parent's verdicts, started
+// when it was prompted (chat.message) and done when read. Its verdict is read as replyVerdicts
+// reads one with noneFails: a reply naming none, or a turn that ended in an error, is a fail.
+// A workflow's own agents are judged by the workflow instead, and a session with no parent
+// records nothing. Each settlement is held in `settling` until saved, so the gate waits for it.
+const settling = ((G as any).verifySettling ??= new Map<string, Promise<void>>()) as Map<string, Promise<void>>;
+
+function settleVerifier(id: string | undefined, client: any, directory: string): Promise<void> {
+  if (!id) return Promise.resolve();
+  const busy = settling.get(id);
+  if (busy) return busy;
+  const g = guardOf(id, true);
+  const asked = g.asked_at;
+  if (asked === undefined || g.workflow || !VERIFY_TYPES.has(agentName(g.agent))) return Promise.resolve();
+  delete g.asked_at;
+  saveGuard(id, g);
+  const work = (async () => {
+    try {
+      const parent = (await sessionInfo(id, client, directory)).parent;
+      if (!parent) return;
+      const last = await lastAssistant(id, directory).catch(() => undefined);
+      const err = last ? errorOf(last) : "no reply";
+      const vs = err
+        ? [{ verdict: "fail", reason: `the verify agent did not finish: ${err}` }]
+        : replyVerdicts(textOf(last), true);
+      const ledger = new VerdictLedger(parent, `@${agentName(g.agent)} subagent ${id}`, asked);
+      ledger.add(vs);
+      ledger.finish();
+    } catch (e: any) {
+      log(`verifier ${id} not settled: ${e?.message ?? e}`);
+    } finally {
+      settling.delete(id);
+    }
+  })();
+  settling.set(id, work);
+  return work;
+}
+
 
 // ---- instructions (AGENTS.md / CLAUDE.md)
 //
-// opencode 1.19.5 loads, for a project, the first of AGENTS.md, CLAUDE.md, CONTEXT.md found
-// walking up from the session directory to the worktree root, and skips CLAUDE.md when
-// OPENCODE_DISABLE_CLAUDE_CODE (or _PROMPT) is set, as ./env sets it. So a repo with only a
-// CLAUDE.md gets its rules from here.
+// opencode 1.19.5 (Instruction.systemPaths) loads the first that exists of
+// ~/.config/opencode/AGENTS.md and ~/.claude/CLAUDE.md, then takes the first of AGENTS.md,
+// CLAUDE.md, CONTEXT.md with any match from the session directory up to the worktree and loads
+// every match of that name. OPENCODE_DISABLE_CLAUDE_CODE (or _PROMPT), which ./env sets, drops
+// both CLAUDE.md entries, so a repo with only a CLAUDE.md gets its nearest one from here.
+// OPENCODE_DISABLE_PROJECT_CONFIG skips the walk, so then the nearest AGENTS.md, else CLAUDE.md.
 
 const flagOn = (name: string) => /^(1|true)$/i.test(process.env[name] ?? "");
 
@@ -3298,28 +4256,148 @@ function missingInstructions(directory: string, worktree?: string): string | und
 }
 
 // ---- reading a child session that opencode cannot list in full
+//
+// opencode 1.19.5 answers 400 ("Expected OutputFormatJsonSchema") to any message listing that
+// reaches a user message sent with a json_schema format, and so does its single-message read.
+// The listing takes `limit` and a `before` cursor (base64url of {id, time}: messages older than
+// that key), so the plugin reads around such a message without ever asking for it. A message id
+// is "msg_" + 12 hex digits of (ms * 4096 + counter), low 48 bits, then 14 random characters.
+// The plugin names each schema prompt's message itself and records it, and the event hook
+// records every message of those sessions, so a read knows how many messages lie between two
+// schema prompts and pages exactly that far.
 
-// opencode 1.19.5 fails a message listing that reaches a user message sent with a json_schema
-// format ("Expected OutputFormatJsonSchema"). The newest messages after it list fine, so find
-// the largest window that does.
-async function newestMessages(client: any, id: string, directory: string, max = 400) {
-  const get = async (limit: number) => {
-    const r = await client.session.messages({ path: { id }, query: { directory, limit } });
-    return r?.error || !Array.isArray(r?.data) ? undefined : (r.data as any[]);
-  };
-  const all = await get(max);
-  if (all) return { msgs: all, blocked: false };
-  let lo = 0, hi = max, best: any[] = [];
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    const got = await get(mid);
-    if (got) { lo = mid; best = got; if (got.length < mid) return { msgs: got, blocked: false }; }
-    else hi = mid;
-  }
-  return { msgs: best, blocked: true };
+type Track = { bad: Array<{ id: string; time: number }>; msgs: Array<{ id: string; time: number; role: string; parent?: string }> };
+const TRACK_DIR = join(STATE_DIR, "schema");
+const tracks = ((G as any).tracks ??= new Map<string, Track>()) as Map<string, Track>;
+const ID_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+let idClock = { ms: 0, n: 0 };
+
+// A message id as opencode makes one, ascending with time.
+function messageId(): { id: string; time: number } {
+  const now = Date.now();
+  if (now !== idClock.ms) idClock = { ms: now, n: 0 };
+  idClock.n++;
+  const hex = ((BigInt(now) * 4096n + BigInt(idClock.n)) & 0xffffffffffffn).toString(16).padStart(12, "0");
+  return { id: `msg_${hex}${[...randomBytes(14)].map((b) => ID_CHARS[b % 62]).join("")}`, time: now };
 }
 
-function promptFromJournals(session: string): string | undefined {
+// The millisecond an id was made, given a time near it (its 48 bits hold ms modulo 2^36).
+function idTime(id: string, near: number): number | undefined {
+  const m = /^msg_([0-9a-f]{12})/.exec(id);
+  if (!m) return undefined;
+  const low = Math.floor(parseInt(m[1], 16) / 4096);
+  const span = 2 ** 36;
+  return low + Math.round((near - low) / span) * span;
+}
+
+const cursorBefore = (id: string, time: number) => Buffer.from(JSON.stringify({ id, time })).toString("base64url");
+const trackFile = (session: string) => join(TRACK_DIR, `${session.replace(/[^A-Za-z0-9_-]/g, "_")}.json`);
+
+// A session's record. A miss is remembered for 30 s, because every message.updated event of
+// every session asks; a read passes fresh=true.
+const untracked = ((G as any).untracked ??= new Map<string, number>()) as Map<string, number>;
+function trackOf(session: string, fresh = false): Track | undefined {
+  let t = tracks.get(session);
+  if (!t) {
+    if (!fresh && (untracked.get(session) ?? 0) > Date.now() - 30000) return undefined;
+    try { t = JSON.parse(readFileSync(trackFile(session), "utf-8")) as Track; } catch {
+      untracked.set(session, Date.now());
+      if (untracked.size > 2000) untracked.delete(untracked.keys().next().value!);
+      return undefined;
+    }
+    tracks.set(session, t);
+  }
+  return t;
+}
+
+function saveTrack(session: string, t: Track) {
+  tracks.set(session, t);
+  try {
+    mkdirSync(TRACK_DIR, { recursive: true });
+    const tmp = `${trackFile(session)}.${process.pid}.tmp`;
+    writeFileSync(tmp, JSON.stringify(t));
+    renameSync(tmp, trackFile(session));
+  } catch (e: any) {
+    log(`schema track for ${session} not saved: ${e?.message ?? e}`);
+  }
+}
+
+function noteSchemaPrompt(session: string, id: string, time: number) {
+  const t = trackOf(session, true) ?? { bad: [], msgs: [] };
+  if (!t.bad.some((b) => b.id === id)) t.bad.push({ id, time });
+  saveTrack(session, t);
+}
+
+// A message.updated event: every message of a tracked session is recorded once. Any user
+// message there is a schema prompt (the plugin sent it), so it is one to page around.
+function noteMessage(info: any) {
+  const session = info?.sessionID, id = info?.id;
+  if (!session || typeof id !== "string") return;
+  const t = trackOf(session);
+  if (!t || t.msgs.some((m) => m.id === id)) return;
+  const time = Number(info.time?.created) || Date.now();
+  t.msgs.push({ id, time, role: String(info.role ?? ""), parent: info.parentID });
+  if (info.role === "user" && !t.bad.some((b) => b.id === id)) t.bad.push({ id, time: Math.min(time, idTime(id, time) ?? time) });
+  saveTrack(session, t);
+}
+
+// The newest `want` messages of a session, oldest first, never asking for a schema prompt.
+// stop ends the read early once a page holds a message it accepts. hidden counts the schema
+// prompts left out. A session the plugin never sent a schema prompt to is read in one request;
+// if that fails (a schema child from before tracking), the read pages one message at a time and
+// steps over each prompt it meets, the parent of the oldest reply read so far.
+async function readSession(client: any, id: string, directory: string, want: number, stop?: (m: any) => boolean) {
+  const page = async (limit: number, before?: string) => {
+    const r = await client.session.messages({ path: { id }, query: { directory, limit, ...(before ? { before } : {}) } });
+    if (r?.error || !Array.isArray(r?.data)) return { error: JSON.stringify(r?.error ?? "no data").slice(0, 300) };
+    return { data: r.data as any[], next: r.response?.headers?.get?.("x-next-cursor") as string | undefined };
+  };
+  const t = trackOf(id, true);
+  // A workflow agent's session may hold schema prompts, unless its journal entry says it had none.
+  const entry = t ? undefined : journalEntry(id);
+  if (!t && (entry === undefined || entry.schema === false)) {
+    const r = await page(want);
+    if (!r.error) return { msgs: r.data!, hidden: 0 };
+  }
+  const bad = new Map<string, number>((t?.bad ?? []).map((b) => [b.id, b.time]));
+  const known = (t?.msgs ?? []).filter((m) => !bad.has(m.id)).map((m) => m.id);
+  const out: any[] = [];
+  let before: string | undefined, below: string | undefined, hidden = 0, error: string | undefined;
+  const isBelow = (x: string) => below === undefined || x < below;
+  for (let k = 0; k < 200 && out.length < want; k++) {
+    let limit = t ? want - out.length : 1;
+    if (t) {
+      const next = [...bad.keys()].filter(isBelow).sort().pop();
+      if (next !== undefined) {
+        const between = known.filter((m) => isBelow(m) && m > next).length;
+        if (!between) { hidden++; before = cursorBefore(next, bad.get(next)!); below = next; continue; }
+        limit = Math.min(limit, between);
+      }
+    }
+    const r = await page(limit, before);
+    if (r.error) {
+      const oldest = out[out.length - 1]?.info;
+      const parent = oldest?.parentID;
+      if (t || !parent || parent === below) { error = r.error; break; }
+      hidden++;
+      before = cursorBefore(parent, idTime(parent, Number(oldest.time?.created) || Date.now()) ?? 0);
+      below = parent;
+      continue;
+    }
+    const got = r.data!;
+    if (!got.length) break;
+    for (let i = got.length - 1; i >= 0; i--) out.push(got[i]);
+    const oldest = got[0].info ?? {};
+    below = oldest.id;
+    before = r.next ?? cursorBefore(oldest.id, Number(oldest.time?.created) || 0);
+    if (stop && got.some(stop)) break;
+    if (got.length < limit) break;
+  }
+  return { msgs: out.reverse(), hidden, error };
+}
+
+// The journal entry of a workflow agent's session, from the newest 50 runs.
+function journalEntry(session: string): any {
   try {
     const root = join(STATE_DIR, "workflows");
     const runs = readdirSync(root).map((r) => join(root, r, "journal.jsonl")).filter(existsSync)
@@ -3327,12 +4405,14 @@ function promptFromJournals(session: string): string | undefined {
     for (const j of runs) {
       for (const line of readFileSync(j, "utf-8").split("\n")) {
         if (!line.includes(session)) continue;
-        try { const e = JSON.parse(line); if (e.session === session && e.prompt) return e.prompt; } catch {}
+        try { const e = JSON.parse(line); if (e.session === session) return e; } catch {}
       }
     }
   } catch {}
   return undefined;
 }
+
+const promptFromJournals = (session: string): string | undefined => journalEntry(session)?.prompt || undefined;
 
 function renderMessage(m: any) {
   const info = m.info ?? {};
@@ -3659,8 +4739,8 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           });
           const id = created?.data?.id;
           if (!id) return `Could not create the child session: ${JSON.stringify(created?.error ?? {})}`;
-          guards.set(id, { ...guardOf(id), parent: ctx.sessionID });
-          if (a.agent && READONLY_AGENTS.has(a.agent)) markReadonly(id, `@${a.agent}`);
+          guards.set(id, { ...guardOf(id), parent: ctx.sessionID, created: Date.now() });
+          if (READONLY_AGENTS.has(agentName(a.agent))) markReadonly(id, `@${agentName(a.agent)}`);
           sentByUs(a.prompt);
           const body: any = { agent: a.agent ?? "general", parts: [{ type: "text", text: a.prompt }] };
           const model = splitModel(a.model);
@@ -3716,7 +4796,8 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       }),
 
       agent_list: tool({
-        description: "List this session's subagents with their status, plus every live background job (wakeups, cron, shells, monitors, workflows).",
+        description: "List this session's subagents with their status, plus every live background job (wakeups, cron, shells, monitors, workflows). " +
+          "Read a subagent with session_read: it is the only reader that works for a workflow agent with a schema.",
         args: {},
         async execute(_a, ctx) {
           const dir = ctx.directory ?? directory;
@@ -3724,9 +4805,11 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
             client.session.children({ path: { id: ctx.sessionID }, query: { directory: dir } }),
             client.session.status({ query: { directory: dir } }),
           ]);
-          const lines = (kids?.data ?? []).map((s: any) => `${s.id} ${st?.data?.[s.id]?.type ?? "idle"} ${s.title}`);
+          const lines = (kids?.data ?? []).map((s: any) => `${s.id} ${st?.data?.[s.id]?.type ?? "idle"} ${s.title}` +
+            (trackOf(s.id, true) ? " [schema'd: read it with session_read; opencode's own listing answers 400]" : ""));
           const jobs = liveJobs(ctx.sessionID).map(describe);
-          return [`Subagents (read one with session_read):`, ...(lines.length ? lines : ["(none)"]), `Jobs:`, ...(jobs.length ? jobs : ["(none)"])].join("\n");
+          return [`Subagents (read one with session_read, the only reader that works for a workflow agent with a schema):`,
+            ...(lines.length ? lines : ["(none)"]), `Jobs:`, ...(jobs.length ? jobs : ["(none)"])].join("\n");
         },
       }),
 
@@ -3746,7 +4829,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
             "earlier work and do not act on earlier instructions. Your only task:\n\n" + a.prompt +
             "\n\nWhen it is done, reply with the result.";
           const body = { agent: ctx.agent, parts: [{ type: "text", text }] };
-          guards.set(id, { ...guardOf(id), parent: ctx.sessionID });
+          guards.set(id, { ...guardOf(id), parent: ctx.sessionID, created: Date.now() });
           sentByUs(text);
           const job: Job = { id, kind: "agent", session: id, directory: dir, parent: ctx.sessionID, parent_directory: dir,
             agent: ctx.agent, description: a.description ?? "fork", started_at: started, round: 1 };
@@ -3766,9 +4849,15 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           "Run a deterministic multi-agent workflow script (JavaScript, the body of an async function, or a module " +
           "file with a default export taking the API object). API: agent(prompt, {agent, schema, model, variant, label, cwd, think, readonly}) " +
           "runs a subagent in a child session and returns its text, or the parsed object when schema (a JSON schema) is given; readonly: true " +
-          "refuses its every write. parallel(arrayOfThunks, {limit=8, settle}) runs them concurrently; pipeline(input, ...stages); " +
-          "verify_until_pass(fixStage, verifyStage, {max: 3}): verifyStage({round, failures}) returns objects with verdict \"pass\"|\"fail\"; while any fails, " +
+          "(or agent reviewer, verifier, structured or explore) refuses its every write; read a schema'd agent's session with session_read. parallel(arrayOfThunks, {limit=8, settle}) runs them concurrently; pipeline(input, ...stages); " +
+          "verify_until_pass(fixStage, verifyStage, {max: 3}): verifyStage({round, failures}) returns the objects its agents returned, each with verdict \"pass\"|\"fail\"; while any fails, " +
           "fixStage(failures, {round, verdicts}) runs and a fresh verify follows, up to max fix rounds; returns {passed, verdicts, failures, rounds}. " +
+          "Only verdicts from verify agents lift the commit gate: a read-only agent (agent verifier, reviewer or structured, or readonly: true; never worker, fixer or build) " +
+          "started in a phase whose name starts with verify or in verifyStage. Verify agents always run live, never from the journal. A fail from any such read-only agent outside a fixStage counts, whatever the phase. " +
+          "Each verdict reaches the gate the moment it returns, even if the run then throws. A fail holds the gate until a later round of the same verify_until_pass call passes " +
+          "or a workflow run started after it produces verify verdicts that all pass; separate phases, units and runs started beside it never replace it. " +
+          "Each parallel() thunk keeps its own phase. " +
+          "A pass the script writes itself, copies from an earlier round, or any other agent reports never counts. " +
           "sh(cmd) -> {code, stdout, stderr} (bash -o pipefail, guarded like the bash tool); " +
           "log(...); phase(name); args; sleep(ms). Return the final value; result.json carries the final verify verdicts. Every finished agent call is journaled: if a run fails or the " +
           "server restarts, call again with resume_run_id and the same script to skip finished calls. background=true (default) " +
@@ -3802,21 +4891,34 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           G.runs.set(run, { abort });
           const job: Job = { ...base(ctx), id: run, kind: "workflow", started_at: Date.now() };
           putJob(job);
-          const exec = runWorkflow({ run, code, isModule, scriptPath, args: a.args, session: ctx.sessionID, directory: dir, signal: abort.signal })
-            .then(({ result, stats, verify }) => {
-              const settled = settleVerdicts(result, verify, ctx.sessionID, run);
+          const ledger = new VerdictLedger(ctx.sessionID, run);
+          const exec = runWorkflow({ run, code, isModule, scriptPath, args: a.args, session: ctx.sessionID, directory: dir, signal: abort.signal, ledger })
+            .then(({ result, stats, trail }) => {
+              const settled = settleVerdicts(result, ledger, trail);
+              ledger.finish();
               const out = JSON.stringify(settled.result ?? null, null, 2);
               writeFileSync(join(runDir, "result.json"), out);
-              const note = settled.failed.length
-                ? `\n\nFailed verify verdicts. Quote each word for word in your report if you ship over it; git commit and git merge stay refused until a verify passes or the owner says "ship over it". Each in full is in ${join(runDir, "result.json")}:\n` +
+              let note = settled.failed.length
+                ? `\n\nFailed verify verdicts. Quote each word for word in your report if you ship over it; git commit and git merge stay refused until a fresh run's verify passes or the owner says "ship over it". Each in full is in ${join(runDir, "result.json")}:\n` +
                   settled.failed.map((v: any) => `- ${verdictText(v, 4000)}`).join("\n")
                 : "";
+              if (settled.ignored) {
+                note += `\n\n${settled.ignored} pass verdict(s) in the result came from no verify agent (a read-only agent, such as agent: "verifier" or readonly: true, ` +
+                  `run in a phase named verify or verify_until_pass's verify stage), so they do not count and lift no commit gate.`;
+              }
               return { ok: true, out, stats, verdict: settled.verdict, note };
             })
             .catch((e: any) => {
               const msg = e?.stack ?? e?.message ?? String(e);
               writeFileSync(join(runDir, "error.txt"), msg);
-              return { ok: false, out: msg, stats: undefined as any, verdict: undefined as string | undefined, note: "" };
+              // The verdicts verify agents returned before the run failed still stand.
+              const standing = ledger.standing(), failed = standing.filter((v) => !isPass(v));
+              const note = failed.length
+                ? `\n\nFailed verify verdicts from before the run failed; git commit and git merge stay refused until a fresh run's verify passes or the owner says "ship over it":\n` +
+                  failed.map((v: any) => `- ${verdictText(v, 4000)}`).join("\n")
+                : "";
+              const verdict = standing.length ? (failed.length ? "fail" : "pass") : undefined;
+              return { ok: false, out: msg, stats: undefined as any, verdict, note };
             })
             .finally(() => { G.runs.delete(run); dropJob(run); });
           if (a.background === false) {
@@ -3859,8 +4961,8 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       session_read: tool({
         description:
           "Read a session's messages: a subagent, a fork or a workflow agent, by its session id (agent_list shows them). " +
-          "Works on schema'd workflow agents, whose full listing opencode refuses: it reads the newest messages that list " +
-          "and takes the prompt from the workflow journal.",
+          "Use it for every workflow agent that had a schema: opencode's own message list (and the TUI) answers 400 " +
+          "\"Expected OutputFormatJsonSchema\" for those, and this tool reads around the schema'd prompt, taking the prompt from the workflow journal.",
         args: {
           id: z.string().describe("Session id"),
           limit: z.number().optional().describe("Newest messages to show, default 40"),
@@ -3869,11 +4971,12 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           const dir = ctx.directory ?? directory;
           const info = await client.session.get({ path: { id: a.id }, query: { directory: dir } }).catch(() => undefined);
           const sdir = info?.data?.directory ?? dir;
-          const { msgs, blocked } = await newestMessages(client, a.id, sdir, Math.max(1, Math.min(a.limit ?? 40, 400)));
+          const { msgs, hidden, error } = await readSession(client, a.id, sdir, Math.max(1, Math.min(a.limit ?? 40, 400)));
           const parts: string[] = [`# ${info?.data?.title ?? a.id}`];
-          if (blocked) {
+          if (hidden || error) {
             const prompt = promptFromJournals(a.id);
-            parts.push("[Older messages cannot be listed in opencode 1.19.5: one is a user message sent with a json_schema format.]");
+            parts.push(`[${hidden || "Some"} prompt(s) sent with a json_schema format are left out: opencode 1.19.5 cannot list them.` +
+              `${error ? ` Reading stopped early: ${error}` : ""}]`);
             if (prompt) parts.push(`## user (the workflow prompt, from its journal)\n${prompt}`);
           }
           const head = parts.join("\n\n");
@@ -3897,9 +5000,13 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       const t = event?.type;
       const p = event?.properties ?? {};
       if (t === "session.idle" || (t === "session.status" && p.status?.type === "idle")) {
+        const settled = settleVerifier(p.sessionID, client, directory);
         for (const f of [...(G.waiters.get(p.sessionID) ?? [])]) f({});
+        await settled;
       } else if (t === "session.error" && p.sessionID) {
         for (const f of [...(G.waiters.get(p.sessionID) ?? [])]) f({ error: p.error?.data?.message ?? p.error?.name ?? "error" });
+      } else if (t === "message.updated") {
+        noteMessage(p.info);
       } else if (t === "session.deleted") {
         const id = p.info?.id;
         for (const j of foreignJobs()) if (j.session === id || j.parent === id) removeForeign(j.id);
@@ -3962,6 +5069,14 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       if (reason) throw new Error(reason);
     },
 
+    // The task tool returns once its subagent's turn ends: a verifier's reply is read before the
+    // caller sees it, so the caller's next commit already meets it.
+    "tool.execute.after": async (input: any, output: any) => {
+      if (input?.tool !== "task") return;
+      const m = String(output?.output ?? "").match(/task_id:\s*(\S+)/);
+      await settleVerifier(output?.metadata?.sessionId ?? m?.[1], client, directory);
+    },
+
     "command.execute.before": async (input: any) => {
       if (input?.command !== "ultracode" || !input.sessionID) return;
       const g = guardOf(input.sessionID);
@@ -3982,8 +5097,10 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
         !texts.some((t: string) => ours.has(hash(t)) || /^<(task|workflow|monitor|wakeup|cron|bg_shell)\b/.test(t.trimStart()));
       let changed = false;
       if (input.agent && input.agent !== g.agent) { g.agent = input.agent; changed = true; }
-      if (input.agent && READONLY_AGENTS.has(input.agent) && !g.readonly) { g.readonly = `@${input.agent}`; changed = true; }
-      else if (input.agent && !READONLY_AGENTS.has(input.agent) && g.readonly?.startsWith("@") && fromOwner) { delete g.readonly; changed = true; }
+      const name = agentName(input.agent);
+      if (VERIFY_TYPES.has(name || agentName(g.agent)) && !g.workflow) { g.asked_at = Date.now(); changed = true; }
+      if (name && READONLY_AGENTS.has(name) && !g.readonly) { g.readonly = `@${name}`; changed = true; }
+      else if (name && !READONLY_AGENTS.has(name) && g.readonly?.startsWith("@") && fromOwner) { delete g.readonly; changed = true; }
       if (fromOwner && texts.some(ownerShipsOver)) { g.override_at = Date.now(); changed = true; }
       if (changed) saveGuard(id, g);
     },

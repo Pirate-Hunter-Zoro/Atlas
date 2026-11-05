@@ -2221,8 +2221,8 @@ def _tools_entries(base):
 def _tools_kick(base, decl):
     """Install one declaration in the background, and nothing else: a brew or
     cask by `brew bundle install --no-upgrade` on the Brewfile union
-    (`toolplan.write_union`), a mise pin by `mise install --locked <name>` in
-    its directory. Never `upkeep run` and never a brew upgrade, which could
+    (`toolplan.write_union`), a mise pin by `mise install --locked -- <name>`
+    in its directory, the name checked again first. Never `upkeep run` and never a brew upgrade, which could
     replace the board's own python mid-lesson; upkeep's hourly run keeps the
     tool current. mise starts only once `toolplan.mise_chain_problem` passes
     every config it will read there, and runs in `toolplan.mise_env`: it
@@ -2267,7 +2267,8 @@ def _tools_kick(base, decl):
         cwd = base
     elif kind == "mise":
         mise = find("mise")
-        if not mise or not decl.get("name") or not decl.get("target"):
+        if not mise or not decl.get("name") or not decl.get("target") \
+                or toolplan.mise_name_problem(decl["name"]):
             return False
         cwd = decl["target"]
         problem = toolplan.mise_chain_problem(cwd, base)
@@ -2278,7 +2279,8 @@ def _tools_kick(base, decl):
             except OSError:
                 pass
             return False
-        argv = [mise, "install", "--locked", decl["name"]]
+        # After `--`, so no name reads as an option.
+        argv = [mise, "install", "--locked", "--", decl["name"]]
         env = toolplan.mise_env(cwd, base, env)
     else:
         return False

@@ -25,10 +25,17 @@ installed. Each rule is tested both ways.
     %, #, $, a paren or a quote is refused, in mise.toml and .tool-versions.
   - THE CHAIN: every config mise reads in the target and above it up to the
     Atlas root (.mise.toml, mise.local.toml, .tool-versions,
-    .config/mise/conf.d/...) passes the same check, and the set matches what
+    .config/mise/conf.d/...) passes the same check, under any name macOS
+    folds to one of them (MISE.LOCAL.TOML, a long s for the s); a linked
+    directory mise would follow is refused; and the set matches what
     `mise config ls` lists. `mise_env` keeps mise to that chain: no config
     above the root, MISE_YES=0, no file-name override. Checked against the
     real mise, offline, in a HOME of its own.
+  - OPTIONS: no name of any kind starts with `-`, so none reads as an
+    option on brew's or mise's command line; a dash inside one is fine.
+  - `toolplan mise-chain <dir>` says why a chain is refused and exits 3, and
+    is silent with 0 on a clean one: setup.sh's gate. `toolplan mise-run`
+    runs its argv there under `mise_env`, and nothing on a refused chain.
   - A Brewfile that is not UTF-8 is reported whole, not dropped silently.
 """
 
@@ -324,6 +331,29 @@ try:
                       ("tools.node", "a mise tool")):
         got = toolplan.declare(mi, "mise", name)
         check("mise name refused: %r" % name, not got["changed"] and why in got["note"], got)
+    for name in ("-y", "--yes", "-C", "--force", "-", "npm:-x", "npm:--yes",
+                 "pipx:-e", "-npm:x"):
+        got = toolplan.declare(mi, "mise", name)
+        check("option-shaped mise name refused: %r" % name,
+              not got["changed"] and toolplan.mise_name_problem(name) != "", got)
+    for name in ("y-1", "a_b", "9lives", "npm:@scope/x-y", "npm:a-b"):
+        check("a mise name with a dash or underscore inside is accepted: %s" % name,
+              toolplan.mise_name_problem(name) == "")
+    for kind in ("brew", "cask"):
+        for name in ("-y", "--force", "--HEAD", "-"):
+            check("option-shaped %s name refused: %r" % (kind, name),
+                  toolplan.name_problem(kind, name, {"acme/tools"}) != "")
+    check("an option-shaped tap half is refused",
+          toolplan.name_problem("tap", "-x/tools", {"-x/tools"}) != ""
+          and toolplan.name_problem("brew", "acme/-x/y", {"acme/-x"}) != "")
+    check("a .tool-versions tool shaped like an option is refused",
+          toolplan.tool_versions_problem("-y 1\n") != ""
+          and toolplan.tool_versions_problem("y-1 1\n") == "")
+    for toml in ('[tools]\n"-y" = "1"\n', '[tools."--yes"]\nversion = "1"\n'):
+        check("a mise.toml pinning an option-shaped tool is refused: %r" % toml,
+              "edit it by hand" in toolplan.mise_text_problem(toml)[0])
+    check("a TOML key that needs no quotes keeps none, a backend key is quoted",
+          toolplan.mise_key("y-1") == "y-1" and toolplan.mise_key("npm:x") == '"npm:x"')
     for version in ('22"', "22\n[hooks]", "path:/tmp/x", "../x", "1 2", "\\"):
         got = toolplan.declare(mi, "mise", "node", version=version)
         check("mise version refused: %r" % version,
@@ -486,12 +516,155 @@ try:
                  "asdf:evil/x 1\n", "node 22 'x'\n"):
         check("tool_versions_problem refuses %r" % text,
               toolplan.tool_versions_problem(text) != "")
+    # mise renders all of a .tool-versions, comments too.
+    for text in ("node 22 # {{ exec(command='x') }}\n", "# {% if true %}x{% endif %}\n",
+                 "# {# c #}\n", "node 22 # 100%\n", "node path:./bin\n",
+                 "node 22 path:/tmp/x\n"):
+        check("tool_versions_problem refuses a comment template or a path: %r" % text,
+              "edit it by hand" in toolplan.tool_versions_problem(text))
     tv_ok = "# pins\nnode 22.1.0 20  # two\n\npython 3.12\nnpm:prettier latest\n"
-    check("tool_versions_problem passes plain tools and versions",
+    check("tool_versions_problem passes plain tools, versions and plain comments",
           toolplan.tool_versions_problem(tv_ok) == "")
+    for text in ('[tools]\nnode = "22"  # {{ exec(command="x") }}\n',
+                 '# {% if true %}\n[tools]\n', '# {# c #}\n[tools]\n',
+                 '[tools]\nnode = "path:./bin"\n', '[tools]\nnode = ["22", "path:/x"]\n',
+                 "[tools]\nnode = { version = 'path:/x' }\n",
+                 '[tools.node]\nversion = "path:/x"\n'):
+        check("mise_text_problem refuses a comment template or a path: pin %r" % text,
+              "edit it by hand" in toolplan.mise_text_problem(text)[0])
+    check("mise_text_problem passes a plain comment and an inline table",
+          toolplan.mise_text_problem(
+              '# 100 percent { plain\n[tools]\nnode = { version = "22" }  # why\n')[0] == "")
+    # A miserc can send mise to files the chain never names: refused, even empty.
+    for rel in (".miserc.toml", "miserc.toml", ".miserc.local.toml", "miserc.local.toml",
+                ".config/miserc.toml", ".config/miserc.local.toml", "mise/miserc.toml"):
+        for where, label in ((sub, "the subject"), (os.path.join(ch, "courses"), "a parent"),
+                             (ch, "the root")):
+            rc = os.path.join(where, rel)
+            write(rc, "")
+            problem = toolplan.mise_chain_problem(sub, ch)
+            check("mise_chain_problem refuses an empty %s in %s, naming it" % (rel, label),
+                  os.path.relpath(rc, ch) in problem and "edit it by hand" in problem, problem)
+            check("  and mise_configs lists it", rc in toolplan.mise_configs(sub, ch))
+            os.remove(rc)
+    check("the chain passes once the miserc is gone", toolplan.mise_chain_problem(sub, ch) == "")
     write(os.path.join(sub, ".tool-versions"), tv_ok)
     check("a plain .tool-versions passes the chain", toolplan.mise_chain_problem(sub, ch) == "")
     os.remove(os.path.join(sub, ".tool-versions"))
+    # macOS opens mise.local.toml under any name that folds to it: another
+    # case, or a long s (U+017F) for the s.
+    tpl = "[tools]\nnode = \"{{ exec(command='touch PWNED') }}\"\n"
+    for rel, text in (("MISE.LOCAL.TOML", tpl), ("Mise.Local.toml", tpl),
+                      ("miſe.local.toml", tpl), (".MISE.TOML", tpl),
+                      (".TOOL-VERSIONS", "node {{ exec(command='touch PWNED') }}\n"),
+                      (".tool-verſions", "node {{ exec(command='touch PWNED') }}\n"),
+                      (".MISERC.toml", ""), ("MISE/conf.d/x.TOML", tpl),
+                      (".Config/MISE/config.toml", tpl)):
+        bad = os.path.join(sub, rel)
+        write(bad, text)
+        problem = toolplan.mise_chain_problem(sub, ch)
+        check("mise_chain_problem refuses %r, naming it" % rel,
+              "edit it by hand" in problem and toolplan._fold(problem).startswith(
+                  toolplan._fold(os.path.join("courses", "C", rel))), problem)
+        check("  and mise_configs lists it",
+              toolplan._fold(bad) in [toolplan._fold(p) for p in toolplan.mise_configs(sub, ch)])
+        top = os.path.join(sub, rel.split("/")[0])
+        shutil.rmtree(top) if "/" in rel else os.remove(bad)
+    for rel, text in (("MISE.LOCAL.TOML", '[tools]\nruby = "3.2"\n'),
+                      (".TOOL-VERSIONS", "node 22\n"), (".tool-verſions", "node 22\n")):
+        good = os.path.join(sub, rel)
+        write(good, text)
+        check("a plain %r passes the chain, read as the file it folds to" % rel,
+              toolplan.mise_chain_problem(sub, ch) == ""
+              and good in toolplan.mise_configs(sub, ch), toolplan.mise_chain_problem(sub, ch))
+        os.remove(good)
+    check("a name that folds to no mise file is not one",
+          [toolplan._fold(n) for n in ("mıse.toml", "mi‍se.toml", "MISE.toml.bak")]
+          == ["mıse.toml", "mi‍se.toml", "mise.toml.bak"])
+    # mise follows a linked directory to files the chain never walks.
+    hidden = os.path.join(sub, "hidden")
+    write(os.path.join(hidden, "x.toml"), tpl)
+    for rel in (".config/mise/conf.d", ".config/mise", "mise", ".mise", ".config",
+                "mise/conf.d", ".mise/conf.d"):
+        link = os.path.join(sub, rel)
+        os.makedirs(os.path.dirname(link), exist_ok=True)
+        os.symlink(os.path.relpath(hidden, os.path.dirname(link)), link)
+        problem = toolplan.mise_chain_problem(sub, ch)
+        check("mise_chain_problem refuses a linked %s, naming it" % rel,
+              problem.startswith(os.path.join("courses", "C", rel) + " is a linked directory"),
+              problem)
+        check("  and mise_configs lists the link", link in toolplan.mise_configs(sub, ch))
+        os.remove(link)
+        for top in (".config", "mise", ".mise"):
+            shutil.rmtree(os.path.join(sub, top), ignore_errors=True)
+    write(os.path.join(sub, ".config", "mise", "conf.d", "x.toml"), '[tools]\nruby = "3.2"\n')
+    check("a real conf.d of plain [tools] passes the chain",
+          toolplan.mise_chain_problem(sub, ch) == "")
+    shutil.rmtree(os.path.join(sub, ".config"))
+    shutil.rmtree(hidden)
+    check("the chain is clean again", toolplan.mise_chain_problem(sub, ch) == "")
+
+    # `toolplan mise-chain`, setup.sh's gate.
+    def chain_cli(target):
+        p = subprocess.run([sys.executable, "-B", "-m", "tutorboard.toolplan", "mise-chain",
+                            target, "--atlas", ch], cwd=BOARD, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, universal_newlines=True, timeout=60,
+                           env=dict(os.environ, TUTORBOARD_COURSES=ch))
+        return p.returncode, p.stdout, p.stderr
+    got = (chain_cli(sub), chain_cli(ch))
+    check("`toolplan mise-chain` is silent with exit 0 on a clean chain, subject and root",
+          got == ((0, "", ""), (0, "", "")), got)
+    for bad, rel in ((os.path.join(sub, "mise.local.toml"), "courses/C/mise.local.toml"),
+                     (os.path.join(ch, "mise.toml"), "mise.toml")):
+        saved = read(bad)
+        write(bad, '[tools]\nnode = "22"\n' + hooks)
+        code, out, err = chain_cli(sub)
+        check("`toolplan mise-chain` names a refused %s and exits 3" % rel,
+              code == 3 and out.startswith(rel + " has a [hooks] table")
+              and "edit it by hand" in out and out.count("\n") == 1,
+              (code, out, err))
+        if saved:
+            write(bad, saved)
+        else:
+            os.remove(bad)
+    check("and is clean again once the [hooks] are gone", chain_cli(sub)[0] == 0)
+    for rel, text in ((".tool-versions", "node 22  # {{ exec(command='touch x') }}\n"),
+                      (".miserc.toml", 'override_config_filenames = ["evil.toml"]\n')):
+        bad = os.path.join(sub, rel)
+        write(bad, text)
+        code, out, err = chain_cli(sub)
+        check("`toolplan mise-chain` refuses %s and exits 3" % rel,
+              code == 3 and out.startswith(os.path.join("courses", "C", rel)), (code, out, err))
+        os.remove(bad)
+    check("and is clean again once they are gone", chain_cli(sub)[0] == 0)
+
+    # `toolplan mise-run`, setup.sh's only way to run mise.
+    said = os.path.join(work, "mise-run.said")
+
+    def run_cli(target):
+        if os.path.exists(said):
+            os.remove(said)
+        p = subprocess.run([sys.executable, "-B", "-m", "tutorboard.toolplan", "--atlas", ch,
+                            "mise-run", target, "--", "/bin/sh", "-c",
+                            'printf "%s|%s|%s|%s|%s" "$PWD" "$MISE_YES" '
+                            '"$MISE_TRUSTED_CONFIG_PATHS" "$MISE_CEILING_PATHS" "$*" >"$0"',
+                            said, "--atlas", "x"], cwd=BOARD, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE, universal_newlines=True, timeout=60,
+                           env=dict(os.environ, TUTORBOARD_COURSES=ch, MISE_YES="1",
+                                    MISE_TRUSTED_CONFIG_PATHS="/"))
+        return p.returncode, p.stdout, read(said)
+    got = run_cli(sub)
+    check("`toolplan mise-run` runs its argv in the directory under mise_env, the "
+          "arguments after -- its own",
+          got == (0, "", "%s|0|%s|%s|--atlas x" % (
+              os.path.realpath(sub), os.pathsep.join(toolplan.mise_configs(sub, ch)),
+              os.path.dirname(ch))), got)
+    write(os.path.join(sub, ".mise.toml"), '[tools]\nnode = "22"\n' + hooks)
+    got = run_cli(sub)
+    check("and runs nothing on a refused chain: exit 3 and the reason",
+          got[0] == 3 and got[1].startswith(os.path.join("courses", "C", ".mise.toml"))
+          and got[2] == "", got)
+    os.remove(os.path.join(sub, ".mise.toml"))
 
     menv = toolplan.mise_env(sub, ch, {"MISE_YES": "1", "PATH": "/bin",
                                        "MISE_DEFAULT_CONFIG_FILENAME": "x.toml",
@@ -634,7 +807,63 @@ try:
                 write(bad, before)
             else:
                 os.remove(bad)
+        # A template in a .tool-versions comment, and a .miserc.toml that
+        # points mise at an [env] template in a file the chain never names.
+        evil = os.path.join(msub, "evil.toml")
+        for rel, text, extra in (
+                (".tool-versions", "node 22  # {{ exec(command='touch %s') }}\n" % pwn, None),
+                (".miserc.toml", 'override_config_filenames = ["evil.toml"]\n',
+                 "[env]\nX = \"{{ exec(command='touch %s') }}\"\n" % pwn)):
+            bad = os.path.join(msub, rel)
+            write(bad, text)
+            if extra:
+                write(evil, extra)
+            p, _t = mise_run(["install", "--locked", "node"], toolplan.mise_env(msub, mroot),
+                             "rc-" + rel)
+            check("the probe is live: mise runs the template behind %s under mise_env" % rel,
+                  os.path.exists(pwn), p.stdout[-800:])
+            if os.path.exists(pwn):
+                os.remove(pwn)
+            problem = toolplan.mise_chain_problem(msub, mroot)
+            check("  so mise_chain_problem refuses it, naming %s" % rel,
+                  os.path.join("courses", "C", rel) in problem, problem)
+            os.remove(bad)
+            if extra:
+                os.remove(evil)
         check("the chain passes again once the templates are gone",
+              toolplan.mise_chain_problem(msub, mroot) == "")
+        # On a file system that folds names, mise opens mise.local.toml as
+        # any name that folds to it; and it follows a linked conf.d.
+        folds = os.path.exists(os.path.join(msub, "MISE.TOML"))
+        hid = os.path.join(msub, "hidden")
+        write(os.path.join(hid, "x.toml"),
+              "[tools]\nnode = \"{{ exec(command='touch %s') }}\"\n" % pwn)
+        cases = [(".config/mise/conf.d", None)]
+        if folds:
+            cases += [(rel, "[tools]\nnode = \"{{ exec(command='touch %s') }}\"\n" % pwn)
+                      for rel in ("MISE.LOCAL.TOML", "miſe.local.toml")]
+            cases += [(".TOOL-VERSIONS", "node {{ exec(command='touch %s') }}\n" % pwn)]
+        for rel, text in cases:
+            bad = os.path.join(msub, rel)
+            if text is None:
+                os.makedirs(os.path.dirname(bad), exist_ok=True)
+                os.symlink(os.path.relpath(hid, os.path.dirname(bad)), bad)
+            else:
+                write(bad, text)
+            p, _t = mise_run(["install", "--locked", "node"], toolplan.mise_env(msub, mroot),
+                             "fold-%d" % cases.index((rel, text)))
+            check("the probe is live: mise runs the template in %r under mise_env" % rel,
+                  os.path.exists(pwn), p.stdout[-800:])
+            if os.path.exists(pwn):
+                os.remove(pwn)
+            problem = toolplan.mise_chain_problem(msub, mroot)
+            check("  so mise_chain_problem refuses it, naming %r" % rel,
+                  problem.startswith(os.path.join("courses", "C", rel)), problem)
+            os.remove(bad)
+        shutil.rmtree(os.path.join(msub, ".config"))
+        shutil.rmtree(hid)
+        check("folding: this file system folds names, so the case probes ran", folds)
+        check("the chain passes again once they are gone",
               toolplan.mise_chain_problem(msub, mroot) == "")
 finally:
     shutil.rmtree(work, ignore_errors=True)

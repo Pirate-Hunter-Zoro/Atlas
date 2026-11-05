@@ -79,12 +79,15 @@ class FreshHome(Base):
         self.assertTrue((self.home / ".local/state/opencode").is_dir())
 
     def test_second_run_changes_nothing(self):
-        self.run_install()
+        _, first, inst = self.run_install()
+        self.assertEqual(first.splitlines()[-1], f"changed: {len(inst.changes)}")
+        self.assertGreater(len(inst.changes), 0)
         before = (self.cfg / "opencode.jsonc").read_text()
         rc, out, inst = self.run_install()
         self.assertEqual(rc, 0)
         self.assertEqual(inst.changes, [])
         self.assertIn("up to date", out)
+        self.assertEqual(out.splitlines()[-1], "changed: 0")
         self.assertEqual((self.cfg / "opencode.jsonc").read_text(), before)
 
     def test_dry_run_writes_nothing(self):
@@ -92,6 +95,7 @@ class FreshHome(Base):
         self.assertEqual(rc, 0)
         self.assertTrue(inst.changes)
         self.assertTrue(out.startswith("would: "))
+        self.assertEqual(out.splitlines()[-1], f"would: changed: {len(inst.changes)}")
         self.assertFalse(self.home.joinpath(".config").exists())
         self.assertFalse(self.home.joinpath("bin").exists())
 
@@ -281,9 +285,21 @@ class Templates(unittest.TestCase):
         self.assertIn("exec opencode --auto", coder)
 
     def test_capabilities_name_no_vendor(self):
-        text = (HERE / "capabilities.md").read_text().lower()
-        for vendor in ("claude", "anthropic", "openai", "codex", "deepseek", "gemini"):
-            self.assertNotIn(vendor, text)
+        text = (HERE / "capabilities.md").read_text()
+        self.assertIn("~/.claude/CLAUDE.md", text, "the fallback for the owner's style rules")
+        self.assertEqual(vendors(text), [])
+
+    def test_a_vendor_outside_the_style_path_is_caught(self):
+        self.assertEqual(vendors("Read ~/.claude/CLAUDE.md first."), [])
+        self.assertEqual(vendors("Read ~/.claude/CLAUDE.md, as Claude does."), ["claude"])
+        self.assertEqual(vendors("Read ~/.claude/skills."), ["claude"])
+        self.assertEqual(vendors("Unlike Codex, you can wait."), ["codex"])
+
+
+def vendors(text):
+    """Vendor names in a prompt, the one style path (~/.claude/CLAUDE.md) excepted."""
+    text = text.replace("~/.claude/CLAUDE.md", "").lower()
+    return [v for v in ("claude", "anthropic", "openai", "codex", "deepseek", "gemini") if v in text]
 
 
 # ------------------------------------------------------------------ agents and commands
@@ -482,12 +498,96 @@ class Prompts(unittest.TestCase):
                        "## How work is judged", "Guards"):
             self.assertIn(needle, text)
 
+    def test_capabilities_name_the_tools_and_shapes(self):
+        text = (HERE / "capabilities.md").read_text()
+        self.assertEqual(missing_needles(text, CAPABILITY_NEEDLES), [])
+        for needle in CAPABILITY_NEEDLES:
+            self.assertEqual(missing_needles(text.replace(needle, ""), CAPABILITY_NEEDLES), [needle])
+
+    def test_capabilities_claim_no_more_than_the_guard_does(self):
+        text = (HERE / "capabilities.md").read_text()
+        for claim in ("any shell write", "any write under"):
+            self.assertNotIn(claim, text, "the read-only and worktree guards refuse the writes they detect")
+        self.assertIn("best-effort, not a sandbox", text)
+
+    def test_sh_line_matches_its_guard(self):
+        text = (HERE / "capabilities.md").read_text()
+        code = (HERE / "plugins" / "parity.ts").read_text()
+        self.assertEqual(sh_claim_problems(text, code), [])
+        claim = "with the `bash` tool's guards except the `/ultracode` read budget"
+        overclaim = text.replace(claim, "with the same guards as the `bash` tool")
+        self.assertEqual(sh_claim_problems(overclaim, code), ["sh() skips the read budget"])
+        budgeted = code.replace("directory: cwd }, client, false)", "directory: cwd }, client)")
+        self.assertEqual(sh_claim_problems(text, budgeted), ["sh() keeps the read budget"])
+
+    def test_worktree_cleanup_rule(self):
+        for rel in ("capabilities.md", "commands/ultracode.md"):
+            text = (HERE / rel).read_text()
+            self.assertEqual(missing_needles(text, WORKTREE_NEEDLES), [], rel)
+            line = next(x for x in text.splitlines() if "git worktree remove" in x)
+            self.assertEqual(missing_needles(text.replace(line, ""), WORKTREE_NEEDLES), list(WORKTREE_NEEDLES), rel)
+        ultra = (HERE / "commands" / "ultracode.md").read_text()
+        self.assertIn("After merging, remove each worktree you made", ultra)
+
+    def test_ultracode_frontmatter(self):
+        fm = frontmatter(HERE / "commands" / "ultracode.md")
+        self.assertEqual(command_problems(fm), [])
+        self.assertEqual(command_problems({**fm, "subtask": "true"}), ["subtask"])
+        self.assertEqual(command_problems({**fm, "model": "deepseek/deepseek-flash"}), ["model"])
+        self.assertEqual(command_problems({**fm, "agent": "deep"}), ["agent"])
+
+    def test_verifier_fails_a_brief_without_the_request(self):
+        text = (HERE / "agents" / "verifier.md").read_text().split("---", 2)[2]
+        rule = "A brief without the owner's verbatim request or the Done-when list gets `fail`"
+        self.assertIn(rule, text)
+        self.assertNotIn(rule, text.replace("gets `fail`", "gets `pass`"))
+
+    def test_readme_agents_row_says_no_sandbox(self):
+        row = next(x for x in (HERE / "README.md").read_text().splitlines() if x.startswith("| `agents/*.md`"))
+        self.assertIn("neither layer is a sandbox", row)
+        self.assertNotIn("is a sandbox", row.replace("neither layer is a sandbox", ""))
+
     def test_ultracode_plans_against_real_artifacts_and_reverifies(self):
         text = (HERE / "commands" / "ultracode.md").read_text()
         for needle in ("owner's own examples", "threat model", "verify_until_pass", 'agent: "verifier"',
                        'agent: "fixer"', "verbatim", "never the builder's summary", "at most 6 lines",
                        "word for word", "readonly: true"):
             self.assertIn(needle, text)
+
+
+CAPABILITY_NEEDLES = (
+    "`session_read`", "pipefail", "~/.claude/CLAUDE.md", "`agent(prompt, {readonly: true})`",
+    "`verify_until_pass(fixStage, verifyStage, {max: 3})`", "`verifyStage({round, failures})`",
+    "`fixStage(failures, {round, verdicts})`", "`{passed, verdicts, failures, rounds}`",
+    "Only live verdicts from read-only verify agents count",
+    "`verifyStage` must return what its agents returned",
+)
+WORKTREE_NEEDLES = ("git worktree remove", "delete its branch", "parent directory", "24")
+
+
+def sh_claim_problems(text, code):
+    """Whether the capabilities line on workflow sh() says what its guardCall does with the read budget."""
+    line = next(x for x in text.splitlines() if x.startswith("- `sh(cmd"))
+    call = next(x for x in code.splitlines() if "guardCall(" in x and 'tool: "bash"' in x and "cwd" in x)
+    skips = call.rstrip().endswith("client, false);")
+    says = "except the `/ultracode` read budget" in line
+    if skips and not says:
+        return ["sh() skips the read budget"]
+    if says and not skips:
+        return ["sh() keeps the read budget"]
+    return []
+
+
+def missing_needles(text, needles):
+    return [n for n in needles if n not in text]
+
+
+def command_problems(fm):
+    """What keeps /ultracode from orchestrating on v4-pro in the session it was typed in."""
+    bad = [k for k in ("subtask", "agent") if k in fm]
+    if fm.get("model") != "deepseek/deepseek-v4-pro":
+        bad.append("model")
+    return bad
 
 
 def repo_root():
@@ -507,6 +607,11 @@ class AtlasAgents(unittest.TestCase):
                        "DeepSeek through OpenCode", "public", "README.md", "HANDOFF.md",
                        "board/README.md", "git rev-parse --show-toplevel"):
             self.assertIn(needle, text)
+
+    def test_worktree_cleanup_rule(self):
+        text = (ROOT / "AGENTS.md").read_text()
+        self.assertEqual(missing_needles(text, WORKTREE_NEEDLES), [])
+        self.assertIn("in any repository", text)
 
     def test_every_link_resolves(self):
         text = (ROOT / "AGENTS.md").read_text()
