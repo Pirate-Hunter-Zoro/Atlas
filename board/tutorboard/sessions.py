@@ -33,7 +33,10 @@ heard it ({ref, sha, paths, step, subject, prev, seen, at}); while set,
 ref. A canvas (`view: slate`) records where its pages are filed as `canvas`
 ({subject, dir}), when it was last handed to the tutor as `given`, and
 whether its End asked for a transcript as `transcribe`. `doc` is the document on
-the glass, `{id, page, name}`, or null; `url` resumes it.
+the glass, `{id, page, name, subject?}`, or null; `subject` names the subject the
+document is in when that is not the session's. `url` resumes it. A session with no
+`doc` resumes the newest PDF a `[filed]` line names (`resumed`), once per line:
+`filed_seen` keeps that line's time, so a document closed afterwards stays closed.
 
 The constraint: an id is matched against `ID_RE`, never joined onto a path
 unchecked.
@@ -53,6 +56,9 @@ from .course import repo as course_repo
 STORE = "sessions"
 ID_RE = re.compile(r"^\d{8}-\d{6}(?:-\d+)?$")
 DOC_ID = re.compile(r"^[a-z0-9-]{1,40}$")
+# A document with this id is the session's own upload (`library.UPLOADS`):
+# it opens on the board whatever subject the session is bound to.
+UPLOAD_DOC = "uploads-"
 STAMP = "%Y%m%d-%H%M%S"
 WHEN = "%Y-%m-%d %H:%M:%S"
 
@@ -402,6 +408,12 @@ def bind(sid, subject, base=None, now=None, force=False):
                               % (was, taught, "" if taught == 1 else "s",
                                  found["id"]))
     rec["subject"] = found["id"]
+    doc = rec.get("doc")
+    if was and isinstance(doc, dict) and not doc.get("subject") \
+            and not str(doc.get("id") or "").startswith(UPLOAD_DOC):
+        # The document stays in the subject it was read in; an upload stays
+        # in the session.
+        rec["doc"] = dict(doc, subject=was)
     _save(where, rec)
     _line(where, "[bind] %s" % found["id"], "bind", now=now,
           subject=found["id"])
@@ -695,12 +707,16 @@ def file(sid, upload, dest=None, base=None, now=None):           # noqa: A001
             shutil.move(path_from, path_to)
         keys[key] = nkey
     shown = "%s/%s" % (found["id"], rel)
-    _line(where, "[filed] uploads/%s -> %s" % (name, shown), "filed", now=now,
-          files=[shown])
+    line = _line(where, "[filed] uploads/%s -> %s" % (name, shown), "filed",
+                 now=now, files=[shown])
     library.forget()
     doc = rec.get("doc")
-    if old and isinstance(doc, dict) and doc.get("id") == old:
-        rec["doc"] = dict(doc, id=new)
+    if isinstance(doc, dict):
+        # Filed while a document was on the glass: that one stays the resume.
+        if old and doc.get("id") == old:
+            doc = dict(doc, id=new)
+            doc.pop("subject", None)
+        rec.update(doc=doc, filed_seen=line["t"])
         _save(where, rec)
     return {"from": "uploads/" + name, "to": rel, "subject": found["id"],
             "keys": keys, "doc": new}
@@ -714,18 +730,26 @@ def current():
     return ""
 
 
-def url(rec):
-    """Where a session opens: its board, or the slate of a canvas not yet
-    handed to the tutor (`given`). A stored `doc` resumes its document, on the
-    page it was read at."""
+FILED_SEEN = "filed_seen"
+
+
+def url(rec, base=None):
+    """Where a session opens, never outside it: its board, or the slate of a
+    canvas not yet handed to the tutor (`given`). Its document (`resumed`)
+    opens on the board on the page it was read at. A board reads only its
+    own subject, so a document in another one, the session bound elsewhere
+    since, leaves the bare board; a session's own upload is in no subject and
+    always opens. `base` is the Atlas the session is in, as for `path`."""
     sid = rec.get("id")
     canvas = rec.get("view") == "slate" and not rec.get("given")
     if canvas:
         return "/s/%s/slate" % sid
+    rec = resumed(rec, base)
     doc = rec.get("doc")
     if isinstance(doc, dict):
         ident = doc.get("id")
-        if isinstance(ident, str) and DOC_ID.match(ident):
+        if isinstance(ident, str) and DOC_ID.match(ident) \
+                and not elsewhere(rec, doc):
             out = "/s/%s/board#/s/%s/doc/%s" % (
                 sid, sid, urllib.parse.quote(ident, safe=""))
             page = doc.get("page")
@@ -734,6 +758,107 @@ def url(rec):
                 out += "/p%d" % page
             return out
     return "/s/%s/board" % sid
+
+
+def elsewhere(rec, doc):
+    """Whether `doc` is in another subject than session `rec` is bound to,
+    so its board cannot read it. A session's own upload never is."""
+    subject = doc.get("subject")
+    return bool(subject) and subject != rec.get("subject") \
+        and not str(doc.get("id") or "").startswith(UPLOAD_DOC)
+
+
+def resumed(rec, base=None):
+    """`rec` with the document it resumes. A stored `doc` stands. With none,
+    the newest PDF a `[filed]` line names that is still in its subject's
+    library becomes `doc`, `{id, page, name, subject}`, and is saved with
+    the line's time as `filed_seen`; only a newer line backfills again."""
+    if not isinstance(rec, dict) or isinstance(rec.get("doc"), dict):
+        return rec
+    where = path(rec.get("id"), base)
+    if not where:
+        return rec
+    try:
+        after = float(rec.get(FILED_SEEN) or 0)
+    except (TypeError, ValueError):
+        after = 0.0
+    got = _filed_pdf(where, base, after)
+    if not got:
+        return rec
+    at, doc = got
+    fresh = course_repo._read_json(os.path.join(where, course_repo.SESSION_JSON))
+    if not fresh or isinstance(fresh.get("doc"), dict):
+        return fresh or rec
+    fresh.update(doc=doc, filed_seen=at)
+    _save(where, fresh)
+    return fresh
+
+
+def _filed_pdf(where, base, after):
+    """`(t, doc)` for the newest `[filed]` line of the session at `where`,
+    newer than `after`, whose PDF is still in its subject's library; else
+    None. The subject comes from the line, never from the session's binding."""
+    lines = []
+    try:
+        with open(os.path.join(where, "inbox", "messages.jsonl"), "r",
+                  encoding="utf-8") as fh:
+            for raw in fh:
+                if '"filed"' not in raw:
+                    continue
+                try:
+                    one = json.loads(raw)
+                except ValueError:
+                    continue
+                if not isinstance(one, dict) or one.get("signal") != "filed":
+                    continue
+                at = one.get("t")
+                if isinstance(at, bool) or not isinstance(at, (int, float)) \
+                        or at <= after:
+                    continue
+                said = one.get("files")
+                shown = said[0] if isinstance(said, list) and said else ""
+                if not shown:
+                    shown = str(one.get("text") or "").partition(" -> ")[2]
+                if isinstance(shown, str) and shown.lower().endswith(".pdf"):
+                    lines.append((at, shown.strip()))
+    except (OSError, UnicodeDecodeError):
+        return None
+    from .course import library                        # local: a cycle
+    for at, shown in sorted(lines, key=lambda one: one[0], reverse=True):
+        bits = shown.replace("\\", "/").split("/")
+        if len(bits) < 3 or any(b in ("", ".", "..") for b in bits):
+            continue
+        subject, rel = "/".join(bits[:2]), "/".join(bits[2:])
+        found = subjects.find(subject, base)
+        if not found or found["id"] != subject:
+            continue
+        home = os.path.realpath(found["root"])
+        full = os.path.realpath(os.path.join(home, *bits[2:]))
+        if not full.startswith(home + os.sep) or not os.path.isfile(full):
+            continue
+        ident = library.ident_map(home).get(full)
+        if not ident or not DOC_ID.match(ident):
+            continue
+        return at, {"id": ident, "page": _inked_page(home, ident),
+                    "name": os.path.basename(rel), "subject": found["id"]}
+    return None
+
+
+def _inked_page(home, ident):
+    """The page of document `ident` with the newest ink in the subject at
+    `home`, or None."""
+    best, page = 0.0, None
+    folder = os.path.join(home, INK)
+    for name, key, ext in _ink_of(folder, ident):
+        if ext != ".json":
+            continue
+        try:
+            at = os.path.getmtime(os.path.join(folder, name))
+        except OSError:
+            continue
+        if at > best:
+            best, page = at, int(key.rsplit("/p", 1)[1])
+    return page
 
 
 def slate_pages(sid, base=None):

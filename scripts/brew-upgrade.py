@@ -30,7 +30,9 @@ The phases, each with its reason:
     pins behind into tools.json. Install names the directory's own tools
     because --locked fails on any tool without a mise.lock entry; the prune is
     named because a bare one removes versions the owner's other projects use.
-    A pin moves only by a commit of mise.toml and mise.lock, never from here.
+    `mise lock` (never --bump) runs first only where the lock is missing,
+    mise.toml or mise.lock differs from HEAD, or a pinned tool has no lock
+    entry, so a clean clone is never re-locked. A pin moves only by a commit.
   * status: the probes again, report only (venvs, TeX, the board's agent and
     reachability), then each failed tool and each tools.json line but a pin
     behind, as upkeep's problem lines. upkeep re-asks hourly while any stand.
@@ -393,9 +395,132 @@ def tool_failures():
                 if isinstance(rec, dict) and rec.get("failed"))
 
 
+def git_answer(where, names):
+    """{name: why} for each of `names` in directory `where` that differs from
+    HEAD (an uncommitted edit, a file HEAD lacks, or one deleted), {} for a
+    clean pair; None when git holds none of them there (git missing, no
+    repository, nothing committed, or all untracked). `git status` decides,
+    so a checkout's own eol and ident conversions count as clean."""
+    env = dict((k, v) for k, v in os.environ.items()
+               if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"))
+
+    def git(*args):
+        return subprocess.run(["git", "--no-optional-locks", "-C", where] + list(args),
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              stdin=subprocess.DEVNULL, timeout=T_PROBE, env=env)
+    try:
+        if git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+            return None
+        held = [n for n in names if git("cat-file", "-e", "HEAD:./" + n).returncode == 0]
+        if not held:
+            return None
+        out = {}
+        for name in names:
+            p = git("status", "--porcelain", "-z", "--ignored", "--untracked-files=all",
+                    "--", name)
+            if p.returncode != 0:
+                return None
+            if p.stdout.strip(b"\0"):
+                out[name] = name + " differs from HEAD"
+        return out
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def mise_names(where):
+    """The canonical names mise gives the tools `where`'s own mise.toml pins
+    (`nodejs` is `node` to it, and to mise.lock), or None when mise cannot
+    say. Offline and read-only."""
+    toml = os.path.realpath(os.path.join(where, "mise.toml"))
+    env = dict(mise_env(), MISE_OFFLINE="1")
+    code, out, _err = run(["mise", "ls", "--no-global", "--json"], T_PROBE, cwd=where,
+                          env=env)
+    try:
+        doc = json.loads(out) if code == 0 else None
+    except ValueError:
+        doc = None
+    if not isinstance(doc, dict):
+        return None
+    names = set()
+    for name, recs in doc.items():
+        for rec in recs if isinstance(recs, list) else []:
+            src = rec.get("source") if isinstance(rec, dict) else None
+            path = src.get("path") if isinstance(src, dict) else None
+            if isinstance(path, str) and os.path.realpath(path) == toml:
+                names.add(name)
+    return names
+
+
+def locked_names(text):
+    """The tool names a mise.lock has entries for: its `[[tools.<name>]]` and
+    `[tools.<name>...]` headers, and the keys of a bare `[tools]` table."""
+    names = set()
+    inside = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("["):
+            head = line.split("#", 1)[0].strip().strip("[] \t")
+            inside = head == "tools"
+            rest = head[5:].lstrip() if head.startswith("tools") else ""
+            if rest.startswith("."):
+                rest = rest[1:].lstrip()
+                if rest[:1] in ("\"", "'"):
+                    end = rest.find(rest[0], 1)
+                    name = rest[1:end] if end > 0 else ""
+                else:
+                    name = rest.split(".", 1)[0].strip()
+                if name:
+                    names.add(name)
+            continue
+        if inside and "=" in line and not line.startswith("#"):
+            key = line.split("=", 1)[0].strip().strip("\"'")
+            if key:
+                names.add(key)
+    return names
+
+
+def lock_stale(where, names):
+    """Why `where`'s mise.lock needs `mise lock` before `mise install --locked
+    <names>`, or "" when it does not. Where git holds either file, git
+    decides, not mtimes: git writes a clone's files in its own order, so a
+    fresh clone's lock can be older than its toml yet match it. Stale there
+    is a missing lock, a mise.toml or mise.lock that differs from HEAD, or a
+    pinned tool the lock has no entry for (a declaration whose own `mise
+    lock` failed). A tool's entry is under mise's name for it, so aliases
+    resolve through `mise ls` first; when mise cannot answer, the toml's
+    names stand. Where git holds neither file, git never wrote them, so a
+    toml newer than its lock is stale."""
+    toml, lock = os.path.join(where, "mise.toml"), os.path.join(where, "mise.lock")
+    try:
+        with open(lock, "rb") as fh:
+            lock_text = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return "mise.lock is missing"
+    changed = git_answer(where, ("mise.toml", "mise.lock"))
+    if changed is None:
+        try:
+            newer = os.path.getmtime(toml) > os.path.getmtime(lock)
+        except OSError:
+            newer = True
+        if newer:
+            return "mise.toml is newer than mise.lock, and git holds neither"
+    elif changed:
+        return changed.get("mise.toml") or changed["mise.lock"]
+    locked = locked_names(lock_text)
+    unlocked = set(names) - locked
+    if unlocked:
+        canonical = mise_names(where)
+        if canonical:
+            unlocked = canonical - locked
+    if unlocked:
+        return "mise.lock has no entry for " + ", ".join(sorted(unlocked))
+    return ""
+
+
 def toolchain():
     """uv's Pythons, the subjects' mise pins and Atlas's own root pins (the
-    root install-only, never pruned), the descriptors, the pins behind.
+    root install-only, never pruned), each after `mise lock` only where
+    `lock_stale` says so, the descriptors, the pins behind.
     {tool:<name>: why} of what failed."""
     failed = {}
     uv = shutil.which("uv", path=os.environ.get("PATH", "") + os.pathsep
@@ -423,14 +548,9 @@ def toolchain():
     for ident, where, names in dirs:
         if not names:
             continue
-        toml, lock = plan.root_mise(where)
-        stale = not os.path.isfile(lock)
-        if not stale:
-            try:
-                stale = os.path.getmtime(toml) > os.path.getmtime(lock)
-            except OSError:
-                stale = True
+        stale = lock_stale(where, names)
         if stale:
+            log("mise lock in %s: %s" % (ident, stale))
             code, out, err = run(["mise", "lock"], T_MISE, mutating=True,
                                  cwd=where, env=mise_env())
             if code != 0:

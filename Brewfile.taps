@@ -1,0 +1,3 @@
+# The Homebrew taps a Brewfile may name, one owner/repo a line. A `tap "x"`
+# line, or a `brew "owner/repo/name"`, whose tap is not here never reaches
+# Brewfile.all (board/tutorboard/toolplan.py). The owner edits this by hand.

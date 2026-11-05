@@ -18,7 +18,9 @@ installed or upgraded on this machine.
     test`; one uv cannot fix is a problem.
   - TOOLCHAIN: uv's Pythons, `mise install --locked <tools>` in each mise
     directory, `mise prune --tools` of the pinned tools, tools.sh update; a
-    failure is tool:<name>; a dry run mutates nothing.
+    failure is tool:<name>; a dry run mutates nothing. `mise lock` runs only
+    for a missing lock, a toml unlike HEAD's or a tool the lock lacks: never
+    on a clean checkout or a fresh clone whose lock is older by mtime.
   - STATUS: problems, failed tools and tools.json lines but pins, exit 0;
     the host's board agent and reachability report only.
   - atlas-brew status, install and usage; brewcare's upkeep and hook lines.
@@ -95,8 +97,9 @@ for tool in ("brew", "launchctl", "tailscale"):
 for tool in ("uv", "mise"):
     write(os.path.join(shims, tool), "#!/bin/bash\n" + LOG +
           '[ -f "%s/fail-%s" ] && { echo "%s broke" >&2; exit 4; }\n'
-          'case "$*" in "outdated --json --bump --local") echo "{}" ;; esac\nexit 0\n'
-          % (work, tool, tool), EXE)
+          'case "$*" in "outdated --json --bump --local") echo "{}" ;;\n'
+          '  "ls --no-global --json") cat "%s/mise-ls.json" 2>/dev/null ;; esac\nexit 0\n'
+          % (work, tool, tool, work), EXE)
 for tool in ("brew", "launchctl", "tailscale", "uv", "mise"):
     where = shutil.which(tool, path=PATH)
     if where != os.path.join(shims, tool):
@@ -125,21 +128,45 @@ def hook_state():
         return {}
 
 
+def git(where, *args):
+    """git in `where` under the fixture's HOME; raises on failure."""
+    return subprocess.run(["git", "-C", where, "-c", "user.name=fixture",
+                           "-c", "user.email=fixture@example.com"] + list(args),
+                          env=ENV, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          universal_newlines=True, timeout=60, check=True).stdout
+
+
+def hook_log():
+    return read(os.path.join(SETUP_DIR, "upkeep-hook.log"))
+
+
+# Locks in mise's own shape: an array table per tool, platform sub-tables.
+ROOT_LOCK = ('[[tools.python]]\nversion = "3.13.5"\nbackend = "core:python"\n\n'
+             '[tools.python.platforms.macos-arm64]\nurl = "https://example.invalid/py"\n')
+S_TOML = '[tools]\nnode = "22"\n"npm:prettier" = "3"\n'
+S_LOCK = ('[[tools.node]]\nversion = "22.11.0"\nbackend = "core:node"\n\n'
+          '[tools.node.platforms.macos-arm64]\nurl = "https://example.invalid/node"\n\n'
+          '[[tools."npm:prettier"]]\nversion = "3.3.3"\nbackend = "npm:prettier"\n')
+
+
 try:
-    # The fixture Atlas.
+    # The fixture Atlas, a git repository with its locks committed.
     for rel in ("scripts/brew-upgrade.py", "scripts/tools.sh", "upkeep.d/hook"):
         write(os.path.join(atlas, rel), read(os.path.join(ATLAS_REAL, rel)), EXE)
     os.symlink(BOARD, os.path.join(atlas, "board"))
     write(os.path.join(atlas, "Brewfile"), 'brew "texlive"\ncask "font-dejavu"\n')
     write(os.path.join(atlas, "mise.toml"), '[tools]\npython = "3.13"\n')
-    write(os.path.join(atlas, "mise.lock"), "root lock\n")
+    write(os.path.join(atlas, "mise.lock"), ROOT_LOCK)
     S = os.path.join(atlas, "projects", "S")
     write(os.path.join(S, "Brewfile"), 'brew "go"\nbrew "texlive"  # again\n')
     write(os.path.join(S, "pyproject.toml"),
           '[project]\nname = "s"\n[project.optional-dependencies]\ntest = ["pytest"]\n')
     write(os.path.join(S, ".venv", "bin", "python"), "#!/bin/sh\nexit 1\n", EXE)
-    write(os.path.join(S, "mise.toml"), '[tools]\nnode = "22"\n')
-    write(os.path.join(S, "mise.lock"), "x\n")
+    write(os.path.join(S, "mise.toml"), S_TOML)
+    write(os.path.join(S, "mise.lock"), S_LOCK)
+    git(atlas, "init", "-q")
+    git(atlas, "add", "-A")
+    git(atlas, "commit", "-qm", "fixture")
     ROLE = os.path.join(home, ".config", "tutor-board", "role")
     write(ROLE, "coding\n")
 
@@ -196,31 +223,253 @@ try:
     # ===================================================================
     write(os.path.join(home, ".local", "share", "uv", "python", "cpython-3.13.5", "x"), "")
     open(CALLS, "w").close()
+    check("the fixture is a clean checkout before toolchain",
+          git(atlas, "status", "--porcelain") == "", git(atlas, "status", "--porcelain"))
     code, out, err = hook("hook", "toolchain")
     check("toolchain upgrades uv's Pythons", calls("uv python upgrade"), read(CALLS))
     check("installs each mise directory's own tools, locked, there",
-          "mise install --locked node @ %s" % S in calls("mise"), read(CALLS))
+          "mise install --locked node npm:prettier @ %s" % S in calls("mise"), read(CALLS))
     check("installs Atlas's own root mise pins too",
           "mise install --locked python @ %s" % atlas in calls("mise"), read(CALLS))
-    check("prunes only the pinned tools", any(l.startswith("mise prune --yes --tools node ")
-                                             for l in calls("mise")), read(CALLS))
+    check("prunes only the pinned tools",
+          any(l.startswith("mise prune --yes --tools node npm:prettier ")
+              for l in calls("mise")), read(CALLS))
+    check("a clean checkout whose locks cover their tomls is not re-locked",
+          not calls("mise lock"), read(CALLS))
     st = hook_state()
     check("and, with nothing failed, stamps its success",
           st.get("failed") == {} and st.get("toolchain_success"), st)
-    # A lock older than its toml is refreshed first; a failure there is a
-    # problem, not a silent success.
+
+    # A fresh clone: git may write each lock before its toml, so the lock is
+    # older by mtime, yet it matches HEAD and covers its toml.
+    clone = os.path.join(work, "clone")
+    subprocess.run(["git", "clone", "-q", atlas, clone], env=ENV, check=True, timeout=60)
+    CS = os.path.join(clone, "projects", "S")
+    for d in (clone, CS):
+        os.utime(os.path.join(d, "mise.lock"), (1000.0, 1000.0))
+        os.utime(os.path.join(d, "mise.toml"), (2000.0, 2000.0))
+    open(CALLS, "w").close()
+    p = subprocess.run(["/usr/bin/python3", os.path.join(clone, "scripts", "brew-upgrade.py"),
+                        "hook", "toolchain"], env=ENV, stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, universal_newlines=True, timeout=300, cwd=clone)
+    check("a fresh clone whose locks are older by mtime is not re-locked, and installs",
+          p.returncode == 0 and not calls("mise lock")
+          and "mise install --locked node npm:prettier @ %s" % CS in calls("mise")
+          and "mise install --locked python @ %s" % clone in calls("mise"),
+          (read(CALLS), p.stderr))
+    check("and the clone stays clean", git(clone, "status", "--porcelain") == "",
+          git(clone, "status", "--porcelain"))
+
+    # A mise.toml edited since HEAD is re-locked first, whatever the mtimes;
+    # a failure there is a problem, not a silent success.
+    write(os.path.join(S, "mise.toml"), S_TOML.replace('"22"', '"24"'))
+    os.utime(os.path.join(S, "mise.toml"), (1000.0, 1000.0))
     write(os.path.join(work, "fail-mise"), "")
-    old = 1000.0
-    os.utime(os.path.join(S, "mise.lock"), (old, old))
+    open(CALLS, "w").close()
     before_success = hook_state().get("toolchain_success")
     hook("hook", "toolchain")
     st = hook_state()
-    check("a stale mise.lock is refreshed, and a lock failure is tool:mise-lock",
+    check("a mise.toml changed from HEAD is re-locked, even with an older mtime, "
+          "and a lock failure is tool:mise-lock",
           "mise lock @ %s" % S in calls("mise")
+          and "mise lock @ %s" % atlas not in calls("mise")
+          and "mise lock in projects/S: mise.toml differs from HEAD" in hook_log()
           and st["failed"].get("tool:mise-lock") == "mise broke"
-          and st.get("toolchain_success") == before_success, st)
+          and st.get("toolchain_success") == before_success, (read(CALLS), st))
     os.remove(os.path.join(work, "fail-mise"))
+    git(atlas, "checkout", "--", "projects/S/mise.toml")
+
+    # A committed toml whose committed lock lacks one of its tools (a
+    # declaration whose own `mise lock` failed) is re-locked.
+    write(os.path.join(S, "mise.toml"), S_TOML + 'go = "1.23"\n')
+    git(atlas, "commit", "-qam", "pin go, lock not refreshed")
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("a committed toml with a tool its lock has no entry for is re-locked",
+          "mise lock @ %s" % S in calls("mise")
+          and "mise lock in projects/S: mise.lock has no entry for go" in hook_log(),
+          (read(CALLS), hook_log()[-600:]))
+    git(atlas, "reset", "-q", "--hard", "HEAD~1")
+
+    # A missing lock is locked.
+    os.remove(os.path.join(S, "mise.lock"))
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("a missing mise.lock is locked",
+          "mise lock @ %s" % S in calls("mise")
+          and "mise lock in projects/S: mise.lock is missing" in hook_log(), read(CALLS))
+    git(atlas, "checkout", "--", "projects/S/mise.lock")
+
+    # A mise.lock edited since HEAD, its toml unchanged, is re-locked: the
+    # lock may no longer satisfy the toml.
+    write(os.path.join(S, "mise.lock"), S_LOCK.replace("22.11.0", "20.0.0"))
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("a mise.lock changed from HEAD is re-locked; the clean root is not",
+          "mise lock @ %s" % S in calls("mise")
+          and "mise lock @ %s" % atlas not in calls("mise")
+          and "mise lock in projects/S: mise.lock differs from HEAD" in hook_log(),
+          (read(CALLS), hook_log()[-600:]))
+    git(atlas, "checkout", "--", "projects/S/mise.lock")
+
+    # A subject git holds neither file of: git never wrote them, so mtimes
+    # decide.
+    U = os.path.join(atlas, "projects", "U")
+    write(os.path.join(U, "mise.toml"), '[tools]\nzig = "0.13"\n')
+    write(os.path.join(U, "mise.lock"), '[[tools.zig]]\nversion = "0.13.0"\n')
+    os.utime(os.path.join(U, "mise.lock"), (1000.0, 1000.0))
+    os.utime(os.path.join(U, "mise.toml"), (2000.0, 2000.0))
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("an untracked mise.toml newer than its lock is re-locked; the clean one beside "
+          "it is not",
+          "mise lock @ %s" % U in calls("mise") and "mise lock @ %s" % S not in calls("mise")
+          and "mise lock in projects/U: mise.toml is newer than mise.lock, and git holds "
+          "neither" in hook_log(), (read(CALLS), hook_log()[-600:]))
+    os.utime(os.path.join(U, "mise.lock"), (3000.0, 3000.0))
+    open(CALLS, "w").close()
+    hook("hook", "toolchain")
+    check("an untracked lock newer than its toml is not re-locked, and installs",
+          not calls("mise lock") and "mise install --locked zig @ %s" % U in calls("mise"),
+          read(CALLS))
+    shutil.rmtree(U)
+
+    # The lock reader and the staleness decision, called directly. No
+    # bytecode, so loading the script leaves the fixture clean.
+    import importlib.util                                    # noqa: E402
+    sys.dont_write_bytecode = True
+    os.environ.update(ENV)          # the shims, never the real mise
+    spec = importlib.util.spec_from_file_location(
+        "brew_upgrade_under_test", os.path.join(atlas, "scripts", "brew-upgrade.py"))
+    bu = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bu)
+    check("locked_names reads array tables, quoted backends, sub-tables and a [tools] table",
+          bu.locked_names(S_LOCK + "[tools]\nruby = \"3\"\n# lua = \"5\"\n")
+          == {"node", "npm:prettier", "ruby"},
+          bu.locked_names(S_LOCK))
+    check("and finds no tool in a lock that names none",
+          bu.locked_names("# empty\n[settings]\nx = 1\n") == set())
+    SN = ["node", "npm:prettier"]
+    check("lock_stale: clean is \"\", a dropped entry names the tool",
+          bu.lock_stale(S, SN) == ""
+          and bu.lock_stale(S, SN + ["go"]) == "mise.lock has no entry for go",
+          (bu.lock_stale(S, SN), bu.lock_stale(S, SN + ["go"])))
+    with open(os.path.join(S, "mise.lock"), "a", encoding="utf-8") as fh:
+        fh.write("# a hand edit\n")
+    check("lock_stale: an uncommitted edit to the lock alone is stale",
+          bu.lock_stale(S, SN) == "mise.lock differs from HEAD", bu.lock_stale(S, SN))
+    git(atlas, "checkout", "--", "projects/S/mise.lock")
+
+    # A tracked mise.toml that is a symlink: git holds its target, and so
+    # does the comparison.
+    L = os.path.join(work, "linked")
+    write(os.path.join(L, "real.toml"), S_TOML)
+    write(os.path.join(L, "other.toml"), S_TOML.replace('"22"', '"24"'))
+    os.symlink("real.toml", os.path.join(L, "mise.toml"))
+    write(os.path.join(L, "mise.lock"), S_LOCK)
+    git(L, "init", "-q")
+    git(L, "add", "-A")
+    git(L, "commit", "-qm", "linked")
+    os.utime(os.path.join(L, "mise.lock"), (1000.0, 1000.0))
+    stale_clean = bu.lock_stale(L, SN)
+    os.remove(os.path.join(L, "mise.toml"))
+    os.symlink("other.toml", os.path.join(L, "mise.toml"))
+    stale_moved = bu.lock_stale(L, SN)
+    check("lock_stale: a clean symlinked mise.toml is fresh; one pointed elsewhere is stale",
+          stale_clean == "" and stale_moved == "mise.toml differs from HEAD",
+          (stale_clean, stale_moved))
+
+    # mise locks a tool under its own name: `nodejs` in a toml is
+    # `[[tools.node]]` in the lock. `mise ls` (the shim answers from
+    # mise-ls.json) gives that name; only its pins from this toml count.
+    A = os.path.join(work, "aliased")
+    write(os.path.join(A, "mise.toml"), '[tools]\nnodejs = "22"\ngolang = "1.23"\n')
+    write(os.path.join(A, "mise.lock"), '[[tools.node]]\nversion = "22.11.0"\n\n'
+          '[[tools.go]]\nversion = "1.23.12"\n')
+    git(A, "init", "-q")
+    git(A, "add", "-A")
+    git(A, "commit", "-qm", "aliased")
+    os.utime(os.path.join(A, "mise.lock"), (1000.0, 1000.0))
+
+    def mise_ls(where, names, other=()):
+        src = {"type": "mise.toml", "path": os.path.join(where, "mise.toml")}
+        doc = dict((n, [{"version": "1", "source": src}]) for n in names)
+        doc.update((n, [{"version": "1", "source": {"type": "mise.toml",
+                                                    "path": os.path.join(work, "x.toml")}}])
+                   for n in other)
+        write(os.path.join(work, "mise-ls.json"), json.dumps(doc))
+    AN = ["golang", "nodejs"]
+    mise_ls(A, ["go", "node"], other=["python"])
+    got = bu.lock_stale(A, AN)
+    check("lock_stale: a clean clone pinning aliases its lock holds under mise's names "
+          "is fresh; another config's tools do not count", got == "", got)
+    mise_ls(A, ["go", "node", "zig"])
+    got = bu.lock_stale(A, AN)
+    check("and a tool mise names that the lock lacks is stale",
+          got == "mise.lock has no entry for zig", got)
+    os.remove(os.path.join(work, "mise-ls.json"))
+    got = bu.lock_stale(A, AN)
+    check("and when mise cannot answer, the toml's own names stand",
+          got == "mise.lock has no entry for golang, nodejs", got)
+
+    # A checkout's eol and ident conversions make its files differ from the
+    # raw blobs at HEAD; git calls them clean, and so does lock_stale.
+    for label, attrs, opts in (("eol=crlf", "mise.* text eol=crlf\n", []),
+                               ("core.autocrlf", "", ["--config", "core.autocrlf=true"]),
+                               ("ident", "mise.toml ident\n", [])):
+        R = os.path.join(work, "filtered-" + label.replace("=", "-").replace(".", "-"))
+        C = R + "-clone"
+        write(os.path.join(R, "mise.toml"), "# $Id$\n" + S_TOML)
+        write(os.path.join(R, "mise.lock"), S_LOCK)
+        if attrs:
+            write(os.path.join(R, ".gitattributes"), attrs)
+        git(R, "init", "-q")
+        git(R, "add", "-A")
+        git(R, "commit", "-qm", label)
+        subprocess.run(["git", "clone", "-q"] + opts + [R, C], env=ENV, check=True,
+                       timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        os.utime(os.path.join(C, "mise.lock"), (1000.0, 1000.0))
+        os.utime(os.path.join(C, "mise.toml"), (2000.0, 2000.0))
+        with open(os.path.join(C, "mise.toml"), "rb") as fh:
+            raw = fh.read() != subprocess.run(
+                ["git", "-C", C, "show", "HEAD:mise.toml"], env=ENV, check=True,
+                stdout=subprocess.PIPE, timeout=60).stdout
+        clean = git(C, "status", "--porcelain") == ""
+        fresh = bu.lock_stale(C, SN)
+        with open(os.path.join(C, "mise.toml"), "a", encoding="utf-8") as fh:
+            fh.write('go = "1.23"\n')
+        edited = bu.lock_stale(C, SN)
+        check("lock_stale: a clean %s clone is fresh; an edit there is stale" % label,
+              raw and clean and fresh == "" and edited == "mise.toml differs from HEAD",
+              (raw, clean, fresh, edited))
+
+    # Where git cannot answer (no repository, no commit, no git), mtimes
+    # decide, both ways.
+    def by_mtime(where, toml_t, lock_t):
+        os.utime(os.path.join(where, "mise.toml"), (toml_t, toml_t))
+        os.utime(os.path.join(where, "mise.lock"), (lock_t, lock_t))
+        return bu.lock_stale(where, SN)
+    NEWER = "mise.toml is newer than mise.lock, and git holds neither"
+    N = os.path.join(work, "norepo")
+    write(os.path.join(N, "mise.toml"), S_TOML)
+    write(os.path.join(N, "mise.lock"), S_LOCK)
+    got = (by_mtime(N, 1000.0, 2000.0), by_mtime(N, 2000.0, 1000.0))
+    check("lock_stale outside any repository: an older toml is fresh, a newer one stale",
+          got == ("", NEWER), got)
+    git(N, "init", "-q")
+    got = (by_mtime(N, 1000.0, 2000.0), by_mtime(N, 2000.0, 1000.0))
+    check("and in a repository with no commit yet, the same", got == ("", NEWER), got)
+    saved = os.environ.get("PATH", "")
+    os.environ["PATH"] = os.path.join(work, "empty-path")
+    try:
+        got = (by_mtime(S, 1000.0, 2000.0), by_mtime(S, 2000.0, 1000.0))
+    finally:
+        os.environ["PATH"] = saved
+    os.utime(os.path.join(S, "mise.toml"), None)
     os.utime(os.path.join(S, "mise.lock"), None)
+    check("and with no git on PATH, the same", got == ("", NEWER), got)
+    check("the fixture is clean again", git(atlas, "status", "--porcelain") == "",
+          git(atlas, "status", "--porcelain"))
     open(CALLS, "w").close()
     write(os.path.join(work, "fail-mise"), "")
     hook("hook", "toolchain")

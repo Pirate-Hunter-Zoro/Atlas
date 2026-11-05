@@ -76,10 +76,26 @@ and the audit refuses any path under it.
 
 `session.json` holds `id`, `title`, `subject` (a subject id or null), `mode` (teach or do),
 `opened`, `ended`, `writeup`, `seen`, `code` (a coding session, or null), `view`
-(`board`, or `slate` for a canvas) and `doc` (the document on the glass, `{id, page, name}`,
-or null). A canvas also keeps `canvas` (where its pages are filed),
-`given` and `transcribe`. `sessions.url(rec)` resumes a stored `doc` at
-`/s/<id>/board#/s/<id>/doc/<ident>[/p<n>]`, and a canvas not yet given at `/s/<id>/slate`.
+(`board`, or `slate` for a canvas) and `doc` (the document on the glass,
+`{id, page, name, subject?}`, or null). A canvas also keeps `canvas` (where its pages are
+filed), `given` and `transcribe`.
+
+`sessions.url(rec, base)` is where a session in the Atlas `base` opens, always inside the
+session. The server passes its own Atlas (`registry.atlas`), never the code's tree, and
+`GET /sessions.json` lists each session after `sessions.resumed`, so `doc` and `url` agree:
+
+- a canvas not yet given at `/s/<id>/slate`;
+- a `doc` at `/s/<id>/board#/s/<id>/doc/<ident>[/p<n>]`;
+- a `doc` whose `subject` is not the session's (`sessions.elsewhere`) at the bare
+  `/s/<id>/board`, because a board reads only its own subject. The bare board's `resumeDoc`
+  skips it too, since the same id there names another document or none. `bind` stamps the
+  old subject on a `doc` that names none. A session's own upload (`uploads-<name>`) is in
+  no subject's library, so it gets no subject and always opens on the board.
+- With no `doc`, the newest `[filed] uploads/X.pdf -> <S>/<path>.pdf` line whose PDF is still
+  in `<S>`'s library becomes `doc`, on its newest inked page (`sessions.resumed`). It is saved
+  with that line's time as `filed_seen`, and only a newer line backfills again, so a document
+  closed afterwards stays closed. `file` sets `filed_seen` when a document is open.
+
 Beside it: `cards/`, `slate/`, `answers/`,
 `turns.jsonl`, `inbox/messages.jsonl`, `uploads/`, `annotations/`, `agent.json`,
 `cost.jsonl`, `agent.log`.
@@ -151,6 +167,33 @@ no marker file.
   reason, and the open `sessions`. Tracked files leave by `git rm` in one local commit; the
   directory goes to the trash, whose path the reply names.
 - **Check.** `board check [<path>]` runs the subject's `check` from its root.
+- **Tools.** `board tools add brew|cask|mise <name>` writes one line to the subject's or the
+  root's `Brewfile` or `mise.toml` (`toolplan.declare`), commits and pushes it, and installs
+  only that: `brew bundle install --no-upgrade` on `Brewfile.all`, or
+  `mise install --locked <name>` in its directory. It never runs `upkeep run`, because a
+  brew upgrade can replace the board's python mid-lesson. brew bundle runs `Brewfile.all` as
+  Ruby, and mise runs a `mise.toml`'s hooks, so the tutor's text is checked first:
+  - a brew or cask name matches `^[a-z0-9][a-z0-9+._@-]*$`. A tap, or an
+    `owner/repo/<name>`, needs its `owner/repo` in the root's `Brewfile.taps`;
+  - `--why` becomes one comment line with no quote, backslash or line break;
+  - a mise name is a bare key or `<backend>:<package>` (npm, pipx, cargo, go, gem, aqua,
+    ubi, github, gitlab, spm, dotnet), written as a quoted key. Its version is plain;
+  - every config mise reads in the target and above it up to the Atlas root (`mise.toml`,
+    `.mise.toml`, `mise.local.toml`, `.tool-versions`, `.config/mise/conf.d/`, ...;
+    `toolplan.mise_configs`) must be plain `[tools]` versions, line by line
+    (`toolplan.mise_text_problem`, `toolplan.tool_versions_problem`). Another table
+    (`[env]`, `[hooks]`, `[tasks]`), a top-level key, a tool option but `version` and `os`
+    (a `postinstall`, an `install_env`), a dotted key, a multi-line value, or a string with
+    a brace, `%`, `#`, `$`, a paren or a quote refuses the pin, and the owner edits it by
+    hand. mise renders every string as a tera template, so `{{ exec(...) }}` would run;
+  - mise runs in `toolplan.mise_env`: it trusts only those files, reads no config above the
+    Atlas root (`MISE_CEILING_PATHS`), and has `MISE_YES=0`, because `yes` answers mise's
+    trust prompt for a config nobody checked.
+
+  `Brewfile.all` takes only bare `tap "x"`, `brew "x"` and `cask "x"` lines, rebuilt from the
+  checked name (`toolplan.checked`). Any other line, hand-written or not, is left out, printed
+  by `toolplan union`, and kept in `tools.json` `refused_brew`; so is a Brewfile that is not
+  UTF-8, as one `(the whole file)` line.
 - **Textbook.** A course's one PDF in `textbook/` is indexed by `board textbook ingest`
   (`course/book.py`) into the ignored `textbook/index.json`. Chapters and sections come from the
   PDF outline; printed page numbers, as runs of constant offset, and exercises come from the

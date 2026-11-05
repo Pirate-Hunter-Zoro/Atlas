@@ -2218,33 +2218,74 @@ def _tools_entries(base):
     return rows
 
 
-def _tools_kick(base):
-    """Start the install in the background: the hook's brewfiles and toolchain
-    phases through upkeep when it is installed, else the hook directly. True
-    when a process was started."""
+def _tools_kick(base, decl):
+    """Install one declaration in the background, and nothing else: a brew or
+    cask by `brew bundle install --no-upgrade` on the Brewfile union
+    (`toolplan.write_union`), a mise pin by `mise install --locked <name>` in
+    its directory. Never `upkeep run` and never a brew upgrade, which could
+    replace the board's own python mid-lesson; upkeep's hourly run keeps the
+    tool current. mise starts only once `toolplan.mise_chain_problem` passes
+    every config it will read there, and runs in `toolplan.mise_env`: it
+    reads no config above the Atlas root, trusts only the checked files, and
+    never answers its own trust prompt.
+    The output goes to ~/.local/state/atlas-setup/declare.log. True when a
+    process was started."""
     if os.environ.get("BOARD_TOOLS_NO_KICK"):
         return False
+    from tutorboard import toolplan
     logdir = os.path.join(os.path.expanduser("~"), ".local", "state", "atlas-setup")
     log = os.path.join(logdir, "declare.log")
     try:
         os.makedirs(logdir, exist_ok=True)
     except OSError:
         pass
-    up = shutil.which("upkeep")
-    if not up:
-        cand = os.path.join(os.path.expanduser("~"), ".local", "bin", "upkeep")
-        up = cand if os.path.exists(cand) else None
-    if up:
-        argv = [up, "run", "--force"]
-    else:
-        hook = os.path.join(base, "upkeep.d", "hook")
-        if not os.access(hook, os.X_OK):
+
+    def find(tool):
+        got = shutil.which(tool)
+        for cand in ("/opt/homebrew/bin", "/usr/local/bin",
+                     os.path.join(os.path.expanduser("~"), ".local", "bin")):
+            if got:
+                break
+            path = os.path.join(cand, tool)
+            got = path if os.access(path, os.X_OK) else None
+        return got
+
+    env = dict(os.environ)
+    kind = decl.get("kind")
+    if kind in ("brew", "cask"):
+        brew = find("brew")
+        if not brew:
             return False
-        argv = ["/bin/sh", "-c", '"$0" brewfiles && "$0" toolchain', hook]
+        try:
+            _changed, union = toolplan.write_union(base)
+        except OSError:
+            return False
+        argv = [brew, "bundle", "install", "--no-upgrade", "--file=" + union]
+        # No `brew update`, no upgrade of an installed formula or its dependents.
+        env.update({"HOMEBREW_NO_AUTO_UPDATE": "1", "HOMEBREW_NO_INSTALL_UPGRADE": "1",
+                    "HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK": "1"})
+        cwd = base
+    elif kind == "mise":
+        mise = find("mise")
+        if not mise or not decl.get("name") or not decl.get("target"):
+            return False
+        cwd = decl["target"]
+        problem = toolplan.mise_chain_problem(cwd, base)
+        if problem:
+            try:
+                with open(log, "a", encoding="utf-8") as fh:
+                    fh.write("%s not installed: %s\n" % (decl["name"], problem))
+            except OSError:
+                pass
+            return False
+        argv = [mise, "install", "--locked", decl["name"]]
+        env = toolplan.mise_env(cwd, base, env)
+    else:
+        return False
     try:
         with open(log, "ab") as fh:
             subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=fh, stderr=fh,
-                             cwd=base, start_new_session=True, close_fds=True)
+                             cwd=cwd, env=env, start_new_session=True, close_fds=True)
         return True
     except OSError:
         return False
@@ -2260,9 +2301,12 @@ def cmd_tools(live, args):
 
     add writes one declaration -- a Brewfile line, or a mise tool entry -- in
     the root (no subject) or the named subject, commits and pushes that file,
-    and starts the install in the background. A duplicate is refused unless
-    --force. list reads the repository's declarations and tools.json, and
-    touches neither brew nor the network.
+    and starts that one install in the background (`_tools_kick`). A
+    duplicate is refused unless --force, and so is a name or version
+    `toolplan.declare` will not write; --why becomes one comment line. A mise
+    spec splits at its last @ only when a version follows it, so
+    `npm:@scope/pkg` is a name. list reads the repository's declarations and
+    tools.json, and touches neither brew nor the network.
     """
     from tutorboard import toolplan
     base = subjects.root()
@@ -2308,8 +2352,9 @@ def cmd_tools(live, args):
     version = None
     name = spec
     if kind == "mise" and "@" in spec:
-        name, _sep, tail = spec.rpartition("@")
-        version = tail or None
+        head, _sep, tail = spec.rpartition("@")
+        if head and not head.endswith(":") and "/" not in tail:
+            name, version = head, tail or None
     decl = toolplan.declare(base, kind, name, version=version, subject=subject,
                             why=why, force=force)
     if not decl["changed"]:
@@ -2329,9 +2374,11 @@ def cmd_tools(live, args):
         if not mise:
             lock_note = "mise is not installed, so the upkeep hook will lock it"
         else:
+            # declare passed every config mise reads here; read those only.
+            lockenv = toolplan.mise_env(decl["target"], base)
             try:
                 lockcode = subprocess.run(
-                    [mise, "lock"], cwd=decl["target"], timeout=180,
+                    [mise, "lock"], cwd=decl["target"], timeout=180, env=lockenv,
                     stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE).returncode
             except (OSError, subprocess.TimeoutExpired):
@@ -2357,9 +2404,9 @@ def cmd_tools(live, args):
         return 1
     toolplan.note_declared(base, {
         "name": name, "kind": kind, "path": decl["path"],
-        "subject": decl.get("subject") or subject or "", "why": why or "",
+        "subject": decl.get("subject") or subject or "", "why": decl.get("why") or "",
         "at": toolplan.now_stamp()})
-    started = _tools_kick(base)
+    started = _tools_kick(base, decl)
     pushed = ok and not any(
         line.startswith("push failed") or "not pushed" in line
         or "could not fetch" in line or "committed locally" in line

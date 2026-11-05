@@ -521,16 +521,17 @@ def delete_material(repo, subject, name):
 
 
 def forget_doc(repo, subject, ident):
-    """Clear the document a session in `subject` was reading, when it is
-    `ident`: the document it named has gone."""
+    """Clear the document a session was reading in `subject`, when it is
+    `ident`: the document it named has gone. A `doc` naming its own subject
+    is in that one, whatever the session is bound to now."""
     if not subject or not ident:
         return
     from ... import sessions                         # local: a cycle through artifacts
     base = registry.base_of(repo)
     for rec in sessions.all(base):
         doc = rec.get("doc")
-        if rec.get("subject") == subject and isinstance(doc, dict) \
-                and doc.get("id") == ident:
+        if isinstance(doc, dict) and doc.get("id") == ident \
+                and (doc.get("subject") or rec.get("subject")) == subject:
             try:
                 sessions.repo(rec.get("id"), base).set_state(doc=None)
             except (LookupError, OSError):

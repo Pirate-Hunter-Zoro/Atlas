@@ -4136,8 +4136,13 @@ function land() {
 
 function resumeDoc() {
   if ((window.location.hash || "") !== "") return;
-  var doc = lastLive && lastLive.state && lastLive.state.doc;
+  var st = lastLive && lastLive.state;
+  var doc = st && st.doc;
   if (!doc || typeof doc !== "object") return;
+  /* A document in another subject than this board's is not readable here:
+     the same id names something else, or nothing (`sessions.elsewhere`). */
+  if (doc.subject && doc.subject !== st.subject
+      && String(doc.id || "").indexOf("uploads-") !== 0) return;
   paperName = typeof doc.name === "string" ? doc.name : "";
   var spec = { surface: "doc", doc: String(doc.id || "") };
   var page = Number(doc.page);

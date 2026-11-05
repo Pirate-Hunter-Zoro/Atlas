@@ -534,20 +534,23 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": False, "error": str(exc)}, status=400)
         self.note("session %s opened" % rec["id"])
         return self.send_json({"ok": True, "id": rec["id"], "session": rec,
-                               "url": sessions.url(rec)})
+                               "url": sessions.url(rec, registry.atlas)})
 
     @staticmethod
     def session_listing(registry):
         """GET /sessions.json: every session, newest first, each with the
-        URL it opens at (`sessions.url`) and its subject's name; an open one also with its newest
-        card and the count of cards since `seen` (`sessions.summary`); an
-        ended one whose wrap-up is queued or running with `wrapping`, since
-        it cannot be sent until that is done."""
+        document it resumes (`sessions.resumed`, a backfill saved here), the
+        URL it opens at (`sessions.url`) and its subject's name; an open one
+        also with its newest card and the count of cards since `seen`
+        (`sessions.summary`); an ended one whose wrap-up is queued or running
+        with `wrapping`, since it cannot be sent until that is done. All of
+        it in the server's Atlas, never the code's own tree."""
         from ..runner import service as runner
         names = {one["id"]: one["name"] for one in subjects.all(registry.atlas)}
         out = []
         for rec in sessions.all(registry.atlas):
-            one = dict(rec, url=sessions.url(rec),
+            rec = sessions.resumed(rec, registry.atlas)
+            one = dict(rec, url=sessions.url(rec, registry.atlas),
                        subject_name=names.get(rec.get("subject")) or None)
             if not rec.get("ended"):
                 one.update(sessions.summary(rec, registry.atlas))

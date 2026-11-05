@@ -193,6 +193,7 @@ try:
           'brew "uv"  # also the root\nbrew "ripgrep"\ntap "acme/tools"\n'
           'brew "acme/tools/widget-cli"\n')
     write(os.path.join(M, "tools", "widget.sh"), descriptor("widget"))
+    write(os.path.join(atlas, "Brewfile.taps"), "acme/tools\n")
     # A build.zig.zon under a mise.toml that pins no zig is never fetched.
     Z = os.path.join(atlas, "projects", "Z")
     write(os.path.join(Z, "tutorboard.json"), json.dumps({"check": "zig build test"}))
@@ -271,8 +272,12 @@ try:
           toolplan.root_mise_tools(decl) == [("python", "3.13")],
           toolplan.root_mise_tools(decl))
     got = toolplan.declare(decl, "mise", "cargo:ripgrep")
-    check("a mise name that is not a TOML bare key is refused",
-          not got["changed"] and "bare key" in got["note"], got)
+    check("a mise backend name is written as a quoted key",
+          got["changed"] and got["entry"] == '"cargo:ripgrep" = "latest"'
+          and '"cargo:ripgrep" = "latest"\n' in read(toml), (got, read(toml)))
+    got = toolplan.declare(decl, "mise", "cargo:rip grep")
+    check("a mise name that is neither a bare key nor <backend>:<package> is refused",
+          not got["changed"] and "a mise tool is" in got["note"], got)
     check("note_declared records the declaration in tools.json",
           toolplan.note_declared(decl, {"name": "jq", "kind": "brew",
                                         "path": "Brewfile", "subject": "",
