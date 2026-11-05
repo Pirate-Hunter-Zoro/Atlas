@@ -8,7 +8,15 @@
 
 ## Now
 
-Session 20261103-163801, a lecture with no chapter label, is on the owner's uploaded sheet `GaloisTheoryAtWork.pdf` (Problems 20-31, continuing Problems 1-19). This sitting works Part I: Problems 20, 21 and 22, proving the fundamental theorem from scratch. Problem 20 is posed and pinned in the session's own write-up, `docs/writeup-20261103-163801/writeup.tex`, with 20(a) asked. Card 0002 confirmed the restriction reading and asked the injective half. On t0003 the owner restated Problem 20(a) correctly and asked whether it was straight; card 0003 confirmed every line, fixed the double-`ψ` naming (call the map `Ψ`), and re-posed the injective half (two extensions agreeing at `α` agree on all of `F(α)`, via `ψ_i(h(α))=φ(h)(ψ_i(α))`). Next: grade that proof, then show the image lies in `R`, the surjective half, and the count/equality; then 20(b)-(e), 21 and 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+Session 20261103-163801, a lecture with no chapter label, works Part I of the owner's uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22, proving the fundamental theorem from scratch. Problem 20 is pinned in `docs/writeup-20261103-163801/writeup.tex` and on their screen.
+
+Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and do not ask them to name the map. t0008 and t0009 demanded the write-up in the homework document, the actual write-up, not more teaching; card 0020 reports it filed and the PDF clean. The product check is dropped until they reopen it. Mode stays teach.
+
+The SOLUTION 20 region is their part-(a) work: setup, injectivity, image in $R$, well-definedness, the formula $\psi(u)=\phi(g)(r)$, the surjectivity chain, the closing bijection claim. This turn I edited only the statement's leaked Markdown bold.
+
+Two gaps, stated on cards 0019 and 0020, not patched. The surjectivity chain uses $\psi(\alpha)=r$ in its last step; $g(x)=x$ gives it directly and is theirs. Nothing shows $\psi$ respects products or sums, so membership in $\operatorname{Emb}_\phi(F(\alpha),L)$ is unearned.
+
+When they reopen: the product check (card 0018's four lines), then the sum, then the non-circular surjectivity finish. That closes the homomorphism and the bijection; then $|R|\le\deg m$ and $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$ with equality iff $|R|=\deg m$. Then 20(b)-(e), 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
 
 ## Open decisions
 

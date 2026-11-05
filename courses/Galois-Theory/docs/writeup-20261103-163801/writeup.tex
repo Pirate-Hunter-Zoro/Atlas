@@ -40,17 +40,50 @@
 \begin{problem}{20}
 Let $K/F$ be a finite extension and $L$ any field. For a field homomorphism $\phi\colon F\to L$, write $\operatorname{Emb}_\phi(K,L)$ for the set of homomorphisms $\psi\colon K\to L$ with $\psi|_F=\phi$, the extensions of $\phi$ to $K$. For $h\in F[x]$, write $\phi(h)$ for the polynomial obtained by applying $\phi$ to the coefficients.
 
-**(a)** Let $\alpha\in K$ have minimal polynomial $m$ over $F$. Show that $\psi\mapsto\psi(\alpha)$ is a bijection from $\operatorname{Emb}_\phi(F(\alpha),L)$ to the set of roots of $\phi(m)$ in $L$. Conclude that $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$, with equality if and only if $\phi(m)$ has $\deg m$ distinct roots in $L$.
+\textbf{(a)} Let $\alpha\in K$ have minimal polynomial $m$ over $F$. Show that $\psi\mapsto\psi(\alpha)$ is a bijection from $\operatorname{Emb}_\phi(F(\alpha),L)$ to the set of roots of $\phi(m)$ in $L$. Conclude that $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$, with equality if and only if $\phi(m)$ has $\deg m$ distinct roots in $L$.
 
-**(b)** Show by induction on $[K:F]$ that $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$.
+\textbf{(b)} Show by induction on $[K:F]$ that $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$.
 
-**(c)** Deduce that $|\operatorname{Gal}(K/F)|\le[K:F]$.
+\textbf{(c)} Deduce that $|\operatorname{Gal}(K/F)|\le[K:F]$.
 
-**(d)** Now suppose $K$ is the splitting field over $F$ of some $f\in F[x]$, and that $\phi(f)$ splits into linear factors in $L$. Show that $|\operatorname{Emb}_\phi(K,L)|=[K:F]$ exactly.
+\textbf{(d)} Now suppose $K$ is the splitting field over $F$ of some $f\in F[x]$, and that $\phi(f)$ splits into linear factors in $L$. Show that $|\operatorname{Emb}_\phi(K,L)|=[K:F]$ exactly.
 
-**(e)** Conclude that a Galois extension satisfies $|\operatorname{Gal}(K/F)|=[K:F]$.
+\textbf{(e)} Conclude that a Galois extension satisfies $|\operatorname{Gal}(K/F)|=[K:F]$.
 \end{problem}
 % ===== SOLUTION 20 =====
+\emph{The map.} Let $K/F$ be a finite extension, $L$ any field, and $\phi\colon F\to L$ a field homomorphism. For $h\in F[x]$, $\phi(h)$ is the polynomial obtained by applying $\phi$ to the coefficients. Let $\alpha\in K$ have minimal polynomial $m\in F[x]$. We show that
+\[
+\gamma\colon\operatorname{Emb}_\phi(F(\alpha),L)\longrightarrow\{r\in L\mid\phi(m)(r)=0\}=R,\qquad \gamma(\psi)=\psi(\alpha),
+\]
+is a bijection.
+
+\emph{Injectivity.} Let $\psi_1,\psi_2\in\operatorname{Emb}_\phi(F(\alpha),L)$ and $\psi_1(\alpha)=\psi_2(\alpha)$. We show $\psi_1=\psi_2$. By definition $\psi_1,\psi_2$ match $\phi$ over all of $F$. Since they agree on $\alpha$, they match each other over all of $F(\alpha)$, so $\psi_1=\psi_2$. Injection is done. In detail, $\psi_1(h(\alpha))=\psi_2(h(\alpha))$ is true since
+\[
+\psi_1(h(\alpha))=h(\psi_1(\alpha))=h(\psi_2(\alpha))=\psi_2(h(\alpha)),
+\]
+because $\psi_1,\psi_2$ are homomorphisms that agree on $F$, and $h\in F[x]$.
+
+\emph{The image lies in $R$.} Write $m=\sum_i c_i x^i$ with $c_i\in F$. Since $m(\alpha)=0$, and $\psi$ is a homomorphism that agrees with $\phi$ on each $c_i\in F$,
+\[
+\psi(m(\alpha))=\psi(0)\quad\Longrightarrow\quad\phi(m)(\psi(\alpha))=0,
+\]
+so $\gamma(\psi)=\psi(\alpha)\in R$ since it is a root of $\phi(m)$.
+
+\emph{Surjectivity.} Let $\phi(m)(r)=0$. We show there is $\psi$ with $\psi(\alpha)=r$. Since $\alpha$ is algebraic over $F$, each $u\in F(\alpha)$ is $g(\alpha)$ for some $g\in F[x]$. Suppose $g(\alpha)=h(\alpha)$; then $(g-h)(\alpha)=0$, so $g-h=mq$ since $m$ is the minimal polynomial of $\alpha$. Then
+\[
+\phi(g)(r)-\phi(h)(r)=\phi(m)(r)\phi(q)=0.
+\]
+For $u=g(\alpha)$ set
+\[
+\psi(u)=\phi(g)(r).
+\]
+Then
+\[
+\psi(u)=\psi(g(\alpha))=\phi(g)(\psi(\alpha))=\phi(g)(r),
+\]
+so $\psi(\alpha)=r$, and we have surjectivity of $\gamma$.
+
+\emph{Conclusion.} So $\gamma$ is a bijection.
 % ===== END SOLUTION 20 =====
 
 \end{document}
