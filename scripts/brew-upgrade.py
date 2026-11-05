@@ -2,10 +2,14 @@
 """brew-upgrade.py -- Atlas's half of the machine upkeep: its upkeep.d/hook.
 
     atlas-brew hook <phase>         upkeep's call (upkeep.d/hook): protected-casks,
-                                    brewfiles, after-brew, toolchain or status
+                                    brewfiles, after-brew, toolchain, locked-install
+                                    or status
     atlas-brew status               upkeep's last run and this hook's; exit 1 on a problem
     atlas-brew repair [--dry-run]   the probes and repairs, now
     atlas-brew install              link ~/.local/bin/atlas-brew; retire atlas.brew-upgrade
+    atlas-brew lock-stale <dir> <tool>...
+                                    why <dir>'s mise.lock needs `mise lock` (`lock_stale`),
+                                    or nothing; setup.sh's test for Atlas's root
 
 upkeep (upkeep/upkeep.py, `com.mikeyferguson.upkeep`) owns brew, npm, the
 schedule and the notifications on every Mac. This file keeps what is
@@ -30,7 +34,22 @@ The phases, each with its reason:
     pins behind into tools.json. Install names the directory's own tools
     because --locked fails on any tool without a mise.lock entry; the prune is
     named because a bare one removes versions the owner's other projects use.
-    A pin moves only by a commit of mise.toml and mise.lock, never from here.
+    `mise lock` (never --bump) runs first only where the lock is missing,
+    mise.toml or mise.lock differs from HEAD, or a pinned tool has no lock
+    entry, so a clean clone is never re-locked. A pin moves only by a commit.
+  * locked-install: `mise install --locked <tools>` in the same directories,
+    nothing else. upkeep runs it after its hourly pull moved a mise file, on
+    an hour its gate refuses the full run.
+  * Both run mise in a directory only once toolplan's `mise_chain_problem`
+    passes every config mise reads there, since mise renders a config as a
+    template and runs its hooks; a git pull can bring either. A refused
+    directory is never installed, locked or asked, and is a problem line,
+    `tool:mise:<dir>`; while one stands, nothing is pruned. Each name goes
+    after `--`. Each run trusts only its checked configs, for that call;
+    nothing runs `mise trust`. The prune reads every config mise tracks and
+    takes --yes, so it trusts the checked configs of every directory, and is
+    skipped (`tool:mise-prune`) while mise tracks an Atlas config no check
+    passed (`prune_env`).
   * status: the probes again, report only (venvs, TeX, the board's agent and
     reachability), then each failed tool and each tools.json line but a pin
     behind, as upkeep's problem lines. upkeep re-asks hourly while any stand.
@@ -85,7 +104,7 @@ T_BINSTALL = 3600
 T_PROBE = 60
 
 DRY = bool(os.environ.get("UPKEEP_DRY_RUN"))
-PHASES = ("protected-casks", "brewfiles", "after-brew", "toolchain", "status")
+PHASES = ("protected-casks", "brewfiles", "after-brew", "toolchain", "locked-install", "status")
 
 
 def now():
@@ -110,8 +129,11 @@ def run(argv, timeout, mutating=False, env=None, cwd=None):
         if d not in path:
             path.append(d)
     full["PATH"] = os.pathsep.join(path)
-    if env:
-        full.update(env)
+    for k, v in (env or {}).items():
+        if v is None:
+            full.pop(k, None)
+        else:
+            full[k] = v
     try:
         p = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            stdin=subprocess.DEVNULL, universal_newlines=True,
@@ -374,10 +396,115 @@ def probes(role, acting):
 
 # ------------------------------------------------------------- the toolchain
 
-def mise_env():
-    """mise answers no prompt here, and trusts the Atlas tree's own configs
-    for this call only; setup.sh trusts them for good."""
-    return {"MISE_YES": "1", "MISE_TRUSTED_CONFIG_PATHS": ATLAS}
+def mise_env(where):
+    """The environment for a mise run in `where`: toolplan's `mise_env`, which
+    trusts exactly the configs `mise_chain_problem` checks there, reads none
+    above Atlas's root and answers no prompt. A None value is unset by `run`.
+    Trust is per call: nothing here runs `mise trust`, since mise trusts a
+    path, and the hourly pull changes what is behind it. Without toolplan,
+    nothing is trusted."""
+    plan = board_import("toolplan")
+    if plan is None:
+        return {"MISE_YES": "0", "MISE_TRUSTED_CONFIG_PATHS": None}
+    env = dict(plan.mise_env(where, ATLAS, {}))
+    for var in plan.MISE_FILENAME_VARS:
+        env[var] = None
+    return env
+
+
+def mise_state_dir():
+    """mise's state directory, where `tracked-configs` lives."""
+    return os.environ.get("MISE_STATE_DIR") or os.path.join(
+        os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"), "mise")
+
+
+def under_atlas(path):
+    """Is `path`, as written, inside Atlas's root? Each parent is compared to
+    the root by inode, since macOS opens a path under any case and a parent
+    may be a link."""
+    try:
+        root = os.stat(ATLAS)
+    except OSError:
+        return False
+    d = os.path.normpath(os.path.abspath(path))
+    while True:
+        try:
+            st = os.stat(d)
+            if (st.st_dev, st.st_ino) == (root.st_dev, root.st_ino):
+                return True
+        except OSError:
+            pass
+        up = os.path.dirname(d)
+        if up == d:
+            return False
+        d = up
+
+
+def prune_env(plan, dirs):
+    """(env, why) for `mise prune --yes` run at Atlas's root. A prune reads
+    every config in mise's tracked-configs, and --yes answers the trust
+    prompt for each, so it trusts exactly the configs of Atlas's root and of
+    `dirs`, each re-checked by `mise_chain_problem`. It is skipped, with
+    `why`, when one is refused or mise tracks an existing config under Atlas
+    that none of those chains holds."""
+    trusted = []
+    for where in [ATLAS] + [w for _i, w, _n in dirs]:
+        why = plan.mise_chain_problem(where, ATLAS)
+        if why:
+            return None, "refused: " + why
+        for path in plan.mise_configs(where, ATLAS):
+            if path not in trusted:
+                trusted.append(path)
+    ids = set()
+    for path in trusted:
+        try:
+            st = os.stat(path)
+            ids.add((st.st_dev, st.st_ino))
+        except OSError:
+            pass
+    tracked = os.path.join(mise_state_dir(), "tracked-configs")
+    try:
+        names = sorted(os.listdir(tracked))
+    except FileNotFoundError:
+        names = []
+    except OSError as exc:
+        return None, "mise's tracked configs could not be read: %s" % exc
+    for name in names:
+        link = os.path.join(tracked, name)
+        try:
+            raw = os.path.join(tracked, os.readlink(link))
+        except OSError:
+            raw = link
+        try:
+            st = os.stat(link)
+        except OSError:
+            continue
+        if (st.st_dev, st.st_ino) not in ids and (
+                under_atlas(raw) or under_atlas(os.path.realpath(link))):
+            return None, ("mise tracks %s, an Atlas config no check passed; remove %s"
+                          % (raw, link))
+    env = mise_env(ATLAS)
+    env["MISE_TRUSTED_CONFIG_PATHS"] = os.pathsep.join(trusted)
+    return env, ""
+
+
+def mise_targets(plan):
+    """([(ident, dir, names)], refused) for Atlas's root (when it has a
+    mise.toml) and each subject directory holding one. `refused` is
+    {tool:mise:<ident>: why} for each directory whose mise configs
+    `mise_chain_problem` refuses; those are left out of the list."""
+    dirs = [(i, d, plan.pinned_in(d)) for i, d in plan.mise_dirs(ATLAS)]
+    if os.path.isfile(plan.root_mise(ATLAS)[0]):
+        dirs.insert(0, ("root", ATLAS, plan.pinned_in(ATLAS)))
+    ok, refused = [], {}
+    for ident, where, names in dirs:
+        why = plan.mise_chain_problem(where, ATLAS)
+        if why:
+            refused["tool:mise:" + ident] = "refused, not installed: " + why
+            log("! mise in %s refused: %s" % (ident, why))
+        else:
+            ok.append((ident, where, names))
+    return ok, refused
 
 
 def tool_failures():
@@ -393,9 +520,132 @@ def tool_failures():
                 if isinstance(rec, dict) and rec.get("failed"))
 
 
+def git_answer(where, names):
+    """{name: why} for each of `names` in directory `where` that differs from
+    HEAD (an uncommitted edit, a file HEAD lacks, or one deleted), {} for a
+    clean pair; None when git holds none of them there (git missing, no
+    repository, nothing committed, or all untracked). `git status` decides,
+    so a checkout's own eol and ident conversions count as clean."""
+    env = dict((k, v) for k, v in os.environ.items()
+               if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"))
+
+    def git(*args):
+        return subprocess.run(["git", "--no-optional-locks", "-C", where] + list(args),
+                              stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                              stdin=subprocess.DEVNULL, timeout=T_PROBE, env=env)
+    try:
+        if git("rev-parse", "--verify", "-q", "HEAD").returncode != 0:
+            return None
+        held = [n for n in names if git("cat-file", "-e", "HEAD:./" + n).returncode == 0]
+        if not held:
+            return None
+        out = {}
+        for name in names:
+            p = git("status", "--porcelain", "-z", "--ignored", "--untracked-files=all",
+                    "--", name)
+            if p.returncode != 0:
+                return None
+            if p.stdout.strip(b"\0"):
+                out[name] = name + " differs from HEAD"
+        return out
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
+
+def mise_names(where):
+    """The canonical names mise gives the tools `where`'s own mise.toml pins
+    (`nodejs` is `node` to it, and to mise.lock), or None when mise cannot
+    say. Offline and read-only."""
+    toml = os.path.realpath(os.path.join(where, "mise.toml"))
+    env = dict(mise_env(where), MISE_OFFLINE="1")
+    code, out, _err = run(["mise", "ls", "--no-global", "--json"], T_PROBE, cwd=where,
+                          env=env)
+    try:
+        doc = json.loads(out) if code == 0 else None
+    except ValueError:
+        doc = None
+    if not isinstance(doc, dict):
+        return None
+    names = set()
+    for name, recs in doc.items():
+        for rec in recs if isinstance(recs, list) else []:
+            src = rec.get("source") if isinstance(rec, dict) else None
+            path = src.get("path") if isinstance(src, dict) else None
+            if isinstance(path, str) and os.path.realpath(path) == toml:
+                names.add(name)
+    return names
+
+
+def locked_names(text):
+    """The tool names a mise.lock has entries for: its `[[tools.<name>]]` and
+    `[tools.<name>...]` headers, and the keys of a bare `[tools]` table."""
+    names = set()
+    inside = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("["):
+            head = line.split("#", 1)[0].strip().strip("[] \t")
+            inside = head == "tools"
+            rest = head[5:].lstrip() if head.startswith("tools") else ""
+            if rest.startswith("."):
+                rest = rest[1:].lstrip()
+                if rest[:1] in ("\"", "'"):
+                    end = rest.find(rest[0], 1)
+                    name = rest[1:end] if end > 0 else ""
+                else:
+                    name = rest.split(".", 1)[0].strip()
+                if name:
+                    names.add(name)
+            continue
+        if inside and "=" in line and not line.startswith("#"):
+            key = line.split("=", 1)[0].strip().strip("\"'")
+            if key:
+                names.add(key)
+    return names
+
+
+def lock_stale(where, names):
+    """Why `where`'s mise.lock needs `mise lock` before `mise install --locked
+    <names>`, or "" when it does not. Where git holds either file, git
+    decides, not mtimes: git writes a clone's files in its own order, so a
+    fresh clone's lock can be older than its toml yet match it. Stale there
+    is a missing lock, a mise.toml or mise.lock that differs from HEAD, or a
+    pinned tool the lock has no entry for (a declaration whose own `mise
+    lock` failed). A tool's entry is under mise's name for it, so aliases
+    resolve through `mise ls` first; when mise cannot answer, the toml's
+    names stand. Where git holds neither file, git never wrote them, so a
+    toml newer than its lock is stale."""
+    toml, lock = os.path.join(where, "mise.toml"), os.path.join(where, "mise.lock")
+    try:
+        with open(lock, "rb") as fh:
+            lock_text = fh.read().decode("utf-8", "replace")
+    except OSError:
+        return "mise.lock is missing"
+    changed = git_answer(where, ("mise.toml", "mise.lock"))
+    if changed is None:
+        try:
+            newer = os.path.getmtime(toml) > os.path.getmtime(lock)
+        except OSError:
+            newer = True
+        if newer:
+            return "mise.toml is newer than mise.lock, and git holds neither"
+    elif changed:
+        return changed.get("mise.toml") or changed["mise.lock"]
+    locked = locked_names(lock_text)
+    unlocked = set(names) - locked
+    if unlocked:
+        canonical = mise_names(where)
+        if canonical:
+            unlocked = canonical - locked
+    if unlocked:
+        return "mise.lock has no entry for " + ", ".join(sorted(unlocked))
+    return ""
+
+
 def toolchain():
     """uv's Pythons, the subjects' mise pins and Atlas's own root pins (the
-    root install-only, never pruned), the descriptors, the pins behind.
+    root install-only, never pruned), each after `mise lock` only where
+    `lock_stale` says so, the descriptors, the pins behind.
     {tool:<name>: why} of what failed."""
     failed = {}
     uv = shutil.which("uv", path=os.environ.get("PATH", "") + os.pathsep
@@ -412,41 +662,39 @@ def toolchain():
 
     plan = board_import("toolplan")
     try:
-        dirs = [(i, d, plan.pinned_in(d)) for i, d in plan.mise_dirs(ATLAS)] if plan else []
-        if plan is not None:
-            root_toml, _root_lock = plan.root_mise(ATLAS)
-            if os.path.isfile(root_toml):
-                dirs.insert(0, ("root", ATLAS, plan.pinned_in(ATLAS)))
+        dirs, refused = mise_targets(plan) if plan else ([], {})
         pinned = plan.mise_tools(ATLAS) if plan else []
-    except Exception:                                        # noqa: BLE001
-        dirs, pinned = [], []
+    except Exception as exc:                                 # noqa: BLE001
+        dirs, refused, pinned = [], {"tool:toolplan": str(exc)[:200]}, []
+    failed.update(refused)
     for ident, where, names in dirs:
         if not names:
             continue
-        toml, lock = plan.root_mise(where)
-        stale = not os.path.isfile(lock)
-        if not stale:
-            try:
-                stale = os.path.getmtime(toml) > os.path.getmtime(lock)
-            except OSError:
-                stale = True
+        stale = lock_stale(where, names)
         if stale:
+            log("mise lock in %s: %s" % (ident, stale))
             code, out, err = run(["mise", "lock"], T_MISE, mutating=True,
-                                 cwd=where, env=mise_env())
+                                 cwd=where, env=mise_env(where))
             if code != 0:
                 failed["tool:mise-lock"] = last_line(err, out) or "exit %d" % code
                 log_tail(out + "\n" + err, "mise lock")
                 continue
-        code, out, err = run(["mise", "install", "--locked"] + names, T_MISE,
-                             mutating=True, cwd=where, env=mise_env())
+        code, out, err = run(["mise", "install", "--locked", "--"] + names, T_MISE,
+                             mutating=True, cwd=where, env=mise_env(where))
         if code != 0:
             failed["tool:mise:" + ident] = last_line(err, out) or "exit %d" % code
             log_tail(out + "\n" + err, "mise")
-    if pinned:
-        code, out, err = run(["mise", "prune", "--yes", "--tools"] + pinned, T_MISE,
-                             mutating=True, env=mise_env())
-        if code != 0:
-            failed["tool:mise-prune"] = last_line(err, out) or "exit %d" % code
+    if pinned and refused:
+        log("mise prune skipped: a mise directory is refused")
+    elif pinned:
+        env, why = prune_env(plan, dirs)
+        if why:
+            failed["tool:mise-prune"] = "skipped: " + why
+        else:
+            code, out, err = run(["mise", "prune", "--yes", "--tools", "--"] + pinned,
+                                 T_MISE, mutating=True, cwd=ATLAS, env=env)
+            if code != 0:
+                failed["tool:mise-prune"] = last_line(err, out) or "exit %d" % code
 
     if os.path.isfile(TOOLS_SH):
         code, out, err = run(["bash", TOOLS_SH, "update"], T_TOOLS, mutating=True)
@@ -461,7 +709,7 @@ def toolchain():
     pins = []
     for ident, where, _names in dirs:
         code, out, err = run(["mise", "outdated", "--json", "--bump", "--local"],
-                             T_PROBE * 5, cwd=where, env=mise_env())
+                             T_PROBE * 5, cwd=where, env=mise_env(where))
         if code == 0 and plan is not None:
             pins += plan.pins_of(out, ident, where)
         elif code != 0:
@@ -477,6 +725,36 @@ def toolchain():
     for name, why in sorted(failed.items()):
         log("! %s: %s" % (name, why))
     return failed
+
+
+def locked_install():
+    """`mise install --locked <tools>` in Atlas's root and each subject
+    directory holding a mise.toml that `mise_targets` passes, and nothing
+    else: no lock, prune, upgrade or descriptor update, which the full run's
+    toolchain does. upkeep calls it after a pull moved a mise file.
+    (failed, done): {tool:mise:<ident>: why} of what failed or was refused,
+    and the keys of the directories that installed."""
+    plan = board_import("toolplan")
+    if plan is None:
+        return {"tool:toolplan": "board/tutorboard/toolplan.py could not be loaded"}, []
+    try:
+        dirs, failed = mise_targets(plan)
+    except Exception as exc:                                 # noqa: BLE001
+        return {"tool:toolplan": str(exc)[:200]}, []
+    done = []
+    for ident, where, names in dirs:
+        if not names:
+            continue
+        code, out, err = run(["mise", "install", "--locked", "--"] + names, T_MISE,
+                             mutating=True, cwd=where, env=mise_env(where))
+        if code != 0:
+            failed["tool:mise:" + ident] = last_line(err, out) or "exit %d" % code
+            log_tail(out + "\n" + err, "mise")
+        else:
+            done.append("tool:mise:" + ident)
+    for name, why in sorted(failed.items()):
+        log("! %s: %s" % (name, why))
+    return failed, done
 
 
 # ----------------------------------------------------------------- the phases
@@ -556,6 +834,19 @@ def cmd_hook(ph):
                       "after_brew_at": stamp()})
         save_state(state)
         return 0
+    if ph == "locked-install":
+        log("locked-install: the pins a pull brought")
+        failed, done = locked_install()
+        # Its lines join the toolchain's until the next full run rewrites them.
+        known = dict(state.get("failed") or {})
+        for key in done:
+            known.pop(key, None)
+        known.update(failed)
+        state["failed"] = known
+        save_state(state)
+        for name, why in sorted(failed.items()):
+            print("%s: %s" % (name[5:] if name.startswith("tool:") else name, why))
+        return 1 if failed else 0
     if ph == "toolchain":
         log("toolchain")
         state["toolchain_attempt"] = stamp()
@@ -643,6 +934,11 @@ def main(argv):
         return cmd_status()
     if cmd == "install" and not rest:
         return cmd_install()
+    if cmd == "lock-stale" and len(rest) >= 2:
+        why = lock_stale(rest[0], rest[1:])
+        if why:
+            print(why)
+        return 0
     print(USAGE, file=sys.stderr)
     return 2
 

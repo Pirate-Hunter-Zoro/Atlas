@@ -120,6 +120,15 @@ def unprefixed_route(method, path):
     return None
 
 
+def _log(line):
+    """One timestamped line into board.log, for code with no request."""
+    try:
+        sys.stderr.write("[%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), line))
+        sys.stderr.flush()
+    except (OSError, ValueError):
+        pass
+
+
 class _Idle(object):
     """The hub of an unprefixed request, which has no session: a dirty mark
     with nobody to tell."""
@@ -171,11 +180,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def note(self, line):
         """One timestamped line into board.log, which is this process's stderr."""
-        try:
-            sys.stderr.write("[%s] %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), line))
-            sys.stderr.flush()
-        except (OSError, ValueError):
-            pass
+        _log(line)
 
     # -- helpers ---------------------------------------------------------
     # Text assets go gzipped when accepted (board.js is large over Tailscale),
@@ -534,20 +539,31 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": False, "error": str(exc)}, status=400)
         self.note("session %s opened" % rec["id"])
         return self.send_json({"ok": True, "id": rec["id"], "session": rec,
-                               "url": sessions.url(rec)})
+                               "url": sessions.url(rec, registry.atlas)})
 
     @staticmethod
     def session_listing(registry):
         """GET /sessions.json: every session, newest first, each with the
-        URL it opens at (`sessions.url`) and its subject's name; an open one also with its newest
-        card and the count of cards since `seen` (`sessions.summary`); an
-        ended one whose wrap-up is queued or running with `wrapping`, since
-        it cannot be sent until that is done."""
+        document it resumes (`sessions.resumed`, a backfill saved here), the
+        URL it opens at (`sessions.url`) and its subject's name; an open one
+        also with its newest card and the count of cards since `seen`
+        (`sessions.summary`); an ended one whose wrap-up is queued or running
+        with `wrapping`, since it cannot be sent until that is done. All of
+        it in the server's Atlas, never the code's own tree. A session whose
+        backfill fails is logged and listed without a document."""
         from ..runner import service as runner
         names = {one["id"]: one["name"] for one in subjects.all(registry.atlas)}
         out = []
         for rec in sessions.all(registry.atlas):
-            one = dict(rec, url=sessions.url(rec),
+            try:
+                rec = sessions.resumed(rec, registry.atlas)
+                link = sessions.url(rec, registry.atlas, resume=False)
+            except Exception as exc:                         # noqa: BLE001
+                _log("session %s: no document resumed: %s: %s"
+                     % (rec.get("id"), type(exc).__name__, exc))
+                rec = dict(rec, doc=None)
+                link = sessions.url(rec, registry.atlas, resume=False)
+            one = dict(rec, url=link,
                        subject_name=names.get(rec.get("subject")) or None)
             if not rec.get("ended"):
                 one.update(sessions.summary(rec, registry.atlas))

@@ -3,8 +3,8 @@
 
     python3 test/tools.py
 
-A fixture Atlas in a temp dir holds the real scripts/setup.sh and
-scripts/tools.sh, with board/ a link to this one. HOME and the state
+A fixture Atlas in a temp dir holds the real scripts/setup.sh,
+scripts/tools.sh and scripts/brew-upgrade.py, with board/ a link to this one. HOME and the state
 directories are temp dirs, and brew, mise, curl and uname are shims first on
 the PATH that only log; the suite refuses to run when one resolves anywhere
 else. Nothing is installed on this machine.
@@ -18,12 +18,19 @@ else. Nothing is installed on this machine.
     nothing, as a host and as a coding laptop. Off a Mac it refuses. A deleted subject's Brewfile lines and descriptors
     leave the plan, nothing is uninstalled, and brewcare names what is left
     behind.
+  - SETUP AND MISE: a directory whose mise configs toolplan refuses gets no
+    mise call of any kind (trust, install, exec) and a REFUSED line with
+    toolplan's own reason; a refused root refuses them all. Each name goes
+    after `--`. Setup never runs `mise trust`: each mise run trusts its own
+    checked chain for that run (`toolplan mise-run`). Atlas's root is re-locked only when brew-upgrade.py's
+    `lock_stale` says so: never on a clean clone whose lock is older by mtime.
   - DESCRIPTORS: tools.sh install, update, list, path and check; the role;
     T_EVERY_DAYS; a failing update or check, and its recovery; a tool with no
     installer, and one with no T_UPDATE, which only goes stale; a name never
     seen before; one name in two subjects, identical or not; tools.json.
   - REPORTING: brewcare's tools lines (failed, stale, conflict, no longer
-    declared, pin behind) and the doctor's summary; `mise outdated` parsed;
+    declared, pin behind, a refused Brewfile line) and the doctor's summary;
+    `mise outdated` parsed;
     the tools a mise.toml pins, which alone are pruned.
   - PATHS: the tutor-board plist's PATH (board/install.sh's AGENT_PATH) ends
     in mise's shims, and its python is not a planted shim; the real tree declares no
@@ -110,8 +117,12 @@ os.environ.update({"BOARD_STATE_DIR": state, "HOME": home,
 
 EXE = stat.S_IRWXU
 LOG = 'echo "$(basename "$0") $* @ $PWD" >>"$TOOLS_CALLS"\n'
+# mise also logs what it was trusted with, and whether it would answer yes.
+MISE_ENV_LOG = os.path.join(work, "mise-env.log")
 for tool in ("brew", "mise", "curl", "uv", "go", "elan", "lake"):
-    write(os.path.join(shims, tool), "#!/bin/bash\n" + LOG + "exit 0\n", EXE)
+    write(os.path.join(shims, tool), "#!/bin/bash\n" + LOG + (
+        'echo "$* @ $PWD|$MISE_YES|$MISE_TRUSTED_CONFIG_PATHS|$MISE_CEILING_PATHS" >>"%s"\n'
+        % MISE_ENV_LOG if tool == "mise" else "") + "exit 0\n", EXE)
 write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
 for tool in ("brew", "mise", "curl", "uname"):
     where = shutil.which(tool, path=PATH)
@@ -167,7 +178,7 @@ def tools(*args):
 try:
     # --- the fixture Atlas ------------------------------------------------
     os.makedirs(os.path.join(atlas, "scripts"))
-    for rel in ("scripts/setup.sh", "scripts/tools.sh"):
+    for rel in ("scripts/setup.sh", "scripts/tools.sh", "scripts/brew-upgrade.py"):
         shutil.copy(os.path.join(ATLAS_REAL, rel), os.path.join(atlas, rel))
     os.symlink(BOARD, os.path.join(atlas, "board"))
     os.makedirs(os.path.join(atlas, "ai-config", ".git"))
@@ -175,7 +186,8 @@ try:
           '# the root\nbrew "uv"            # every uv.lock\nbrew "mise"\n'
           'cask "font-x"   # a "quoted" # comment\n')
     write(os.path.join(atlas, "mise.toml"), '[tools]\nnode = "22"\n')
-    write(os.path.join(atlas, "mise.lock"), "root lock\n")
+    ROOT_LOCK = '[[tools.node]]\nversion = "22.11.0"\nbackend = "core:node"\n'
+    write(os.path.join(atlas, "mise.lock"), ROOT_LOCK)
     M = os.path.join(atlas, "projects", "M")
     write(os.path.join(M, "tutorboard.json"), json.dumps({"check": "cargo test"}))
     write(os.path.join(M, "mise.toml"),
@@ -193,6 +205,7 @@ try:
           'brew "uv"  # also the root\nbrew "ripgrep"\ntap "acme/tools"\n'
           'brew "acme/tools/widget-cli"\n')
     write(os.path.join(M, "tools", "widget.sh"), descriptor("widget"))
+    write(os.path.join(atlas, "Brewfile.taps"), "acme/tools\n")
     # A build.zig.zon under a mise.toml that pins no zig is never fetched.
     Z = os.path.join(atlas, "projects", "Z")
     write(os.path.join(Z, "tutorboard.json"), json.dumps({"check": "zig build test"}))
@@ -271,8 +284,12 @@ try:
           toolplan.root_mise_tools(decl) == [("python", "3.13")],
           toolplan.root_mise_tools(decl))
     got = toolplan.declare(decl, "mise", "cargo:ripgrep")
-    check("a mise name that is not a TOML bare key is refused",
-          not got["changed"] and "bare key" in got["note"], got)
+    check("a mise backend name is written as a quoted key",
+          got["changed"] and got["entry"] == '"cargo:ripgrep" = "latest"'
+          and '"cargo:ripgrep" = "latest"\n' in read(toml), (got, read(toml)))
+    got = toolplan.declare(decl, "mise", "cargo:rip grep")
+    check("a mise name that is neither a bare key nor <backend>:<package> is refused",
+          not got["changed"] and "a mise tool is" in got["note"], got)
     check("note_declared records the declaration in tools.json",
           toolplan.note_declared(decl, {"name": "jq", "kind": "brew",
                                         "path": "Brewfile", "subject": "",
@@ -324,11 +341,10 @@ try:
           and not [l for l in calls("brew") if "cleanup" in l or "uninstall" in l]
           and 'brew "ripgrep"' in read(union) and 'brew "uv"' in read(union)
           and "Brewfile.all rewritten" in out1, (calls("brew"), out1))
-    check("a subject with a mise.toml builds: mise trust and install --locked at its "
+    check("a subject with a mise.toml builds: mise install --locked at its "
           "root, cargo fetch, flutter pub get and zig build --fetch one directory "
           "down, through mise",
-          calls("mise trust --quiet %s/mise.toml @ " % M)
-          and calls("mise install --locked flutter rust zig @ %s" % M)
+          calls("mise install --locked -- flutter rust zig @ %s" % M)
           and calls("mise exec -- cargo fetch --locked @ %s" % os.path.join(M, "app"))
           and calls("mise exec -- flutter pub get --enforce-lockfile @ %s"
                     % os.path.join(M, "ui"))
@@ -336,10 +352,28 @@ try:
           and not [l for l in calls("mise") if "target" in l or "zig-" in l]
           and "ok (mise install, cargo fetch, flutter pub get, zig build --fetch)" in out1,
           (calls(), out1))
-    check("setup installs Atlas's own root mise pins too, trusted and locked there",
-          calls("mise trust --quiet %s/mise.toml @ " % atlas)
-          and calls("mise install --locked node @ %s" % atlas)
+    check("setup installs Atlas's own root mise pins too, locked there",
+          calls("mise install --locked -- node @ %s" % atlas)
           and "atlas root" in out1, (calls("mise"), out1))
+    check("setup never runs mise trust: trust is never written",
+          calls("mise") and not [l for l in calls("mise") if l.startswith("mise trust")],
+          calls("mise"))
+    envs = read(MISE_ENV_LOG).splitlines()
+    want = {}
+    for l in calls("mise"):
+        argv, where = l[len("mise "):].rsplit(" @ ", 1)
+        want["%s @ %s" % (argv, where)] = "0|%s|%s" % (
+            os.pathsep.join(toolplan.mise_configs(where, atlas)), work)
+    got_env = dict(l.split("|", 1) for l in envs)
+    check("each setup mise run answers no prompt, trusts its own checked chain for "
+          "that run only and reads nothing above the root",
+          len(envs) == len(calls("mise")) and got_env == want
+          and want["install --locked -- flutter rust zig @ %s" % M] == "0|%s|%s" % (
+              os.pathsep.join([os.path.join(M, "mise.toml"),
+                               os.path.join(atlas, "mise.toml")]), work),
+          (envs, want))
+    check("and a root lock that covers its toml is not re-locked", not calls("mise lock"),
+          calls("mise"))
     check("a build.zig.zon whose mise.toml pins no zig is not fetched, and setup says so",
           not calls("mise exec -- zig build --fetch @ %s" % Z)
           and "ok (mise install, zig skipped (no zig pin))" in out1, (calls(), out1))
@@ -397,6 +431,77 @@ try:
           and not os.path.exists(widget), (out, calls()))
     os.rename(widget + ".away", widget)
     write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
+
+    # =======================================================================
+    # setup.sh and refused mise configs
+    # =======================================================================
+    for label, rel, text in (
+            ("[hooks]", ".mise.toml", '[hooks]\nenter = "touch PWNED"\n'),
+            ("[env]", "mise.local.toml", '[env]\nX = "{{ exec(command=\'touch PWNED\') }}"\n'),
+            ("a template", ".tool-versions", "rust {{ exec(command='touch PWNED') }}\n")):
+        bad = os.path.join(M, rel)
+        write(bad, text)
+        why = toolplan.mise_chain_problem(M, atlas)
+        open(CALLS, "w").close()
+        code, out = run(["bash", setup])
+        at_m = [l for l in calls("mise") if M in l]
+        check("setup: a subject whose %s has %s gets no mise trust, install or exec"
+              % (rel, label),
+              why and not at_m and calls("mise install --locked -- node @ %s" % atlas)
+              and calls("mise install --locked -- rust @ %s" % Z), (why, calls("mise")))
+        check("  and is one REFUSED line with toolplan's own reason, exit 1",
+              code == 1 and out.count("REFUSED") == 1
+              and re.search(r"^projects/M +REFUSED -- %s$" % re.escape(why), out, re.M)
+              and why.startswith("projects/M/" + rel), out)
+        os.remove(bad)
+        check("  and nothing it carried ran", not os.path.exists(os.path.join(M, "PWNED")))
+    open(CALLS, "w").close()
+    code, out = run(["bash", setup])
+    check("once clean, setup builds that subject again",
+          code == 0 and calls("mise install --locked -- flutter rust zig @ %s" % M)
+          and "REFUSED" not in out, out)
+    root_toml = os.path.join(atlas, "mise.toml")
+    write(root_toml, '[tools]\nnode = "22"\n[env]\nX = "1"\n')
+    open(CALLS, "w").close()
+    code, out = run(["bash", setup])
+    check("a refused root mise.toml refuses every mise directory: no mise call at all",
+          code == 1 and not calls("mise")
+          and re.search(r"^atlas root +REFUSED -- mise.toml has a \[env\] table", out, re.M)
+          and re.search(r"^projects/M +REFUSED -- mise.toml has a \[env\] table", out, re.M),
+          (out, calls("mise")))
+    write(root_toml, '[tools]\nnode = "22"\n')
+
+    # The root's re-lock follows brew-upgrade.py's lock_stale: git decides
+    # where git holds the files, so a clean clone is never re-locked.
+    root_lock = os.path.join(atlas, "mise.lock")
+    subprocess.run(["git", "-C", atlas, "init", "-q"], check=True, env=ENV)
+    subprocess.run(["git", "-C", atlas, "-c", "user.name=t", "-c", "user.email=t@t",
+                    "add", "mise.toml", "mise.lock"], check=True, env=ENV)
+    subprocess.run(["git", "-C", atlas, "-c", "user.name=t", "-c", "user.email=t@t",
+                    "commit", "-qm", "pins"], check=True, env=ENV)
+    os.utime(root_lock, (1000.0, 1000.0))
+    os.utime(root_toml, (2000.0, 2000.0))
+    open(CALLS, "w").close()
+    code, out = run(["bash", setup])
+    check("setup: a committed root lock older than its toml by mtime is not re-locked",
+          code == 0 and not calls("mise lock")
+          and calls("mise install --locked -- node @ %s" % atlas), (out, calls("mise")))
+    write(root_toml, '[tools]\nnode = "24"\n')
+    open(CALLS, "w").close()
+    code, out = run(["bash", setup])
+    check("and a root mise.toml that differs from HEAD is re-locked first",
+          calls("mise lock @ %s" % atlas)
+          and "mise lock: mise.toml differs from HEAD"
+          in read(os.path.join(SETUP_DIR, "atlas-root.log")), (out, calls("mise")))
+    write(root_toml, '[tools]\nnode = "22"\n')
+    shutil.rmtree(os.path.join(atlas, ".git"))
+    os.utime(root_lock, (1000.0, 1000.0))
+    os.utime(root_toml, (2000.0, 2000.0))
+    open(CALLS, "w").close()
+    run(["bash", setup])
+    check("where git holds neither file, a toml newer than its lock is re-locked",
+          calls("mise lock @ %s" % atlas), calls("mise"))
+    os.utime(root_lock, None)
 
     # =======================================================================
     # descriptors
@@ -666,6 +771,20 @@ try:
           and "tools: broke did not update: T_UPDATE exited 1" in said
           and "tools: pin behind: projects/S node 20.0.0 -> 22.1.0" in said, said)
     os.remove(os.path.join(state, "atlas-upkeep.json"))
+    rb = os.path.join(work, "refused-brew")
+    write(os.path.join(rb, "Brewfile"), 'brew "jq"\nsystem("touch PWNED")\nbrew "BAD"\n'
+          'brew "jq", args: ["x"]\n')
+    toolplan.write_union(rb, os.path.join(work, "refused-brew.all"))
+    said = brewcare.lines(state, N, upkeep=os.path.join(work, "no-upkeep"))
+    refused = [l for l in said if l.startswith("tools: refused Brewfile line ")]
+    check("brewcare names each refused Brewfile line once per file and reason",
+          refused == ["tools: refused Brewfile line Brewfile: not a bare tap, brew or cask line",
+                      "tools: refused Brewfile line Brewfile: a brew name is lower-case "
+                      "letters, digits and + . _ @ -"], said)
+    toolplan.write_union(atlas, os.path.join(work, "refused-brew.all"))
+    said = brewcare.lines(state, N, upkeep=os.path.join(work, "no-upkeep"))
+    check("and none once no line is refused",
+          not [l for l in said if "refused" in l], said)
     check("no tools.json: no summary", brewcare.tools_summary(work) is None)
     check("and doctor's line says to run setup only on a Mac, which writes it",
           brewcare.tools_doctor(work, platform="darwin")

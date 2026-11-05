@@ -4,6 +4,7 @@
     upkeep install --repo ROOT    register ROOT, copy upkeep in, load the agents
     upkeep run [--force] [--dry-run]
                                   the hourly tick; --force skips the gate
+    upkeep opencode [--dry-run]   the opencode phase alone, for a repo's setup
     upkeep doctor                 the one-minute opencode tick
     upkeep status                 what the last run found; exit 1 on a problem
     upkeep off | on               stop or restart every run and doctor tick
@@ -77,6 +78,7 @@ TERMINAL_DOMAIN = "com.apple.Terminal"
 FLUTTER_EXTENSION = "Dart-Code.flutter"
 
 DRY = False
+ECHO_INDENT = ""
 _locks = {}
 
 
@@ -142,7 +144,7 @@ def log(msg):
     echoes."""
     line = "[%s] %s" % (now().strftime("%Y-%m-%d %H:%M:%S"), msg)
     if DRY or sys.stdout.isatty():
-        print(msg if DRY else line, flush=True)
+        print(ECHO_INDENT + (msg if DRY else line), flush=True)
     if DRY:
         return
     try:
@@ -598,15 +600,6 @@ def hook(root, phase, timeout):
     return code, lines
 
 
-def hook_lists(phase):
-    out = []
-    for root in load_repos():
-        code, lines = hook(root, phase, T_HOOK_LIST)
-        if code == 0:
-            out += [l for l in lines if l not in out]
-    return out
-
-
 def protected_casks(r, state):
     """(names, known) the registered repos' hooks protect. Fails closed: a
     repo whose hook gives no answer (not executable, a crash, a timeout, gone
@@ -952,6 +945,7 @@ class Run(object):
         self.problems = []
         self.hooks = {}
         self.phases = {}
+        self.changes = []
 
     def problem(self, line):
         if line not in self.problems:
@@ -1118,25 +1112,63 @@ def phase_brew(r, state):
     state["cask_defers"] = defers
 
 
-BREWFILE_KINDS = ("tap", "brew", "cask", "mas", "vscode")
+# A Brewfile is Ruby that `brew bundle` runs, and an option such as
+# postinstall: runs a shell command. So a line joins the union only as a bare
+# `tap "x"`, `brew "x"` or `cask "x"`, written again from its kind and name.
+# The registered repos' Brewfiles use no options, so none is allowed.
+BREWFILE_LINE = re.compile(r'(tap|brew|cask)[ \t]+"([^"]*)"', re.ASCII)
+# A formula or cask name, and each part of a tap's owner/repo.
+BREW_NAME = re.compile(r"[a-z0-9][a-z0-9+._@-]*", re.ASCII)
+
+
+def brewfile_entry(kind, name, taps):
+    """Is `name` a `kind` entry? A tap is owner/repo. A formula or cask is a
+    BREW_NAME, or owner/repo/<name> for a tap in `taps`."""
+    parts = name.split("/")
+    if not all(BREW_NAME.fullmatch(p) for p in parts):
+        return False
+    if kind == "tap":
+        return len(parts) == 2
+    return len(parts) == 1 or (len(parts) == 3 and "/".join(parts[:2]) in taps)
+
+
+def brewfile_groups():
+    """[[path]]: upkeep's own Brewfile, then each registered repo's Brewfiles
+    (its hook's `brewfiles`)."""
+    groups = [[os.path.join(HERE, "Brewfile")]]
+    for root in load_repos():
+        code, lines = hook(root, "brewfiles", T_HOOK_LIST)
+        if code == 0 and lines:
+            groups.append(lines)
+    return groups
 
 
 def union_text():
     """The upkeep Brewfile joined with every repo's, taps first, one line per
-    entry, comments dropped."""
-    files = [os.path.join(HERE, "Brewfile")] + hook_lists("brewfiles")
+    entry, comments dropped. Each entry is rebuilt from a BREWFILE_LINE that
+    passes brewfile_entry, where a tapped name needs a `tap` line from the
+    same repo. Any other line is left out and logged, never run."""
     seen, taps, rest = set(), [], []
-    for path in files:
-        for raw in (read_text(path) or "").splitlines():
-            line = raw.split("#")[0].strip()
-            m = re.match(r'^(\w+)\s+"([^"]+)"', line)
-            if not m or m.group(1) not in BREWFILE_KINDS:
+    for group in brewfile_groups():
+        lines = []
+        for path in group:
+            for raw in (read_text(path) or "").split("\n"):
+                line = raw.split("#")[0].strip(" \t\r")
+                if line:
+                    lines.append((path, line, BREWFILE_LINE.fullmatch(line)))
+        tapped = set(m.group(2) for _, _, m in lines
+                     if m and m.group(1) == "tap" and brewfile_entry("tap", m.group(2), ()))
+        for path, line, m in lines:
+            if not m or not brewfile_entry(m.group(1), m.group(2), tapped):
+                log("! %s: left out a line that is not a bare tap, brew or cask: %s"
+                    % (tilde(path), line[:120].encode("ascii", "backslashreplace")
+                       .decode("ascii")))
                 continue
             key = (m.group(1), m.group(2))
             if key in seen:
                 continue
             seen.add(key)
-            (taps if m.group(1) == "tap" else rest).append(line)
+            (taps if key[0] == "tap" else rest).append('%s "%s"' % key)
     return "# Written by upkeep: the union of every registered Brewfile.\n" + \
         "\n".join(taps + rest) + "\n"
 
@@ -1354,6 +1386,7 @@ def ensure_coder():
     if not ok:
         if DRY:
             log("[dry-run] would rewrite ~/bin/coder")
+            would_write(path)
             return True
         write_text(path, want, 0o755)
         log("  repaired ~/bin/coder")
@@ -1411,9 +1444,12 @@ def ensure_config():
             new = jsonc_set(new, "permission", perm)
         else:
             new = jsonc_set(new, "permission", "allow")
-    if new != text and not DRY:
-        write_text(path, new)
-        log("  repaired opencode.jsonc (permission allows)")
+    if new != text:
+        if DRY:
+            would_write(path)
+        else:
+            write_text(path, new)
+            log("  repaired opencode.jsonc (permission allows)")
     return []
 
 
@@ -1439,6 +1475,8 @@ def doctor_pass(in_run=False):
         else:
             ensure_npm_allow_scripts()
             ok, why = binary_state()
+            if not ok and DRY:
+                would_write(os.path.realpath(opencode_bin()))
             if not ok and STUB_MARK in why:
                 log("opencode binary broken and not running; repairing with its "
                     "postinstall (%s)" % why)
@@ -1501,10 +1539,14 @@ def key_sync(r):
     have = dict(found)
     wrote = []
     if r.report_only or DRY:
-        stale = [k for k, v in found[1:] if v and v != key]
-        if stale:
+        due = [k for k in ("file", "keys.env", "auth.json") if have[k] != key
+               and (k == "file" or os.path.isdir(os.path.dirname(p[k])))]
+        if due:
             log("deepseek key: %s differ(s) from %s; the next run writes them"
-                % (", ".join(stale), where))
+                % (", ".join(due), where))
+            r.changes += ["write the DeepSeek key to %s" % tilde(p[k]) for k in due]
+            for k in due:
+                would_write(p[k])
         return
     if have["file"] != key:
         os.makedirs(os.path.dirname(p["file"]), mode=0o700, exist_ok=True)
@@ -1540,6 +1582,7 @@ def key_sync(r):
             wrote.append(tilde(p["auth.json"]))
     if wrote:
         log("deepseek key: wrote %s (from %s)" % (", ".join(wrote), where))
+        r.changes += ["wrote the DeepSeek key to %s" % w for w in wrote]
 
 
 def parity_install(r):
@@ -1558,6 +1601,146 @@ def parity_install(r):
     if code != 0:
         r.problem("the opencode parity layer reports %d problem(s); see %s"
                   % (code, tilde(LOG)))
+    changes = parity_changes(out)
+    if changes is None and code == 0:
+        r.problem("opencode/install.py printed no `changed: N` line; see %s" % tilde(LOG))
+    r.changes += changes or []
+    if DRY or r.report_only:
+        for path in said_paths(out):
+            would_write(path)
+    plugin_sdk(r)
+
+
+PARITY_SAID_NOTHING = "opencode parity layer up to date"
+
+
+def parity_changes(out):
+    """The changes install.py printed (made, or under --dry-run due), by its
+    closing `changed: N` line: [] when N is 0, else every line it printed but
+    a problem and capabilities.md, which the plugin re-reads live. None when
+    it printed no count, so its output says nothing reliable."""
+    said = []
+    count = None
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if line.startswith("would: "):
+            line = line[len("would: "):]
+        m = re.match(r"^changed: (\d+)$", line)
+        if m:
+            count = int(m.group(1))
+        elif line and not line.startswith("problem:") and line != PARITY_SAID_NOTHING \
+                and not line.endswith("/capabilities.md"):
+            said.append(line)
+    if count is None:
+        return None
+    return said if count else []
+
+
+def said_paths(out):
+    """The absolute path that ends each change line install.py printed
+    ("install <path>", "merge managed keys into <path>", ...)."""
+    paths = []
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if line.startswith("would: "):
+            line = line[len("would: "):]
+        if line.startswith("problem:") or line == PARITY_SAID_NOTHING:
+            continue
+        at = line.rfind(" /")
+        if at >= 0:
+            paths.append(line[at + 1:])
+    return paths
+
+
+WOULD = []
+
+
+def would_write(path):
+    """Under --dry-run (or a report), a path the opencode phase would write."""
+    path = os.path.abspath(path)
+    if path not in WOULD:
+        WOULD.append(path)
+
+
+def plugin_sdk(r):
+    """The plugin's pinned packages in ~/.config/opencode/node_modules:
+    `npm install` there only when one is missing or at another version."""
+    cfg = os.path.join(HOME, ".config", "opencode")
+    pins = (read_json(os.path.join(cfg, "package.json")) or {}).get("dependencies")
+    if not isinstance(pins, dict) or not pins:
+        return
+    off = [n for n, v in sorted(pins.items())
+           if (read_json(os.path.join(cfg, "node_modules", n, "package.json")) or {})
+           .get("version") != v]
+    if not off:
+        return
+    npm = npm_path()
+    if not npm:
+        r.problem("no npm, so the plugin's packages (%s) cannot be installed"
+                  % ", ".join(off))
+        return
+    r.changes.append("install the plugin's packages (%s) in %s" % (", ".join(off),
+                                                                   tilde(cfg)))
+    if r.report_only or DRY:
+        for n in off:
+            would_write(os.path.join(cfg, "node_modules", n, "package.json"))
+    if r.report_only:
+        return
+    code, out, err = run([npm, "install", "--prefix", cfg, "--no-fund", "--no-audit",
+                          "--silent"], T_NPM, mutating=True)
+    if code != 0:
+        r.fail("plugin packages", last_line(err, out) or "exit %d" % code)
+
+
+def server_reads():
+    """A test: does the OpenCode server read this file (or files under this
+    directory) at start? ~/.config/opencode, but not node_modules, lockfiles,
+    dotfiles, backups or capabilities.md, which the plugin re-reads on each
+    change; the plugin's pinned packages; auth.json; the binary. One rule for
+    a run's snapshot and a dry run's forecast."""
+    cfg = os.path.join(HOME, ".config", "opencode")
+    pins = (read_json(os.path.join(cfg, "package.json")) or {}).get("dependencies")
+    named = set(os.path.join(cfg, "node_modules", n, "package.json")
+                for n in (pins if isinstance(pins, dict) else {}))
+    named |= {key_places()["auth.json"], os.path.realpath(opencode_bin())}
+    live = os.path.join(cfg, "capabilities.md")
+
+    def reads(path):
+        path = os.path.abspath(path)
+        if path in named:
+            return True
+        rel = os.path.relpath(path, cfg)
+        if rel == ".":
+            return True
+        parts = rel.split(os.sep)
+        return not (parts[0] in ("..", "node_modules")
+                    or any(p.startswith(".") for p in parts)
+                    or parts[-1].endswith((".upkeep-tmp", ".before-upkeep"))
+                    or parts[-1] in ("package-lock.json", "bun.lock", "bun.lockb")
+                    or path == live)
+    return reads, sorted(named)
+
+
+def opencode_files():
+    """{path: (size, mtime, mode)} of every file the server reads at start
+    (server_reads). Every writer here writes only on a difference, so a stat
+    that moved is a file that changed."""
+    cfg = os.path.join(HOME, ".config", "opencode")
+    reads, named = server_reads()
+    paths = list(named)
+    for dirpath, dirnames, filenames in os.walk(cfg):
+        dirnames[:] = [d for d in dirnames if d != "node_modules" and not d.startswith(".")]
+        paths += [os.path.join(dirpath, f) for f in filenames]
+    out = {}
+    for path in paths:
+        if not reads(path):
+            continue
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        out[path] = (st.st_size, st.st_mtime_ns, st.st_mode)
+    return out
 
 
 def phase_opencode(r):
@@ -1914,6 +2097,522 @@ def phase_appearance(r):
     appearance_extensions(r)
 
 
+# -------------------------------------------------------------------- pull
+
+T_GIT = 300
+BREW_FILE = re.compile(r"(^|/)Brewfile[^/]*$")
+MISE_FILE = re.compile(r"(^|/)(\.?mise(\.[\w-]+)?\.(toml|lock)|\.tool-versions)$")
+
+
+def opted_in(root):
+    """A repo asks to be fast-forwarded hourly by carrying upkeep.d/pull."""
+    return os.path.isfile(os.path.join(root, "upkeep.d", "pull"))
+
+
+def git(root, args, timeout=T_PROBE, mutating=False):
+    code, out, err = run(["git", "-C", root] + list(args), timeout, mutating=mutating,
+                         env={"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"})
+    return code, out.strip(), err.strip()
+
+
+def pull_clone(root):
+    """(what happened, the paths that moved). Fast-forwards the clone to its
+    upstream only on its remote's default branch, with a clean working tree
+    and index (ignored files aside), and only when that is a fast-forward.
+    Anything else is a skip, said why. A dry run fetches nothing."""
+    code, branch, _ = git(root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+    if code != 0 or not branch:
+        return "skipped: HEAD is detached", []
+    code, remote, _ = git(root, ["config", "--get", "branch.%s.remote" % branch])
+    if code != 0 or not remote or remote == ".":
+        remote = "origin"
+    code, head, _ = git(root, ["symbolic-ref", "--quiet", "--short",
+                               "refs/remotes/%s/HEAD" % remote])
+    default = head[len(remote) + 1:] if code == 0 and head.startswith(remote + "/") else ""
+    if not default:
+        return ("skipped: %s's default branch is unknown (git remote set-head %s --auto)"
+                % (remote, remote)), []
+    if branch != default:
+        return "skipped: on %s, not %s" % (branch, default), []
+    code, up, _ = git(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name",
+                             "@{upstream}"])
+    if code != 0 or up != "%s/%s" % (remote, default):
+        return "skipped: %s does not track %s/%s" % (branch, remote, default), []
+    code, dirty, err = git(root, ["status", "--porcelain"])
+    if code != 0:
+        return "skipped: git status failed: %s" % last_line(err), []
+    if [l for l in dirty.splitlines() if not l.startswith("??")]:
+        return "skipped: tracked files or the index have changes", []
+    if dirty:
+        return "skipped: untracked files in the working tree", []
+    if not DRY:
+        code, out, err = git(root, ["fetch", "--quiet", remote, default], T_GIT)
+        if code != 0:
+            return "skipped: the fetch failed: %s" % (last_line(err, out) or code), []
+    code, counts, _ = git(root, ["rev-list", "--left-right", "--count",
+                                 "HEAD...@{upstream}"])
+    parts = counts.split()
+    if code != 0 or len(parts) != 2 or not all(x.isdigit() for x in parts):
+        return "skipped: git rev-list could not compare HEAD with %s" % up, []
+    ahead, behind = int(parts[0]), int(parts[1])
+    if ahead:
+        return "skipped: %d local commit(s) not on %s, so not a fast-forward" % (ahead, up), []
+    if not behind:
+        return "up to date", []
+    # -z: paths as they are, never C-quoted (core.quotePath).
+    code, names, _ = git(root, ["diff", "-z", "--name-only", "HEAD", "@{upstream}"])
+    files = [f for f in names.split("\0") if f] if code == 0 else []
+    if DRY:
+        return "would fast-forward %d commit(s) from %s, as last fetched" % (behind, up), files
+    code, out, err = git(root, ["merge", "--ff-only", "--no-autostash",
+                                "--no-overwrite-ignore", "--quiet", "@{upstream}"],
+                         T_GIT, mutating=True)
+    if code != 0:
+        return "skipped: the fast-forward was refused: %s" % (last_line(err, out) or code), []
+    return "fast-forwarded %d commit(s) from %s" % (behind, up), files
+
+
+def pull_repos(state):
+    """Fast-forward every registered repo that opted in. (brew due, [roots
+    whose mise files moved]): what the narrow install owes."""
+    said, brew_due, mise_due = {}, False, []
+    for root in load_repos():
+        if not opted_in(root):
+            continue
+        try:
+            line, files = pull_clone(root)
+        except Exception as exc:                             # noqa: BLE001
+            line, files = "skipped: %r" % exc, []
+        log("pull %s: %s" % (tilde(root), line))
+        said[root] = line
+        brew_due = brew_due or any(BREW_FILE.search(f) for f in files)
+        if any(MISE_FILE.search(f) for f in files):
+            mise_due.append(root)
+    if said:
+        state["pulls"] = {"at": stamp(), "said": said}
+        save_state(state)
+    return brew_due, mise_due
+
+
+def narrow_install(state, brew_due, mise_due):
+    """After a pull that moved a Brewfile or a mise file, on an hour the gate
+    refuses: `brew bundle --no-upgrade` over the union, and the repo's hook
+    `locked-install`, which installs its pinned tools at their locked
+    versions. Nothing upgrades, locks or prunes: the full run does that."""
+    if not brew_due and not mise_due:
+        return
+    log("a pull moved %s: the narrow install" % " and ".join(
+        (["a Brewfile"] if brew_due else []) + (["a mise file"] if mise_due else [])))
+    r = Run()
+    try:
+        if brew_due:
+            skip = legacy_skip(legacy_brew())
+            if skip:
+                log("the Brewfile waits for %s: %s" % (LEGACY_BREW, skip))
+            else:
+                phase(r, "bundle", phase_bundle)
+        for root in mise_due:
+            check_off()
+            code, _ = hook(root, "locked-install", T_HOOK_WORK)
+            if code != 0:
+                r.fail("hook %s locked-install" % os.path.basename(root.rstrip("/")),
+                       "exit %d; see %s" % (code, tilde(LOG)))
+    except Stopped:
+        return
+    if r.failed or r.problems:
+        failed = dict(state.get("failed") or {})
+        failed.update(r.failed)
+        state["failed"] = failed
+        state["problems"] = list(state.get("problems") or []) + \
+            [p for p in r.problems if p not in (state.get("problems") or [])]
+        save_state(state)
+        notify(state)
+
+
+# ---------------------------------------------------------------- worktrees
+
+WORKTREE_IDLE_H = 24
+WORKTREE_PARENT = re.compile(r"(-wt|^worktrees)$")
+
+
+def worktree_list(root):
+    """The repo's worktrees, main first: dicts with path, head, branch (a
+    short name, None when detached), locked, prunable. None when git cannot
+    list them."""
+    code, out, _ = git(root, ["worktree", "list", "--porcelain", "-z"])
+    if code != 0:
+        return None
+    trees = []
+    for block in out.split("\0\0"):
+        rec = {"path": None, "head": None, "branch": None, "locked": False,
+               "prunable": False}
+        for field in block.split("\0"):
+            key, _, value = field.partition(" ")
+            if key == "worktree":
+                rec["path"] = value
+            elif key == "HEAD":
+                rec["head"] = value
+            elif key == "branch":
+                rec["branch"] = value[len("refs/heads/"):] \
+                    if value.startswith("refs/heads/") else value
+            elif key in ("locked", "prunable"):
+                rec[key] = True
+        if rec["path"]:
+            trees.append(rec)
+    return trees
+
+
+def default_branches(root):
+    """(default branch names, their tip commits): local main and master, and
+    the branch origin/HEAD names."""
+    names, tips = [], []
+    refs = ["refs/heads/main", "refs/heads/master"]
+    code, head, _ = git(root, ["symbolic-ref", "--quiet", "--short",
+                               "refs/remotes/origin/HEAD"])
+    if code == 0 and head.startswith("origin/"):
+        names.append(head[len("origin/"):])
+        refs.append("refs/remotes/origin/HEAD")
+    for ref in refs:
+        code, sha, _ = git(root, ["rev-parse", "--verify", "--quiet", ref + "^{commit}"])
+        if code == 0 and sha:
+            tips.append(sha)
+            if ref.startswith("refs/heads/"):
+                names.append(ref[len("refs/heads/"):])
+    return names, tips
+
+
+def idle_hours(path):
+    """Hours since the worktree last moved: the newest mtime of its directory,
+    each top-level entry (its .git file among them), and its admin dir in the
+    common git dir (worktrees/<name>/ and its HEAD, index, ORIG_HEAD,
+    logs/HEAD), which a checkout, add or commit touches. An edit deeper down
+    makes the tree dirty, which keeps it anyway. None when unreadable."""
+    stamps = []
+    try:
+        stamps.append(os.lstat(path).st_mtime)
+        for entry in os.scandir(path):
+            stamps.append(entry.stat(follow_symlinks=False).st_mtime)
+    except OSError:
+        return None
+    code, admin, _ = git(path, ["rev-parse", "--absolute-git-dir"])
+    if code != 0 or not admin:
+        return None
+    for rel in ("", "HEAD", "index", "ORIG_HEAD", os.path.join("logs", "HEAD")):
+        try:
+            stamps.append(os.lstat(os.path.join(admin, rel)).st_mtime)
+        except OSError:
+            pass
+    return (time.time() - max(stamps)) / 3600.0
+
+
+def inside(path, top):
+    """path is top or below it, both resolved."""
+    path, top = os.path.realpath(path), os.path.realpath(top)
+    return path == top or path.startswith(top.rstrip(os.sep) + os.sep)
+
+
+def raise_it(exc):
+    raise exc
+
+
+def nested_git(path):
+    """Why path holds a .git (a repo, clone or worktree) that git status cannot
+    see, being in an ignored directory, or None. git worktree remove would
+    delete it with the rest; an untracked one shows in git status already."""
+    code, out, err = git(path, ["ls-files", "-z", "--others", "--ignored",
+                                "--exclude-standard", "--directory"])
+    if code != 0:
+        return "git ls-files failed: %s" % (last_line(err) or code)
+    for rel in (e for e in out.split("\0") if e):
+        top = os.path.join(path, rel.rstrip("/"))
+        if not os.path.lexists(top):
+            return "ignored path %s cannot be found" % rel
+        if os.path.basename(top) == ".git":
+            found = top
+        elif os.path.islink(top) or not os.path.isdir(top):
+            continue
+        else:
+            try:
+                found = next((os.path.join(d, ".git") for d, dirs, files
+                              in os.walk(top, onerror=raise_it)
+                              if ".git" in dirs or ".git" in files), None)
+            except OSError as exc:
+                return "ignored path %s cannot be read: %s" % (rel, exc.strerror or exc)
+        if found:
+            return "a git repo or worktree is in an ignored directory: %s" % \
+                os.path.relpath(found, path)
+    return None
+
+
+PER_WORKTREE_REFS = ("refs/worktree/", "refs/bisect/", "refs/rewritten/")
+GIT_ENV = {"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+
+
+def merged(main, sha, tips):
+    """sha is an ancestor of one of the default branch tips."""
+    return any(git(main, ["merge-base", "--is-ancestor", sha, tip])[0] == 0
+               for tip in tips)
+
+
+IN_PROGRESS = (("BISECT_START", "a bisect"), ("rebase-merge", "a rebase"),
+               ("rebase-apply", "a rebase or git am"), ("REBASE_HEAD", "a rebase"),
+               ("sequencer", "a cherry-pick or revert"), ("MERGE_HEAD", "a merge"),
+               ("MERGE_AUTOSTASH", "a merge"), ("CHERRY_PICK_HEAD", "a cherry-pick"),
+               ("REVERT_HEAD", "a revert"))
+
+
+def in_progress(path):
+    """Why an operation is under way in the worktree, or None. Its state, and
+    the autostash of a rebase or merge, live in worktrees/<name>/. A file
+    there names it, or, for the *_HEAD ones, a ref in the reftable."""
+    args = ["rev-parse", "--path-format=absolute"]
+    for name, _ in IN_PROGRESS:
+        args += ["--git-path", name]
+    code, out, err = git(path, args)
+    paths = out.splitlines()
+    if code != 0 or len(paths) != len(IN_PROGRESS):
+        return "git rev-parse failed: %s" % (last_line(err) or code)
+    heads = [n for n, _ in IN_PROGRESS if n.endswith("_HEAD")]
+    code, out, err = run(["git", "-C", path, "cat-file", "--batch-check=%(objectname)"],
+                         T_PROBE, env=GIT_ENV, stdin_text="\n".join(heads) + "\n")
+    found = out.splitlines()
+    if code != 0 or len(found) != len(heads):
+        return "git cat-file failed: %s" % (last_line(err) or code)
+    named = {n for n, line in zip(heads, found) if not line.endswith(" missing")}
+    for (name, what), where in zip(IN_PROGRESS, paths):
+        if name in named or os.path.lexists(where):
+            return "%s is in progress" % what
+    return None
+
+
+def reflog_commits(main, path):
+    """(the commits the worktree's HEAD reflog names that still exist, None),
+    or (None, why not). git worktree remove deletes this reflog. git reflog
+    reads it under either ref backend; the files backend's logs/HEAD adds
+    each entry's old commit, which git reflog does not print."""
+    code, out, err = git(path, ["reflog", "show", "--format=%H", "HEAD", "--"])
+    if code != 0:
+        return None, "git reflog failed: %s" % (last_line(err) or code)
+    lines = out.splitlines()
+    code, log_path, err = git(path, ["rev-parse", "--path-format=absolute",
+                                     "--git-path", "logs/HEAD"])
+    if code != 0 or not log_path:
+        return None, "git rev-parse failed: %s" % (last_line(err) or code)
+    try:
+        with open(log_path, errors="replace") as fh:
+            lines += [w for l in fh.read().splitlines() for w in l.split(" ")[:2]]
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        return None, "its HEAD reflog cannot be read: %s" % (exc.strerror or exc)
+    shas = []
+    for sha in lines:
+        if re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha) and sha.strip("0") \
+                and sha not in shas:
+            shas.append(sha)
+    if not shas:
+        return [], None
+    code, out, err = run(["git", "-C", main, "cat-file",
+                          "--batch-check=%(objectname) %(objecttype)"], T_PROBE,
+                         env=GIT_ENV, stdin_text="\n".join(shas) + "\n")
+    if code != 0:
+        return None, "git cat-file failed: %s" % (last_line(err) or code)
+    return [l.split()[0] for l in out.splitlines() if l.endswith(" commit")], None
+
+
+def worktree_history_keep(main, path, branch, tips):
+    """Why commits only this worktree's admin dir reaches (an operation under
+    way, its per-worktree refs, its HEAD reflog) keep it, or None. git worktree
+    remove deletes worktrees/<name>/, and with it the only way back to them."""
+    busy = in_progress(path)
+    if busy:
+        return busy
+    code, out, err = git(path, ["for-each-ref", "--format=%(refname)"])
+    if code != 0:
+        return "git for-each-ref failed: %s" % (last_line(err) or code)
+    for ref in (r for r in out.splitlines() if r.startswith(PER_WORKTREE_REFS)):
+        code, sha, _ = git(path, ["rev-parse", "--verify", "--quiet", ref + "^{commit}"])
+        if code != 0 or not sha:
+            return "its per-worktree ref %s names no commit" % ref
+        if not merged(main, sha, tips):
+            return "its per-worktree ref %s is not merged into the default branch" % ref
+    commits, why = reflog_commits(main, path)
+    if why:
+        return why
+    if not commits:
+        return None
+    own = "refs/heads/%s" % branch if branch else None
+    code, out, err = git(main, ["for-each-ref", "--format=%(refname)"])
+    if code != 0:
+        return "git for-each-ref failed: %s" % (last_line(err) or code)
+    others = [r for r in out.splitlines()
+              if r != own and not r.startswith(PER_WORKTREE_REFS)]
+    code, out, err = run(["git", "-C", main, "rev-list", "--stdin", "--max-count=1"],
+                         T_GIT, env=GIT_ENV,
+                         stdin_text="\n".join(commits + ["--not"] + list(tips) + others)
+                         + "\n")
+    if code != 0:
+        return "git rev-list failed: %s" % (last_line(err) or code)
+    if out.strip():
+        return ("its HEAD reflog holds commit %s, on neither the default branch nor "
+                "any other ref" % out.strip()[:12])
+    return None
+
+
+def worktree_keep(main, tree, names, tips, roots, trees=()):
+    """Why this linked worktree stays, or None when it is merged, clean and
+    idle, and may go."""
+    path = tree["path"]
+    if tree["locked"]:
+        return "locked"
+    if not os.path.isdir(path):
+        return "its directory is gone (moved or unmounted?); repair or prune it by hand"
+    if any(inside(r, path) for r in roots):
+        return "a registered repo is in it"
+    held = [t["path"] for t in trees if t["path"] != path and inside(t["path"], path)]
+    if held:
+        return "worktree %s is in it" % tilde(held[0])
+    if inside(HERE, path):
+        return "upkeep runs from it"
+    if tree["branch"] and tree["branch"] in names:
+        return "it holds the default branch %s" % tree["branch"]
+    if not tree["head"] or not tips:
+        return "no default branch to compare with"
+    if not merged(main, tree["head"], tips):
+        return "%s is not merged into the default branch" % (
+            tree["branch"] or "its detached HEAD")
+    history = worktree_history_keep(main, path, tree["branch"], tips)
+    if history:
+        return history
+    code, dirty, err = git(path, ["status", "--porcelain", "--ignored=no",
+                                  "--untracked-files=all"])
+    if code != 0:
+        return "git status failed: %s" % (last_line(err) or code)
+    if dirty:
+        return "it has changes or untracked files"
+    code, listed, err = git(path, ["ls-files", "-v", "-z"])
+    if code != 0:
+        return "git ls-files failed: %s" % (last_line(err) or code)
+    if any(e[:1] == "S" or e[:1].islower() for e in listed.split("\0") if e):
+        return "files flagged skip-worktree or assume-unchanged hide changes from git status"
+    nested = nested_git(path)
+    if nested:
+        return nested
+    idle = idle_hours(path)
+    if idle is None:
+        return "its files cannot be read"
+    if idle < WORKTREE_IDLE_H:
+        return "touched %.1f h ago, under %d h" % (idle, WORKTREE_IDLE_H)
+    return None
+
+
+def remove_parent(parent, removed, roots):
+    """A dedicated worktree directory (named <repo>-wt, or worktrees) goes once
+    only .DS_Store is left; never HOME, ~/Developer, or one holding a
+    registered repo."""
+    real = os.path.realpath(parent)
+    if not WORKTREE_PARENT.search(os.path.basename(real)) \
+            or any(inside(p, real) for p in [HOME, os.path.join(HOME, "Developer")]
+                   + list(roots)):
+        return
+    try:
+        left = [n for n in os.listdir(real)
+                if n != ".DS_Store" and os.path.join(real, n) not in removed]
+    except OSError:
+        return
+    if left:
+        return
+    if DRY:
+        log("[dry-run] would remove %s, then empty" % tilde(real))
+        return
+    try:
+        found = os.listdir(real)
+        stray = sorted(n for n in found if n != ".DS_Store")
+        if stray:
+            log("worktrees: %s kept, not empty: %s" % (tilde(real), ", ".join(stray)))
+            return
+        if ".DS_Store" in found:
+            os.remove(os.path.join(real, ".DS_Store"))
+        os.rmdir(real)
+        log("worktrees: removed %s, now empty" % tilde(real))
+    except OSError as exc:
+        log("worktrees: %s left: %s" % (tilde(real), exc))
+
+
+def prune_admin(main):
+    """git worktree prune, only while no linked worktree is prunable: it drops
+    the admin dir of every worktree whose directory is missing, unmerged commits
+    and all, and a moved or unmounted worktree is not ours to judge."""
+    trees = worktree_list(main) or []
+    missing = [t["path"] for t in trees[1:] if t["prunable"]]
+    if missing:
+        log("worktrees: git worktree prune skipped, directory gone: %s"
+            % ", ".join(tilde(p) for p in missing))
+        return
+    git(main, ["worktree", "prune"], T_GIT, mutating=True)
+
+
+def prune_repo(root, roots):
+    """{worktree path: what happened} for one repo's linked worktrees."""
+    trees = worktree_list(root)
+    if not trees:
+        return {}
+    main = trees[0]["path"]
+    names, tips = default_branches(main)
+    said, removed = {}, []
+    for tree in trees[1:]:
+        path = tree["path"]
+        why = worktree_keep(main, tree, names, tips, roots, trees)
+        if why:
+            said[path] = "kept: " + why
+            continue
+        code, out, err = git(main, ["worktree", "remove", path], T_GIT, mutating=True)
+        if code != 0:
+            said[path] = "kept: git worktree remove refused: %s" % (
+                last_line(err, out) or code)
+            continue
+        removed.append(os.path.realpath(path))
+        line = "would be removed" if DRY else "removed"
+        if tree["branch"]:
+            code, out, err = git(main, ["branch", "-d", tree["branch"]], T_GIT,
+                                 mutating=True)
+            line += "; branch %s %s" % (tree["branch"], "deleted" if code == 0 else
+                                        "kept: %s" % (last_line(err, out) or code))
+        said[path] = line
+    if removed:
+        prune_admin(main)
+    for parent in sorted(set(os.path.dirname(p) for p in removed)):
+        remove_parent(parent, removed, roots)
+    return said
+
+
+def prune_worktrees(state):
+    """Every registered repo's merged, clean, idle linked worktrees go: git
+    worktree remove (never --force), git branch -d (never -D), git worktree
+    prune, then an emptied <repo>-wt. Anything else stays, said why."""
+    roots = registered()
+    said, seen = {}, set()
+    for root in roots:
+        code, common, _ = git(root, ["rev-parse", "--git-common-dir"])
+        if code != 0 or not common:
+            continue
+        common = os.path.realpath(os.path.join(root, common))
+        if common in seen:
+            continue
+        seen.add(common)
+        try:
+            got = prune_repo(root, roots)
+        except Exception as exc:                             # noqa: BLE001
+            got = {root: "skipped: %r" % exc}
+        for path, line in sorted(got.items()):
+            log("worktree %s: %s" % (tilde(path), line))
+        said.update(got)
+    if said or state.pop("worktrees", None) is not None:
+        if said:
+            state["worktrees"] = {"at": stamp(), "said": said}
+        save_state(state)
+
+
 # -------------------------------------------------------------------- hooks
 
 def phase_hooks(r):
@@ -2110,6 +2809,8 @@ def cmd_run(force=False):
         if not state.get("first_seen"):
             state["first_seen"] = stamp()
             save_state(state)
+        brew_due, mise_due = pull_repos(state)
+        prune_worktrees(state)
         if DRY:
             go, why = gate(state)
             log("gate: %s (%s)" % ("would run" if go else "would skip", why))
@@ -2119,6 +2820,7 @@ def cmd_run(force=False):
         else:
             go, why = gate(state)
             if not go:
+                narrow_install(state, brew_due, mise_due)
                 return recheck(state)
         hold_awake()
         return full_run(state, why, force)
@@ -2143,6 +2845,95 @@ def cmd_doctor():
         drop_lock(DOCTOR_LOCK)
 
 
+OPENCODE_SERVE = "com.mikeyferguson.opencode-serve"
+
+
+def serve_started():
+    """When the OpenCode server's running process started (epoch seconds),
+    from its pid in `launchctl print`; None when it is not running."""
+    code, out, _ = launchctl_print(OPENCODE_SERVE)
+    m = re.search(r"^\s*pid = (\d+)\s*$", out, re.M) if code == 0 else None
+    if not m:
+        return None
+    code, out, _ = run(["ps", "-o", "lstart=", "-p", m.group(1)], T_PROBE,
+                       env={"LC_ALL": "C"})
+    try:
+        return time.mktime(time.strptime(" ".join(out.split()), "%a %b %d %H:%M:%S %Y"))
+    except ValueError:
+        return None
+
+
+def cmd_opencode():
+    """The opencode phase alone (the doctor, the key, the parity layer and its
+    packages), for a repo's setup. Prints each change, each problem, then
+    `changed: N`, the files the OpenCode server reads at start that changed
+    (under --dry-run, those it would write; server_reads is the one rule for
+    both). While the server runs it also prints `stale: M`, the files it reads
+    at start that are newer than its process (an hourly run installs without
+    restarting it). A caller restarts the server when N or M is above 0. Log
+    lines it echoes are indented, so only its own lines start with
+    `problem:`, `changed:` or `stale:`. Exit status: the problems."""
+    global ECHO_INDENT
+    ECHO_INDENT = "  "
+    if not take_lock(LOCK):
+        print("problem: an upkeep run holds %s and does this phase itself; run this "
+              "again when it ends" % tilde(LOCK))
+        print("changed: 0")
+        return 1
+    try:
+        before = opencode_files()
+        r = Run()
+        try:
+            phase_opencode(r)
+        except Exception as exc:                             # noqa: BLE001
+            r.fail("opencode", repr(exc)[:300])
+        if DRY:
+            reads, _ = server_reads()
+            changed = ["would change %s" % tilde(path) for path in WOULD if reads(path)]
+        else:
+            after = opencode_files()
+            changed = ["changed %s" % tilde(path) for path in sorted(set(before) | set(after))
+                       if before.get(path) != after.get(path)]
+        for line in changed:
+            print(line)
+        bad = ["%s: %s" % kv for kv in sorted(r.failed.items())] + r.problems
+        for line in bad:
+            print("problem: %s" % line)
+        print("changed: %d" % len(changed))
+        started = serve_started()
+        if started is not None:
+            # lstart has whole seconds; a file is newer only past the next one.
+            print("stale: %d" % len([p for p, st in opencode_files().items()
+                                     if st[1] / 1e9 >= started + 1]))
+        return min(len(bad), 100)
+    finally:
+        drop_lock(LOCK)
+
+
+def same_tree(a, b):
+    """Do two upkeep/ copies hold the same files, byte for byte?"""
+    def files(root):
+        out = {}
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+            for f in filenames:
+                if not f.endswith(".pyc"):
+                    full = os.path.join(dirpath, f)
+                    out[os.path.relpath(full, root)] = full
+        return out
+    fa, fb = files(a), files(b)
+    if sorted(fa) != sorted(fb):
+        return False
+    for rel in fa:
+        try:
+            with open(fa[rel], "rb") as x, open(fb[rel], "rb") as y:
+                if x.read() != y.read():
+                    return False
+        except OSError:
+            return False
+    return True
+
+
 def cmd_install(repo):
     root = os.path.realpath(os.path.expanduser(repo))
     src = os.path.join(root, "upkeep")
@@ -2152,7 +2943,9 @@ def cmd_install(repo):
     os.makedirs(STATE_DIR, exist_ok=True)
     register(root)
     mine, installed = version_of(src), version_of(SHARE)
-    if mine >= installed:
+    if mine == installed and same_tree(src, SHARE):
+        print("upkeep %d is already at %s" % (mine, tilde(SHARE)))
+    elif mine >= installed:
         copy_in(src)
         print("upkeep %d copied to %s" % (mine, tilde(SHARE)))
     else:
@@ -2251,6 +3044,12 @@ def cmd_status():
     print("next:      %s" % next_window(state).strftime("%a %b %d %H:%M"))
     if state.get("brew_by") == LEGACY_BREW:
         print("brew:      left to %s" % LEGACY_BREW)
+    pulls = state.get("pulls") if isinstance(state.get("pulls"), dict) else {}
+    for root, line in sorted((pulls.get("said") or {}).items()):
+        print("pull:      %s %s (%s)" % (tilde(root), line, pulls.get("at") or "?"))
+    trees = state.get("worktrees") if isinstance(state.get("worktrees"), dict) else {}
+    for path, line in sorted((trees.get("said") or {}).items()):
+        print("worktree:  %s %s (%s)" % (tilde(path), line, trees.get("at") or "?"))
     for line in state.get("app_store_outdated") or []:
         print("APP STORE %s" % line)
     lines = problem_lines(state)
@@ -2262,8 +3061,8 @@ def cmd_status():
     return 1 if lines else 0
 
 
-USAGE = ("usage: upkeep install --repo ROOT | run [--force] [--dry-run] | doctor | status "
-         "| off | on")
+USAGE = ("usage: upkeep install --repo ROOT | run [--force] [--dry-run] "
+         "| opencode [--dry-run] | doctor | status | off | on")
 
 
 def main(argv):
@@ -2277,16 +3076,16 @@ def main(argv):
             print(USAGE, file=sys.stderr)
             return 2
         return cmd_install(flags[1])
-    allowed = {"run": ("--dry-run", "--force")}
-    if cmd not in ("run", "doctor", "status", "off", "on", "settle") \
+    allowed = {"run": ("--dry-run", "--force"), "opencode": ("--dry-run",)}
+    if cmd not in ("run", "opencode", "doctor", "status", "off", "on", "settle") \
             or any(f not in allowed.get(cmd, ()) for f in flags):
         print(USAGE, file=sys.stderr)
         return 2
     DRY = "--dry-run" in flags
     if cmd == "run":
         return cmd_run(force="--force" in flags)
-    return {"doctor": cmd_doctor, "status": cmd_status, "off": cmd_off, "on": cmd_on,
-            "settle": cmd_settle}[cmd]()
+    return {"opencode": cmd_opencode, "doctor": cmd_doctor, "status": cmd_status,
+            "off": cmd_off, "on": cmd_on, "settle": cmd_settle}[cmd]()
 
 
 if __name__ == "__main__":

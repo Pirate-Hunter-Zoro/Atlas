@@ -2754,9 +2754,35 @@ function act(label, cls, fn) {
    save. */
 var paperOpen = null;          /* the kind on the glass, or null */
 var paperName = "";
+/* THE SUBJECT THE DOCUMENT ON THE GLASS IS IN, when it is not this board's:
+   the one the session's stored `doc` names (`docSubject`), or "". Every read
+   and write of that document names it (`?subject=`). `inkSubject` is what
+   ink saves name: it outlives the reader's close, so a save still owed lands
+   in the same subject, and changes only when the next document opens. */
+var paperSubject = "";
+var inkSubject = "";
+
+/* The subject document `id` is in when the session's stored `doc` is that
+   document and names another subject than the session's; else "". A
+   session's own upload is always the session's. */
+function docSubject(id) {
+  var st = lastLive && lastLive.state;
+  var doc = st && st.doc;
+  if (!doc || typeof doc !== "object" || String(doc.id || "") !== String(id || "")) return "";
+  if (String(id || "").indexOf("uploads-") === 0) return "";
+  var subject = typeof doc.subject === "string" ? doc.subject : "";
+  return subject && subject !== st.subject ? subject : "";
+}
+
+/* `path` naming `subject`, when there is one. */
+function inSubject(path, subject) {
+  if (!subject) return path;
+  return path + (path.indexOf("?") < 0 ? "?" : "&")
+    + "subject=" + encodeURIComponent(subject);
+}
 
 var keeper = window.InkKeep && window.Annotate ? window.InkKeep.make({
-  url: BASE + "/annotate/save",
+  get url() { return inSubject(BASE + "/annotate/save", inkSubject); },
   paint: function () { if (reader) reader.paintKeep(); }
 }) : null;
 
@@ -2780,7 +2806,11 @@ paperTools.round.hidden = true;
 
 var reader = window.Reader ? window.Reader.mount({
   keeper: keeper,
-  url: function (path) { return BASE + path; },
+  /* The marked copy is burned, and fetched, in the subject the document is in. */
+  url: function (path) {
+    var doc = path === "/annotate/burn" || path.indexOf("/marked/doc/") === 0;
+    return BASE + (doc ? inSubject(path, paperSubject) : path);
+  },
   tools: [paperTools.round, paperTools.get]
 }) : null;
 
@@ -2795,6 +2825,8 @@ function openDoc(id, name, then) { readKind("doc/" + id, name, then); }
 function readKind(kind, label, then) {
   if (!kind || !reader) return;
   paperOpen = kind;
+  paperSubject = kind.indexOf("doc/") === 0 ? docSubject(paperIdent(kind)) : "";
+  inkSubject = paperSubject;
   var have = papers[kind];
   paperName = label || (have && have.name) || paperName || "";
   paperTools.get.hidden = !have;
@@ -2809,7 +2841,7 @@ function readKind(kind, label, then) {
      while the pages are being drawn rather than after `save a copy`. */
   if (have) warmPaper(kind);
   reader.open({
-    pagesUrl: paperViewUrl(kind),
+    pagesUrl: inSubject(paperViewUrl(kind), paperSubject),
     id: paperIdent(kind),
     /* The caller's label first: `have.name` is the filename the PDF will be
        SAVED under, which is the right thing in a Files app and the wrong
@@ -2875,6 +2907,7 @@ function readKind(kind, label, then) {
       }
       paperOpen = null;
       paperName = "";
+      paperSubject = "";
       paperTools.round.hidden = true;
       remember();                  /* and the address stops naming the document */
       markSeen(true);
@@ -2931,7 +2964,8 @@ function paperFailed(kind, got) {
 function paintPaperRound(kind) {
   var b = paperTools.round;
   b.hidden = true;
-  if (kind.indexOf("doc/") !== 0) return;
+  /* A document in another subject has its rounds in that one's library. */
+  if (kind.indexOf("doc/") !== 0 || paperSubject) return;
   api("/library/ledger/" + encodeURIComponent(paperIdent(kind)),
         { credentials: "same-origin" })
     .then(function (r) { return r.json(); })
@@ -4136,8 +4170,11 @@ function land() {
 
 function resumeDoc() {
   if ((window.location.hash || "") !== "") return;
-  var doc = lastLive && lastLive.state && lastLive.state.doc;
+  var st = lastLive && lastLive.state;
+  var doc = st && st.doc;
   if (!doc || typeof doc !== "object") return;
+  /* A document in another subject than this board's opens there:
+     `readKind` names it (`docSubject`). */
   paperName = typeof doc.name === "string" ? doc.name : "";
   var spec = { surface: "doc", doc: String(doc.id || "") };
   var page = Number(doc.page);
@@ -6587,7 +6624,8 @@ function seenDoc() {
   if (!paperOpen || !reader || paperOpen.indexOf("doc/") !== 0) return null;
   var page = reader.pageInView ? reader.pageInView() : 1;
   return { id: paperIdent(paperOpen), page: page || 1,
-           name: paperName || paperTitle(paperOpen) };
+           name: paperName || paperTitle(paperOpen),
+           subject: paperSubject };
 }
 
 function markSeen(force) {

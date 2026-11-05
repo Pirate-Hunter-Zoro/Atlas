@@ -9,26 +9,36 @@ keeps them current.
                deduplicated union (`union_text`). setup.sh bundles it with
                --no-upgrade and upkeep installs it, from
                `~/.local/state/atlas-setup/Brewfile.all`, rewritten only when
-               it changes (`write_union`). An entry that leaves the union is
-               remembered in tools.json `left_brew`, unless upkeep/Brewfile
-               declares it; nothing is uninstalled.
+               it changes (`write_union`). brew bundle runs that file as Ruby,
+               so only a bare `tap "x"`, `brew "x"` or `cask "x"` whose name
+               passes `name_problem` gets in, rebuilt from the name; any other
+               line is refused (`checked`) and kept in tools.json
+               `refused_brew`. A tap, or an `owner/repo/formula` name, needs
+               its `owner/repo` in the root `Brewfile.taps`. An entry that
+               leaves the union is remembered in tools.json `left_brew`,
+               unless upkeep/Brewfile declares it; nothing is uninstalled.
   MISE         a subject's and Atlas's own `mise.toml` and `mise.lock` pin
                their toolchains. `marker_dirs` finds a marker at a subject's
                root and one directory down, skipping SKIP. Atlas's root is not
                a subject, so `root_mise` and `root_mise_tools` read it for
-               setup.sh and the upkeep hook only.
+               setup.sh and the upkeep hook only. Each runs mise in a
+               directory only once `mise_chain_problem` passes every config
+               mise reads there; a refused directory is skipped and named.
   DESCRIPTORS  `<subject>/tools/<name>.sh`, read by scripts/tools.sh. One name
                in two subjects must be the same bytes (`descriptors`).
   DECLARED     `declare` writes one tool into the repository's own files: a
                `brew` or `cask` line in the root or a subject's Brewfile, or a
-               `[tools]` entry in the root or a subject's mise.toml. setup.sh
+               `[tools]` entry in the root or a subject's mise.toml. Every
+               string it writes is checked first: the name, the version and
+               the one-line `--why` (`clean_why`), and so is every mise config
+               mise reads where the pin goes (`mise_chain_problem`). setup.sh
                and the upkeep hook install what those files declare, so a
                declaration made on one Mac reaches every clone through git.
                Nothing is uninstalled.
 
 State is tools.json in the board's state directory: one record per tool
 tools.sh has handled, `left` for one no longer declared, `left_brew`, and
-`pins`, the mise pins the hook found behind, which brief.py puts in
+`refused_brew`, `pins`, the mise pins the hook found behind, which brief.py puts in
 that subject's sessions as a bump to propose. `python3 -m
 tutorboard.toolplan` is tools.sh's and setup.sh's way in. Stdlib only, and
 3.7-clean.
@@ -40,6 +50,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from datetime import datetime
 
 # A marker's lockfile, which must sit beside it. build.zig.zon is its own:
@@ -51,6 +62,14 @@ SKIP = ("target", "build", ".dart_tool", ".venv", "node_modules",
         "zig-out", ".zig-cache", "zig-pkg")
 # A Brewfile's entries, in the order brew bundle needs them: a tap first.
 KINDS = ("tap", "brew", "cask", "mas", "whalebrew", "vscode")
+# A brew or cask name, and each half of a tap's owner/repo.
+NAME = re.compile(r"^[a-z0-9][a-z0-9+._@-]*\Z")
+# The one line shape that reaches Brewfile.all.
+BARE = re.compile(r'^(tap|brew|cask) "([^"\\]*)"\Z')
+# The taps a Brewfile may name, one owner/repo a line, at Atlas's root.
+TAPS_FILE = "Brewfile.taps"
+# `checked`'s line for a Brewfile refused whole.
+WHOLE_FILE = "(the whole file)"
 
 
 def state_dir():
@@ -216,20 +235,29 @@ def _strip_comment(line):
     return line
 
 
-def entries(path):
-    """The entries of one Brewfile, comments and blank lines dropped and
-    whitespace collapsed; [] when it cannot be read."""
+def read_entries(path):
+    """(entries, problem) of one Brewfile: its lines with comments and blank
+    lines dropped and whitespace collapsed, and "" -- or ([], why) when it
+    cannot be read or is not UTF-8."""
     try:
         with open(path, encoding="utf-8") as fh:
             raw = fh.read().splitlines()
-    except (OSError, UnicodeDecodeError):
-        return []
+    except UnicodeDecodeError:
+        return [], "not UTF-8, so none of it is read"
+    except OSError as e:
+        return [], "cannot be read (%s)" % (e.strerror or "error")
     out = []
     for line in raw:
         line = " ".join(_strip_comment(line).split())
         if line:
             out.append(line)
-    return out
+    return out, ""
+
+
+def entries(path):
+    """The entries of one Brewfile (`read_entries`); [] when it cannot be
+    read."""
+    return read_entries(path)[0]
 
 
 def _kind(entry):
@@ -250,20 +278,91 @@ def brewfiles(base):
     return out
 
 
-def union(base):
-    """(sorted unique entries, [labels]) over every Brewfile."""
+def allowed_taps(base):
+    """The taps `base/Brewfile.taps` lists: one `owner/repo` a line, `#`
+    comments and any other line skipped. Empty when the file is missing."""
+    out = set()
+    try:
+        with open(os.path.join(base, TAPS_FILE), encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except (OSError, UnicodeDecodeError):
+        return out
+    for raw in lines:
+        tap = raw.split("#", 1)[0].strip()
+        if _tap_shape(tap):
+            out.add(tap)
+    return out
+
+
+def _tap_shape(tap):
+    parts = tap.split("/")
+    return len(parts) == 2 and all(NAME.match(p) for p in parts)
+
+
+def name_problem(kind, name, taps):
+    """Why `name` cannot be a `kind` (tap, brew or cask) entry, or "" when it
+    can. A brew or cask is a NAME, or `owner/repo/<NAME>` from an allowed
+    tap; a tap is an allowed `owner/repo`. `taps` is `allowed_taps`."""
+    if kind == "tap":
+        if not _tap_shape(name):
+            return "a tap is owner/repo in lower case"
+        return "" if name in taps else "tap %s is not in %s" % (name, TAPS_FILE)
+    parts = name.split("/")
+    if len(parts) == 1 and NAME.match(name):
+        return ""
+    if len(parts) == 3 and all(NAME.match(p) for p in parts):
+        tap = parts[0] + "/" + parts[1]
+        return "" if tap in taps else "tap %s is not in %s" % (tap, TAPS_FILE)
+    return "a %s name is lower-case letters, digits and + . _ @ -" % kind
+
+
+def checked(base):
+    """(sorted unique entries, [labels], refused) over every Brewfile. An
+    entry is rebuilt as `<kind> "<name>"` from a bare tap, brew or cask line
+    whose name passes `name_problem`, so nothing else reaches Brewfile.all.
+    `refused` is [(label, line, why)] for every other line but a comment or
+    a blank one, which are dropped, and one (label, WHOLE_FILE, why) for a
+    Brewfile that cannot be read or is not UTF-8."""
+    taps = allowed_taps(base)
     seen = set()
     labels = []
+    refused = []
     for label, path in brewfiles(base):
         labels.append(label)
-        seen.update(entries(path))
-    return sorted(seen, key=lambda e: (_kind(e), e)), labels
+        lines, problem = read_entries(path)
+        if problem:
+            refused.append((label, WHOLE_FILE, problem))
+        for line in lines:
+            m = BARE.match(line)
+            if not m:
+                refused.append((label, line, "not a bare tap, brew or cask line"))
+                continue
+            why = name_problem(m.group(1), m.group(2), taps)
+            if why:
+                refused.append((label, line, why))
+                continue
+            seen.add('%s "%s"' % (m.group(1), m.group(2)))
+    return sorted(seen, key=lambda e: (_kind(e), e)), labels, refused
+
+
+def union(base):
+    """(sorted unique entries, [labels]) over every Brewfile, refused lines
+    left out (`checked`)."""
+    got, labels, _refused = checked(base)
+    return got, labels
+
+
+def _printable(text):
+    """`text` with every character Python cannot print, a line break among
+    them, as `?`: safe inside a `#` comment."""
+    return "".join(c if c.isprintable() else "?" for c in text)
 
 
 def union_text(base):
     got, labels = union(base)
     head = ("# Written by scripts/setup.sh and Atlas's upkeep hook; edit the "
-            "Brewfiles it joins:\n# %s\n" % ", ".join(labels or ["(none)"]))
+            "Brewfiles it joins:\n# %s\n"
+            % _printable(", ".join(labels or ["(none)"])))
     return head + "".join(e + "\n" for e in got)
 
 
@@ -275,11 +374,22 @@ def machine_entries(base):
 
 def write_union(base, dest=None):
     """Write the union to `dest` (Brewfile.all) when it differs. (changed,
-    path). An entry that left it goes into tools.json `left_brew`, and one
+    path). tools.json `refused_brew` is set to the lines `checked` refused,
+    as [{file, line, why}]. An entry that left it goes into tools.json `left_brew`, and one
     that came back comes out. An entry upkeep/Brewfile declares never counts
     as left: upkeep keeps it installed."""
     dest = dest or union_path()
     text = union_text(base)
+    refused = [{"file": label, "line": line, "why": why}
+               for label, line, why in checked(base)[2]]
+
+    def note_refused(doc):
+        if refused:
+            doc["refused_brew"] = refused
+        else:
+            doc.pop("refused_brew", None)
+    if (read().get("refused_brew") or []) != refused:
+        update(note_refused)
     machine = machine_entries(base)
     if set(read().get("left_brew") or {}) & machine:
         def drop(doc):
@@ -515,7 +625,357 @@ def pins_of(said, subject, where=None):
 
 # ------------------------------------------------------------- declarations
 
-BARE_KEY = re.compile(r"^[A-Za-z0-9_-]+$")
+# A bare mise tool name. It starts with a letter or digit, so it never reads
+# as an option when it reaches mise's command line.
+BARE_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\Z")
+# A TOML key that needs no quotes.
+TOML_BARE = re.compile(r"^[A-Za-z0-9_-]+\Z")
+# mise backends a declaration may name, as `<backend>:<package>`. Not asdf,
+# vfox or http: their plugins or URLs are code from anywhere.
+BACKENDS = ("aqua", "cargo", "dotnet", "gem", "github", "gitlab", "go", "npm",
+            "pipx", "spm", "ubi")
+PACKAGE = re.compile(r"^[A-Za-z0-9@][A-Za-z0-9+._@/-]*\Z")
+VERSION = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:-]*\Z")
+# What a mise config may hold for `declare` to write beside it, line by
+# line: min_version at the top, then [tools] and [tools.<name>] tables whose
+# entries are versions. A tool option outside TOOL_OPTIONS (postinstall,
+# install_env, ...) runs code or sets the environment, and so does every
+# other table ([env], [hooks], [tasks]).
+MISE_TOP = ("min_version",)
+TOOL_OPTIONS = ("version", "os")
+# What a string value may hold. mise renders every value as a tera template,
+# so `{{ exec(...) }}` would run; no brace, %, #, $, paren, quote or
+# backslash can be in one.
+_SAFE = r"[A-Za-z0-9 +._:@/<>=~^,!-]"
+_STR = r'(?:"%s*"|\'%s*\')' % (_SAFE, _SAFE)
+_ARR = r'\[\s*(?:%s\s*(?:,\s*%s\s*)*,?\s*)?\]' % (_STR, _STR)
+_KEY = r'(?:[A-Za-z0-9_-]+|"[^"\\\n]*"|\'[^\'\n]*\')'
+MISE_HEAD = re.compile(r"^\[\s*(%s)(?:\s*\.\s*(%s))?\s*\]\Z" % (_KEY, _KEY))
+MISE_PAIR = re.compile(r"^(%s)\s*=\s*(.*?)\Z" % _KEY)
+MISE_STR = re.compile(r"^%s\Z" % _STR)
+MISE_ARR = re.compile(r"^%s\Z" % _ARR)
+_PAIR = r"[A-Za-z_]+\s*=\s*(?:%s|%s)" % (_STR, _ARR)
+MISE_INLINE = re.compile(r"^\{\s*(?:%s(?:\s*,\s*%s)*)?\s*\}\Z" % (_PAIR, _PAIR))
+MISE_INLINE_PAIR = re.compile(r"([A-Za-z_]+)\s*=\s*(%s|%s)" % (_STR, _ARR))
+# What starts a tera tag, `{{`, `{%` or `{#`; a .tool-versions holds none of
+# these characters at all, comments included.
+TEMPLATE_CHARS = ("{", "}", "%")
+TEMPLATE_OPEN = re.compile(r"\{[{%#]")
+WHY_MAX = 120
+
+
+def clean_why(why):
+    """`why` as one comment line: every whitespace run one space, quotes,
+    backslashes and any character Python cannot print dropped, at most
+    WHY_MAX characters. Nothing in it can end a Ruby or TOML comment."""
+    text = " ".join(str(why or "").split())
+    text = "".join(c for c in text if c.isprintable() and c not in "\"'`\\")
+    return " ".join(text.split())[:WHY_MAX].strip()
+
+
+def mise_name_problem(name):
+    """Why `name` cannot be a mise tool, or "": a bare key (`python`), or
+    `<backend>:<package>` with the backend in BACKENDS."""
+    if BARE_KEY.match(name):
+        return ""
+    backend, colon, package = name.partition(":")
+    if colon and backend in BACKENDS and PACKAGE.match(package):
+        return ""
+    if colon and BARE_KEY.match(backend) and backend not in BACKENDS:
+        return "mise backend %s is not one of %s" % (backend, ", ".join(BACKENDS))
+    return ("a mise tool is a bare key, or <backend>:<package> of letters, digits "
+            "and + . _ @ / -, starting with a letter or digit")
+
+
+def mise_version_problem(version):
+    if VERSION.match(version) and not version.startswith("path:") and len(version) <= 64:
+        return ""
+    return "a mise version is letters, digits and + . _ : -, and not a path"
+
+
+def mise_key(name):
+    """`name` as a TOML key: bare when it can be, else double-quoted."""
+    return name if TOML_BARE.match(name) else '"%s"' % name
+
+
+def _unquote(token):
+    return token[1:-1] if token[:1] in "\"'" else token
+
+
+def mise_text_problem(text, label="mise.toml"):
+    """(problem, pins) of a mise config's text. `problem` is why `declare`
+    will not write beside it, or "": every line but a comment or a blank must
+    be min_version at the top, a [tools] or [tools.<name>] header, or a tool
+    pinned to a string, an array of strings or an inline table of
+    TOOL_OPTIONS; under [tools.<name>], a TOOL_OPTIONS key. Dotted keys,
+    multi-line values, a tool defined twice, a name `mise_name_problem`
+    refuses, a `path:` pin and a tera opener anywhere, comments included,
+    are out too. When tomllib is here the text must also parse.
+    `pins` maps each tool to its version string, or None."""
+    hand = "; only [tools] versions are declared, so edit it by hand"
+    pins = {}
+    opened = TEMPLATE_OPEN.search(text)
+    if opened:
+        n = text.count("\n", 0, opened.start()) + 1
+        return ("%s line %d opens a template (%s)%s"
+                % (label, n, opened.group(0), hand)), pins
+    heads = set()
+    # None at the top, TOOLS under [tools], else the tool [tools.<name>] sets.
+    head = None
+    TOOLS = ("[tools]",)
+    for n, raw in enumerate(text.splitlines(), 1):
+        line = _strip_comment(raw).strip()
+        if not line:
+            continue
+        shown = _printable(line)[:40]
+        if re.search(r"[\"']path:", line):
+            return ("%s line %d pins a path: %s%s" % (label, n, shown, hand)), pins
+        if line.startswith("["):
+            m = MISE_HEAD.match(line)
+            first = _unquote(m.group(1)) if m else ""
+            if not m or first != "tools":
+                return ("%s has a %s table%s" % (label, shown, hand)), pins
+            if m.group(2) is None:
+                head = TOOLS
+            else:
+                head = _unquote(m.group(2))
+                if mise_name_problem(head):
+                    return ("%s has a %s table%s" % (label, shown, hand)), pins
+                if head in pins:
+                    return ("%s defines tool %s twice%s" % (label, shown, hand)), pins
+                pins[head] = None
+            if head in heads:
+                return ("%s has %s twice%s" % (label, shown, hand)), pins
+            heads.add(head)
+            continue
+        m = MISE_PAIR.match(line)
+        if not m:
+            return ("%s line %d is not a [tools] version: %s%s"
+                    % (label, n, shown, hand)), pins
+        key, value = _unquote(m.group(1)), m.group(2).strip()
+        if head is None:
+            if key in MISE_TOP and MISE_STR.match(value):
+                continue
+            return ("%s sets %s at the top%s" % (label, _printable(key)[:40], hand)), pins
+        if head is not TOOLS:
+            if key not in TOOL_OPTIONS or m.group(1) != key:
+                return ("%s gives tool %s a %s option%s"
+                        % (label, head, _printable(key)[:40], hand)), pins
+            if not (MISE_STR.match(value) or (key == "os" and MISE_ARR.match(value))):
+                return ("%s line %d is not a [tools] version: %s%s"
+                        % (label, n, shown, hand)), pins
+            if key == "version":
+                pins[head] = _unquote(value)
+            continue
+        if mise_name_problem(key):
+            return ("%s line %d is not a [tools] version: %s%s"
+                    % (label, n, shown, hand)), pins
+        if key in pins:
+            return ("%s defines tool %s twice%s" % (label, key, hand)), pins
+        if MISE_STR.match(value):
+            pins[key] = _unquote(value)
+        elif MISE_ARR.match(value):
+            pins[key] = None
+        elif MISE_INLINE.match(value):
+            got = dict()
+            for opt, val in MISE_INLINE_PAIR.findall(value):
+                if opt not in TOOL_OPTIONS or opt in got or (
+                        opt == "version" and not MISE_STR.match(val)):
+                    return ("%s gives tool %s a %s option%s"
+                            % (label, key, _printable(opt)[:40], hand)), pins
+                got[opt] = val
+            pins[key] = _unquote(got["version"]) if "version" in got else None
+        else:
+            return ("%s line %d is not a [tools] version: %s%s"
+                    % (label, n, shown, hand)), pins
+    try:
+        import tomllib
+    except ImportError:
+        tomllib = None
+    if tomllib is not None:
+        try:
+            tomllib.loads(text)
+        except tomllib.TOMLDecodeError as e:
+            return ("%s does not parse as TOML (%s)%s"
+                    % (label, _printable(str(e))[:60], hand)), pins
+    return "", pins
+
+
+TOOL_VERSIONS = ".tool-versions"
+VERSION_WORD = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+._:@/<>=~^-]*\Z")
+
+
+def tool_versions_problem(text, label=TOOL_VERSIONS):
+    """Why the asdf-style `.tool-versions` `text` is not safe for mise to
+    read, or "". mise renders the whole text as a tera template, comments
+    included, without asking for trust: no line may hold a brace or %, and
+    each line but a comment or a blank must be a tool `mise_name_problem`
+    passes and versions of VERSION_WORD, none a `path:`."""
+    for n, raw in enumerate(text.splitlines(), 1):
+        if any(c in raw for c in TEMPLATE_CHARS):
+            return ("%s line %d has a template character (%s); edit it by hand"
+                    % (label, n, " ".join(TEMPLATE_CHARS)))
+        words = raw.split("#", 1)[0].split()
+        if not words:
+            continue
+        if mise_name_problem(words[0]) or len(words) < 2 or not all(
+                VERSION_WORD.match(w) and not w.startswith("path:") for w in words[1:]):
+            return ("%s line %d is not a tool and its versions: %s; edit it by hand"
+                    % (label, n, _printable(raw.strip())[:40]))
+    return ""
+
+
+def mise_problem(path, label="mise.toml"):
+    """Why `declare` will not write beside the mise config at `path`
+    (`mise_text_problem`, or `tool_versions_problem` for a .tool-versions),
+    or "". A missing file has none. A miserc is refused whatever it holds,
+    and so is a directory link or anything else that is not a regular file.
+    Names match as `_fold` compares them."""
+    if not os.path.lexists(path):
+        return ""
+    name = _fold(os.path.basename(path))
+    if MISERC.match(name):
+        return ("%s is a miserc, which can point mise at unchecked files; "
+                "edit it by hand" % label)
+    if os.path.isdir(path):
+        return ("%s is a linked directory, which mise follows to unchecked files; "
+                "edit it by hand" % label)
+    if not os.path.isfile(path):
+        return "%s is not a regular file, so edit it by hand" % label
+    try:
+        with open(path, encoding="utf-8", newline="") as fh:
+            text = fh.read()
+    except UnicodeDecodeError:
+        return "%s is not UTF-8, so edit it by hand" % label
+    except OSError as e:
+        return "%s cannot be read (%s), so edit it by hand" % (label, e.strerror or "error")
+    if name == TOOL_VERSIONS:
+        return tool_versions_problem(text, label)
+    return mise_text_problem(text, label)[0]
+
+
+def _fold(name):
+    """`name` as macOS compares file names, or looser: case folded in full,
+    compatibility forms decomposed and accents dropped. APFS opens
+    mise.local.toml as MISE.LOCAL.TOML or as "mi\u017fe.local.toml" (a long s), so
+    a name is matched against mise's file names only through this."""
+    s = unicodedata.normalize("NFKD", unicodedata.normalize("NFKD", name).casefold())
+    return "".join(c for c in s if not unicodedata.combining(c))
+
+
+MISE_FILE = re.compile(r"^\.?mise(\.[^/]+)?\.toml\Z")
+# mise's early settings (.miserc.toml, miserc.local.toml, ...): they can
+# point mise at other config files, so a directory holding one is refused.
+MISERC = re.compile(r"^\.?miserc")
+
+
+def _mise_files_in(d):
+    """Every file in directory `d` that mise reads as config, sorted:
+    mise.toml, .mise.toml, mise.<env>.toml, mise.local.toml and their dot
+    forms, .tool-versions, .config/mise*.toml, and every .toml under mise/,
+    .mise/ and .config/mise/ (config.toml, conf.d/), plus any miserc file
+    in `d`, .config/ or those directories. Names match through `_fold`,
+    since macOS opens a file under any name that folds to the one asked for. A linked directory among .config/, mise/, .mise/,
+    .config/mise/ or anything under them is listed rather than walked:
+    mise follows it, so `mise_problem` refuses it."""
+    found = []
+
+    def listed(where):
+        try:
+            return sorted(os.listdir(where))
+        except OSError:
+            return []
+    for name in listed(d):
+        low = _fold(name)
+        if MISE_FILE.match(low) or low == TOOL_VERSIONS or MISERC.match(low):
+            found.append(os.path.join(d, name))
+    config = os.path.join(d, ".config")
+    if os.path.islink(config) and os.path.isdir(config):
+        found.append(config)
+        tops = ("mise", ".mise")
+    else:
+        for name in listed(config):
+            low = _fold(name)
+            if (MISE_FILE.match(low) and not low.startswith(".")) or MISERC.match(low):
+                found.append(os.path.join(config, name))
+        tops = ("mise", ".mise", os.path.join(".config", "mise"))
+    for sub in tops:
+        top = os.path.join(d, sub)
+        if not os.path.isdir(top):
+            continue
+        if os.path.islink(top):
+            found.append(top)
+            continue
+        for where, dirs, files in os.walk(top):
+            dirs.sort()
+            for name in [n for n in dirs if os.path.islink(os.path.join(where, n))]:
+                found.append(os.path.join(where, name))
+                dirs.remove(name)
+            for name in sorted(files):
+                low = _fold(name)
+                if low.endswith(".toml") or MISERC.match(low):
+                    found.append(os.path.join(where, name))
+    return found
+
+
+def mise_configs(target, base):
+    """The mise config files mise reads when run in `target`: those of
+    `target` and of each directory above it up to and including `base`, or of
+    `target` alone when it is not inside `base`. `mise_env` trusts exactly
+    these, and the board, setup.sh and the upkeep hook run mise only after
+    `mise_chain_problem` passes them."""
+    target = os.path.realpath(target)
+    base = os.path.realpath(base)
+    dirs = [target]
+    if target.startswith(base + os.sep):
+        d = target
+        while d != base:
+            d = os.path.dirname(d)
+            dirs.append(d)
+    out = []
+    for d in dirs:
+        for path in _mise_files_in(d):
+            if path not in out:
+                out.append(path)
+    return out
+
+
+# Settings that would make mise read project files other than the ones
+# `_mise_files_in` names.
+MISE_FILENAME_VARS = ("MISE_DEFAULT_CONFIG_FILENAME", "MISE_DEFAULT_TOOL_VERSIONS_FILENAME",
+                      "MISE_OVERRIDE_CONFIG_FILENAMES",
+                      "MISE_OVERRIDE_TOOL_VERSIONS_FILENAMES")
+
+
+def mise_env(target, base, env=None):
+    """`env` (default os.environ) for a mise run in `target` that reads only
+    `mise_configs(target, base)`: those files trusted and no other, the
+    search for project configs stopped above the chain's top directory
+    (MISE_CEILING_PATHS), no file-name override, and MISE_YES=0, since
+    `yes` would answer mise's trust prompt for a config nobody checked.
+    The owner's global config is still read; it is theirs."""
+    out = dict(os.environ if env is None else env)
+    for var in MISE_FILENAME_VARS:
+        out.pop(var, None)
+    target = os.path.realpath(target)
+    base = os.path.realpath(base)
+    top = base if target.startswith(base + os.sep) or target == base else target
+    out.update({"MISE_YES": "0",
+                "MISE_CEILING_PATHS": os.path.dirname(top),
+                "MISE_TRUSTED_CONFIG_PATHS": os.pathsep.join(mise_configs(target, base))})
+    return out
+
+
+def mise_chain_problem(target, base):
+    """Why a mise run in `target` is not safe to start, or "": the first
+    `mise_configs` file `mise_problem` refuses, named relative to `base`."""
+    base = os.path.realpath(base)
+    for path in mise_configs(target, base):
+        label = os.path.relpath(path, base)
+        problem = mise_problem(path, label)
+        if problem:
+            return problem
+    return ""
 
 
 def _newline(text):
@@ -563,10 +1023,11 @@ def _sub_name(head):
 
 
 def _mise_set(path, name, version, why):
-    """Put `name` under `path`'s tools table, replacing its entry, or the
-    version line inside a `[tools.<name>]` subtable when one exists. Returns
-    (changed, entry, note); every other line, comment and line ending stays."""
-    line = '%s = "%s"' % (name, version)
+    """`path`'s text with `name` under its tools table, replacing its entry,
+    or the version line inside a `[tools.<name>]` subtable when one exists.
+    Returns (changed, entry, note, text); every other line, comment and line
+    ending stays. Writes nothing: `declare` checks `text` first."""
+    line = '%s = "%s"' % (mise_key(name), version)
     if why:
         line += "  # " + why
     version_line = 'version = "%s"' % version
@@ -610,12 +1071,11 @@ def _mise_set(path, name, version, why):
                 insert_at = i + 1
         if replaced is not None:
             if lines[replaced] == version_line:
-                return False, version_line, "already pinned to %s" % version
+                return False, version_line, "already pinned to %s" % version, text
             lines[replaced] = version_line
         else:
             lines.insert(insert_at, version_line)
-        _write_text(path, eol.join(lines) + eol)
-        return True, version_line, ""
+        return True, version_line, "", eol.join(lines) + eol
     start = tools_at
     insert_at = replaced = None
     if start is not None:
@@ -631,7 +1091,7 @@ def _mise_set(path, name, version, why):
                 insert_at = i + 1
     if replaced is not None:
         if lines[replaced] == line:
-            return False, line, "already pinned to %s" % version
+            return False, line, "already pinned to %s" % version, text
         lines[replaced] = line
     elif start is None:
         if lines and lines[-1].strip():
@@ -641,8 +1101,7 @@ def _mise_set(path, name, version, why):
         lines.append(line)
     else:
         lines.insert(insert_at, line)
-    _write_text(path, eol.join(lines) + eol)
-    return True, line, ""
+    return True, line, "", eol.join(lines) + eol
 
 
 def declare(base, kind, name, version=None, subject=None, why=None, force=False):
@@ -654,19 +1113,35 @@ def declare(base, kind, name, version=None, subject=None, why=None, force=False)
     `union(base)` or `upkeep/Brewfile` is refused with `changed` False, and so
     is a name declared with the other kind, unless `force`. A mise pin replaces
     its entry rather than adding a second. Returns {path, kind, name, changed,
-    target, entry, note}: `path` is relative to `base`, `target` the file's
-    directory. Never writes Brewfile.all.
+    target, entry, note, why}: `path` is relative to `base`, `target` the
+    file's directory, `why` the comment as written. Never writes Brewfile.all.
+
+    Refused before anything is written: a brew or cask name `name_problem`
+    refuses, a mise name or version that is not plain (`mise_name_problem`,
+    `mise_version_problem`), any mise config `mise_chain_problem` refuses in
+    the target directory or above it up to `base`, and a mise.toml whose new
+    text `mise_text_problem` refuses or that would not pin `name` to
+    `version`. `why` is `clean_why`'d, so it is one comment line.
     """
     base = os.path.realpath(os.path.expanduser(base))
     kind = str(kind or "").strip()
     name = str(name or "").strip()
+    why = clean_why(why)
     got = {"path": "", "kind": kind, "name": name, "changed": False,
-           "target": base, "entry": "", "note": "", "subject": ""}
+           "target": base, "entry": "", "note": "", "subject": "", "why": why}
     if kind not in ("brew", "cask", "mise"):
         got["note"] = "kind must be brew, cask or mise"
         return got
     if not name:
         got["note"] = "a tool needs a name"
+        return got
+    if kind in ("brew", "cask"):
+        problem = name_problem(kind, name, allowed_taps(base))
+    else:
+        problem = mise_name_problem(name) or (
+            mise_version_problem(str(version)) if version else "")
+    if problem:
+        got["note"] = problem
         return got
     target_root = base
     if subject:
@@ -705,12 +1180,21 @@ def declare(base, kind, name, version=None, subject=None, why=None, force=False)
         got.update({"path": os.path.relpath(path, base), "changed": True,
                     "target": os.path.dirname(path), "entry": entry})
         return got
-    if not BARE_KEY.match(name):
-        got["note"] = "mise tool names are TOML bare keys"
-        return got
     version = str(version or "latest")
     path = root_mise(target_root)[0]
-    changed, entry, note = _mise_set(path, name, version, why)
+    problem = mise_chain_problem(target_root, base)
+    if problem:
+        got["note"] = problem
+        return got
+    changed, entry, note, text = _mise_set(path, name, version, why)
+    if changed:
+        problem, pins = mise_text_problem(text)
+        if problem or pins.get(name) != version:
+            got["note"] = problem or (
+                "mise.toml pins %s in a form declare cannot rewrite, so edit it "
+                "by hand" % name)
+            return got
+        _write_text(path, text)
     got.update({"path": os.path.relpath(path, base), "changed": changed,
                 "target": os.path.dirname(path), "entry": entry, "note": note})
     return got
@@ -748,7 +1232,8 @@ def _cli(argv):
     """python3 -m tutorboard.toolplan <command> --atlas <root> ...
 
         union [--write]   the Brewfile union; --write writes Brewfile.all
-                          when it changed and says `rewritten` or `unchanged`
+                          when it changed and says `rewritten` or `unchanged`.
+                          Each refused line goes to stderr
         plan              one line per descriptor: name, path, subjects and
                           the epoch of its last update, tab-separated; each
                           conflict to stderr, and exit 3 when there is one
@@ -756,8 +1241,20 @@ def _cli(argv):
         markers           one line per marker: subject, marker, lock, dir
         pinned <dir>      the tools <dir>'s own mise.toml pins, one a line
         root-mise-tools   Atlas's own mise.toml pins, one name a line
+        mise-chain <dir>  why a mise run in <dir> is not safe
+                          (`mise_chain_problem`), and exit 3; silent and 0
+                          when it is
+        mise-run <dir> -- <argv>...
+                          checks <dir> as mise-chain does, then runs <argv>
+                          in <dir> under `mise_env`, so trust lasts that one
+                          run and is never written. Options after `--` are
+                          <argv>'s own
     """
     args = list(argv)
+    tail = []
+    if "--" in args:
+        i = args.index("--")
+        args, tail = args[:i], args[i + 1:]
     base = None
     if "--atlas" in args:
         i = args.index("--atlas")
@@ -768,11 +1265,16 @@ def _cli(argv):
         base = subjects.root()
     cmd = args[0] if args else ""
     if cmd == "union":
+        got, labels, refused = checked(base)
+        for label, line, why in refused:
+            sys.stderr.write("refused %s: %s (%s)\n" % (_printable(label), ascii(line), why))
         if "--write" in args:
             changed, path = write_union(base)
-            got, labels = union(base)
-            print("%s (%d entries from %s)" % ("rewritten" if changed else "unchanged",
-                                                len(got), ", ".join(labels)))
+            print("%s (%d entries from %s%s)" % (
+                "rewritten" if changed else "unchanged", len(got),
+                _printable(", ".join(labels)),
+                "; %d line(s) refused, see tools.json refused_brew" % len(refused)
+                if refused else ""))
             return 0
         sys.stdout.write(union_text(base))
         return 0
@@ -809,6 +1311,24 @@ def _cli(argv):
         for name in pinned_in(args[1]):
             print(name)
         return 0
+    if cmd == "mise-chain" and len(args) == 2:
+        problem = mise_chain_problem(args[1], base)
+        if problem:
+            print(_printable(problem))
+            return 3
+        return 0
+    if cmd == "mise-run" and len(args) == 2 and tail:
+        problem = mise_chain_problem(args[1], base)
+        if problem:
+            print(_printable(problem))
+            return 3
+        env = mise_env(args[1], base)
+        try:
+            os.chdir(args[1])
+            os.execvpe(tail[0], tail, env)
+        except OSError as exc:
+            sys.stderr.write("%s: %s\n" % (_printable(tail[0]), exc))
+            return 127
     if cmd == "root-mise-tools":
         for name, _version in root_mise_tools(base):
             print(name)

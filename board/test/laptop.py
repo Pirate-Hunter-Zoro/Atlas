@@ -236,6 +236,7 @@ try:
             'T_MANUAL="by hand"\nT_UPDATE="true"\nT_VERSION="widget"\nT_CHECK="widget"\n'
             'T_EVERY_DAYS=1\nT_STALE_DAYS=14\n'),
         "board/test/tracked.py": "import sys\nsys.exit(0)\n",
+        "scripts/setup-opencode.sh": 'echo setup-opencode >>"$LAPTOP_CALLS"\n',
         "upkeep/setup-mac.sh": ('echo upkeep-setup >>"$LAPTOP_CALLS"\n'
                                 'echo "== what only you can do"\n'
                                 'echo "  nothing: open a new terminal"\n'),
@@ -278,13 +279,13 @@ try:
           and "deleted projects/Paper-Writer" in out, out)
     check("it pulls main", git(laptop, "rev-parse", "HEAD")
           == git(origin, "rev-parse", "main"), out)
-    check("and runs scripts/setup.sh, ai-config's install.sh and install-clis.sh",
-          "Brewfile.all rewritten" in out and calls("ai-install") and calls("install-clis"),
+    check("and runs scripts/setup.sh, ai-config's install.sh and setup-opencode.sh",
+          "Brewfile.all rewritten" in out and calls("ai-install") and calls("setup-opencode"),
           read(CALLS))
     check("setup.sh bundles the union, builds the mise subject and installs its tool",
           [l for l in calls("brew") if l.startswith("brew bundle install --no-upgrade")]
-          and "mise install --locked rust" in calls("mise")
-          and "mise install --locked node" in calls("mise")
+          and "mise install --locked -- rust" in calls("mise")
+          and "mise install --locked -- node" in calls("mise")
           and "mise exec -- cargo fetch --locked" in calls("mise")
           and calls("widget-install") == ["widget-install"]
           and "1 tool(s) declared for a coding, 0 problem(s)" in out, (out, read(CALLS)))

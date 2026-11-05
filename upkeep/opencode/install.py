@@ -8,7 +8,8 @@ config.json into opencode.jsonc (JSONC-aware, every other key kept); pins the pl
 package.json; copies skills from ~/.claude/skills and ~/.agents/skills into
 ~/.config/opencode/skills (not hidden directories, not Claude-only skills) without deleting
 anything; installs ~/bin/coder. Prints one line per
-change. Exit status = number of problems. Stdlib only, Python 3.9.
+change, then `changed: N`, the count (`would: ` before each under --dry-run). Exit
+status = number of problems. Stdlib only, Python 3.9.
 """
 import argparse
 import filecmp
@@ -339,6 +340,7 @@ class Installer:
                 self.problem(f"{step.__name__}: {e}")
         if not self.changes and not self.problems:
             self.say("opencode parity layer up to date")
+        self.say(f"changed: {len(self.changes)}")
         return len(self.problems)
 
 

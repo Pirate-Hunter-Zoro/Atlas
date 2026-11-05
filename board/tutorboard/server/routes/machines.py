@@ -24,6 +24,7 @@ import urllib.parse
 from . import NOT_MINE
 from ...net import tailscale
 from ... import limits
+from ... import sessions
 from ... import subjects
 from ... import sync
 from ... import stamp
@@ -134,7 +135,8 @@ def post(h, repo, path):
     if path == "/seen":
         # The session's own `seen`: the home screen's Continue row counts the
         # cards written after it as new. An optional `{doc}` also records what
-        # is on the glass, so the next visit resumes it.
+        # is on the glass, so the next visit resumes it; its `subject`, the
+        # one it is in when not the session's (`sessions.reading`).
         try:
             body = h.read_body()
             payload = json.loads(body.decode("utf-8")) if body.strip() else {}
@@ -159,6 +161,20 @@ def post(h, repo, path):
                                        status=400)
                 wrote["doc"] = {"id": ident, "page": page,
                                 "name": str(doc.get("name") or "")[:DOC_NAME]}
+                # The subject the document is in, when not the session's:
+                # what the board names, else what is stored for this id.
+                said = doc.get("subject") if "subject" in doc else None
+                if said is not None and not isinstance(said, str):
+                    return h.send_json({"ok": False, "error": "bad document "
+                                        "subject"}, status=400)
+                try:
+                    home = sessions.reading(repo, ident, said)
+                except sessions.NotReadable as exc:
+                    return h.send_json({"ok": False, "error": str(exc)},
+                                       status=400)
+                if home is not repo:
+                    wrote["doc"]["subject"] = subjects.identify(home.root,
+                                                                home.atlas)
             else:
                 return h.send_json({"ok": False, "error": "bad document"},
                                    status=400)

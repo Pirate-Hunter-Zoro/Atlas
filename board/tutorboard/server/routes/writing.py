@@ -15,6 +15,9 @@ between those two is most of what these routes are about.
                                        and a send need a session.
     POST /annotate/burn     subject    the ink made into a marked copy,
                                        `<name>-marked.pdf` beside the PDF
+                                       Both, in a session, keep a document's
+                                       ink in the subject it is in
+                                       (`routes.doc_repo`, `?subject=`).
     POST /upload            session    files into the session's uploads/,
                                        streamed, at most 1 GB; each a
                                        non-waking `[uploaded]` line, and a
@@ -41,7 +44,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import NOT_MINE
+from . import NOT_MINE, doc_repo
 from .. import multipart
 from ...runner import service as runner
 from ..registry import is_sessionless
@@ -213,9 +216,17 @@ def post(h, repo, path):
             payload = json.loads(h.read_body().decode("utf-8"))
         except Exception:
             return h.send_json({"ok": False, "error": "bad json"}, status=400)
+        if not isinstance(payload, dict):
+            return h.send_json({"ok": False, "error": "bad json"}, status=400)
         kind = str(payload.get("kind") or "")
         mode = str(payload.get("mode") or "")
-        got = burn.burn(repo, kind, mode)
+        home = doc_repo(h, repo, kind[len("doc/"):]) \
+            if kind.startswith("doc/") else repo
+        if home is None:
+            return h.send_json({"ok": False, "why": "none", "detail":
+                                "That subject does not offer a document by "
+                                "that name."}, status=400)
+        got = burn.burn(home, kind, mode)
         h.note("burn %s (%s): %s" % (kind, mode,
                                      got.get("detail") or got.get("why")))
         if got.get("ok") and got.get("mode") != "none":
@@ -237,7 +248,13 @@ def post(h, repo, path):
             # No session: only document ink, and only saved.
             return h.send_json({"ok": False, "error": "card ink and a send are a "
                                 "session's: /s/<id>/annotate/save"}, status=400)
-        record_path = ann_path(repo, card)
+        # A document page's ink is kept in the subject the document is in.
+        page_of = ann_doc_page(card)
+        ink = doc_repo(h, repo, page_of[0]) if page_of else repo
+        if ink is None:
+            return h.send_json({"ok": False, "error": "that subject does not "
+                                "offer this document"}, status=400)
+        record_path = ann_path(ink, card)
         os.makedirs(os.path.dirname(record_path), exist_ok=True)
         strokes = payload.get("strokes") or []
         # Whether these marks were handed to the tutor, so a reload tells
@@ -251,11 +268,11 @@ def post(h, repo, path):
         except (OSError, ValueError):
             was = {}
         # Ink the board took off this page (`gone_path`) is refused.
-        gone = set(notes.stroke_sig(s) for s in gone_of(repo, card))
+        gone = set(notes.stroke_sig(s) for s in gone_of(ink, card))
         if gone:
             kept = [s for s in strokes if notes.stroke_sig(s) not in gone]
             if len(kept) == len(strokes):
-                unbury(repo, card)
+                unbury(ink, card)
             strokes = kept
         if not sent:
             sent = bool(was.get("sent")) and \
@@ -279,7 +296,7 @@ def post(h, repo, path):
         if marker in png:
             import base64
             try:
-                saved_png = png_path(repo, card)
+                saved_png = png_path(ink, card)
                 with open(saved_png, "wb") as fh:
                     fh.write(base64.b64decode(png.split(marker, 1)[1]))
             except Exception:
