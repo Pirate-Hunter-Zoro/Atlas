@@ -6,7 +6,8 @@
 Every program upkeep calls (brew, npm, node, opencode, launchctl, defaults,
 sdkmanager, flutter, xcodebuild, xcode-select, xcrun, mas, code, pmset, ioreg, curl,
 pgrep, ps, osascript, caffeinate) is one fake, first on the PATH, that logs
-its argv and answers from a JSON scenario file. HOME, /Applications, the root
+its argv and answers from a JSON scenario file. git is real, on temp repos
+with a local origin only. HOME, /Applications, the root
 helper's status and every state directory are temp dirs. The suite refuses to
 run when any fake resolves anywhere else. upkeep itself runs under
 /usr/bin/python3, the interpreter its LaunchAgents use.
@@ -96,6 +97,8 @@ elif name == "npm":
 elif name == "node":
     if C.get("postinstall_fixes"):
         opencode_works()
+elif name == "ps" and args[:2] == ["-o", "lstart="]:
+    out(C.get("lstart", "") + "\n")
 elif name == "ps":
     out("\n".join(C.get("ps") or ["/sbin/launchd", "-zsh"]) + "\n")
 elif name == "pgrep":
@@ -120,7 +123,9 @@ elif name == "launchctl":
         if label not in have:
             sys.exit(113)
         wd = (C.get("wd") or {}).get(label)
-        out("%s = {\n\tworking directory = %s\n}\n" % (args[1], wd) if wd else "x = {}\n")
+        pid = (C.get("pids") or {}).get(label)
+        out("%s = {\n\tworking directory = %s\n}\n" % (args[1], wd) if wd
+            else "x = {\n\tpid = %s\n}\n" % pid if pid else "x = {}\n")
     elif args[:1] == ["bootstrap"]:
         label = os.path.basename(args[2])[:-6]
         if label not in have:
@@ -827,6 +832,24 @@ class FullRun(Case):
                                                      "ComicMono.ttf")))
         self.assertIn("cask font-comic-mono", b.state()["failed"])
 
+    def test_only_plain_declarations_join_the_union(self):
+        b = self.b
+        extra = os.path.join(b.root, "Extra.Brewfile")
+        b.write(extra, 'brew "zzplain", args: ["with-x"], link: false\n'
+                       'mas "Final Cut Pro", id: 424389933\n'
+                       'brew "zzuniq"; system("touch /tmp/pwned-upkeep")\n'
+                       'brew "zz2" if system("id")\n'
+                       'cask "zzfoo", args: { appdir: "#{`id`}" }\n')
+        b.upkeep("run", "--force")
+        union = b.read(os.path.join(b.state_dir, "Brewfile.all"))
+        self.assertIn('brew "zzplain", args: ["with-x"], link: false', union)
+        self.assertIn('mas "Final Cut Pro", id: 424389933', union)
+        for bad in ("zzuniq", "zz2", "zzfoo", "system", "appdir"):
+            self.assertNotIn(bad, union)
+        self.assertIn("left out a line that is not a plain declaration", b.log())
+        self.assertTrue(any(a.startswith("bundle install --no-upgrade --file=")
+                            for a in b.argv("brew")))
+
     def test_hand_installed_app_is_left_out_of_the_bundle(self):
         b = self.b
         os.makedirs(os.path.join(b.apps, "Visual Studio Code.app"))
@@ -1257,6 +1280,401 @@ class Misc(Case):
         self.assertNotIn("upkeep install", p.stdout)
         self.assertFalse(b.argv("brew"), "brew is there: nothing runs")
         self.assertFalse(b.argv("curl"), "and no installer is fetched")
+
+
+# ------------------------------------------------------------------- pull
+
+class Pull(Case):
+    """An opted-in clone, an origin, and a second clone that pushes: the
+    iPad's declaration reaching a Mac that runs no board."""
+
+    def setUp(self):
+        Case.setUp(self)
+        b = self.b
+        b.green()
+        b.write(os.path.join(b.repo, "upkeep.d", "pull"), "# opt in\n")
+        b.write(os.path.join(b.repo, "README.md"), "one\n")
+        self.git(b.repo, "init", "-q", "-b", "main")
+        self.commit(b.repo, "seed")
+        self.origin = os.path.join(b.root, "origin.git")
+        self.git(b.root, "clone", "-q", "--bare", b.repo, self.origin)
+        self.git(b.repo, "remote", "add", "origin", self.origin)
+        self.git(b.repo, "fetch", "-q", "origin")
+        self.git(b.repo, "branch", "-q", "-u", "origin/main")
+        self.git(b.repo, "remote", "set-head", "origin", "main")
+        self.other = os.path.join(b.root, "other")
+        self.git(b.root, "clone", "-q", self.origin, self.other)
+        b.install()
+        full_scenario(b, outdated={"formulae": [], "casks": []})
+        b.clear_calls()
+        self.refuse_gate()
+
+    def git(self, cwd, *args):
+        env = dict(self.b.env, GIT_CONFIG_NOSYSTEM="1", GIT_TERMINAL_PROMPT="0")
+        p = subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t",
+                            "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null"]
+                           + list(args), cwd=cwd, env=env, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, universal_newlines=True)
+        self.assertEqual(p.returncode, 0, p.stdout)
+        return p.stdout.strip()
+
+    def commit(self, cwd, msg, push=False):
+        self.git(cwd, "add", "-A", ".")
+        self.git(cwd, "commit", "-q", "-m", msg)
+        if push:
+            self.git(cwd, "push", "-q", "origin", "main")
+
+    def declare(self, rel, text):
+        self.b.write(os.path.join(self.other, rel), text)
+        self.commit(self.other, "declare " + rel, push=True)
+
+    def refuse_gate(self):
+        st = self.b.state()
+        st.update({"last_attempt": U.stamp(), "first_seen": U.stamp(),
+                   "checked_at": U.stamp()})
+        self.b.write(os.path.join(self.b.state_dir, "state.json"), json.dumps(st))
+
+    def head(self, root):
+        return self.git(root, "rev-parse", "HEAD")
+
+    def hook_phases(self):
+        """The hook phases that install, in the order the run called them; the
+        listing phases (brewfiles, protected-casks, status) are left out."""
+        return [l.split()[0] for l in self.b.read(os.path.join(self.b.fake, "hook.log"))
+                .splitlines() if l.strip() and l.split()[0] in
+                ("after-brew", "toolchain", "locked-install")]
+
+    def test_declared_brewfile_and_mise_pin_arrive_and_install_narrowly(self):
+        b = self.b
+        self.declare("courses/X/Brewfile", 'brew "ripgrep"\n')
+        self.declare("courses/X/mise.toml", '[tools]\nzig = "0.14.0"\n')
+        code, out = b.upkeep("run")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.head(b.repo), self.head(self.other))
+        self.assertIn("fast-forwarded 2 commit(s) from origin/main",
+                      b.state()["pulls"]["said"][b.repo])
+        brew = b.argv("brew")
+        self.assertTrue(any(a.startswith("bundle install --no-upgrade") for a in brew), brew)
+        self.assertFalse([a for a in brew if a.startswith(("update", "upgrade"))], brew)
+        self.assertEqual(self.hook_phases(), ["locked-install"])
+        code, out = b.upkeep("status")
+        self.assertIn("pull:      %s fast-forwarded" % b.repo, out)
+
+    def test_a_pull_of_other_files_installs_nothing(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), self.head(self.other))
+        self.assertFalse([a for a in b.argv("brew") if a.startswith("bundle")])
+        self.assertEqual(self.hook_phases(), [])
+
+    def test_a_moved_mise_pin_runs_only_the_locked_install(self):
+        b = self.b
+        self.declare("courses/X/mise.toml", '[tools]\nzig = "0.14.0"\n')
+        b.upkeep("run")
+        self.assertEqual(self.hook_phases(), ["locked-install"])
+        self.assertFalse([a for a in b.argv("brew") if a.startswith("bundle")])
+
+    def test_a_non_ascii_mise_path_still_installs(self):
+        b = self.b
+        self.declare("courses/Th\u00e9orie/mise.toml", '[tools]\nzig = "0.14.0"\n')
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), self.head(self.other))
+        self.assertEqual(self.hook_phases(), ["locked-install"])
+
+    def test_a_failed_locked_install_is_recorded(self):
+        b = self.b
+        b.write(os.path.join(b.fake, "hook-locked-install.code"), "3\n")
+        self.declare("courses/X/mise.toml", '[tools]\nzig = "0.14.0"\n')
+        b.upkeep("run")
+        self.assertIn("hook %s locked-install" % os.path.basename(b.repo),
+                      b.state().get("failed") or {})
+
+    def test_up_to_date_clone_is_left(self):
+        b = self.b
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertEqual(b.state()["pulls"]["said"][b.repo], "up to date")
+
+    def test_changed_tracked_file_is_skipped_and_kept(self):
+        b = self.b
+        self.declare("courses/X/Brewfile", 'brew "ripgrep"\n')
+        b.write(os.path.join(b.repo, "README.md"), "mine\n")
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertEqual(b.read(os.path.join(b.repo, "README.md")), "mine\n")
+        self.assertIn("skipped: tracked files or the index have changes", b.log())
+        self.assertFalse([a for a in b.argv("brew") if a.startswith("bundle")])
+
+    def test_staged_change_is_skipped(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        b.write(os.path.join(b.repo, "new.txt"), "staged\n")
+        self.git(b.repo, "add", "new.txt")
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertIn("skipped: tracked files or the index have changes", b.log())
+
+    def test_untracked_file_is_skipped(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        b.write(os.path.join(b.repo, "scratch.txt"), "mine\n")
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertEqual(b.read(os.path.join(b.repo, "scratch.txt")), "mine\n")
+        self.assertIn("skipped: untracked files in the working tree", b.log())
+
+    def test_ignored_file_does_not_block(self):
+        b = self.b
+        with open(os.path.join(b.repo, ".git", "info", "exclude"), "a") as fh:
+            fh.write("/cache/\n")
+        self.declare("README.md", "two\n")
+        b.write(os.path.join(b.repo, "cache", "x"), "mine\n")
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), self.head(self.other))
+        self.assertEqual(b.read(os.path.join(b.repo, "cache", "x")), "mine\n")
+
+    def test_other_branch_is_skipped(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        self.git(b.repo, "checkout", "-q", "-b", "feature")
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertIn("skipped: on feature, not main", b.log())
+
+    def test_diverged_clone_is_never_forced(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        b.write(os.path.join(b.repo, "local.txt"), "x\n")
+        self.commit(b.repo, "local work")
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertIn("1 local commit(s) not on origin/main, so not a fast-forward",
+                      b.log())
+
+    def test_repo_without_the_declaration_is_never_pulled(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        os.remove(os.path.join(b.repo, "upkeep.d", "pull"))
+        self.commit(b.repo, "opt out")
+        before = self.head(b.repo)
+        b.upkeep("run")
+        self.assertEqual(self.head(b.repo), before)
+        self.assertNotIn("pulls", b.state())
+
+    def test_dry_run_fetches_and_merges_nothing(self):
+        b = self.b
+        self.declare("README.md", "two\n")
+        self.git(b.repo, "fetch", "-q", "origin")
+        before = self.head(b.repo)
+        code, out = b.upkeep("run", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.head(b.repo), before)
+        self.assertIn("would fast-forward 1 commit(s) from origin/main", out)
+
+
+# ------------------------------------------------------------- upkeep opencode
+
+FAKE_PARITY = r"""import os, sys
+dry = "--dry-run" in sys.argv
+cfg = os.path.join(os.environ["HOME"], ".config", "opencode")
+due = [t for t in (os.path.join(cfg, "plugins", "parity.ts"),
+                   os.path.join(cfg, "capabilities.md")) if not os.path.exists(t)]
+if not due:
+    print(("would: " if dry else "") + "opencode parity layer up to date")
+for target in due:
+    print(("would: " if dry else "") + "install " + target)
+    if not dry:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        open(target, "w").write("x\n")
+"""
+
+
+class OpencodePhase(Case):
+    def setUp(self):
+        Case.setUp(self)
+        b = self.b
+        b.green()
+        b.write(os.path.join(b.repo, "upkeep", "opencode", "install.py"), FAKE_PARITY)
+        b.install()
+        full_scenario(b, allow_scripts="opencode-ai")
+        b.clear_calls()
+        self.cfg = os.path.join(b.home, ".config", "opencode")
+
+    def changed(self, out):
+        return int(re.search(r"^changed: (\d+)$", out, re.M).group(1))
+
+    def test_first_run_changes_and_second_changes_nothing(self):
+        b = self.b
+        code, out = b.upkeep("opencode")
+        self.assertEqual(code, 0, out)
+        self.assertGreater(self.changed(out), 0, out)
+        self.assertIn("changed ~/.config/opencode/plugins/parity.ts", out)
+        self.assertNotIn("sk-test-key", out)
+        code, out = b.upkeep("opencode")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.changed(out), 0, out)
+        self.assertNotIn("brew", [c["prog"] for c in b.calls()])
+
+    def test_dry_run_says_what_is_due_and_writes_nothing(self):
+        b = self.b
+        code, out = b.upkeep("opencode", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertGreater(self.changed(out), 0, out)
+        self.assertIn("would: install", out)
+        self.assertFalse(os.path.exists(self.cfg))
+        b.upkeep("opencode")
+        code, out = b.upkeep("opencode", "--dry-run")
+        self.assertEqual(self.changed(out), 0, out)
+
+    def test_dry_run_counts_what_the_real_run_changes(self):
+        b = self.b
+        b.upkeep("opencode")
+        path = os.path.join(self.cfg, "opencode.jsonc")
+        b.write(path, json.dumps({"$schema": U.OPENCODE_SCHEMA, "permission": "ask"}))
+        code, out = b.upkeep("opencode", "--dry-run")
+        self.assertEqual(self.changed(out), 1, out)
+        self.assertIn("would change ~/.config/opencode/opencode.jsonc", out)
+        code, out = b.upkeep("opencode")
+        self.assertEqual(self.changed(out), 1, out)
+        self.assertIn("changed ~/.config/opencode/opencode.jsonc", out)
+
+    def test_a_file_the_server_does_not_read_is_no_change_dry_or_real(self):
+        b = self.b
+        b.upkeep("opencode")
+        os.remove(os.path.join(b.home, "bin", "coder"))
+        code, out = b.upkeep("opencode", "--dry-run")
+        self.assertEqual(self.changed(out), 0, out)
+        code, out = b.upkeep("opencode")
+        self.assertTrue(os.path.isfile(os.path.join(b.home, "bin", "coder")))
+        self.assertEqual(self.changed(out), 0, out)
+
+    def test_no_key_is_a_named_problem_once(self):
+        b = self.b
+        os.remove(os.path.join(b.home, ".config", "api-keys", "deepseek_key"))
+        for args in ((), ("--dry-run",)):
+            code, out = b.upkeep("opencode", *args)
+            self.assertEqual(code, 1, out)
+            self.assertEqual(re.findall(r"^problem: .*$", out, re.M),
+                             ["problem: no DeepSeek key: put it in "
+                              "~/.config/api-keys/deepseek_key"], out)
+
+    def test_plugin_packages_install_only_when_off_their_pins(self):
+        b = self.b
+        b.write(os.path.join(self.cfg, "package.json"),
+                json.dumps({"dependencies": {"@opencode-ai/plugin": "1.19.5"}}))
+        b.upkeep("opencode")
+        self.assertIn("install --prefix %s --no-fund --no-audit --silent" % self.cfg,
+                      b.argv("npm"))
+        b.write(os.path.join(self.cfg, "node_modules", "@opencode-ai", "plugin",
+                             "package.json"), json.dumps({"version": "1.19.5"}))
+        b.clear_calls()
+        code, out = b.upkeep("opencode")
+        self.assertFalse([a for a in b.argv("npm") if a.startswith("install")])
+        self.assertEqual(self.changed(out), 0, out)
+
+    def test_a_running_upkeep_holds_it_off(self):
+        b = self.b
+        holder = subprocess.Popen([PY, "-c", "import fcntl,os,sys,time\n"
+                                   "os.makedirs(sys.argv[1], exist_ok=True)\n"
+                                   "fd=os.open(os.path.join(sys.argv[1],'upkeep.lock'),"
+                                   "os.O_RDWR|os.O_CREAT)\n"
+                                   "fcntl.flock(fd, fcntl.LOCK_EX)\n"
+                                   "print('held', flush=True)\ntime.sleep(30)\n",
+                                   b.state_dir], stdout=subprocess.PIPE,
+                                  universal_newlines=True)
+        try:
+            holder.stdout.readline()
+            holder.stdout.close()
+            code, out = b.upkeep("opencode")
+            self.assertEqual(code, 1, out)
+            self.assertIn("an upkeep run holds", out)
+            self.assertFalse(os.path.exists(os.path.join(self.cfg, "plugins")))
+        finally:
+            holder.kill()
+            holder.wait()
+
+    def test_usage(self):
+        code, _ = self.b.upkeep("opencode", "--force")
+        self.assertEqual(code, 2)
+
+    def serve(self, started):
+        b = self.b
+        full_scenario(b, allow_scripts="opencode-ai", pids={U.OPENCODE_SERVE: 4321},
+                      lstart=started.strftime("%a %b %d %H:%M:%S %Y"))
+        b.set_loaded(b.loaded() + [U.OPENCODE_SERVE])
+
+    def stale(self, out):
+        m = re.search(r"^stale: (\d+)$", out, re.M)
+        return int(m.group(1)) if m else None
+
+    def test_a_server_started_before_the_files_is_stale(self):
+        b = self.b
+        b.upkeep("opencode")
+        self.serve(datetime.now() - timedelta(hours=1))
+        code, out = b.upkeep("opencode")
+        self.assertEqual(self.changed(out), 0, out)
+        self.assertGreater(self.stale(out), 0, out)
+        code, out = b.upkeep("opencode", "--dry-run")
+        self.assertGreater(self.stale(out), 0, out)
+
+    def test_a_server_started_after_the_files_is_not(self):
+        b = self.b
+        b.upkeep("opencode")
+        self.serve(datetime.now() + timedelta(minutes=5))
+        code, out = b.upkeep("opencode")
+        self.assertEqual(self.stale(out), 0, out)
+
+    def test_capabilities_alone_is_no_change_and_never_stale(self):
+        b = self.b
+        b.upkeep("opencode")
+        os.remove(os.path.join(self.cfg, "capabilities.md"))
+        code, out = b.upkeep("opencode", "--dry-run")
+        self.assertIn("would: install", out)
+        self.assertEqual(self.changed(out), 0, out)
+        code, out = b.upkeep("opencode")
+        self.assertTrue(os.path.isfile(os.path.join(self.cfg, "capabilities.md")))
+        self.assertEqual(self.changed(out), 0, out)
+        hour_ago = time.time() - 7200
+        for top in (b.root,):
+            for dirpath, _, names in os.walk(top):
+                for n in names:
+                    if n != "capabilities.md":
+                        os.utime(os.path.join(dirpath, n), (hour_ago, hour_ago))
+        self.serve(datetime.now() - timedelta(hours=1))
+        code, out = b.upkeep("opencode")
+        self.assertEqual(self.stale(out), 0, out)
+
+    def test_no_running_server_says_no_stale_line(self):
+        code, out = self.b.upkeep("opencode")
+        self.assertIsNone(self.stale(out), out)
+
+
+class InstallNoop(Case):
+    def test_same_version_same_bytes_is_left(self):
+        b = self.b
+        b.install()
+        mark = os.path.join(b.share, "upkeep.py")
+        ino = os.stat(mark).st_ino
+        code, out = b.install()
+        self.assertEqual(code, 0, out)
+        self.assertIn("is already at", out)
+        self.assertEqual(os.stat(mark).st_ino, ino)
+
+    def test_same_version_edited_is_copied(self):
+        b = self.b
+        b.install()
+        with open(os.path.join(b.repo, "upkeep", "README.md"), "a") as fh:
+            fh.write("an edit\n")
+        code, out = b.install()
+        self.assertIn("copied to", out)
+        self.assertTrue(b.read(os.path.join(b.share, "README.md")).endswith("an edit\n"))
 
 
 if __name__ == "__main__":

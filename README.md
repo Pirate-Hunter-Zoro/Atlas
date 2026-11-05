@@ -26,7 +26,7 @@ sessions and the invariants. How a tutor turn teaches is
 Atlas/
   README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
-  scripts/setup-opencode.sh  OpenCode, DeepSeek and the parity layer, on a fresh Mac
+  scripts/setup-opencode.sh  OpenCode, DeepSeek and the parity layer; setup-mac.sh runs it
   scripts/setup.sh       builds every subject's environment; setup-mac.sh runs it
   scripts/tools.sh       installs and updates the subjects' tool descriptors
   scripts/brew-upgrade.py  Atlas's upkeep hook (`atlas-brew`): repairs, toolchain, status
@@ -87,14 +87,17 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   *Machine upkeep*), then prints the steps only the owner can take: install Xcode, run
   `sudo bash upkeep/root/install.sh` once, and put the DeepSeek key in
   `~/.config/api-keys/deepseek_key`.
-- `bash scripts/setup-opencode.sh` puts the assistant on a Mac: Homebrew's Node and the
-  `opencode-ai` package, the parity layer in `upkeep/opencode/` (monitor, wakeup, cron,
-  background shells and agents, workflows, worktrees, the capabilities prompt and the
-  browser MCP), the pinned plugin SDK, the persistent `opencode-serve` LaunchAgent with
-  `oc` and `ocrun`, and the DeepSeek key copied from `~/.config/api-keys/deepseek_key`
-  into OpenCode's `auth.json`. It clones the private `ai-config` with `gh` when that is
-  missing and authenticated, and runs its installer for the personal contract.
-  `--dry-run`, `--no-agents` and `--no-contract` narrow it.
+- `scripts/setup-opencode.sh` puts the assistant on a Mac; `setup-mac.sh` runs it in step 4,
+  after `upkeep/setup-mac.sh`, and running it alone redoes only the assistant. It installs
+  Homebrew's Node and the `opencode-ai` package when missing, then hands the rest to upkeep:
+  `upkeep install --repo` (the persistent `opencode-serve` LaunchAgent, `oc` and `ocrun`) and
+  `upkeep opencode` (the doctor, upkeep's DeepSeek key sync, the parity layer in
+  `upkeep/opencode/` and its pinned packages). It restarts the OpenCode server only when a file the
+  server reads changed, in that run or since the server started, so a second run changes and
+  restarts nothing.
+  It clones `Pirate-Hunter-Zoro/ai-config` with `gh` when that is missing and authenticated, and
+  runs its installer for the personal contract. `--dry-run`, `--no-agents` and `--no-contract`
+  narrow it.
 - `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile (Atlas's own tools;
   upkeep/Brewfile has the shared ones) joined with every subject's own (`~/.local/state/atlas-setup/Brewfile.all`), never `--cleanup`. It then builds
   each subject's environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
@@ -181,6 +184,8 @@ host.
   Sharing), and add the laptop's public SSH key to the Mac mini's `~/.ssh/authorized_keys`.
 - The same upkeep runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
   and idle 20 minutes, because a laptop is shut at night. Problems arrive as notifications.
+- A tool declared on the iPad reaches the laptop within the hour: `upkeep.d/pull` has upkeep fast-forward a clean
+  `main` and install only what moved (*Pull* in `upkeep/README.md`); a dirty or diverged checkout is skipped, never forced.
 
 ## Assistant CLIs
 
@@ -192,8 +197,8 @@ runs these two, which a second run leaves unchanged:
 
 - `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`) and each settings
   file, and loads the daily audit's LaunchAgent.
-- `ai-config/scripts/install-clis.sh` installs opencode when it is missing, with no prompt and
-  no login, and prints the login command.
+- `scripts/setup-opencode.sh --no-contract` installs opencode when it is missing and the rest
+  of the assistant (see *Setting up the Mac*).
 
 `ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
 `node_modules`, the CLI's own `update` otherwise. Nothing schedules it; upkeep keeps opencode.
