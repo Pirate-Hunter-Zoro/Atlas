@@ -26,8 +26,8 @@
 #      com.mikeyferguson.upkeep), then the Brewfile and every subject's
 #      environment (scripts/setup.sh), and the board's whisper model
 #      (scripts/speech-model.sh)
-#   4  the assistant: ai-config linked, and opencode, which runs DeepSeek,
-#      installed when missing
+#   4  the assistant: ai-config linked, then scripts/setup-opencode.sh
+#      (opencode, the parity layer, the DeepSeek key, the OpenCode server)
 #   5  tailscale serves the board on the tailnet over HTTPS
 #   6  DeepSeek can take a turn (opencode, the key), the board answers on
 #      8778, and board/test/tracked.py passes
@@ -164,8 +164,9 @@ fi
 
 echo "== 4. the assistant"
 # DeepSeek through opencode is the AI. ai-config links its contract and
-# settings and loads the daily audit; install-clis puts opencode in when it
-# is missing, and upkeep's opencode doctor keeps it working after that.
+# settings and loads the daily audit. scripts/setup-opencode.sh installs
+# opencode, the parity layer and the key through upkeep, and restarts the
+# OpenCode server when a file it reads changed, step 3's upkeep run included.
 if [ -f ai-config/scripts/install.sh ]; then
   # ai-config is its own repository and Atlas's pull never moves it.
   GIT_TERMINAL_PROMPT=0 git -C ai-config pull -q --ff-only origin main 2>"$LOGS/ai-config-pull.log" \
@@ -174,15 +175,36 @@ if [ -f ai-config/scripts/install.sh ]; then
   bash ai-config/scripts/install.sh >"$LOGS/ai-config-install.log" 2>&1 \
     && good "ai-config linked (contract, settings, daily audit)" \
     || warn "ai-config's install.sh failed; see $LOGS/ai-config-install.log"
-  bash ai-config/scripts/install-clis.sh 2>&1 | sed 's/^/  /'
-  [ "${PIPESTATUS[0]}" -eq 0 ] || warn "opencode did not install; the line above says how by hand"
 else
   warn "no ai-config here; bootstrap clones it, then rerun"
 fi
-if command -v opencode >/dev/null 2>&1; then
-  good "opencode is $(command -v opencode)"
+# Its exit status is its problem count; 126 and up is the shell's own (not
+# runnable, not found), so one problem.
+if [ ! -f scripts/setup-opencode.sh ]; then
+  warn "scripts/setup-opencode.sh is missing from this clone; git status says why"
 else
-  warn "no opencode: npm install -g opencode-ai --allow-scripts=opencode-ai, or rerun once ai-config or upkeep is here"
+  bash scripts/setup-opencode.sh --no-contract >"$LOGS/opencode.log" 2>&1
+  opencode_problems=$?
+  [ "$opencode_problems" -ge 126 ] && opencode_problems=1
+  sed -n -e 's/^  \(restarted the OpenCode server.*\)/  ok    \1/p' \
+         -e 's/^  \(the OpenCode server agent is not loaded.*\)/  ----  \1/p' "$LOGS/opencode.log"
+  # A missing DeepSeek key is already one of step 3's owner steps.
+  key_twice=""
+  if grep -q '^problem: no DeepSeek key' "$LOGS/opencode.log" \
+     && grep -q 'Put the DeepSeek API key' "$LOGS/upkeep.log"; then
+    key_twice=1
+    opencode_problems=$((opencode_problems - 1))
+  fi
+  if [ "$opencode_problems" -eq 0 ] && [ -n "$key_twice" ]; then
+    good "OpenCode and the parity layer (scripts/setup-opencode.sh); the DeepSeek key is step 3's owner step"
+  elif [ "$opencode_problems" -eq 0 ]; then
+    good "OpenCode, DeepSeek and the parity layer (scripts/setup-opencode.sh); see $LOGS/opencode.log"
+  else
+    sed -n 's/^problem: /  ----  /p' "$LOGS/opencode.log" \
+      | { if [ -n "$key_twice" ]; then grep -v '^  ----  no DeepSeek key'; else cat; fi; }
+    printf '  ----  %s\n' "scripts/setup-opencode.sh: $opencode_problems problem(s); see $LOGS/opencode.log"
+    problems=$((problems + opencode_problems))
+  fi
 fi
 
 echo "== 5. tailscale"

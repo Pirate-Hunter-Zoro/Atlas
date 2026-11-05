@@ -2,7 +2,8 @@
 """brew-upgrade.py -- Atlas's half of the machine upkeep: its upkeep.d/hook.
 
     atlas-brew hook <phase>         upkeep's call (upkeep.d/hook): protected-casks,
-                                    brewfiles, after-brew, toolchain or status
+                                    brewfiles, after-brew, toolchain, locked-install
+                                    or status
     atlas-brew status               upkeep's last run and this hook's; exit 1 on a problem
     atlas-brew repair [--dry-run]   the probes and repairs, now
     atlas-brew install              link ~/.local/bin/atlas-brew; retire atlas.brew-upgrade
@@ -33,6 +34,9 @@ The phases, each with its reason:
     `mise lock` (never --bump) runs first only where the lock is missing,
     mise.toml or mise.lock differs from HEAD, or a pinned tool has no lock
     entry, so a clean clone is never re-locked. A pin moves only by a commit.
+  * locked-install: `mise install --locked <tools>` in the same directories,
+    nothing else. upkeep runs it after its hourly pull moved a mise file, on
+    an hour its gate refuses the full run.
   * status: the probes again, report only (venvs, TeX, the board's agent and
     reachability), then each failed tool and each tools.json line but a pin
     behind, as upkeep's problem lines. upkeep re-asks hourly while any stand.
@@ -87,7 +91,7 @@ T_BINSTALL = 3600
 T_PROBE = 60
 
 DRY = bool(os.environ.get("UPKEEP_DRY_RUN"))
-PHASES = ("protected-casks", "brewfiles", "after-brew", "toolchain", "status")
+PHASES = ("protected-casks", "brewfiles", "after-brew", "toolchain", "locked-install", "status")
 
 
 def now():
@@ -599,6 +603,35 @@ def toolchain():
     return failed
 
 
+def locked_install():
+    """`mise install --locked <tools>` in Atlas's root and each subject
+    directory holding a mise.toml, and nothing else: no lock, prune, upgrade
+    or descriptor update, which the full run's toolchain does. upkeep calls
+    it after a pull moved a mise file. {tool:mise:<ident>: why} of what
+    failed."""
+    plan = board_import("toolplan")
+    if plan is None:
+        return {"tool:toolplan": "board/tutorboard/toolplan.py could not be loaded"}
+    failed = {}
+    try:
+        dirs = [(i, d, plan.pinned_in(d)) for i, d in plan.mise_dirs(ATLAS)]
+        if os.path.isfile(plan.root_mise(ATLAS)[0]):
+            dirs.insert(0, ("root", ATLAS, plan.pinned_in(ATLAS)))
+    except Exception as exc:                                 # noqa: BLE001
+        return {"tool:toolplan": str(exc)[:200]}
+    for ident, where, names in dirs:
+        if not names:
+            continue
+        code, out, err = run(["mise", "install", "--locked"] + names, T_MISE,
+                             mutating=True, cwd=where, env=mise_env())
+        if code != 0:
+            failed["tool:mise:" + ident] = last_line(err, out) or "exit %d" % code
+            log_tail(out + "\n" + err, "mise")
+    for name, why in sorted(failed.items()):
+        log("! %s: %s" % (name, why))
+    return failed
+
+
 # ----------------------------------------------------------------- the phases
 
 def brewfile_union():
@@ -676,6 +709,9 @@ def cmd_hook(ph):
                       "after_brew_at": stamp()})
         save_state(state)
         return 0
+    if ph == "locked-install":
+        log("locked-install: the pins a pull brought")
+        return 1 if locked_install() else 0
     if ph == "toolchain":
         log("toolchain")
         state["toolchain_attempt"] = stamp()

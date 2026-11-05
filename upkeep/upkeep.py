@@ -4,6 +4,7 @@
     upkeep install --repo ROOT    register ROOT, copy upkeep in, load the agents
     upkeep run [--force] [--dry-run]
                                   the hourly tick; --force skips the gate
+    upkeep opencode [--dry-run]   the opencode phase alone, for a repo's setup
     upkeep doctor                 the one-minute opencode tick
     upkeep status                 what the last run found; exit 1 on a problem
     upkeep off | on               stop or restart every run and doctor tick
@@ -77,6 +78,7 @@ TERMINAL_DOMAIN = "com.apple.Terminal"
 FLUTTER_EXTENSION = "Dart-Code.flutter"
 
 DRY = False
+ECHO_INDENT = ""
 _locks = {}
 
 
@@ -142,7 +144,7 @@ def log(msg):
     echoes."""
     line = "[%s] %s" % (now().strftime("%Y-%m-%d %H:%M:%S"), msg)
     if DRY or sys.stdout.isatty():
-        print(msg if DRY else line, flush=True)
+        print(ECHO_INDENT + (msg if DRY else line), flush=True)
     if DRY:
         return
     try:
@@ -952,6 +954,7 @@ class Run(object):
         self.problems = []
         self.hooks = {}
         self.phases = {}
+        self.changes = []
 
     def problem(self, line):
         if line not in self.problems:
@@ -1119,18 +1122,31 @@ def phase_brew(r, state):
 
 
 BREWFILE_KINDS = ("tap", "brew", "cask", "mas", "vscode")
+# A Brewfile is Ruby. A line joins the union only as a declaration: a kind, a
+# quoted name, then plain literal arguments. A Ruby string's only specials
+# are the quote, the backslash and # (interpolation), so none is allowed.
+_BF_STR = r'"[^"\\#]*"'
+_BF_ITEM = r'(?:%s|:\w+)' % _BF_STR
+_BF_VAL = r'(?:%s|true|false|nil|-?\d+|\[\s*(?:%s(?:\s*,\s*%s)*)?\s*\])' \
+    % (_BF_ITEM, _BF_ITEM, _BF_ITEM)
+BREWFILE_LINE = re.compile(r'^(\w+)\s+"([^"\\#]+)"(?:\s*,\s*(?:\w+:\s*)?%s)*$' % _BF_VAL)
 
 
 def union_text():
     """The upkeep Brewfile joined with every repo's, taps first, one line per
-    entry, comments dropped."""
+    entry, comments dropped. A line that is not a plain declaration
+    (BREWFILE_LINE) is left out and logged, never run."""
     files = [os.path.join(HERE, "Brewfile")] + hook_lists("brewfiles")
     seen, taps, rest = set(), [], []
     for path in files:
         for raw in (read_text(path) or "").splitlines():
             line = raw.split("#")[0].strip()
-            m = re.match(r'^(\w+)\s+"([^"]+)"', line)
+            if not line:
+                continue
+            m = BREWFILE_LINE.match(line)
             if not m or m.group(1) not in BREWFILE_KINDS:
+                log("! %s: left out a line that is not a plain declaration: %s"
+                    % (tilde(path), line[:120]))
                 continue
             key = (m.group(1), m.group(2))
             if key in seen:
@@ -1354,6 +1370,7 @@ def ensure_coder():
     if not ok:
         if DRY:
             log("[dry-run] would rewrite ~/bin/coder")
+            would_write(path)
             return True
         write_text(path, want, 0o755)
         log("  repaired ~/bin/coder")
@@ -1411,9 +1428,12 @@ def ensure_config():
             new = jsonc_set(new, "permission", perm)
         else:
             new = jsonc_set(new, "permission", "allow")
-    if new != text and not DRY:
-        write_text(path, new)
-        log("  repaired opencode.jsonc (permission allows)")
+    if new != text:
+        if DRY:
+            would_write(path)
+        else:
+            write_text(path, new)
+            log("  repaired opencode.jsonc (permission allows)")
     return []
 
 
@@ -1439,6 +1459,8 @@ def doctor_pass(in_run=False):
         else:
             ensure_npm_allow_scripts()
             ok, why = binary_state()
+            if not ok and DRY:
+                would_write(os.path.realpath(opencode_bin()))
             if not ok and STUB_MARK in why:
                 log("opencode binary broken and not running; repairing with its "
                     "postinstall (%s)" % why)
@@ -1501,10 +1523,14 @@ def key_sync(r):
     have = dict(found)
     wrote = []
     if r.report_only or DRY:
-        stale = [k for k, v in found[1:] if v and v != key]
-        if stale:
+        due = [k for k in ("file", "keys.env", "auth.json") if have[k] != key
+               and (k == "file" or os.path.isdir(os.path.dirname(p[k])))]
+        if due:
             log("deepseek key: %s differ(s) from %s; the next run writes them"
-                % (", ".join(stale), where))
+                % (", ".join(due), where))
+            r.changes += ["write the DeepSeek key to %s" % tilde(p[k]) for k in due]
+            for k in due:
+                would_write(p[k])
         return
     if have["file"] != key:
         os.makedirs(os.path.dirname(p["file"]), mode=0o700, exist_ok=True)
@@ -1540,6 +1566,7 @@ def key_sync(r):
             wrote.append(tilde(p["auth.json"]))
     if wrote:
         log("deepseek key: wrote %s (from %s)" % (", ".join(wrote), where))
+        r.changes += ["wrote the DeepSeek key to %s" % w for w in wrote]
 
 
 def parity_install(r):
@@ -1558,6 +1585,141 @@ def parity_install(r):
     if code != 0:
         r.problem("the opencode parity layer reports %d problem(s); see %s"
                   % (code, tilde(LOG)))
+    r.changes += parity_changes(out)
+    if DRY or r.report_only:
+        for path in said_paths(out):
+            would_write(path)
+    plugin_sdk(r)
+
+
+PARITY_SAID_NOTHING = "opencode parity layer up to date"
+
+
+def parity_changes(out):
+    """The changes install.py printed (made, or under --dry-run due): every
+    line but a problem, its up-to-date line and capabilities.md, which the
+    plugin re-reads live. A `changed: N` line, when it prints one, is the
+    count; N = 0 means none."""
+    said = []
+    count = None
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if line.startswith("would: "):
+            line = line[len("would: "):]
+        m = re.match(r"^changed:\s*(\d+)$", line)
+        if m:
+            count = int(m.group(1))
+        elif line and not line.startswith("problem:") and line != PARITY_SAID_NOTHING \
+                and not line.endswith("/capabilities.md"):
+            said.append(line)
+    return [] if count == 0 else said
+
+
+def said_paths(out):
+    """The absolute path that ends each change line install.py printed
+    ("install <path>", "merge managed keys into <path>", ...)."""
+    paths = []
+    for line in (out or "").splitlines():
+        line = line.strip()
+        if line.startswith("would: "):
+            line = line[len("would: "):]
+        if line.startswith("problem:") or line == PARITY_SAID_NOTHING:
+            continue
+        at = line.rfind(" /")
+        if at >= 0:
+            paths.append(line[at + 1:])
+    return paths
+
+
+WOULD = []
+
+
+def would_write(path):
+    """Under --dry-run (or a report), a path the opencode phase would write."""
+    path = os.path.abspath(path)
+    if path not in WOULD:
+        WOULD.append(path)
+
+
+def plugin_sdk(r):
+    """The plugin's pinned packages in ~/.config/opencode/node_modules:
+    `npm install` there only when one is missing or at another version."""
+    cfg = os.path.join(HOME, ".config", "opencode")
+    pins = (read_json(os.path.join(cfg, "package.json")) or {}).get("dependencies")
+    if not isinstance(pins, dict) or not pins:
+        return
+    off = [n for n, v in sorted(pins.items())
+           if (read_json(os.path.join(cfg, "node_modules", n, "package.json")) or {})
+           .get("version") != v]
+    if not off:
+        return
+    npm = npm_path()
+    if not npm:
+        r.problem("no npm, so the plugin's packages (%s) cannot be installed"
+                  % ", ".join(off))
+        return
+    r.changes.append("install the plugin's packages (%s) in %s" % (", ".join(off),
+                                                                   tilde(cfg)))
+    if r.report_only or DRY:
+        for n in off:
+            would_write(os.path.join(cfg, "node_modules", n, "package.json"))
+    if r.report_only:
+        return
+    code, out, err = run([npm, "install", "--prefix", cfg, "--no-fund", "--no-audit",
+                          "--silent"], T_NPM, mutating=True)
+    if code != 0:
+        r.fail("plugin packages", last_line(err, out) or "exit %d" % code)
+
+
+def server_reads():
+    """A test: does the OpenCode server read this file (or files under this
+    directory) at start? ~/.config/opencode, but not node_modules, lockfiles,
+    dotfiles, backups or capabilities.md, which the plugin re-reads on each
+    change; the plugin's pinned packages; auth.json; the binary. One rule for
+    a run's snapshot and a dry run's forecast."""
+    cfg = os.path.join(HOME, ".config", "opencode")
+    pins = (read_json(os.path.join(cfg, "package.json")) or {}).get("dependencies")
+    named = set(os.path.join(cfg, "node_modules", n, "package.json")
+                for n in (pins if isinstance(pins, dict) else {}))
+    named |= {key_places()["auth.json"], os.path.realpath(opencode_bin())}
+    live = os.path.join(cfg, "capabilities.md")
+
+    def reads(path):
+        path = os.path.abspath(path)
+        if path in named:
+            return True
+        rel = os.path.relpath(path, cfg)
+        if rel == ".":
+            return True
+        parts = rel.split(os.sep)
+        return not (parts[0] in ("..", "node_modules")
+                    or any(p.startswith(".") for p in parts)
+                    or parts[-1].endswith((".upkeep-tmp", ".before-upkeep"))
+                    or parts[-1] in ("package-lock.json", "bun.lock", "bun.lockb")
+                    or path == live)
+    return reads, sorted(named)
+
+
+def opencode_files():
+    """{path: (size, mtime, mode)} of every file the server reads at start
+    (server_reads). Every writer here writes only on a difference, so a stat
+    that moved is a file that changed."""
+    cfg = os.path.join(HOME, ".config", "opencode")
+    reads, named = server_reads()
+    paths = list(named)
+    for dirpath, dirnames, filenames in os.walk(cfg):
+        dirnames[:] = [d for d in dirnames if d != "node_modules" and not d.startswith(".")]
+        paths += [os.path.join(dirpath, f) for f in filenames]
+    out = {}
+    for path in paths:
+        if not reads(path):
+            continue
+        try:
+            st = os.stat(path)
+        except OSError:
+            continue
+        out[path] = (st.st_size, st.st_mtime_ns, st.st_mode)
+    return out
 
 
 def phase_opencode(r):
@@ -1914,6 +2076,138 @@ def phase_appearance(r):
     appearance_extensions(r)
 
 
+# -------------------------------------------------------------------- pull
+
+T_GIT = 300
+BREW_FILE = re.compile(r"(^|/)Brewfile[^/]*$")
+MISE_FILE = re.compile(r"(^|/)(\.?mise(\.[\w-]+)?\.(toml|lock)|\.tool-versions)$")
+
+
+def opted_in(root):
+    """A repo asks to be fast-forwarded hourly by carrying upkeep.d/pull."""
+    return os.path.isfile(os.path.join(root, "upkeep.d", "pull"))
+
+
+def git(root, args, timeout=T_PROBE, mutating=False):
+    code, out, err = run(["git", "-C", root] + list(args), timeout, mutating=mutating,
+                         env={"GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"})
+    return code, out.strip(), err.strip()
+
+
+def pull_clone(root):
+    """(what happened, the paths that moved). Fast-forwards the clone to its
+    upstream only on its remote's default branch, with a clean working tree
+    and index (ignored files aside), and only when that is a fast-forward.
+    Anything else is a skip, said why. A dry run fetches nothing."""
+    code, branch, _ = git(root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+    if code != 0 or not branch:
+        return "skipped: HEAD is detached", []
+    code, remote, _ = git(root, ["config", "--get", "branch.%s.remote" % branch])
+    if code != 0 or not remote or remote == ".":
+        remote = "origin"
+    code, head, _ = git(root, ["symbolic-ref", "--quiet", "--short",
+                               "refs/remotes/%s/HEAD" % remote])
+    default = head[len(remote) + 1:] if code == 0 and head.startswith(remote + "/") else ""
+    if not default:
+        return ("skipped: %s's default branch is unknown (git remote set-head %s --auto)"
+                % (remote, remote)), []
+    if branch != default:
+        return "skipped: on %s, not %s" % (branch, default), []
+    code, up, _ = git(root, ["rev-parse", "--abbrev-ref", "--symbolic-full-name",
+                             "@{upstream}"])
+    if code != 0 or up != "%s/%s" % (remote, default):
+        return "skipped: %s does not track %s/%s" % (branch, remote, default), []
+    code, dirty, err = git(root, ["status", "--porcelain"])
+    if code != 0:
+        return "skipped: git status failed: %s" % last_line(err), []
+    if [l for l in dirty.splitlines() if not l.startswith("??")]:
+        return "skipped: tracked files or the index have changes", []
+    if dirty:
+        return "skipped: untracked files in the working tree", []
+    if not DRY:
+        code, out, err = git(root, ["fetch", "--quiet", remote, default], T_GIT)
+        if code != 0:
+            return "skipped: the fetch failed: %s" % (last_line(err, out) or code), []
+    code, counts, _ = git(root, ["rev-list", "--left-right", "--count",
+                                 "HEAD...@{upstream}"])
+    parts = counts.split()
+    if code != 0 or len(parts) != 2 or not all(x.isdigit() for x in parts):
+        return "skipped: git rev-list could not compare HEAD with %s" % up, []
+    ahead, behind = int(parts[0]), int(parts[1])
+    if ahead:
+        return "skipped: %d local commit(s) not on %s, so not a fast-forward" % (ahead, up), []
+    if not behind:
+        return "up to date", []
+    # -z: paths as they are, never C-quoted (core.quotePath).
+    code, names, _ = git(root, ["diff", "-z", "--name-only", "HEAD", "@{upstream}"])
+    files = [f for f in names.split("\0") if f] if code == 0 else []
+    if DRY:
+        return "would fast-forward %d commit(s) from %s, as last fetched" % (behind, up), files
+    code, out, err = git(root, ["merge", "--ff-only", "--no-autostash",
+                                "--no-overwrite-ignore", "--quiet", "@{upstream}"],
+                         T_GIT, mutating=True)
+    if code != 0:
+        return "skipped: the fast-forward was refused: %s" % (last_line(err, out) or code), []
+    return "fast-forwarded %d commit(s) from %s" % (behind, up), files
+
+
+def pull_repos(state):
+    """Fast-forward every registered repo that opted in. (brew due, [roots
+    whose mise files moved]): what the narrow install owes."""
+    said, brew_due, mise_due = {}, False, []
+    for root in load_repos():
+        if not opted_in(root):
+            continue
+        try:
+            line, files = pull_clone(root)
+        except Exception as exc:                             # noqa: BLE001
+            line, files = "skipped: %r" % exc, []
+        log("pull %s: %s" % (tilde(root), line))
+        said[root] = line
+        brew_due = brew_due or any(BREW_FILE.search(f) for f in files)
+        if any(MISE_FILE.search(f) for f in files):
+            mise_due.append(root)
+    if said:
+        state["pulls"] = {"at": stamp(), "said": said}
+        save_state(state)
+    return brew_due, mise_due
+
+
+def narrow_install(state, brew_due, mise_due):
+    """After a pull that moved a Brewfile or a mise file, on an hour the gate
+    refuses: `brew bundle --no-upgrade` over the union, and the repo's hook
+    `locked-install`, which installs its pinned tools at their locked
+    versions. Nothing upgrades, locks or prunes: the full run does that."""
+    if not brew_due and not mise_due:
+        return
+    log("a pull moved %s: the narrow install" % " and ".join(
+        (["a Brewfile"] if brew_due else []) + (["a mise file"] if mise_due else [])))
+    r = Run()
+    try:
+        if brew_due:
+            skip = legacy_skip(legacy_brew())
+            if skip:
+                log("the Brewfile waits for %s: %s" % (LEGACY_BREW, skip))
+            else:
+                phase(r, "bundle", phase_bundle)
+        for root in mise_due:
+            check_off()
+            code, _ = hook(root, "locked-install", T_HOOK_WORK)
+            if code != 0:
+                r.fail("hook %s locked-install" % os.path.basename(root.rstrip("/")),
+                       "exit %d; see %s" % (code, tilde(LOG)))
+    except Stopped:
+        return
+    if r.failed or r.problems:
+        failed = dict(state.get("failed") or {})
+        failed.update(r.failed)
+        state["failed"] = failed
+        state["problems"] = list(state.get("problems") or []) + \
+            [p for p in r.problems if p not in (state.get("problems") or [])]
+        save_state(state)
+        notify(state)
+
+
 # -------------------------------------------------------------------- hooks
 
 def phase_hooks(r):
@@ -2110,6 +2404,7 @@ def cmd_run(force=False):
         if not state.get("first_seen"):
             state["first_seen"] = stamp()
             save_state(state)
+        brew_due, mise_due = pull_repos(state)
         if DRY:
             go, why = gate(state)
             log("gate: %s (%s)" % ("would run" if go else "would skip", why))
@@ -2119,6 +2414,7 @@ def cmd_run(force=False):
         else:
             go, why = gate(state)
             if not go:
+                narrow_install(state, brew_due, mise_due)
                 return recheck(state)
         hold_awake()
         return full_run(state, why, force)
@@ -2143,6 +2439,95 @@ def cmd_doctor():
         drop_lock(DOCTOR_LOCK)
 
 
+OPENCODE_SERVE = "com.mikeyferguson.opencode-serve"
+
+
+def serve_started():
+    """When the OpenCode server's running process started (epoch seconds),
+    from its pid in `launchctl print`; None when it is not running."""
+    code, out, _ = launchctl_print(OPENCODE_SERVE)
+    m = re.search(r"^\s*pid = (\d+)\s*$", out, re.M) if code == 0 else None
+    if not m:
+        return None
+    code, out, _ = run(["ps", "-o", "lstart=", "-p", m.group(1)], T_PROBE,
+                       env={"LC_ALL": "C"})
+    try:
+        return time.mktime(time.strptime(" ".join(out.split()), "%a %b %d %H:%M:%S %Y"))
+    except ValueError:
+        return None
+
+
+def cmd_opencode():
+    """The opencode phase alone (the doctor, the key, the parity layer and its
+    packages), for a repo's setup. Prints each change, each problem, then
+    `changed: N`, the files the OpenCode server reads at start that changed
+    (under --dry-run, those it would write; server_reads is the one rule for
+    both). While the server runs it also prints `stale: M`, the files it reads
+    at start that are newer than its process (an hourly run installs without
+    restarting it). A caller restarts the server when N or M is above 0. Log
+    lines it echoes are indented, so only its own lines start with
+    `problem:`, `changed:` or `stale:`. Exit status: the problems."""
+    global ECHO_INDENT
+    ECHO_INDENT = "  "
+    if not take_lock(LOCK):
+        print("problem: an upkeep run holds %s and does this phase itself; run this "
+              "again when it ends" % tilde(LOCK))
+        print("changed: 0")
+        return 1
+    try:
+        before = opencode_files()
+        r = Run()
+        try:
+            phase_opencode(r)
+        except Exception as exc:                             # noqa: BLE001
+            r.fail("opencode", repr(exc)[:300])
+        if DRY:
+            reads, _ = server_reads()
+            changed = ["would change %s" % tilde(path) for path in WOULD if reads(path)]
+        else:
+            after = opencode_files()
+            changed = ["changed %s" % tilde(path) for path in sorted(set(before) | set(after))
+                       if before.get(path) != after.get(path)]
+        for line in changed:
+            print(line)
+        bad = ["%s: %s" % kv for kv in sorted(r.failed.items())] + r.problems
+        for line in bad:
+            print("problem: %s" % line)
+        print("changed: %d" % len(changed))
+        started = serve_started()
+        if started is not None:
+            # lstart has whole seconds; a file is newer only past the next one.
+            print("stale: %d" % len([p for p, st in opencode_files().items()
+                                     if st[1] / 1e9 >= started + 1]))
+        return min(len(bad), 100)
+    finally:
+        drop_lock(LOCK)
+
+
+def same_tree(a, b):
+    """Do two upkeep/ copies hold the same files, byte for byte?"""
+    def files(root):
+        out = {}
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d != "__pycache__"]
+            for f in filenames:
+                if not f.endswith(".pyc"):
+                    full = os.path.join(dirpath, f)
+                    out[os.path.relpath(full, root)] = full
+        return out
+    fa, fb = files(a), files(b)
+    if sorted(fa) != sorted(fb):
+        return False
+    for rel in fa:
+        try:
+            with open(fa[rel], "rb") as x, open(fb[rel], "rb") as y:
+                if x.read() != y.read():
+                    return False
+        except OSError:
+            return False
+    return True
+
+
 def cmd_install(repo):
     root = os.path.realpath(os.path.expanduser(repo))
     src = os.path.join(root, "upkeep")
@@ -2152,7 +2537,9 @@ def cmd_install(repo):
     os.makedirs(STATE_DIR, exist_ok=True)
     register(root)
     mine, installed = version_of(src), version_of(SHARE)
-    if mine >= installed:
+    if mine == installed and same_tree(src, SHARE):
+        print("upkeep %d is already at %s" % (mine, tilde(SHARE)))
+    elif mine >= installed:
         copy_in(src)
         print("upkeep %d copied to %s" % (mine, tilde(SHARE)))
     else:
@@ -2251,6 +2638,9 @@ def cmd_status():
     print("next:      %s" % next_window(state).strftime("%a %b %d %H:%M"))
     if state.get("brew_by") == LEGACY_BREW:
         print("brew:      left to %s" % LEGACY_BREW)
+    pulls = state.get("pulls") if isinstance(state.get("pulls"), dict) else {}
+    for root, line in sorted((pulls.get("said") or {}).items()):
+        print("pull:      %s %s (%s)" % (tilde(root), line, pulls.get("at") or "?"))
     for line in state.get("app_store_outdated") or []:
         print("APP STORE %s" % line)
     lines = problem_lines(state)
@@ -2262,8 +2652,8 @@ def cmd_status():
     return 1 if lines else 0
 
 
-USAGE = ("usage: upkeep install --repo ROOT | run [--force] [--dry-run] | doctor | status "
-         "| off | on")
+USAGE = ("usage: upkeep install --repo ROOT | run [--force] [--dry-run] "
+         "| opencode [--dry-run] | doctor | status | off | on")
 
 
 def main(argv):
@@ -2277,16 +2667,16 @@ def main(argv):
             print(USAGE, file=sys.stderr)
             return 2
         return cmd_install(flags[1])
-    allowed = {"run": ("--dry-run", "--force")}
-    if cmd not in ("run", "doctor", "status", "off", "on", "settle") \
+    allowed = {"run": ("--dry-run", "--force"), "opencode": ("--dry-run",)}
+    if cmd not in ("run", "opencode", "doctor", "status", "off", "on", "settle") \
             or any(f not in allowed.get(cmd, ()) for f in flags):
         print(USAGE, file=sys.stderr)
         return 2
     DRY = "--dry-run" in flags
     if cmd == "run":
         return cmd_run(force="--force" in flags)
-    return {"doctor": cmd_doctor, "status": cmd_status, "off": cmd_off, "on": cmd_on,
-            "settle": cmd_settle}[cmd]()
+    return {"opencode": cmd_opencode, "doctor": cmd_doctor, "status": cmd_status,
+            "off": cmd_off, "on": cmd_on, "settle": cmd_settle}[cmd]()
 
 
 if __name__ == "__main__":
