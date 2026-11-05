@@ -26,6 +26,7 @@ sessions and the invariants. How a tutor turn teaches is
 Atlas/
   README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
+  scripts/setup-opencode.sh  OpenCode, DeepSeek and the parity layer, on a fresh Mac
   scripts/setup.sh       builds every subject's environment; setup-mac.sh runs it
   scripts/tools.sh       installs and updates the subjects' tool descriptors
   scripts/brew-upgrade.py  Atlas's upkeep hook (`atlas-brew`): repairs, toolchain, status
@@ -86,6 +87,14 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   *Machine upkeep*), then prints the steps only the owner can take: install Xcode, run
   `sudo bash upkeep/root/install.sh` once, and put the DeepSeek key in
   `~/.config/api-keys/deepseek_key`.
+- `bash scripts/setup-opencode.sh` puts the assistant on a Mac: Homebrew's Node and the
+  `opencode-ai` package, the parity layer in `upkeep/opencode/` (monitor, wakeup, cron,
+  background shells and agents, workflows, worktrees, the capabilities prompt and the
+  browser MCP), the pinned plugin SDK, the persistent `opencode-serve` LaunchAgent with
+  `oc` and `ocrun`, and the DeepSeek key copied from `~/.config/api-keys/deepseek_key`
+  into OpenCode's `auth.json`. It clones the private `ai-config` with `gh` when that is
+  missing and authenticated, and runs its installer for the personal contract.
+  `--dry-run`, `--no-agents` and `--no-contract` narrow it.
 - `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile (Atlas's own tools;
   upkeep/Brewfile has the shared ones) joined with every subject's own (`~/.local/state/atlas-setup/Brewfile.all`), never `--cleanup`. It then builds
   each subject's environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
