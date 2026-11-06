@@ -855,6 +855,39 @@ process.exit(0);
         self.assertEqual(r["tools"][:7], ["ok"] * 7, "delegating is never refused")
         self.assertTrue(r["tools"][7].startswith("REFUSED"))
 
+    def test_polling_a_live_job_is_refused(self):
+        out = self.run_node("poll", r"""
+const P = await load(process.cwd());
+const before = [];
+for (let k = 0; k < 6; k++) before.push(await check(P, "cron_list", {}, "p1"));
+before.push(await check(P, "bash", { command: "sleep 1; echo ok" }, "p1"));
+await P.tool.wakeup.execute({ delay_seconds: 3600, prompt: "later" }, ctx(process.cwd(), "p1"));
+const sleeping = [];
+for (const c of ["sleep 1; echo ok", "sleep 30", "sleep 5 && date"]) sleeping.push(await check(P, "bash", { command: c }, "p1"));
+const work = [];
+for (const c of ["sleep 2; tail -5 build.log", "python3 -m unittest t.py", "ls"]) work.push(await check(P, "bash", { command: c }, "p1"));
+await P["chat.message"]({ sessionID: "p1" }, { parts: [{ type: "text", text: "go on" }] });
+const waits = [];
+for (const t of ["wakeup", "cron_delete", "cron_list", "cron_list", "agent_list"]) waits.push(await check(P, t, { delay_seconds: 60, prompt: "x", id: "w" }, "p1"));
+await P["chat.message"]({ sessionID: "p1" }, { parts: [{ type: "text", text: "<wakeup id=\"w\">later</wakeup>" }] });
+const after = await check(P, "cron_list", {}, "p1");
+const other = [];
+for (let k = 0; k < 5; k++) other.push(await check(P, "cron_list", {}, "p2"));
+console.log(JSON.stringify({ before, sleeping, work, waits, after, other }));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertEqual(r["before"], ["ok"] * 7, "with no job of its own, nothing is polling")
+        for s in r["sleeping"]:
+            self.assertIn("you are polling", s)
+            self.assertIn("wakeup", s, "the refusal names the live job")
+        self.assertEqual(r["work"], ["ok"] * 3, "a command that does work is never refused")
+        self.assertEqual(r["waits"][:3], ["ok"] * 3)
+        for s in r["waits"][3:]:
+            self.assertIn("End your turn now", s)
+        self.assertEqual(r["after"], "ok", "a new message starts a new turn")
+        self.assertEqual(r["other"], ["ok"] * 5, "another session's job does not count")
+
     def test_ultracode_builds_only_in_a_worktree(self):
         main, wt, loose = self.root / "repo", self.root / "repo-wt", self.root / "loose"
         (main / ".git").mkdir(parents=True)

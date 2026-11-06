@@ -4138,6 +4138,27 @@ const isPlan = (args: any) =>
   Array.isArray(args?.todos) && args.todos.filter((t: any) => String(t?.content ?? "").trim()).length >= 2;
 
 // Every rule, in order; the first refusal wins. Allowed calls count toward the read budget.
+// A session whose background job will report as a message, but which keeps calling waiting
+// tools instead of ending its turn, is polling: each call is a paid model step that learns
+// nothing. Sleeping is refused outright; the other waiting tools after WAIT_LIMIT in one turn.
+const WAIT_TOOLS = new Set(["wakeup", "cron_list", "cron_delete", "agent_list", "bg_output"]);
+const WAIT_LIMIT = 3;
+const IDLE_PROGS = new Set(["sleep", "echo", "printf", "true", ":", "date"]);
+const waits = ((G as any).waits ??= new Map<string, number>()) as Map<string, number>;
+function pollRule(call: Call, cmds: Cmd[] | undefined): string | undefined {
+  const progs = (cmds ?? []).map((c) => basename(c.words[0] ?? ""));
+  const sleeping = call.tool === "bash" && progs.includes("sleep") && progs.every((p) => IDLE_PROGS.has(p));
+  if (!sleeping && !WAIT_TOOLS.has(call.tool)) return undefined;
+  const live = liveJobs(call.session);
+  if (!live.length) return undefined;
+  const n = (waits.get(call.session) ?? 0) + 1;
+  waits.set(call.session, n);
+  if (!sleeping && n <= WAIT_LIMIT) return undefined;
+  return "Refused: you are polling. Each of these reports back to you as a new message when it finishes or fires: " +
+    live.slice(0, 5).map(describe).join("; ") + ". End your turn now: reply in one line and call no tool. " +
+    "Change a wakeup after that message arrives, not by re-setting it.";
+}
+
 async function guardCall(call: Call, client?: any, budget = true): Promise<string | undefined> {
   realCache.clear();
   const g = guardOf(call.session);
@@ -4146,7 +4167,7 @@ async function guardCall(call: Call, client?: any, budget = true): Promise<strin
   if (command !== undefined) cmds = parseCommands(String(command), cwdOf(call));
   const reason = credentialRule(call, cmds) ?? opaqueRule(cmds) ?? readonlyRule(call, g, cmds) ?? worktreeRule(call, cmds) ??
     (await ultracodeTreeRule(call, cmds, client)) ?? stagingRule(cmds) ?? selfPromptRule(cmds) ?? (await commitGate(call, cmds, client)) ??
-    (budget ? readBudgetRule(call, g) : undefined);
+    (budget ? readBudgetRule(call, g) ?? pollRule(call, cmds) : undefined);
   if (reason) {
     log(`guard ${call.session} ${call.tool}: ${reason.slice(0, 160)}`);
     return reason;
@@ -5132,6 +5153,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
     "chat.message": async (input: any, output: any) => {
       const id = input?.sessionID;
       if (!id) return;
+      waits.delete(id);
       const g = guardOf(id);
       const texts = (output?.parts ?? []).filter((p: any) => p?.type === "text" && !p.synthetic).map((p: any) => String(p.text ?? ""));
       const fromOwner = texts.length > 0 &&
