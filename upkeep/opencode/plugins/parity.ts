@@ -776,7 +776,7 @@ async function runWorkflow(opts: {
   const here = () => scope.getStore() ?? top;
   const within = <T>(over: Partial<Marks>, fn: () => T): T => scope.run({ ...here(), ...over }, fn);
   let loops = 0;
-  const vt: VerifyTrail = { objects: new WeakSet(), json: new Set() };
+  const vt: VerifyTrail = { objects: new WeakSet(), json: new Set(), returned: [] };
   const ledger = opts.ledger;
   const client = clientFor(opts.directory);
   const children = new Set<string>();
@@ -907,7 +907,8 @@ async function runWorkflow(opts: {
       while (next < thunks.length) {
         const i = next++;
         try {
-          out[i] = await within({}, () => thunks[i]());
+          // A promise passed instead of a function is awaited: it started when the script made it.
+          out[i] = await within({}, () => (typeof thunks[i] === "function" ? thunks[i]() : thunks[i]));
         } catch (e: any) {
           if (!o.settle) throw e;
           out[i] = { error: e?.message ?? String(e) };
@@ -964,7 +965,7 @@ async function runWorkflow(opts: {
     // beside this one (parallel units) keeps its own round.
     const loop = ++loops;
     for (let round = 1; ; round++) {
-      const mine: RoundTrail = { objects: new WeakSet(), json: new Map() };
+      const mine: RoundTrail = { objects: new WeakSet(), json: new Map(), returned: [] };
       const name = `verify (round ${round})`;
       wlog(`== phase: ${name}`);
       const raw = collectVerdicts(await within({ phase: name, inVerify: true, round: mine, loop: { id: loop, round } },
@@ -979,7 +980,8 @@ async function runWorkflow(opts: {
       }
       if (!verdicts.length) {
         throw new Error(`verify_until_pass: round ${round}'s verify stage returned no verdict from a verify agent; ` +
-          `start read-only agents there (agent: "verifier" or readonly: true) and return the objects they returned, each with verdict: "pass" or "fail"`);
+          `start read-only agents there (agent: "verifier" or readonly: true) and return the objects they returned, each with verdict: "pass" or "fail" ` +
+          `(as they came back, or with fields added such as {...v, label}; a copy with a changed field is not theirs)`);
       }
       failures = verdicts.filter((v) => !isPass(v));
       ledger.add(verdicts, loop, round);
@@ -1016,8 +1018,10 @@ async function runWorkflow(opts: {
 // (so a copied verdict is still known as theirs).
 // RoundTrail: what verify agents returned in one verify_until_pass round; a copy counts once per
 // verdict a verify agent returned, so an earlier round's pass cannot be replayed.
-type RoundTrail = { objects: WeakSet<object>; json: Map<string, number> };
-type VerifyTrail = { objects: WeakSet<object>; json: Set<string> };
+// `returned` keeps each verdict object so a copy that only adds fields ({...v, label}) is known
+// as that verdict, consumed once per round; a copy that changes a field the agent set is not.
+type RoundTrail = { objects: WeakSet<object>; json: Map<string, number>; returned: { v: any; used: boolean }[] };
+type VerifyTrail = { objects: WeakSet<object>; json: Set<string>; returned: any[] };
 // Where a workflow script is (runWorkflow's scope): loop is the verify_until_pass call and round
 // whose verify stage is running, round what its verify agents returned so far.
 type Marks = { phase: string; inVerify: boolean; inFix: boolean; round?: RoundTrail; loop?: { id: number; round: number } };
@@ -1027,22 +1031,41 @@ function noteVerifyResult(vt: VerifyTrail, round: RoundTrail | undefined, out: a
   for (const v of out) {
     vt.objects.add(v);
     vt.json.add(JSON.stringify(v));
+    if (v !== null && typeof v === "object") vt.returned.push(v);
     if (round) {
       round.objects.add(v);
       const j = JSON.stringify(v);
       round.json.set(j, (round.json.get(j) ?? 0) + 1);
+      if (v !== null && typeof v === "object") round.returned.push({ v, used: false });
     }
   }
   return out;
 }
 
+// v carries every field o has, each unchanged: o with fields added, such as a label.
+function extendsVerdict(o: any, v: any): boolean {
+  if (o === null || v === null || typeof o !== "object" || typeof v !== "object" || Array.isArray(o) || Array.isArray(v)) return false;
+  if (!("verdict" in o)) return false;
+  return Object.keys(o).every((k) => k in v && JSON.stringify(o[k]) === JSON.stringify(v[k]));
+}
+
 const fromVerifier = (vt: VerifyTrail, v: any) =>
-  v !== null && typeof v === "object" && (vt.objects.has(v) || vt.json.has(JSON.stringify(v)));
+  v !== null && typeof v === "object" &&
+  (vt.objects.has(v) || vt.json.has(JSON.stringify(v)) || vt.returned.some((o) => extendsVerdict(o, v)));
 
 function fromRound(r: RoundTrail, v: any): boolean {
   if (v === null || typeof v !== "object") return false;
   const j = JSON.stringify(v), n = r.json.get(j) ?? 0;
-  if (n > 0) r.json.set(j, n - 1);
+  if (n > 0) {
+    r.json.set(j, n - 1);
+    const e = r.returned.find((x) => !x.used && JSON.stringify(x.v) === j);
+    if (e) e.used = true;
+    return true;
+  }
+  if (!r.objects.has(v)) {
+    const e = r.returned.find((x) => !x.used && extendsVerdict(x.v, v));
+    if (e) { e.used = true; return true; }
+  }
   return n > 0 || r.objects.has(v);
 }
 
@@ -3582,6 +3605,29 @@ function interpreterBlocked(c: Cmd, prog: string): string | undefined {
   return undefined;
 }
 
+// A call's arguments split at its own commas: commas inside nested brackets or quotes are not
+// separators (open(os.path.join(d, sid, "x")) has one argument).
+function topLevelArgs(inner: string): string[] {
+  const out: string[] = [];
+  let depth = 0, quote = "", cur = "";
+  for (let i = 0; i < inner.length; i++) {
+    const ch = inner[i];
+    if (quote) {
+      cur += ch;
+      if (ch === "\\") { cur += inner[++i] ?? ""; continue; }
+      if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === "`") quote = ch;
+    else if ("([{".includes(ch)) depth++;
+    else if (")]}".includes(ch)) depth = Math.max(0, depth - 1);
+    else if (ch === "," && depth === 0) { out.push(cur.trim()); cur = ""; continue; }
+    cur += ch;
+  }
+  out.push(cur.trim());
+  return out;
+}
+
 // Whether inline code could write, run a program or hide what it calls. Stricter than
 // codeWrite: a read-only agent's code may read and print, nothing else.
 function codeRisk(code: string, lang: string): string | undefined {
@@ -3598,7 +3644,7 @@ function codeRisk(code: string, lang: string): string | undefined {
   // open() reads unless a mode says otherwise.
   for (const o of text.matchAll(/(\.)?\b(open|fopen|openSync|ZipFile|TarFile)\s*\(/g)) {
     const inner = callArgs(text, o.index! + o[0].length);
-    const parts = inner.split(",").map((x) => x.trim());
+    const parts = topLevelArgs(inner);
     const isMethod = o[1] === ".";
     const mode = isMethod && !/^['"][^'"]*\//.test(parts[0] ?? "") ? parts[0] : parts[1];
     if (parts.length <= (isMethod ? 0 : 1) || mode === undefined || mode === "") continue;
@@ -4963,7 +5009,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           "Run a deterministic multi-agent workflow script (JavaScript, the body of an async function, or a module " +
           "file with a default export taking the API object). API: agent(prompt, {agent, schema, model, variant, label, cwd, think, readonly}) " +
           "runs a subagent in a child session and returns its text, or the parsed object when schema (a JSON schema) is given; readonly: true " +
-          "(or agent reviewer, verifier, structured or explore) refuses its every write; read a schema'd agent's session with session_read. parallel(arrayOfThunks, {limit=8, settle}) runs them concurrently; pipeline(input, ...stages); " +
+          "(or agent reviewer, verifier, structured or explore) refuses its every write; read a schema'd agent's session with session_read. parallel(arrayOfThunks, {limit=8, settle}) runs them concurrently (promises are awaited too); pipeline(input, ...stages); " +
           "verify_until_pass(fixStage, verifyStage, {max: 3}): verifyStage({round, failures}) returns the objects its agents returned, each with verdict \"pass\"|\"fail\"; while any fails, " +
           "fixStage(failures, {round, verdicts}) runs and a fresh verify follows, up to max fix rounds; returns {passed, verdicts, failures, rounds}. " +
           "Only verdicts from verify agents lift the commit gate: a read-only agent (agent verifier, reviewer or structured, or readonly: true; never worker, fixer or build) " +

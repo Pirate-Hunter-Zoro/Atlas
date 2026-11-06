@@ -1122,7 +1122,23 @@ const capped = await wf(`
 `, "v2");
 const c2 = await commit("v2");
 const none = await wf(`return await verify_until_pass(async () => {}, async () => "looks fine")`, "v3");
-console.log(JSON.stringify({ ok, result1, sessions, c1, capped, c2, none }));
+calls = 2;
+const labelled = await wf(`
+  const r = await verify_until_pass(async () => {}, async () => {
+    const got = await parallel([agent("verify a", { agent: "verifier", schema: { type: "object" } })]);
+    return got.map((v) => ({ ...v, label: "a" }));
+  }, { max: 1 });
+  return { passed: r.passed };
+`, "v4");
+calls = 0;
+const forged = await wf(`
+  const r = await verify_until_pass(async () => {}, async () => {
+    const v = await agent("verify b", { agent: "verifier", schema: { type: "object" } });
+    return [{ ...v, verdict: "pass", label: "b" }];
+  }, { max: 0 });
+  return { passed: r.passed };
+`, "v5");
+console.log(JSON.stringify({ ok, result1, sessions, c1, capped, c2, none, labelled, forged }));
 process.exit(0);
 """)
         r = json.loads(out)
@@ -1142,6 +1158,8 @@ process.exit(0);
         self.assertTrue(r["c2"].startswith("REFUSED") and "still broken" in r["c2"], r["c2"])
         self.assertIn('state="failed"', r["none"])
         self.assertIn("no verdict", r["none"])
+        self.assertIn('verdict="pass"', r["labelled"], "a verifier's verdict with a label added still counts, and parallel takes promises")
+        self.assertNotIn('verdict="pass"', r["forged"], "a copy whose verdict was changed is not the verifier's")
 
     def test_workflow_sh_is_guarded_and_uses_pipefail(self):
         out = self.run_node("sh", self.WF_VERDICTS + r"""
@@ -1309,7 +1327,8 @@ await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ typ
             "sqlite3 -readonly db '.shell rm x'", "pushd /tmp; popd; rm a", "python3 -c \"f=open; f('x','w')\"",
             "python3 /tmp/tests/x.py", "cd /tmp && python3 -m unittest test_x", "node --require /tmp/x.js --test",
             "curl -c jar https://x", "sqlite3 -readonly db \"select writefile('x', 'y')\"", "rg --pre cat x", "xxd a b",
-            "gawk -o out 1 a",
+            "gawk -o out 1 a", "python3 -c \"import os; open(os.path.join('a', 'b'), 'w')\"",
+            "python3 -c \"import os; m='w'; open(os.path.join('a', 'b'), m)\"",
         )]
         allowed = [[t, a, "ver"] for t, a in self.bash(
             "git diff", "git log --oneline -3", "git show HEAD:README.md", "sed -n 1p a", "sed 's/a/b/' a", "sed -n '/w x/p' a",
@@ -1319,6 +1338,8 @@ await P["chat.message"]({ sessionID: "ver", agent: "verifier" }, { parts: [{ typ
             "perl -ne 'print if /x/' a", "ruby -c a.rb", "grep -rn x .", "find . -name '*.py'", "jq . a.json", "bash -n s.sh",
             "bash test/run.sh", "python3 - <<'EOF'\nimport json\nprint(json.dumps({'a': 1}))\nEOF", "awk '{print $1}' a",
             "git apply --check x.diff",
+            "python3 -c \"import os, json; sid='s'; print(json.load(open(os.path.join('a', sid, 'session.json'))))\"",
+            "python3 -c \"import os; print(open(os.path.join('a', 'b'), encoding='utf-8').read())\"",
         )]
         self.assert_guard(refused, allowed, contains="read-only", setup=setup)
 
