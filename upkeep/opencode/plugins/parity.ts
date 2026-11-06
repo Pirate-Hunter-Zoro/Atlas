@@ -4055,8 +4055,10 @@ function ownerShipsOver(text: string) {
   for (const s of text.split(/(?<=[.!?;])\s+|\n+/)) {
     if (!/\bship (it )?over\b/i.test(s)) continue;
     const t = s.trim();
+    // A quoted phrase is a mention (a prompt or doc naming the owner's words), not the owner's word.
+    if (/["'\x60\u201c\u2018][^"'\x60\u201d\u2019]*\bship (it )?over\b[^"'\x60\u201d\u2019]*["'\x60\u201d\u2019]/i.test(t)) continue;
     if (/\?$/.test(t) || /^(should|shall|can|could|may|might|do|does|did|would|will|is|are|why|how|what|when)\b/i.test(t)) continue;
-    if (/\b(not|never|no|nor|don'?t|doesn'?t|can'?t|cannot|won'?t|shouldn'?t|mustn'?t|wouldn'?t|isn'?t|stop|refuse|without|unless|before|if)\b|n't\b/i.test(t)) continue;
+    if (/\b(not|never|no|nor|don'?t|doesn'?t|can'?t|cannot|won'?t|shouldn'?t|mustn'?t|wouldn'?t|isn'?t|stop|refuse|refuses|without|unless|until|before|if)\b|n't\b/i.test(t)) continue;
     return true;
   }
   return false;

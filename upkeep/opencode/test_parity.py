@@ -962,7 +962,8 @@ r.fine = [];
 for (const c of ["git rebase --abort", "git status", "git log -1", "git diff"]) r.fine.push(await check(P, "bash", { command: c }, "g1"));
 r.words = [];
 for (const t of ["Do not, under any circumstances, ship over it.", "Should we ship over it? Tell me first.", "You can't ship over it",
-  "should we ship over it", "Ship over it if the tests pass."]) {
+  "should we ship over it", "Ship over it if the tests pass.", 'Say "ship over it" to lift it.', "the words `ship over it` lift it.",
+  "Wait until the owner says ship over it.", (await import("node:fs")).readFileSync(process.argv[2], "utf-8")]) {
   await say(t);
   await sleep(5);
   r.words.push(await commit());
@@ -977,7 +978,7 @@ await sleep(5);
 r.owner = await commit();
 console.log(JSON.stringify(r));
 process.exit(0);
-""")
+""", str(HERE / "commands" / "ultracode.md"))
         r = json.loads(out)
         for c, res in zip(range(len(r["ships"])), r["ships"]):
             self.assertTrue(res.startswith("REFUSED") and "the Brewfile still takes a raw name" in res, (c, res))
