@@ -888,6 +888,60 @@ process.exit(0);
         self.assertEqual(r["after"], "ok", "a new message starts a new turn")
         self.assertEqual(r["other"], ["ok"] * 5, "another session's job does not count")
 
+    def test_a_merged_worktree_is_removed(self):
+        repo = self.root / "proj"
+        g = lambda *a, cwd=repo: subprocess.run(["git", "-C", str(cwd), *a], check=True, capture_output=True, text=True).stdout
+        repo.mkdir()
+        g("init", "-q", "-b", "main")
+        g("config", "user.email", "t@t"); g("config", "user.name", "t")
+        (repo / "a").write_text("1\n"); g("add", "a"); g("commit", "-qm", "one")
+        wt = self.root / "proj-wt"
+        for b in ("feat", "dirty", "open", "fresh"):
+            g("worktree", "add", "-q", "-b", b, str(wt / b))
+        for b in ("feat", "dirty", "open"):
+            (wt / b / b).write_text(b); g("add", b, cwd=wt / b); g("commit", "-qm", b, cwd=wt / b)
+        (wt / "dirty" / "scratch").write_text("x")
+        out = self.run_node("prune", r"""
+const P = await load(process.cwd());
+const run = async (command, workdir) => {
+  const args = { command, workdir };
+  await P["tool.execute.before"]({ tool: "bash", sessionID: "m1", callID: command }, { args });
+  const { execSync } = await import("node:child_process");
+  execSync(command, { cwd: workdir, shell: "/bin/bash", stdio: "ignore" });
+  const output = { output: "" };
+  await P["tool.execute.after"]({ tool: "bash", sessionID: "m1", callID: command }, output);
+  return output.output;
+};
+const repo = process.argv[2], wt = process.argv[3];
+const r = [];
+r.push(await run("git merge -q --no-edit -m 'take feat' feat", repo));
+r.push(await run(`git -C ${repo} merge -q --no-edit dirty`, wt + "/fresh"));
+r.push(await run("git merge -q --no-edit main", wt + "/open"));
+console.log(JSON.stringify(r));
+process.exit(0);
+""", str(repo), str(wt))
+        r = json.loads(out)
+        self.assertIn("removed the merged worktree", r[0])
+        self.assertFalse((wt / "feat").exists(), "the merged, clean worktree is gone")
+        self.assertNotIn("feat", g("branch", "--list", "feat"), "and its branch")
+        self.assertIn("kept", r[1], "a worktree with uncommitted work stays")
+        self.assertTrue((wt / "dirty").exists())
+        self.assertEqual(r[2], "", "merging main into a worktree removes nothing")
+        self.assertTrue((repo / "a").exists() and (wt / "open").exists() and (wt / "fresh").exists(),
+                        "the main checkout, an unmerged worktree and one never named stay")
+        g("worktree", "remove", "--force", str(wt / "dirty")); g("worktree", "remove", str(wt / "open"))
+        out = self.run_node("prune2", r"""
+const P = await load(process.cwd());
+const args = { command: "git merge -q --no-edit fresh", workdir: process.argv[2] };
+await P["tool.execute.before"]({ tool: "bash", sessionID: "m1", callID: "c9" }, { args });
+const output = { output: "" };
+await P["tool.execute.after"]({ tool: "bash", sessionID: "m1", callID: "c9" }, output);
+console.log(JSON.stringify(output.output));
+process.exit(0);
+""", str(repo))
+        self.assertIn("and the empty", json.loads(out), "the last worktree's parent directory goes too")
+        self.assertFalse(wt.exists())
+
     def test_ultracode_builds_only_in_a_worktree(self):
         main, wt, loose = self.root / "repo", self.root / "repo-wt", self.root / "loose"
         (main / ".git").mkdir(parents=True)

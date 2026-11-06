@@ -523,11 +523,12 @@ class Prompts(unittest.TestCase):
     def test_worktree_cleanup_rule(self):
         for rel in ("capabilities.md", "commands/ultracode.md"):
             text = (HERE / rel).read_text()
-            self.assertEqual(missing_needles(text, WORKTREE_NEEDLES), [], rel)
-            line = next(x for x in text.splitlines() if "git worktree remove" in x)
-            self.assertEqual(missing_needles(text.replace(line, ""), WORKTREE_NEEDLES), list(WORKTREE_NEEDLES), rel)
-        ultra = (HERE / "commands" / "ultracode.md").read_text()
-        self.assertIn("After merging, remove each worktree you made", ultra)
+            self.assertEqual(missing_needles(text, PROMPT_WORKTREE_NEEDLES), [], rel)
+            line = next(x for x in text.splitlines() if "git merge <branch>" in x)
+            self.assertEqual(missing_needles(text.replace(line, ""), PROMPT_WORKTREE_NEEDLES),
+                             list(PROMPT_WORKTREE_NEEDLES), rel)
+        code = (HERE / "plugins" / "parity.ts").read_text()
+        self.assertIn("pruneMergedWorktree(m.dir, m.branch)", code, "the plugin does what the prompts say")
 
     def test_ultracode_frontmatter(self):
         fm = frontmatter(HERE / "commands" / "ultracode.md")
@@ -563,6 +564,8 @@ CAPABILITY_NEEDLES = (
     "`verifyStage` must return what its agents returned",
 )
 WORKTREE_NEEDLES = ("git worktree remove", "delete its branch", "parent directory", "24")
+# The parity prompts: the plugin removes a merged worktree, so they name the merge that triggers it.
+PROMPT_WORKTREE_NEEDLES = ("git merge <branch>", "deletes the branch", "parent directory", "worktree_remove")
 
 
 def sh_claim_problems(text, code):

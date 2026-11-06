@@ -4138,6 +4138,58 @@ const isPlan = (args: any) =>
   Array.isArray(args?.todos) && args.todos.filter((t: any) => String(t?.content ?? "").trim()).length >= 2;
 
 // Every rule, in order; the first refusal wins. Allowed calls count toward the read budget.
+// ---- merged worktrees
+// A worktree goes as soon as its branch is merged (the owner's rule). After a bash call that ran
+// `git merge <branch>`, each named branch that is now an ancestor of HEAD loses its linked
+// worktree when that is clean, then the branch itself, then the worktree's parent directory when
+// it is left empty. The main checkout, and a worktree with uncommitted work, stay.
+const MERGE_ARG_OPTS = new Set(["-m", "-F", "-s", "-X", "-S", "--strategy", "--strategy-option", "--file", "--cleanup", "--into-name"]);
+function mergedBranches(cmds: Cmd[]): { dir: string; branch: string }[] {
+  const out: { dir: string; branch: string }[] = [];
+  for (const c of cmds) {
+    const w = c.words;
+    if (basename(w[0] ?? "") !== "git") continue;
+    let dir = c.cwd, i = 1;
+    while (i < w.length && w[i].startsWith("-")) {
+      if (w[i] === "-C") { dir = resolve(dir, w[i + 1] ?? "."); i += 2; }
+      else if (w[i] === "-c" || w[i] === "--git-dir" || w[i] === "--work-tree") i += 2;
+      else i++;
+    }
+    if (w[i] !== "merge") continue;
+    for (let k = i + 1; k < w.length; k++) {
+      if (MERGE_ARG_OPTS.has(w[k])) { k++; continue; }
+      if (!w[k].startsWith("-")) out.push({ dir, branch: w[k] });
+    }
+  }
+  return out;
+}
+function pruneMergedWorktree(dir: string, branch: string): string | undefined {
+  const git = (cwd: string, ...a: string[]) => execFileSync("git", ["-C", cwd, ...a], {
+    encoding: "utf-8", timeout: 15000, stdio: ["ignore", "pipe", "ignore"],
+  });
+  try { git(dir, "merge-base", "--is-ancestor", `refs/heads/${branch}`, "HEAD"); } catch { return undefined; }
+  let trees: string[] = [], path: string | undefined, cur = "";
+  try {
+    for (const l of git(dir, "worktree", "list", "--porcelain").split("\n")) {
+      if (l.startsWith("worktree ")) { cur = l.slice(9); trees.push(cur); }
+      else if (l === `branch refs/heads/${branch}`) path = cur;
+    }
+  } catch { return undefined; }
+  if (!path || path === trees[0]) return undefined;
+  try {
+    if (git(path, "status", "--porcelain").trim()) return `kept ${path}: it has uncommitted work`;
+    git(dir, "worktree", "remove", path);
+  } catch (e: any) {
+    return `could not remove ${path}: ${String(e?.message ?? e).slice(0, 120)}`;
+  }
+  let said = `removed the merged worktree ${path}`;
+  try { git(dir, "branch", "-d", branch); said += ` and its branch ${branch}`; } catch {}
+  const parent = dirname(path);
+  try { if (!readdirSync(parent).length) { rmdirSync(parent); said += `, and the empty ${parent}`; } } catch {}
+  return said;
+}
+const bashArgs = ((G as any).bashArgs ??= new Map<string, any>()) as Map<string, any>;
+
 // A session whose background job will report as a message, but which keeps calling waiting
 // tools instead of ending its turn, is polling: each call is a paid model step that learns
 // nothing. Sleeping is refused outright; the other waiting tools after WAIT_LIMIT in one turn.
@@ -5009,13 +5061,23 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       }),
 
       worktree_remove: tool({
-        description: "Remove a git worktree created with worktree_create. The branch is kept.",
+        description: "Remove a git worktree created with worktree_create. Its branch is deleted when merged; the parent directory goes when empty.",
         args: { path: z.string(), force: z.boolean().optional() },
         async execute(a, ctx) {
           const repo = ctx.worktree ?? worktree ?? directory;
           const argv = ["-C", repo, "worktree", "remove", ...(a.force ? ["--force"] : []), a.path];
           return await new Promise<string>((res) => {
-            execFile("git", argv, (err, _o, errOut) => res(err ? `git worktree remove failed: ${String(errOut || err.message).trim()}` : `Removed ${a.path}.`));
+            execFile("git", argv, (err, _o, errOut) => {
+              if (err) return res(`git worktree remove failed: ${String(errOut || err.message).trim()}`);
+              let said = `Removed ${a.path}.`;
+              const branch = basename(a.path);
+              try {
+                execFileSync("git", ["-C", repo, "branch", "-d", branch], { timeout: 10000, stdio: "ignore" });
+                said += ` Deleted its merged branch ${branch}.`;
+              } catch {}
+              try { if (!readdirSync(dirname(resolve(repo, a.path))).length) rmdirSync(dirname(resolve(repo, a.path))); } catch {}
+              res(said);
+            });
           });
         },
       }),
@@ -5123,6 +5185,10 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
     "tool.execute.before": async (input: any, output: any) => {
       let reason: string | undefined;
       try {
+        if (input?.tool === "bash" && input.callID) {
+          if (bashArgs.size > 500) bashArgs.clear();  // a refused call never reaches the after hook
+          bashArgs.set(input.callID, output?.args ?? {});
+        }
         reason = await guardCall({ tool: input.tool, args: output?.args ?? {}, session: input.sessionID, directory }, client);
       } catch (e: any) {
         log(`guard failed on ${input?.tool}: ${e?.stack ?? e}`);
@@ -5134,6 +5200,23 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
     // The task tool returns once its subagent's turn ends: a verifier's reply is read before the
     // caller sees it, so the caller's next commit already meets it.
     "tool.execute.after": async (input: any, output: any) => {
+      if (input?.tool === "bash") {
+        const args = bashArgs.get(input.callID);
+        bashArgs.delete(input.callID);
+        if (!args || !/\bmerge\b/.test(String(args.command ?? ""))) return;
+        try {
+          const call = { tool: "bash", args, session: input.sessionID, directory };
+          const done = mergedBranches(parseCommands(String(args.command), cwdOf(call)))
+            .map((m) => pruneMergedWorktree(m.dir, m.branch)).filter(Boolean);
+          if (done.length) {
+            log(`worktrees ${input.sessionID}: ${done.join("; ")}`);
+            if (output && typeof output.output === "string") output.output += `\n\n[parity] ${done.join("; ")}.`;
+          }
+        } catch (e: any) {
+          log(`worktree prune failed: ${e?.message ?? e}`);
+        }
+        return;
+      }
       if (input?.tool !== "task") return;
       const m = String(output?.output ?? "").match(/task_id:\s*(\S+)/);
       await settleVerifier(output?.metadata?.sessionId ?? m?.[1], client, directory);

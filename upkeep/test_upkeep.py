@@ -244,7 +244,8 @@ class Box(object):
             if got != os.path.join(self.bin, p):
                 raise SystemExit("REFUSED: %s resolves to %s, not the fake" % (p, got))
         self.env = dict(os.environ, HOME=self.home, PATH=self.path, FAKE_DIR=self.fake,
-                        UPKEEP_APPLICATIONS=self.apps, UPKEEP_ROOT_STATUS=self.root_status)
+                        UPKEEP_APPLICATIONS=self.apps, UPKEEP_ROOT_STATUS=self.root_status,
+                        UPKEEP_INTERACTIVE="0")
         for k in ("XPC_SERVICE_NAME", "DEEPSEEK_API_KEY", "UPKEEP_HOME",
                   "UPKEEP_STATE_DIR", "UPKEEP_REEXEC", "PYTHONPATH"):
             self.env.pop(k, None)
@@ -1417,6 +1418,29 @@ class Misc(Case):
                            stderr=subprocess.STDOUT, universal_newlines=True, timeout=300)
         self.assertEqual(p.returncode, 0, p.stdout)
         self.assertIn("nothing: open a new terminal", p.stdout)
+
+    def test_setup_mac_at_a_terminal_takes_xcode_and_the_root_half(self):
+        b = self.b
+        full_scenario(b)
+        sudo_log = os.path.join(b.root, "sudo.log")
+        b.write(os.path.join(b.bin, "sudo"),
+                '#!/bin/sh\necho "$@" >>"%s"\necho \'{"result": "ok"}\' >"%s"\n' % (sudo_log, b.root_status), 0o755)
+        env = dict(b.env, PATH=b.path, UPKEEP_INTERACTIVE="1")
+        run = lambda: subprocess.run(["bash", os.path.join(b.repo, "upkeep", "setup-mac.sh")], env=env,
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                     universal_newlines=True, timeout=300)
+        p = run()
+        self.assertIn("get 497799835", b.argv("mas"), "no Xcode: mas is asked for it")
+        self.assertFalse(os.path.exists(sudo_log), "no Xcode yet: the root half waits for it")
+        self.assertIn("Install Xcode", p.stdout)
+        os.makedirs(os.path.join(b.apps, "Xcode.app"))
+        p = run()
+        with open(sudo_log) as fh:
+            self.assertIn("bash %s/upkeep/root/install.sh" % b.repo, fh.read())
+        self.assertNotIn("Install Xcode", p.stdout)
+        self.assertNotIn("root/install.sh   (", p.stdout, "the root half ran, so it is no owner step")
+        self.assertIn("~/.config/api-keys/deepseek_key", p.stdout, "the key is the one step left")
+        self.assertEqual(p.returncode, 1, p.stdout)
 
     def test_brewfile_has_what_flutter_doctor_checks(self):
         casks = re.findall(r'^cask "([^"]+)"', self.b.read(os.path.join(HERE, "Brewfile")),

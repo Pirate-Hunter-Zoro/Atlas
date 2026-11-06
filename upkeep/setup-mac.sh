@@ -7,7 +7,8 @@
 # Installs Homebrew when it is missing, registers this repo with upkeep
 # (`upkeep.py install --repo`), runs upkeep once with --force (brew, the
 # Brewfile, opencode, Android, Flutter, fonts, VS Code and Terminal), then
-# prints the steps only the owner can take. A second run changes nothing.
+# installs Xcode (mas) and the root half (sudo) when it runs at a terminal, then prints
+# the steps only the owner can take. A second run changes nothing.
 # Exit status: the number of owner steps still open.
 set -uo pipefail
 
@@ -45,6 +46,22 @@ echo "== upkeep install"
 echo "== upkeep run --force (the first run takes a while)"
 /usr/bin/python3 "$SHARE/upkeep.py" run --force
 /usr/bin/python3 "$SHARE/upkeep.py" status
+
+# At a terminal, the steps a password or an App Store sign-in can finish are taken here:
+# Xcode through mas, then the root half through sudo. UPKEEP_INTERACTIVE=0 skips them,
+# =1 takes them without a terminal.
+interactive="${UPKEEP_INTERACTIVE:-}"
+[ -n "$interactive" ] || { [ -t 0 ] && interactive=1 || interactive=0; }
+if [ "$interactive" = 1 ]; then
+  if [ ! -d "$APPS/Xcode.app" ] && command -v mas >/dev/null 2>&1; then
+    echo "== Xcode from the App Store (signed in to the App Store, this takes a while)"
+    mas get 497799835 || echo "  mas could not get Xcode; sign in to the App Store, then rerun"
+  fi
+  if [ -d "$APPS/Xcode.app" ] && [ ! -f "$ROOT_STATUS" ]; then
+    echo "== the root half: Xcode's license and first launch, App Store auto-updates (your password)"
+    sudo bash "$HERE/root/install.sh" || echo "  the root install failed (above)"
+  fi
+fi
 
 steps=0
 step() { steps=$((steps + 1)); printf '  %d. %s\n' "$steps" "$*"; }
