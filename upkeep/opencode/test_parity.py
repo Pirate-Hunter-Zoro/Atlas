@@ -19,6 +19,23 @@ HERE = Path(__file__).resolve().parent
 NODE = shutil.which("node")
 
 
+def pid_alive(pid, wait=3.0):
+    """True when pid is still a live process after up to `wait` seconds; a zombie awaiting its
+    reaper counts as gone."""
+    end = time.time() + wait
+    while True:
+        try:
+            stat = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)], capture_output=True,
+                                  text=True, timeout=10).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return False
+        if not stat or stat.startswith("Z"):
+            return False
+        if time.time() >= end:
+            return True
+        time.sleep(0.1)
+
+
 def node_ok():
     if not NODE:
         return False
@@ -134,11 +151,50 @@ class Plugin(unittest.TestCase):
         self.procs = []
 
     def tearDown(self):
+        # Monitors and background shells are detached into their own process groups, so killing
+        # the node process leaves them running forever. Kill their groups first, then the nodes.
+        left = self.kill_jobs()
         for p in self.procs:
             if p.poll() is None:
                 p.kill()
             p.communicate()
+        left |= self.kill_jobs()
         self.tmp.cleanup()
+        alive = sorted(pid for pid in left if pid_alive(pid))
+        self.assertEqual(alive, [], "a job started by this test outlived tearDown")
+
+    def job_pids(self):
+        """Every process carrying this test's PARITY_STATE_DIR (jobs inherit the plugin's env),
+        plus every pid jobs.json names, as {pid: pgid}."""
+        found = {}
+        for j in self.jobs():
+            if isinstance(j, dict) and isinstance(j.get("pid"), int):
+                found[j["pid"]] = j["pid"]
+        mark = "PARITY_STATE_DIR=" + str(self.state)
+        try:
+            out = subprocess.run(["ps", "-axEww", "-o", "pid=,pgid=,command="], capture_output=True,
+                                 text=True, timeout=10).stdout
+        except (OSError, subprocess.SubprocessError):
+            out = ""
+        for line in out.splitlines():
+            parts = line.split(None, 2)
+            if len(parts) == 3 and (mark + " ") in parts[2] + " " and parts[0].isdigit():
+                found[int(parts[0])] = int(parts[1])
+        found.pop(os.getpid(), None)
+        return found
+
+    def kill_jobs(self):
+        found = self.job_pids()
+        mine = os.getpgrp()
+        for pid, pgid in found.items():
+            try:
+                if pgid != mine and pgid > 1:
+                    os.killpg(pgid, signal.SIGKILL)
+                else:
+                    os.kill(pid, signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+        return set(found)
 
     def env(self, **extra):
         env = dict(os.environ, PARITY_STATE_DIR=str(self.state), CALLS=str(self.calls),
