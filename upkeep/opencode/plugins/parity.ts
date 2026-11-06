@@ -513,6 +513,21 @@ function watchShell(job: Job) {
   G.timers.set(job.id, { cancel: () => clearInterval(poll) });
 }
 
+// A monitor without a timeout_ms stops after this long: a wait loop whose condition never comes
+// true would otherwise spin until someone kills it, and survive every server restart.
+const MONITOR_DEFAULT_MS = 2 * 60 * 60 * 1000;
+
+// A finished workflow reports back itself, so the monitors its session started on that run's
+// files (their command names the run id) have nothing left to watch.
+function stopWorkflowMonitors(session: string, run: string) {
+  for (const j of [...G.jobs.values()]) {
+    if (j.kind === "monitor" && j.session === session && String(j.command ?? "").includes(run)) {
+      log(`monitor ${j.id} stopped: workflow ${run} finished`);
+      stopMonitor(j.id);
+    }
+  }
+}
+
 function startMonitor(job: Job, restarted = false) {
   const shell = "/bin/bash";
   const child = spawn(shell, ["-c", job.command], {
@@ -4319,6 +4334,16 @@ const made = (v: any) => (MADE.add(v), v);
 // Markdown around it is read through: heading and quote marks, `*`, `_` and backticks, and a
 // first line that is only "Verdict" (a heading) hands over to the next non-blank line. The
 // rest of the reply is its reason. With noneFails, a reply naming no verdict is one fail.
+// Evidence: some field besides the verdict holds something (text, a number, a list or an object
+// with content). A bare {verdict: "pass"} names no check.
+function hasEvidence(v: any): boolean {
+  const full = (x: any): boolean => typeof x === "string" ? x.trim().length > 0
+    : typeof x === "number" ? true
+    : Array.isArray(x) ? x.some(full)
+    : x !== null && typeof x === "object" ? Object.values(x).some(full) : false;
+  return Object.entries(v ?? {}).some(([k, x]) => k !== "verdict" && full(x));
+}
+
 function replyVerdicts(result: any, noneFails = false): any[] {
   let out: any[] = [];
   if (typeof result === "string") {
@@ -4333,9 +4358,14 @@ function replyVerdicts(result: any, noneFails = false): any[] {
     if (m) {
       const rest = [m[2], ...lines.slice(i + 1)].join("\n").trim();
       out = [made({ verdict: m[1].toLowerCase(), reason: clip1(rest || `the verify agent replied ${m[1].toUpperCase()} with no reason`, 4000) })];
+      if (noneFails && !rest && isPass(out[0])) out = [made({ verdict: "fail", reason: "the verify agent replied PASS with no evidence: a pass names the check it ran and what it showed" })];
     }
   } else {
     out = collectVerdicts(result);
+    // A verify agent's pass that carries nothing but the verdict is not a check anyone ran.
+    if (noneFails) out = out.map((v) => (isPass(v) && !hasEvidence(v)
+      ? made({ verdict: "fail", reason: `the verify agent returned pass with no evidence (${clip1(JSON.stringify(v), 200)}): a pass names the check it ran and what it showed` })
+      : v));
   }
   if (out.length || !noneFails) return out;
   const said = typeof result === "string" ? result : JSON.stringify(result) ?? String(result);
@@ -4695,6 +4725,7 @@ function rearm(j: Job) {
       case "shell": return watchShell(j);
       case "monitor":
         if (j.pid && pidAlive(j.pid)) killGroup(j.pid);
+        if (!j.deadline && !j.persistent) j.deadline = (j.started_at ?? Date.now()) + MONITOR_DEFAULT_MS;
         if (j.deadline && !j.persistent && j.deadline < Date.now()) {
           dropJob(j.id);
           deliver(j, tag("monitor", { id: j.id, description: j.description, event: "timed_out" },
@@ -4859,17 +4890,18 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           "together are batched), and you get a final event with the exit code when it ends. Start it, then END YOUR TURN. " +
           "Examples: `tail -f build.log | grep --line-buffered -E 'error|done'`; a loop that checks a condition every " +
           "30 s and prints when it changes; `while kill -0 PID 2>/dev/null; do sleep 30; done; echo finished`. " +
-          "Use grep --line-buffered in pipes. No timeout unless you set timeout_ms. It is restarted if the server restarts.",
+          "Use grep --line-buffered in pipes. It stops after 2 hours unless you set timeout_ms or persistent: true, and when a " +
+          "workflow it names (by run id) finishes, since that workflow reports back itself. It is restarted if the server restarts.",
         args: {
           command: z.string(),
           description: z.string().describe("Short label shown in every event"),
-          timeout_ms: z.number().optional().describe("Kill after this long; omit for no limit"),
+          timeout_ms: z.number().optional().describe("Kill after this long; default 2 hours"),
           persistent: z.boolean().optional().describe("Ignore timeout_ms and run until stopped or the command exits"),
           workdir: z.string().optional(),
         },
         async execute(a, ctx) {
           const job: Job = { ...base(ctx), id: newId("m"), kind: "monitor", command: a.command, description: a.description,
-            persistent: a.persistent ?? false, deadline: a.timeout_ms ? Date.now() + a.timeout_ms : undefined,
+            persistent: a.persistent ?? false, deadline: Date.now() + (a.timeout_ms ?? MONITOR_DEFAULT_MS),
             workdir: a.workdir ? resolve(ctx.directory ?? directory, a.workdir) : undefined };
           startMonitor(job);
           return `Monitor ${job.id} running (pid ${job.pid}). Events arrive as <monitor> messages. End your turn now; do not poll or sleep. Stop it with bg_kill ${job.id}.`;
@@ -5085,7 +5117,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
             const r = await exec;
             return tag("workflow", { id: run, state: r.ok ? "completed" : "failed", verdict: r.verdict }, clip(r.out, 30000 - r.note.length) + r.note);
           }
-          exec.then((r) => deliver(job, tag("workflow", {
+          exec.then((r) => (stopWorkflowMonitors(job.session, run), r)).then((r) => deliver(job, tag("workflow", {
             id: run, state: r.ok ? "completed" : "failed", verdict: r.verdict,
             agents: r.stats?.agents, from_journal: r.stats?.cached, result_file: join(runDir, r.ok ? "result.json" : "error.txt"),
           }, clip(r.ok ? r.out : `${r.out}\n\nFix the script if needed and call workflow with resume_run_id="${run}" to continue.`, 20000 - r.note.length) + r.note)));

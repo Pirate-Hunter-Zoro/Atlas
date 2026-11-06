@@ -888,6 +888,31 @@ process.exit(0);
         self.assertEqual(r["after"], "ok", "a new message starts a new turn")
         self.assertEqual(r["other"], ["ok"] * 5, "another session's job does not count")
 
+    def test_monitors_end_by_default_and_with_their_workflow(self):
+        out = self.run_node("monend", r"""
+const P = await load(process.cwd());
+autoIdle(P);
+const t0 = Date.now();
+await P.tool.monitor.execute({ command: "while true; do sleep 0.2; done", description: "plain" }, ctx(process.cwd(), "w1"));
+const plain = jobs().find((j) => j.description === "plain");
+const started = await P.tool.workflow.execute({ script: "await sleep(800); return 1" }, ctx(process.cwd(), "w1"));
+const run = started.match(/Workflow (\S+) started/)[1];
+await P.tool.monitor.execute({ command: `while ! grep -q '"state":' /nonexistent/${run}/x 2>/dev/null; do sleep 0.2; done`, description: "watch" }, ctx(process.cwd(), "w1"));
+await P.tool.monitor.execute({ command: "while true; do sleep 0.2; done", description: "keep", persistent: true }, ctx(process.cwd(), "w1"));
+const watch = jobs().find((j) => j.description === "watch");
+await sleep(2500);
+const after = jobs().map((j) => j.description);
+console.log(JSON.stringify({ deadline: plain.deadline - t0, keep: jobs().find((j) => j.description === "keep"), watchPid: watch.pid, after }));
+for (const j of jobs()) if (j.kind === "monitor") await P.tool.bg_kill.execute({ id: j.id }, ctx(process.cwd(), "w1"));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertTrue(2 * 3600 * 1000 - 60000 < r["deadline"] <= 2 * 3600 * 1000 + 60000, "a monitor with no timeout_ms stops in 2 hours")
+        self.assertNotIn("watch", r["after"], "a monitor naming a finished workflow's run id is stopped")
+        self.assertFalse(pid_alive(r["watchPid"], wait=1), "and its process is gone")
+        self.assertIn("plain", r["after"])
+        self.assertIn("keep", r["after"])
+
     def test_a_merged_worktree_is_removed(self):
         repo = self.root / "proj"
         g = lambda *a, cwd=repo: subprocess.run(["git", "-C", str(cwd), *a], check=True, capture_output=True, text=True).stdout
@@ -1138,7 +1163,12 @@ const forged = await wf(`
   }, { max: 0 });
   return { passed: r.passed };
 `, "v5");
-console.log(JSON.stringify({ ok, result1, sessions, c1, capped, c2, none, labelled, forged }));
+globalThis.STRUCTURED = () => ({ verdict: "pass" });
+const bare = await wf(`
+  const r = await verify_until_pass(async () => {}, async () => [await agent("verify c", { agent: "verifier", schema: { type: "object" } })], { max: 0 });
+  return { passed: r.passed };
+`, "v6");
+console.log(JSON.stringify({ ok, result1, sessions, c1, capped, c2, none, labelled, forged, bare }));
 process.exit(0);
 """)
         r = json.loads(out)
@@ -1160,6 +1190,8 @@ process.exit(0);
         self.assertIn("no verdict", r["none"])
         self.assertIn('verdict="pass"', r["labelled"], "a verifier's verdict with a label added still counts, and parallel takes promises")
         self.assertNotIn('verdict="pass"', r["forged"], "a copy whose verdict was changed is not the verifier's")
+        self.assertIn('verdict="fail"', r["bare"], "a verifier's pass with nothing but the verdict is a fail")
+        self.assertIn("no evidence", r["bare"])
 
     def test_workflow_sh_is_guarded_and_uses_pipefail(self):
         out = self.run_node("sh", self.WF_VERDICTS + r"""

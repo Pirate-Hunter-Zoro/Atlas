@@ -11,7 +11,7 @@ Work as an orchestrator, not a solo coder. Your context is for planning and judg
 2. The plan holds, before any build:
    - each requirement restated as the check the owner would run;
    - the owner's own examples, by name: the session ids, file paths, URLs or clones the request is about. A survey agent finds them read-only (a live endpoint such as the board's `/sessions.json`, the repository's `sessions/`); list what it found.
-   - When the request describes something already broken ("when I resume them, it goes to..."), those existing records are the acceptance test. A fix that works only for data created after it ships has not done the task: backfill or derive what the old records lack.
+   - When the request describes something already broken ("when I resume them, it goes to..."), those existing records are the acceptance test. The survey lists every record of that kind, not a sample: say how it found them (the field or title that marks them) and how many there are. A fix that works only for data created after it ships, or for some of those records, has not done the task: backfill or derive what each old record lacks, and the check runs over all of them.
    - Done when: checks naming at least one of those real artifacts, run read-only, as well as fixtures;
    - the threat model: every string from a model or user that reaches a file, an evaluated config or a command, and how each is validated or escaped.
 3. Write a `workflow` script for each stage:
