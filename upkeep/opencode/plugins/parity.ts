@@ -4083,6 +4083,45 @@ function selfPromptRule(cmds: Cmd[] | undefined): string | undefined {
   return undefined;
 }
 
+// The repository's own working tree holding p (its .git is a directory), or undefined when p is
+// in a linked worktree (.git is a file) or in no repository.
+function primaryCheckout(p: string): string | undefined {
+  let d = resolve(p);
+  for (let k = 0; k < 64; k++) {
+    try { return statSync(join(d, ".git")).isDirectory() ? d : undefined; } catch {}
+    const up = dirname(d);
+    if (up === d) return undefined;
+    d = up;
+  }
+  return undefined;
+}
+
+// An /ultracode session, or a subagent or workflow agent it started (five parents up).
+async function inUltracode(session: string, client: any, directory: string): Promise<boolean> {
+  if (![...guards.values()].some((g) => g.ultracode)) return false;
+  for (const id of await lineage(session, client, directory)) if (guardOf(id).ultracode) return true;
+  return false;
+}
+
+// /ultracode, its subagents and its workflow agents write files only in a linked worktree:
+// the checkout a session starts in may be serving the owner live.
+async function ultracodeTreeRule(call: Call, cmds: Cmd[] | undefined, client: any): Promise<string | undefined> {
+  if (!EDIT_TOOLS.has(call.tool) && !cmds?.length) return undefined;
+  if (!(await inUltracode(call.session, client, call.directory))) return undefined;
+  const refuse = (p: string, top: string) =>
+    `Refused: ${p} is in ${top}, a repository's main checkout, and /ultracode builds only in a worktree. ` +
+    "Make one with worktree_create (for Atlas, under ~/Developer/Atlas-wt/<item>), give every builder and fixer its path as cwd, " +
+    "and merge it after the final verify passes.";
+  const paths: string[] = [];
+  if (EDIT_TOOLS.has(call.tool)) paths.push(...filePaths(call).paths);
+  for (const c of cmds ?? []) for (const t of writesOf(c).targets) for (const p of globPathsOf(t, c)) if (p) paths.push(p);
+  for (const p of paths) {
+    const top = primaryCheckout(p);
+    if (top) return refuse(p, top);
+  }
+  return undefined;
+}
+
 function readBudgetRule(call: Call, g: Guard): string | undefined {
   if (!g.ultracode || g.planned || !READ_TOOLS.has(call.tool)) return undefined;
   if ((g.reads ?? 0) >= READ_BUDGET) {
@@ -4104,7 +4143,7 @@ async function guardCall(call: Call, client?: any, budget = true): Promise<strin
   let cmds: Cmd[] | undefined;
   if (command !== undefined) cmds = parseCommands(String(command), cwdOf(call));
   const reason = credentialRule(call, cmds) ?? opaqueRule(cmds) ?? readonlyRule(call, g, cmds) ?? worktreeRule(call, cmds) ??
-    stagingRule(cmds) ?? selfPromptRule(cmds) ?? (await commitGate(call, cmds, client)) ??
+    (await ultracodeTreeRule(call, cmds, client)) ?? stagingRule(cmds) ?? selfPromptRule(cmds) ?? (await commitGate(call, cmds, client)) ??
     (budget ? readBudgetRule(call, g) : undefined);
   if (reason) {
     log(`guard ${call.session} ${call.tool}: ${reason.slice(0, 160)}`);

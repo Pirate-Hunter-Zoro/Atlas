@@ -855,6 +855,42 @@ process.exit(0);
         self.assertEqual(r["tools"][:7], ["ok"] * 7, "delegating is never refused")
         self.assertTrue(r["tools"][7].startswith("REFUSED"))
 
+    def test_ultracode_builds_only_in_a_worktree(self):
+        main, wt, loose = self.root / "repo", self.root / "repo-wt", self.root / "loose"
+        (main / ".git").mkdir(parents=True)
+        (main / "board").mkdir()
+        wt.mkdir()
+        (wt / ".git").write_text("gitdir: " + str(main / ".git" / "worktrees" / "wt") + "\n")
+        loose.mkdir()
+        out = self.run_node("ultratree", r"""
+const P = await load(process.cwd());
+const [main, wt, loose] = process.argv.slice(2);
+globalThis.PARENTS = { kid: "u1", grandkid: "kid" };
+const edit = (f, s) => check(P, "edit", { filePath: f, oldString: "a", newString: "b" }, s);
+const write = (f, s) => check(P, "write", { filePath: f, content: "x" }, s);
+const sh = (c, s) => check(P, "bash", { command: c }, s);
+const before = await edit(main + "/board/a.py", "u1");
+await P["command.execute.before"]({ command: "ultracode", sessionID: "u1", arguments: "x" }, { parts: [] });
+const refused = [
+  await edit(main + "/board/a.py", "u1"), await write(main + "/README.md", "u1"), await write(main + "/new/dir/f.txt", "u1"),
+  await sh("echo x > " + main + "/f.txt", "u1"), await sh("cp a " + main + "/board/", "u1"), await sh("tee " + main + "/t.md < a", "u1"),
+  await edit(main + "/board/a.py", "kid"), await sh("echo x > " + main + "/g.txt", "grandkid"),
+];
+const allowed = [
+  await edit(wt + "/board/a.py", "u1"), await write(wt + "/new/f.txt", "u1"), await sh("echo x > " + wt + "/f.txt", "u1"),
+  await write(loose + "/f.txt", "u1"), await sh("echo x > /tmp/parity-ultra-probe", "u1"), await edit(wt + "/a.py", "kid"),
+  await sh("git -C " + main + " status", "u1"), await sh("cat " + main + "/README.md", "u1"),
+  await edit(main + "/board/a.py", "plain"), await sh("echo x > " + main + "/f.txt", "plain"),
+];
+console.log(JSON.stringify({ before, refused, allowed }));
+process.exit(0);
+""", str(main), str(wt), str(loose), HOME=str(self.home))
+        r = json.loads(out)
+        self.assertEqual(r["before"], "ok", "before /ultracode the rule is off")
+        for k, x in enumerate(r["refused"]):
+            self.assertTrue(x.startswith("REFUSED") and "builds only in a worktree" in x and "worktree_create" in x, (k, x))
+        self.assertEqual(r["allowed"], ["ok"] * len(r["allowed"]), r["allowed"])
+
     WF_VERDICTS = r"""
 const P = await load(process.cwd());
 const wf = async (script, sid = "g1") => P.tool.workflow.execute({ script, background: false }, ctx(process.cwd(), sid));
