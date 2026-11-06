@@ -21,7 +21,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { spawn, execFile, execFileSync } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, statSync, writeFileSync,
+  appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync,
   openSync, readSync, closeSync,
 } from "node:fs";
 import { homedir, uptime } from "node:os";
@@ -4747,6 +4747,65 @@ function describe(j: Job) {
   }
 }
 
+// ---------------------------------------------------------------- state cleanup
+
+// What a finished job leaves in the state directory is deleted once nothing can need it: a
+// workflow run (its journal serves resume_run_id) and a shell log a day after their last write,
+// a session's guard and schema record a week after its last write, a guard still holding a
+// failed verify a month after. The log keeps its newest half past 1 MB.
+const DAY_MS = 24 * 60 * 60 * 1000;
+const STATE_KEEP = { run: DAY_MS, session: 7 * DAY_MS, failedGate: 30 * DAY_MS };
+const LOG_MAX = 1024 * 1024;
+const SWEEP_MS = Number(process.env.PARITY_SWEEP_MS) || 60 * 60 * 1000;
+
+// The newest mtime under a path (one level of a directory is enough for these records).
+function lastWrite(path: string): number {
+  const st = statSync(path);
+  if (!st.isDirectory()) return st.mtimeMs;
+  let t = st.mtimeMs;
+  for (const f of readdirSync(path)) {
+    try { t = Math.max(t, statSync(join(path, f)).mtimeMs); } catch {}
+  }
+  return t;
+}
+
+function holdsFailedGate(file: string): boolean {
+  try { return (JSON.parse(readFileSync(file, "utf-8")).verdicts ?? []).some((v: any) => !v.pass); } catch { return false; }
+}
+
+function sweepState(now = Date.now()): number {
+  const live = new Set<string>([...G.jobs.keys(), ...G.runs.keys()]);
+  const liveSessions = new Set<string>([...G.jobs.values()].map((j) => String(j.session ?? "").replace(/[^A-Za-z0-9_-]/g, "_")));
+  let gone = 0;
+  const sweep = (sub: string, keepFor: (name: string, path: string) => number, idOf: (name: string) => string) => {
+    const dir = join(STATE_DIR, sub);
+    let names: string[];
+    try { names = readdirSync(dir); } catch { return; }
+    for (const name of names) {
+      const path = join(dir, name), id = idOf(name);
+      if (live.has(id) || liveSessions.has(id)) continue;
+      try {
+        if (now - lastWrite(path) <= keepFor(name, path)) continue;
+        rmSync(path, { recursive: true, force: true });
+        gone++;
+      } catch {}
+    }
+  };
+  sweep("workflows", () => STATE_KEEP.run, (n) => n);
+  sweep("shells", () => STATE_KEEP.run, (n) => n.replace(/\.(log|code)$/, ""));
+  sweep("schema", () => STATE_KEEP.session, (n) => n.replace(/\.json$/, ""));
+  sweep("guard", (_n, path) => (holdsFailedGate(path) ? STATE_KEEP.failedGate : STATE_KEEP.session), (n) => n.replace(/\.json$/, ""));
+  try {
+    if (statSync(LOG_FILE).size > LOG_MAX) {
+      const text = readFileSync(LOG_FILE, "utf-8");
+      const tail = text.slice(text.length - LOG_MAX / 2);
+      writeFileSync(LOG_FILE, tail.slice(tail.indexOf("\n") + 1));
+    }
+  } catch {}
+  if (gone) log(`swept ${gone} finished record(s) from ${STATE_DIR}`);
+  return gone;
+}
+
 // Once per process: claim the server role, adopt orphaned jobs, then keep jobs.json in sync.
 function boot() {
   if (G.loaded) return;
@@ -4757,6 +4816,7 @@ function boot() {
       writeFileSync(PRIMARY_FILE, JSON.stringify(ME));
     }
     adoptOrphans();
+    if (MAY_ADOPT) sweepState();
   } catch (e: any) {
     log(`boot failed: ${e?.message ?? e}`);
   }
@@ -4770,6 +4830,10 @@ function boot() {
     }
   }, SYNC_MS);
   t.unref?.();
+  const s = setInterval(() => {
+    try { if (MAY_ADOPT) sweepState(); } catch (e: any) { log(`sweep failed: ${e?.message ?? e}`); }
+  }, SWEEP_MS);
+  s.unref?.();
 }
 
 function rearm(j: Job) {

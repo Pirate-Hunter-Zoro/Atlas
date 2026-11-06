@@ -943,6 +943,45 @@ process.exit(0);
         self.assertIn("plain", r["after"])
         self.assertIn("keep", r["after"])
 
+    def test_finished_state_is_swept(self):
+        old, recent = time.time() - 2 * 86400, time.time() - 3600
+        week, month = time.time() - 8 * 86400, time.time() - 31 * 86400
+        def put(rel, text, when):
+            f = self.state / rel
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(text)
+            os.utime(f, (when, when))
+            if f.parent.name.startswith("wf"):
+                os.utime(f.parent, (when, when))
+        put("workflows/wfold/journal.jsonl", "{}", old)
+        put("workflows/wfnew/journal.jsonl", "{}", recent)
+        put("shells/bold.log", "x", old)
+        put("shells/bold.code", "0", old)
+        put("shells/bnew.log", "x", recent)
+        put("schema/ses_old.json", "{}", week)
+        put("guard/ses_old.json", "{}", week)
+        put("guard/ses_failed.json", json.dumps({"verdicts": [{"at": 1, "pass": False, "failed": ["x"]}]}), week)
+        put("guard/ses_failed_long.json", json.dumps({"verdicts": [{"at": 1, "pass": False, "failed": ["x"]}]}), month)
+        put("guard/ses_live.json", "{}", week)
+        put("parity.log", "a line\n" * 300000, recent)
+        (self.state / "jobs.json").write_text(json.dumps([{"id": "wtlive", "kind": "wakeup", "session": "ses_live", "directory": "/",
+            "fire_at": int(time.time() * 1000) + 3600000, "prompt": "p", "created_at": 1}]))
+        self.run_node("sweep", r"""
+await load(process.cwd());
+await sleep(300);
+process.exit(0);
+""")
+        gone = lambda rel: not (self.state / rel).exists()
+        self.assertTrue(gone("workflows/wfold"), "a workflow run idle a day is deleted")
+        self.assertFalse(gone("workflows/wfnew"), "a recent one stays for resume_run_id")
+        self.assertTrue(gone("shells/bold.log") and gone("shells/bold.code"))
+        self.assertFalse(gone("shells/bnew.log"))
+        self.assertTrue(gone("schema/ses_old.json") and gone("guard/ses_old.json"), "a session record idle a week is deleted")
+        self.assertFalse(gone("guard/ses_failed.json"), "a guard holding a failed verify stays a month")
+        self.assertTrue(gone("guard/ses_failed_long.json"))
+        self.assertFalse(gone("guard/ses_live.json"), "a session with a live job keeps its record")
+        self.assertLessEqual((self.state / "parity.log").stat().st_size, 600 * 1024, "the log keeps its newest half past 1 MB")
+
     def test_a_merged_worktree_is_removed(self):
         repo = self.root / "proj"
         g = lambda *a, cwd=repo: subprocess.run(["git", "-C", str(cwd), *a], check=True, capture_output=True, text=True).stdout

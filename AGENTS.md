@@ -17,6 +17,8 @@ Rules for any assistant working in Atlas. The rest is in [README.md](README.md),
   `git worktree remove <path>`, delete its branch, and remove the parent directory
   (`~/Developer/Atlas-wt`) once it is empty. upkeep also removes merged, clean worktrees idle
   for 24 hours; remove yours at once rather than leave them for it.
+  Delete the scratch files and directories you made (clones, copies, test data, logs) as soon
+  as the work is done with them.
 - **Run `python3 board/test/run.py` and leave it green before merging board code.** Merge only
   when every `sessions/*/agent.json` has `turn_pid` null or absent and the owner is not
   mid-lesson.
