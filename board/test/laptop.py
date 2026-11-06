@@ -20,7 +20,8 @@ anything but the shim.
     runs (a stub here; upkeep/test_upkeep.py runs the real one), atlas-brew is
     linked, and a stray atlas.brew-upgrade is retired.
   - TAILSCALE AND PORT 8778 ARE NEVER ASKED.
-  - THE PULL, scripts/setup.sh and ai-config's fast-forward and install run;
+  - THE PULL, scripts/setup.sh, ai-config's fast-forward and install, and
+    `upkeep.py opencode` (a stub here; board/test/opencode_setup.py runs the real one) run;
     setup.sh bundles the union, builds a mise subject and installs a
     descriptor, and a second run, --coding or as the host, changes nothing.
   - `board pull` FAST-FORWARDS ai-config, relinks it, and names the subjects
@@ -158,7 +159,8 @@ ENV.update(SPEECH_MODEL_FETCH=os.path.join(shims, "model-fetch"),
 write(os.path.join(shims, "brew"), "#!/bin/bash\n" + LOG, EXE)
 write(os.path.join(shims, "mise"), "#!/bin/bash\n" + LOG, EXE)
 # The assistant setup checks for; nothing here runs a turn.
-write(os.path.join(shims, "opencode"), "#!/bin/bash\n" + LOG, EXE)
+write(os.path.join(shims, "opencode"), "#!/bin/bash\n" + LOG
+      + '[ "$1" = --version ] && echo 1.0\nexit 0\n', EXE)
 # setup-mac.sh refuses anything but a Mac; the shim keeps the suite independent of uname.
 write(os.path.join(shims, "uname"), "#!/bin/bash\necho Darwin\n", EXE)
 # rsync: logs its argv (one JSON list a line), maps `host:<path>` to
@@ -236,7 +238,10 @@ try:
             'T_MANUAL="by hand"\nT_UPDATE="true"\nT_VERSION="widget"\nT_CHECK="widget"\n'
             'T_EVERY_DAYS=1\nT_STALE_DAYS=14\n'),
         "board/test/tracked.py": "import sys\nsys.exit(0)\n",
-        "scripts/setup-opencode.sh": 'echo setup-opencode >>"$LAPTOP_CALLS"\n',
+        "upkeep/upkeep.py": ('import os, sys\n'
+                             'with open(os.environ["LAPTOP_CALLS"], "a") as fh:\n'
+                             '    fh.write("upkeep.py " + " ".join(sys.argv[1:]) + "\\n")\n'
+                             'print("changed: 0")\n'),
         "upkeep/setup-mac.sh": ('echo upkeep-setup >>"$LAPTOP_CALLS"\n'
                                 'echo "== what only you can do"\n'
                                 'echo "  nothing: open a new terminal"\n'),
@@ -279,9 +284,10 @@ try:
           and "deleted projects/Paper-Writer" in out, out)
     check("it pulls main", git(laptop, "rev-parse", "HEAD")
           == git(origin, "rev-parse", "main"), out)
-    check("and runs scripts/setup.sh, ai-config's install.sh and setup-opencode.sh",
-          "Brewfile.all rewritten" in out and calls("ai-install") and calls("setup-opencode"),
-          read(CALLS))
+    check("and runs scripts/setup.sh, ai-config's install.sh and upkeep's opencode phase",
+          "Brewfile.all rewritten" in out and calls("ai-install")
+          and calls("upkeep.py") == ["upkeep.py opencode"]
+          and "ok    opencode 1.0" in out, (out, read(CALLS)))
     check("setup.sh bundles the union, builds the mise subject and installs its tool",
           [l for l in calls("brew") if l.startswith("brew bundle install --no-upgrade")]
           and "mise install --locked -- rust" in calls("mise")

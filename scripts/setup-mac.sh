@@ -26,8 +26,9 @@
 #      com.mikeyferguson.upkeep), then the Brewfile and every subject's
 #      environment (scripts/setup.sh), and the board's whisper model
 #      (scripts/speech-model.sh)
-#   4  the assistant: ai-config linked, then scripts/setup-opencode.sh
-#      (opencode, the parity layer, the DeepSeek key, the OpenCode server)
+#   4  the assistant: ai-config linked, then upkeep's opencode phase once
+#      more (opencode, the parity layer, the DeepSeek key) and the OpenCode
+#      server restarted when a file it reads is newer than it
 #   5  tailscale serves the board on the tailnet over HTTPS
 #   6  DeepSeek can take a turn (opencode, the key), the board answers on
 #      8778, and board/test/tracked.py passes
@@ -164,9 +165,13 @@ fi
 
 echo "== 4. the assistant"
 # DeepSeek through opencode is the AI. ai-config links its contract and
-# settings and loads the daily audit. scripts/setup-opencode.sh installs
-# opencode, the parity layer and the key through upkeep, and restarts the
-# OpenCode server when a file it reads changed, step 3's upkeep run included.
+# settings and loads the daily audit. Step 3's upkeep run installed node,
+# opencode, the parity layer and the key; the one thing a person adds is the
+# key, at ~/.config/api-keys/deepseek_key. `upkeep.py opencode` runs that phase
+# once more and prints `changed: N` (files the OpenCode server reads that it
+# changed), `stale: M` (files newer than the running server, such as step 3's)
+# and a `problem:` line for each problem. The server restarts only when N or
+# M is above 0, because a restart ends its running sessions.
 if [ -f ai-config/scripts/install.sh ]; then
   # ai-config is its own repository and Atlas's pull never moves it.
   GIT_TERMINAL_PROMPT=0 git -C ai-config pull -q --ff-only origin main 2>"$LOGS/ai-config-pull.log" \
@@ -178,32 +183,69 @@ if [ -f ai-config/scripts/install.sh ]; then
 else
   warn "no ai-config here; bootstrap clones it, then rerun"
 fi
-# Its exit status is its problem count; 126 and up is the shell's own (not
-# runnable, not found), so one problem.
-if [ ! -f scripts/setup-opencode.sh ]; then
-  warn "scripts/setup-opencode.sh is missing from this clone; git status says why"
+# OpenCode makes this directory on its first start. Made now, the key sync
+# writes OpenCode's copy of the key into it, so the server has it from then.
+mkdir -p -m 700 "$HOME/.local/share/opencode"
+/usr/bin/python3 upkeep/upkeep.py opencode >"$LOGS/opencode.log" 2>&1
+opencode_exit=$?
+changed="$(sed -n 's/^changed: //p' "$LOGS/opencode.log" | tail -1)"
+stale="$(sed -n 's/^stale: //p' "$LOGS/opencode.log" | tail -1)"
+case "$changed" in
+  ''|*[!0-9]*) warn "upkeep.py opencode did not say what changed (exit $opencode_exit); see $LOGS/opencode.log"
+               changed=0 ;;
+esac
+case "$stale" in ''|*[!0-9]*) stale=0 ;; esac
+# A missing DeepSeek key is already one of step 3's owner steps; it counts once.
+key_named=""
+grep -q 'Put the DeepSeek API key' "$LOGS/upkeep.log" 2>/dev/null && key_named=1
+key_missing=""
+opencode_problems=0
+while IFS= read -r line; do
+  case "$line" in
+    "no DeepSeek key"*) key_missing=1; [ -n "$key_named" ] && continue ;;
+  esac
+  warn "$line"
+  opencode_problems=$((opencode_problems + 1))
+done < <(sed -n 's/^problem: //p' "$LOGS/opencode.log")
+if [ "$opencode_problems" -gt 0 ]; then
+  printf '  ----  %s\n' "upkeep's opencode phase: the line(s) above; see $LOGS/opencode.log"
+elif [ -n "$key_missing" ]; then
+  good "opencode and the parity layer ($changed change(s)); the DeepSeek key is step 3's owner step"
 else
-  bash scripts/setup-opencode.sh --no-contract >"$LOGS/opencode.log" 2>&1
-  opencode_problems=$?
-  [ "$opencode_problems" -ge 126 ] && opencode_problems=1
-  sed -n -e 's/^  \(restarted the OpenCode server.*\)/  ok    \1/p' \
-         -e 's/^  \(the OpenCode server agent is not loaded.*\)/  ----  \1/p' "$LOGS/opencode.log"
-  # A missing DeepSeek key is already one of step 3's owner steps.
-  key_twice=""
-  if grep -q '^problem: no DeepSeek key' "$LOGS/opencode.log" \
-     && grep -q 'Put the DeepSeek API key' "$LOGS/upkeep.log"; then
-    key_twice=1
-    opencode_problems=$((opencode_problems - 1))
+  good "opencode, the DeepSeek key and the parity layer ($changed change(s)); see $LOGS/opencode.log"
+fi
+if v="$(opencode --version 2>/dev/null)" && [ -n "$v" ]; then
+  good "opencode $v"
+else
+  warn "opencode does not run (opencode --version); see $LOGS/opencode.log"
+fi
+SERVE="gui/$(id -u)/com.mikeyferguson.opencode-serve"
+serve_answers() { curl -fsS -m 2 -o /dev/null http://127.0.0.1:4096/global/health 2>/dev/null; }
+if [ "$changed" -gt 0 ]; then
+  why="$changed file(s) it reads changed"
+else
+  why="$stale file(s) it reads are newer than it"
+fi
+if ! launchctl print "$SERVE" >/dev/null 2>&1; then
+  if [ "$changed" -gt 0 ] || [ "$stale" -gt 0 ]; then
+    warn "the OpenCode server agent is not loaded, and $why; log out and in, then rerun"
   fi
-  if [ "$opencode_problems" -eq 0 ] && [ -n "$key_twice" ]; then
-    good "OpenCode and the parity layer (scripts/setup-opencode.sh); the DeepSeek key is step 3's owner step"
-  elif [ "$opencode_problems" -eq 0 ]; then
-    good "OpenCode, DeepSeek and the parity layer (scripts/setup-opencode.sh); see $LOGS/opencode.log"
+else
+  if [ "$changed" -eq 0 ] && [ "$stale" -eq 0 ]; then
+    good "the OpenCode server left running: nothing it reads changed"
+  elif launchctl kickstart -k "$SERVE" >/dev/null 2>&1; then
+    good "restarted the OpenCode server: $why"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      serve_answers && break
+      sleep 1
+    done
   else
-    sed -n 's/^problem: /  ----  /p' "$LOGS/opencode.log" \
-      | { if [ -n "$key_twice" ]; then grep -v '^  ----  no DeepSeek key'; else cat; fi; }
-    printf '  ----  %s\n' "scripts/setup-opencode.sh: $opencode_problems problem(s); see $LOGS/opencode.log"
-    problems=$((problems + opencode_problems))
+    warn "could not restart the OpenCode server ($SERVE)"
+  fi
+  if serve_answers; then
+    good "the OpenCode server answers on 127.0.0.1:4096"
+  else
+    warn "the OpenCode server does not answer on 127.0.0.1:4096; see ~/.local/state/opencode/serve.log"
   fi
 fi
 

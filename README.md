@@ -27,7 +27,6 @@ Atlas/
   README.md  LICENSE  NOTICE.md  HANDOFF.md  Brewfile
   Brewfile.taps          the only taps a Brewfile may name, one owner/repo a line
   scripts/setup-mac.sh   sets the Mac up, or brings it up to date: the one command there
-  scripts/setup-opencode.sh  OpenCode, DeepSeek and the parity layer; setup-mac.sh runs it
   scripts/setup.sh       builds every subject's environment; setup-mac.sh runs it
   scripts/tools.sh       installs and updates the subjects' tool descriptors
   scripts/brew-upgrade.py  Atlas's upkeep hook (`atlas-brew`): repairs, toolchain, status
@@ -88,17 +87,14 @@ Mac with no Homebrew it installs Homebrew first, which asks for the password onc
   *Machine upkeep*), then prints the steps only the owner can take: install Xcode, run
   `sudo bash upkeep/root/install.sh` once, and put the DeepSeek key in
   `~/.config/api-keys/deepseek_key`.
-- `scripts/setup-opencode.sh` puts the assistant on a Mac; `setup-mac.sh` runs it in step 4,
-  after `upkeep/setup-mac.sh`, and running it alone redoes only the assistant. It installs
-  Homebrew's Node and the `opencode-ai` package when missing, then hands the rest to upkeep:
-  `upkeep install --repo` (the persistent `opencode-serve` LaunchAgent, `oc` and `ocrun`) and
-  `upkeep opencode` (the doctor, upkeep's DeepSeek key sync, the parity layer in
-  `upkeep/opencode/` and its pinned packages). It restarts the OpenCode server only when a file the
-  server reads changed, in that run or since the server started, so a second run changes and
-  restarts nothing.
-  It clones `Pirate-Hunter-Zoro/ai-config` with `gh` when that is missing and authenticated, and
-  runs its installer for the personal contract. `--dry-run`, `--no-agents` and `--no-contract`
-  narrow it.
+- Step 4 puts the assistant on the Mac. upkeep's run in step 3 already installed Node,
+  `opencode` (the npm global `opencode-ai`), the persistent `opencode-serve` LaunchAgent, `oc`
+  and `ocrun`, the parity layer in `upkeep/opencode/`, and the DeepSeek key wherever it goes.
+  Step 4 runs `upkeep/upkeep.py opencode` once more (the doctor, the key sync, the parity layer
+  and its pinned packages), counts each problem it names, and restarts the OpenCode server only
+  when a file the server reads changed or is newer than the server, so a second run restarts
+  nothing. Then it checks that `opencode` runs and the server answers on port 4096. The one
+  manual step for the assistant is the DeepSeek key in `~/.config/api-keys/deepseek_key`.
 - `scripts/setup.sh` runs `brew bundle --no-upgrade` on the root Brewfile (Atlas's own tools;
   upkeep/Brewfile has the shared ones) joined with every subject's own (`~/.local/state/atlas-setup/Brewfile.all`), never `--cleanup`. It then builds
   each subject's environment from what it holds (`pyproject.toml`, `lean-toolchain`, `go.mod`).
@@ -209,8 +205,8 @@ runs these two, which a second run leaves unchanged:
 
 - `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`) and each settings
   file, and loads the daily audit's LaunchAgent.
-- `scripts/setup-opencode.sh --no-contract` installs opencode when it is missing and the rest
-  of the assistant (see *Setting up the Mac*).
+- `upkeep/upkeep.py opencode` checks opencode, the key and the parity layer, and the OpenCode
+  server restarts when what it reads changed (see *Setting up the Mac*).
 
 `ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
 `node_modules`, the CLI's own `update` otherwise. Nothing schedules it; upkeep keeps opencode.
