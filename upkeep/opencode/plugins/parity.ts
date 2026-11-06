@@ -1631,7 +1631,8 @@ type Raw = { words: string[]; redirs: Redir[]; code: string[]; piped?: Raw };
 // read; assigns: NAME=value words stripped from its front; links: symlinks and hard links the
 // call made, link -> what it names; written: text the call wrote to a file, by path.
 // lister: for a command inside a shell that xargs runs, the command piping into that xargs.
-type Shared = { links: Map<string, { named: string; seq: number }>; written: Map<string, string>; seq: number; aliases?: Map<string, string> };
+type Shared = { links: Map<string, { named: string; seq: number }>; written: Map<string, string>; seq: number; aliases?: Map<string, string>;
+  loops?: Map<string, { dir: string; items: string[] }> };
 type Cmd = {
   words: string[]; redirs: Redir[]; code: string[]; cwd: string; vars: Vars; xargs?: boolean; stdin: string[]; scope?: string[];
   feeder?: { words: string[]; cwd: string; vars: Vars }; opaque?: boolean; assigns: string[]; shared: Shared; seq?: number;
@@ -2082,7 +2083,17 @@ function parseCommands(src: string, cwd: string, depth = 0, vars: Vars = new Map
       const known = prog0 === "read" && names.length === 1 && stdin.length === 1 && !raw.piped ? expandVars(stdin[0], dir, vars) : UNKNOWN;
       for (const n of names) vars.set(n, known);
     }
-    if ((prog0 === "for" || prog0 === "select") && /^[A-Za-z_]\w*$/.test(words[1] ?? "")) vars.set(words[1], UNKNOWN);
+    if ((prog0 === "for" || prog0 === "select") && /^[A-Za-z_]\w*$/.test(words[1] ?? "")) {
+      // Unknown, but a `for` over words the guard can list keeps them, so a read of $var/... is
+      // checked against every value the loop gives it (loopScope). Reassigning the variable
+      // replaces this marker, and with it the list.
+      const items = prog0 === "for" && words[2] === "in" ? loopItems(words.slice(3), dir, vars) : undefined;
+      if (items) {
+        const id = String((shared.loops ??= new Map()).size);
+        shared.loops.set(id, { dir, items });
+        vars.set(words[1], `${UNKNOWN}#loop${id}`);
+      } else vars.set(words[1], UNKNOWN);
+    }
     // An alias this call defines (git config alias.x '...') counts for the commands after it.
     if (basename(words[0] ?? "") === "git") {
       const k = words.findIndex((x) => /^alias\./i.test(x));
@@ -2777,7 +2788,51 @@ function includeGlobs(cmd: Cmd): RegExp[] {
 
 // Where an unresolved word's files can be: the roots of the lister in a whole-word $(...), or
 // the directory written before the first expansion. Undefined when it could be anywhere.
+// The values a `for ... in` list gives its variable, as the shell would: brace forms, then
+// globs matched on disk, each kept as written (relative ones stay relative). Undefined when an
+// item holds anything the guard cannot read, or the list is long.
+function loopItems(list: string[], dir: string, vars: Vars): string[] | undefined {
+  const out: string[] = [];
+  for (const w of list.flatMap((x) => braceExpand(x))) {
+    const p = wordPath(w, dir, vars);
+    if (p === undefined) return undefined;
+    const e = expandVars(w, dir, vars);
+    if (GLOB_CHARS.test(e)) {
+      const hits = expandGlob(p);
+      if (!hits.length) out.push(e);
+      else out.push(...(isAbsolute(e) ? hits : hits.map((h) => relativeTo(dir, h))));
+    } else out.push(e);
+    if (out.length > 200) return undefined;
+  }
+  return out;
+}
+const relativeTo = (dir: string, p: string) => (p.startsWith(dir + "/") ? p.slice(dir.length + 1) : p);
+
+// A word that opens with a loop variable ($d/session.json): the paths it takes over the loop's
+// values. Undefined when it is no loop variable, the word holds more than it can fill in, or a
+// relative value would resolve against a directory the loop did not list it in.
+function loopScope(word: string, cmd: Cmd): Scope | undefined {
+  const m = word.match(/^\$(?:\{([A-Za-z_]\w*)\}|([A-Za-z_]\w*))(.*)$/s);
+  if (!m) return undefined;
+  const v = cmd.vars.get(m[1] ?? m[2]) ?? "";
+  const id = v.startsWith(UNKNOWN + "#loop") ? v.slice(UNKNOWN.length + 5) : undefined;
+  const loop = id !== undefined ? cmd.shared.loops?.get(id) : undefined;
+  if (!loop) return undefined;
+  const rest = m[3];
+  if (/[$`]/.test(rest)) return undefined;
+  const roots: string[] = [];
+  for (const item of loop.items) {
+    if (!isAbsolute(item) && cmd.cwd !== loop.dir) return undefined;
+    const p = wordPath(item + rest, isAbsolute(item) ? "/" : loop.dir);
+    if (p === undefined) return undefined;
+    roots.push(...(GLOB_CHARS.test(p) ? (expandGlob(p).length ? expandGlob(p) : [p]) : [p]));
+  }
+  return { roots, names: [] };
+}
+
 function scopeOfWord(word: string, cmd: Cmd): Scope | undefined {
+  const looped = loopScope(word, cmd);
+  if (looped) return looped;
   const whole = word.match(/^\$\(([\s\S]*)\)$|^`([\s\S]*)`$/);
   if (whole) {
     const inner = tokenize(whole[1] ?? whole[2]);

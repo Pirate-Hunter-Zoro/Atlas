@@ -610,6 +610,36 @@ process.exit(0);
         ]
         self.assert_guard(refused, allowed, contains="key_sync")
 
+    def test_loop_variables_are_checked_over_their_values(self):
+        h = self.home
+        (h / ".local" / "share" / "opencode").mkdir(parents=True)
+        (h / ".local" / "share" / "opencode" / "auth.json").write_text("{}")
+        (h / ".config" / "api-keys").mkdir(parents=True)
+        (h / ".config" / "api-keys" / "deepseek_key").write_text("k")
+        work = self.root / "work"
+        for sid in ("s1", "s2"):
+            (work / "sessions" / sid).mkdir(parents=True)
+            (work / "sessions" / sid / "session.json").write_text("{}")
+        (work / "sessions" / "s3").mkdir()
+        (work / "sessions" / "s3" / "keys.env").write_text("K=1")
+        w = str(work)
+        refused = self.bash(
+            "for d in ~/.local/share/opencode; do cat $d/auth.json; done",
+            "for d in ~/.config/api-keys; do cat \"$d/deepseek_key\"; done",
+            "for d in sessions/*; do cat $d/*; done",
+            "for f in sessions/*/*; do head \"$f\"; done",
+            "for d in sessions/s1; do d=$(cat list); cat $d/session.json; done",
+            "for d in sessions/s1; do cd ~/.local/share/opencode; cat $d/../../auth.json; done",
+            "for d in $(cat list); do cat $d/session.json; done",
+            workdir=w)
+        allowed = self.bash(
+            "for d in sessions/s1 sessions/s2; do cat $d/session.json; done",
+            "for f in sessions/*/session.json; do head -5 \"$f\"; done",
+            "for d in sessions/*/; do python3 -c 'print(1)'; cat ${d}session.json; done",
+            "for s in s1 s2; do echo $s; done",
+            workdir=w)
+        self.assert_guard(refused, allowed)
+
     def test_guard_fails_closed(self):
         out = self.run_node("closed", r"""
 const P = await load(process.cwd() + "/work");
