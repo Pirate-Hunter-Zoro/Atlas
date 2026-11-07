@@ -68,7 +68,7 @@ case "${1:-}" in
   *) echo "unknown option: $1 (the one option is --coding)"; exit 1 ;;
 esac
 CODING=0
-[ "$(tr -d '[:space:]' <"$ROLE_FILE" 2>/dev/null)" = coding ] && CODING=1
+[ "$(tr -d '[:space:]' 2>/dev/null <"$ROLE_FILE")" = coding ] && CODING=1
 [ "$CODING" = 1 ] && echo "a coding checkout ($ROLE_FILE): no board, no board LaunchAgent, no tailscale serve"
 
 echo "== 1. main"

@@ -124,7 +124,7 @@ esac
 # from before is booted out: two boards would both pull and answer the iPad.
 ROLE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/role"
 CODING=0
-[ "$(tr -d '[:space:]' <"$ROLE_FILE" 2>/dev/null)" = coding ] && CODING=1
+[ "$(tr -d '[:space:]' 2>/dev/null <"$ROLE_FILE")" = coding ] && CODING=1
 if [ "$CODING" = 1 ]; then
   if command -v launchctl >/dev/null 2>&1; then
     for stray in tutor-board tutor-board.tutor-pull tutor-board.tutor-watch; do
