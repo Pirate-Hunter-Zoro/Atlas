@@ -5,20 +5,25 @@
 - The book is A Course in Galois Theory; chapters.tsv lists its chapters. Each is chapters/chNN-slug/ with notes/, homework/ and handwritten/; reading/ (the excerpt) and textbook/ stay out of git.
 - latex/coursemacros.sty is the shared preamble.
 - Worksheets live in homework/<sheet>/ with the typeset .tex and handwritten/ beside it.
+- Write-ups live in the actual homework document: a chapter's homework/ set or a worksheet under homework/. Bind the sitting with `board writeup use <set>` before the first add. A docs/<session>/writeup.tex is never the destination.
 
 ## Now
 
-Session 20261103-163801, a lecture with no chapter label, works Part I of the owner's uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22, proving the fundamental theorem from scratch. Problem 20 is pinned in `docs/writeup-20261103-163801/writeup.tex` and on their screen.
+Session 20261103-163801, a lecture with no chapter label, works Part I of the owner's uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22, proving the fundamental theorem from scratch.
 
-Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and do not ask them to name the map. t0008 and t0009 demanded the write-up in the homework document, the actual write-up, not more teaching; card 0020 reports it filed and the PDF clean. The product check is dropped until they reopen it. Mode stays teach.
+The write-up lives in the actual homework document, `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, under Problem 20. This turn bound the sitting to ch07, moved Problem 20 and their part-(a) argument out of `docs/writeup-20261103-163801/writeup.tex`, filed their page as `handwritten/ch07-20.png`, removed the `docs/` file, and rebuilt the PDF clean. Card 0024 reports it and re-poses 20(b).
 
-The SOLUTION 20 region is their part-(a) work: setup, injectivity, image in $R$, well-definedness, the formula $\psi(u)=\phi(g)(r)$, the surjectivity chain, the closing bijection claim. This turn I edited only the statement's leaked Markdown bold.
+20(a) is closed. Their page proved the inequality half and the equality clause: since $\gamma$ is a bijection, $|\operatorname{Emb}_\phi(F(\alpha),L)|=|R|$ always, so equality holds exactly when $|R|=\deg m$, i.e. $\phi(m)$ has $\deg m$ distinct roots in $L$. The SOLUTION 20 region holds the full argument.
 
-Two gaps, stated on cards 0019 and 0020, not patched. The surjectivity chain uses $\psi(\alpha)=r$ in its last step; $g(x)=x$ gives it directly and is theirs. Nothing shows $\psi$ respects products or sums, so membership in $\operatorname{Emb}_\phi(F(\alpha),L)$ is unearned.
+Card 0024 poses 20(b): $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$ by induction on $[K:F]$, and asks them to state the induction hypothesis so it applies over $F(\alpha)$ after choosing $\alpha\in K\setminus F$. The obstacle is that the hypothesis must cover an arbitrary base field; do not hand them the restriction-map argument until they show that.
 
-When they reopen: the product check (card 0018's four lines), then the sum, then the non-circular surjectivity finish. That closes the homomorphism and the bijection; then $|R|\le\deg m$ and $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$ with equality iff $|R|=\deg m$. Then 20(b)-(e), 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+After 20(b): 20(c), 20(d), 20(e); then 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+
+Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and do not ask them to name the map. Their latest turn demands every write-up go in the actual homework document as we go, never a `docs/` write-up; card 0024 records it. Mode stays teach.
 
 ## Open decisions
+
+The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound sitting, so bind each sitting to its homework set before the first add. A board-code change to make the fallback create or prefer a homework set waits for a worktree and a pause in the sitting.
 
 ## Done recently
 

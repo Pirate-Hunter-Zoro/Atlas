@@ -22,6 +22,10 @@ Rules for any assistant working in Atlas. The rest is in [README.md](README.md),
 - **Run `python3 board/test/run.py` and leave it green before merging board code.** Merge only
   when every `sessions/*/agent.json` has `turn_pid` null or absent and the owner is not
   mid-lesson.
+- **Write up in the actual homework document.** An agreed answer is typeset into the sitting's
+  real homework document, its chapter set or worksheet, in the turn it is agreed. Bind the
+  sitting with `board writeup use <set>` first. Never leave the write-up in a
+  `docs/<session>/writeup.tex` or a summary card.
 - **Never read a credential,** not even to check that it exists:
   `~/.local/share/opencode/auth.json`, `keys.env` and any `*.env`, `~/.config/api-keys/`,
   `rclone.conf` and `~/.config/rclone`, `~/.config/media-syncer`, `backup-private/`, SSH keys,

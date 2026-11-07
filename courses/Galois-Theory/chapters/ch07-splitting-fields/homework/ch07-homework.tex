@@ -11,7 +11,7 @@
 \documentclass[11pt]{article}
 \usepackage{coursemacros}
 
-\title{Chapter 07 Homework --- The Galois correspondence and cyclotomic fields (Problems 13--19)}
+\title{Chapter 07 Homework --- The Galois correspondence and cyclotomic fields (Problems 13--20)}
 \author{Mikey Ferguson}
 \date{\today}
 
@@ -585,5 +585,71 @@ Each factor of $i^{k}\prod_{p\mid m}\sqrt p$ lies in $\QQ(\zeta_N)$, and $\QQ(\z
 $\sqrt3=\dfrac{\zeta_{12}^{2}}{\zeta_{12}^{3}}+\dfrac{\zeta_{12}^{4}}{\zeta_{12}^{3}}=\zeta_{12}^{-1}+\zeta_{12}=\zeta_{12}^{11}+\zeta_{12}$, which is $x^{11}+x$ at $x=\zeta_{12}$, and that equals $\sqrt3$.
 \end{proof}
 % ===== END SOLUTION 19 =====
+
+\begin{problem}{20}
+Let $K/F$ be a finite extension and $L$ any field. For a field homomorphism $\phi\colon F\to L$, write $\operatorname{Emb}_\phi(K,L)$ for the set of homomorphisms $\psi\colon K\to L$ with $\psi|_F=\phi$, the extensions of $\phi$ to $K$. For $h\in F[x]$, write $\phi(h)$ for the polynomial obtained by applying $\phi$ to the coefficients.
+
+\textbf{(a)} Let $\alpha\in K$ have minimal polynomial $m$ over $F$. Show that $\psi\mapsto\psi(\alpha)$ is a bijection from $\operatorname{Emb}_\phi(F(\alpha),L)$ to the set of roots of $\phi(m)$ in $L$. Conclude that $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$, with equality if and only if $\phi(m)$ has $\deg m$ distinct roots in $L$.
+
+\textbf{(b)} Show by induction on $[K:F]$ that $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$.
+
+\textbf{(c)} Deduce that $|\operatorname{Gal}(K/F)|\le[K:F]$.
+
+\textbf{(d)} Now suppose $K$ is the splitting field over $F$ of some $f\in F[x]$, and that $\phi(f)$ splits into linear factors in $L$. Show that $|\operatorname{Emb}_\phi(K,L)|=[K:F]$ exactly.
+
+\textbf{(e)} Conclude that a Galois extension satisfies $|\operatorname{Gal}(K/F)|=[K:F]$.
+\end{problem}
+% ===== SOLUTION 20 =====
+\emph{The map.} Let $K/F$ be a finite extension, $L$ any field, and $\phi\colon F\to L$ a field homomorphism. For $h\in F[x]$, $\phi(h)$ is the polynomial obtained by applying $\phi$ to the coefficients. Let $\alpha\in K$ have minimal polynomial $m\in F[x]$. We show that
+\[
+\gamma\colon\operatorname{Emb}_\phi(F(\alpha),L)\longrightarrow\{r\in L\mid\phi(m)(r)=0\}=R,\qquad \gamma(\psi)=\psi(\alpha),
+\]
+is a bijection.
+
+\emph{Injectivity.} Let $\psi_1,\psi_2\in\operatorname{Emb}_\phi(F(\alpha),L)$ and $\psi_1(\alpha)=\psi_2(\alpha)$. We show $\psi_1=\psi_2$. By definition $\psi_1,\psi_2$ match $\phi$ over all of $F$. Since they agree on $\alpha$, they match each other over all of $F(\alpha)$, so $\psi_1=\psi_2$. Injection is done. In detail, $\psi_1(h(\alpha))=\psi_2(h(\alpha))$ is true since
+\[
+\psi_1(h(\alpha))=h(\psi_1(\alpha))=h(\psi_2(\alpha))=\psi_2(h(\alpha)),
+\]
+because $\psi_1,\psi_2$ are homomorphisms that agree on $F$, and $h\in F[x]$.
+
+\emph{The image lies in $R$.} Write $m=\sum_i c_i x^i$ with $c_i\in F$. Since $m(\alpha)=0$, and $\psi$ is a homomorphism that agrees with $\phi$ on each $c_i\in F$,
+\[
+\psi(m(\alpha))=\psi(0)\quad\Longrightarrow\quad\phi(m)(\psi(\alpha))=0,
+\]
+so $\gamma(\psi)=\psi(\alpha)\in R$ since it is a root of $\phi(m)$.
+
+\emph{Surjectivity.} Let $\phi(m)(r)=0$. We show there is $\psi$ with $\psi(\alpha)=r$. Since $\alpha$ is algebraic over $F$, each $u\in F(\alpha)$ is $g(\alpha)$ for some $g\in F[x]$. Suppose $g(\alpha)=h(\alpha)$; then $(g-h)(\alpha)=0$, so $g-h=mq$ since $m$ is the minimal polynomial of $\alpha$. Then
+\[
+\phi(g)(r)-\phi(h)(r)=\phi(m)(r)\phi(q)=0,
+\]
+so that $\psi(u)=\phi(g)(r)$ is independent of the representation $u=g(\alpha)$.
+
+\emph{The defining formula.} For $u=\sum_i c_i\alpha^i$ with $c_i\in F$,
+\[
+\psi(u)=\psi\Big(\sum_i c_i\alpha^i\Big)=\sum_i\psi(c_i)\psi(\alpha^i)=\sum_i\phi(c_i)r^i.
+\]
+
+\emph{Agreement with $\phi$.} If $x\in F$, then $x=\sum_i c_i$ with every $c_i\in F$ except the constant one, so $\psi(x)=\phi(x)$.
+
+\emph{$\psi$ is a ring homomorphism.} Additivity follows from the summation formula. Also $\psi(1)=\phi(1)=1$ and $\psi(0)=\phi(0)=0$, since $\phi$ is a homomorphism. For multiplicativity, write $a=\sum_i a_i\alpha^i$ and $b=\sum_j b_j\alpha^j$ with $a_i,b_j\in F$. Then $ab=\sum_i\sum_j a_ib_j\alpha^{i+j}$, and
+\begin{align*}
+\psi(ab)&=\psi\Big(\sum_i\sum_j a_ib_j\alpha^{i+j}\Big)
+=\sum_i\sum_j\phi(a_i)\phi(b_j)\psi(\alpha^{i+j})\\
+&=\sum_i\sum_j\phi(a_i)\phi(b_j)r^{i+j}
+=\Big(\sum_i\phi(a_i)r^i\Big)\Big(\sum_j\phi(b_j)r^j\Big)
+=\psi(a)\psi(b).
+\end{align*}
+
+\emph{$\psi(\alpha)=r$.} Take the representation $\alpha=1\cdot\alpha$, with $c_1=1$ and all other $c_i=0$. Then $\psi(\alpha)=\phi(1)r=r$.
+
+\emph{Conclusion.} Hence $\gamma(\psi)=\psi(\alpha)=r$, so $\gamma$ is surjective, and together with injectivity $\gamma$ is a bijection.
+
+\emph{The inequality.} Because $\gamma$ is a bijection, $|\operatorname{Emb}_\phi(F(\alpha),L)|=|R|$, where $R$ is the set of roots of $\phi(m)$ in $L$. By definition $[F(\alpha):F]=\deg m$. A nonzero polynomial of degree $\deg m$ has at most $\deg m$ roots, so $|R|\le\deg m$. Hence
+\[
+|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F].
+\]
+
+\emph{Equality.} Since $|\operatorname{Emb}_\phi(F(\alpha),L)|=|R|$ always, equality $|\operatorname{Emb}_\phi(F(\alpha),L)|=\deg m$ holds exactly when $|R|=\deg m$; that is, exactly when $\phi(m)$ has $\deg m$ distinct roots in $L$.
+% ===== END SOLUTION 20 =====
 
 \end{document}
