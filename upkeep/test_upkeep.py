@@ -94,6 +94,10 @@ elif name == "npm":
         out(C.get("allow_scripts", "null") + "\n")
     elif args[:2] == ["install", "-g"] and C.get("install_fixes"):
         opencode_works()
+    elif args[:2] == ["uninstall", "-g"]:
+        link = os.path.join(os.path.dirname(sys.argv[0]), "opencode")
+        if any(os.sep + n + os.sep in os.path.realpath(link) for n in args[2:]):
+            os.remove(link)
 elif name == "node":
     if C.get("postinstall_fixes"):
         opencode_works()
@@ -1168,8 +1172,9 @@ class Doctor(Case):
         b.upkeep("doctor")
         self.assertIn("opencode binary broken and not running; reinstalling (exit 3: "
                       "no output)", b.log())
-        self.assertEqual(b.argv("npm")[-4:], [
-            "config set ignore-scripts false", "uninstall -g opencode-ai",
+        self.assertEqual(b.argv("npm")[-5:], [
+            "config set ignore-scripts false", "uninstall -g @opencode/cli",
+            "uninstall -g opencode-ai",
             "cache clean --force",
             "install -g opencode-ai --foreground-scripts --allow-scripts=opencode-ai"])
         self.assertEqual(json.loads(b.read(os.path.join(b.state_dir, "doctor.json")))
@@ -1182,6 +1187,57 @@ class Doctor(Case):
         b.upkeep("doctor")
         self.assertEqual(b.calls("npm"), [])
         self.assertEqual(b.calls("node"), [])
+
+    def test_running_opencode_broken_past_the_grace_is_repaired(self):
+        b = self.b
+        self.placeholder()
+        mark = os.path.join(b.state_dir, "opencode-broken")
+        b.write(mark, "then\n")
+        old = time.time() - U.BROKEN_GRACE - 5
+        os.utime(mark, (old, old))
+        b.scenario({"ps": ["/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode"],
+                    "postinstall_fixes": True})
+        b.upkeep("doctor")
+        self.assertIn("opencode binary broken while an opencode runs, for 300 s or more; "
+                      "repairing with its postinstall", b.log())
+        self.assertEqual(b.argv("node"), [os.path.join(self.pkg, "postinstall.mjs")])
+        self.assertFalse(os.path.exists(mark), "a working binary clears the clock")
+
+    def test_running_opencode_starts_the_clock(self):
+        b = self.b
+        self.placeholder()
+        b.scenario({"ps": ["/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode"]})
+        b.upkeep("doctor")
+        self.assertTrue(os.path.exists(os.path.join(b.state_dir, "opencode-broken")))
+        self.assertEqual(b.calls("node"), [])
+
+    def test_setup_repairs_at_once_while_opencode_runs(self):
+        b = self.b
+        self.placeholder()
+        b.scenario({"ps": ["/opt/homebrew/lib/node_modules/opencode-ai/bin/opencode"],
+                    "postinstall_fixes": True})
+        b.upkeep("opencode")
+        self.assertIn("opencode binary broken while an opencode runs; repairing with its "
+                      "postinstall", b.log())
+        self.assertEqual(b.argv("node"), [os.path.join(self.pkg, "postinstall.mjs")])
+
+    def test_opencode2_swapped_in_is_reinstalled_as_opencode1(self):
+        b = self.b
+        cli = os.path.join(b.prefix, "lib", "node_modules", "@opencode", "cli", "bin",
+                           "opencode.exe")
+        b.write(cli, "echo '@opencode/cli: postinstall script was not run'\n", 0o755)
+        shutil.rmtree(self.pkg)
+        os.remove(os.path.join(b.bin, "opencode")) if os.path.lexists(
+            os.path.join(b.bin, "opencode")) else None
+        os.symlink(cli, os.path.join(b.bin, "opencode"))
+        b.scenario({"install_fixes": True})
+        b.upkeep("doctor")
+        self.assertIn("opencode binary broken and not running; reinstalling (opencode links "
+                      "into @opencode/cli, not opencode-ai)", b.log())
+        self.assertIn("uninstall -g @opencode/cli", b.argv("npm"))
+        self.assertEqual(b.read(os.path.join(b.bin, "opencode")), "#!/bin/sh\necho 1.19.5\n")
+        self.assertEqual(json.loads(b.read(os.path.join(b.state_dir, "doctor.json")))
+                         ["problems"], [])
 
     def test_upgrade_lock_holds_the_doctor(self):
         b = self.b
@@ -1209,15 +1265,18 @@ class Doctor(Case):
         self.assertEqual(data["model"], "deepseek/deepseek-flash")
         self.assertEqual(data["permission"], "allow")
         self.assertEqual(data["$schema"], U.OPENCODE_SCHEMA)
+        self.assertIs(data["autoupdate"], False, "OpenCode 1's notice offers OpenCode 2")
 
     def test_permission_object_kept(self):
         b = self.b
         b.write(os.path.join(b.bin, "opencode"), "#!/bin/sh\necho 1\n", 0o755)
-        body = ('{"$schema": "x", "permission": {"*": "allow", "doom_loop": "allow"}}\n')
+        body = ('{"$schema": "x", "autoupdate": false, '
+                '"permission": {"*": "allow", "doom_loop": "allow"}}\n')
         b.write(self.cfg, body)
         b.upkeep("doctor")
         self.assertEqual(b.read(self.cfg), body)
-        b.write(self.cfg, '{"$schema": "x", "permission": {"*": "ask", "bash": "allow"}}\n')
+        b.write(self.cfg, '{"$schema": "x", "autoupdate": false, '
+                '"permission": {"*": "ask", "bash": "allow"}}\n')
         b.upkeep("doctor")
         self.assertEqual(U.jsonc_load(b.read(self.cfg))["permission"],
                          {"*": "allow", "bash": "allow"})

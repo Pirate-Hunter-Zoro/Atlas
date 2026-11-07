@@ -68,6 +68,12 @@ T_CLEANUP = 1800
 
 NPM_PACKAGE = "opencode-ai"
 STUB_MARK = "postinstall script was not run"
+# OpenCode 2's package. OpenCode 1's upgrade prompt swaps it in for opencode-ai, and
+# npm's allow-scripts leaves it npm's placeholder. These Macs stay on OpenCode 1.
+NPM_SUCCESSORS = ("@opencode/cli",)
+# While an opencode runs, a broken binary is repaired only once it has stayed
+# broken this long, so the doctor never races an upgrade somebody is running.
+BROKEN_GRACE = 300
 CODER_TEMPLATE = ("#!/bin/bash\n"
                   "# 'coder' == opencode, with permissions auto-approved (--auto).\n"
                   "exec opencode --auto \"$@\"\n")
@@ -86,7 +92,7 @@ def configure(env=None):
     """Every path, from HOME and the overrides. Called at import and by tests."""
     global HOME, SHARE, CONFIG_DIR, STATE_DIR, STATE, DOCTOR_STATE, LOG, LOCK
     global DOCTOR_LOCK, OFF_FILE, REPOS, LINK, AGENTS_DIR, APPS, ROOT_STATUS
-    global ZPROFILE, SDK
+    global ZPROFILE, SDK, BROKEN_MARK
     env = os.environ if env is None else env
     HOME = env.get("HOME") or os.path.expanduser("~")
     SHARE = env.get("UPKEEP_HOME") or os.path.join(HOME, ".local", "share", "upkeep")
@@ -98,6 +104,7 @@ def configure(env=None):
     LOG = os.path.join(STATE_DIR, "upkeep.log")
     LOCK = os.path.join(STATE_DIR, "upkeep.lock")
     DOCTOR_LOCK = os.path.join(STATE_DIR, "doctor.lock")
+    BROKEN_MARK = os.path.join(STATE_DIR, "opencode-broken")
     OFF_FILE = os.path.join(CONFIG_DIR, "off")
     REPOS = os.path.join(CONFIG_DIR, "repos.json")
     LINK = os.path.join(HOME, ".local", "bin", "upkeep")
@@ -1304,11 +1311,25 @@ def is_placeholder():
         return False
 
 
+def foreign_owner():
+    """The global npm package, other than opencode-ai, that `opencode` links
+    into (OpenCode 2's, after its upgrade prompt), or ''."""
+    real = os.path.realpath(opencode_bin())
+    marker = os.sep + "node_modules" + os.sep
+    if marker not in real or real.startswith(opencode_pkg() + os.sep):
+        return ""
+    parts = real.split(marker, 1)[1].split(os.sep)
+    return "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
+
+
 def binary_state():
-    """(works, why not)."""
+    """(works, why not). OpenCode 2 counts as broken: these Macs run 1."""
     exe = opencode_bin()
     if not os.path.exists(exe):
         return False, "no binary"
+    owner = foreign_owner()
+    if owner:
+        return False, "opencode links into %s, not %s" % (owner, NPM_PACKAGE)
     code, out, err = run([exe, "--version"], 30)
     if code == 0 and out.strip():
         return True, ""
@@ -1329,9 +1350,28 @@ def run_postinstall():
     return code == 0
 
 
+def broken_for():
+    """Seconds the binary has been seen broken while an opencode ran. The
+    first sighting starts the clock in BROKEN_MARK."""
+    try:
+        return time.time() - os.stat(BROKEN_MARK).st_mtime
+    except OSError:
+        if not DRY:
+            write_text(BROKEN_MARK, stamp() + "\n")
+        return 0
+
+
+def clear_broken():
+    try:
+        os.remove(BROKEN_MARK)
+    except OSError:
+        pass
+
+
 def reinstall():
     npm = npm_path()
     for args in (["config", "set", "ignore-scripts", "false"],
+                 ["uninstall", "-g"] + list(NPM_SUCCESSORS),
                  ["uninstall", "-g", NPM_PACKAGE],
                  ["cache", "clean", "--force"],
                  ["install", "-g", NPM_PACKAGE, "--foreground-scripts",
@@ -1436,6 +1476,9 @@ def ensure_config():
     new = text
     if not data.get("$schema"):
         new = jsonc_set(new, "$schema", OPENCODE_SCHEMA)
+    # OpenCode 1's update notice offers OpenCode 2, which these Macs do not run.
+    if data.get("autoupdate") is not False:
+        new = jsonc_set(new, "autoupdate", False)
     perm = data.get("permission")
     if not permission_ok(perm):
         if isinstance(perm, dict):
@@ -1449,7 +1492,7 @@ def ensure_config():
             would_write(path)
         else:
             write_text(path, new)
-            log("  repaired opencode.jsonc (permission allows)")
+            log("  repaired opencode.jsonc (permission allows, no update check)")
     return []
 
 
@@ -1464,32 +1507,44 @@ def upgrade_holds():
 
 def doctor_pass(in_run=False):
     """The doctor's checks and repairs; its problems, as lines. Outside a run
-    it leaves everything while an upgrade moves node and npm, and the binary
-    alone while opencode runs."""
+    it leaves everything while an upgrade moves node and npm, and while an
+    opencode runs a broken binary waits BROKEN_GRACE before its repair. A run
+    or a repo's setup repairs at once."""
     if not in_run and upgrade_holds():
         return None
     problems = []
-    if not opencode_running():
-        if not npm_path():
-            problems.append("no npm, so opencode cannot be installed (brew install node)")
-        else:
+    if not npm_path():
+        problems.append("no npm, so opencode cannot be installed (brew install node)")
+    else:
+        running = opencode_running()
+        if not running:
             ensure_npm_allow_scripts()
-            ok, why = binary_state()
-            if not ok and DRY:
+        ok, why = binary_state()
+        if ok:
+            clear_broken()
+        elif in_run or not running or broken_for() >= BROKEN_GRACE:
+            state = "broken and not running"
+            if running:
+                ensure_npm_allow_scripts()
+                state = ("broken while an opencode runs" if in_run else
+                         "broken while an opencode runs, for %d s or more" % BROKEN_GRACE)
+            if DRY:
                 would_write(os.path.realpath(opencode_bin()))
-            if not ok and STUB_MARK in why:
-                log("opencode binary broken and not running; repairing with its "
-                    "postinstall (%s)" % why)
+            if STUB_MARK in why:
+                log("opencode binary %s; repairing with its postinstall (%s)"
+                    % (state, why))
                 if run_postinstall():
                     ok, why = binary_state()
             if not ok:
-                log("opencode binary broken and not running; reinstalling (%s)" % why)
+                log("opencode binary %s; reinstalling (%s)" % (state, why))
                 reinstall()
                 ok, why = binary_state()
                 if not ok:
                     log("  ! still broken after reinstall (%s); will retry next pass"
                         % why)
                     problems.append("opencode is broken after a reinstall (%s)" % why)
+            if ok:
+                clear_broken()
     ensure_coder()
     remove_stale_aliases()
     problems += ensure_config()

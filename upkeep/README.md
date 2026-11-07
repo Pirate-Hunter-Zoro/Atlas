@@ -78,7 +78,14 @@ Each failure is recorded and the run goes on.
   at least 40%, formulae.brew.sh reachable. A refused tick re-checks recorded
   problems, report only, at most every 50 min.
 - **Busy**: a running brew or legacy upgrader skips the tick. The doctor does nothing
-  while a run holds `upkeep.lock`, and leaves the binary alone while opencode runs.
+  while a run holds `upkeep.lock`. While opencode runs, its one-minute tick repairs a
+  broken binary only after 5 minutes broken (`opencode-broken` in the state directory
+  starts the clock), so it never races an upgrade somebody is running. A run or a
+  repo's setup repairs at once.
+- **OpenCode 1**: these Macs run `opencode-ai`, not OpenCode 2's `@opencode/cli`.
+  OpenCode 1's update notice offers 2, so `opencode.jsonc` carries `"autoupdate": false`.
+  An `opencode` linked into `@opencode/cli` counts as broken: the doctor uninstalls it
+  and reinstalls `opencode-ai`.
 - **JSONC**: `opencode.jsonc` and VS Code's `settings.json` are edited key by key. A
   file that does not parse is named as a problem and left byte for byte.
 - **DeepSeek key**: `DEEPSEEK_API_KEY`, else `~/.config/api-keys/deepseek_key`, else
