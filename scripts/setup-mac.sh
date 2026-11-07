@@ -24,8 +24,8 @@
 #   3  the machine's upkeep (upkeep/setup-mac.sh: brew, the shared Brewfile,
 #      opencode, Android, Flutter, fonts, editors, kept current hourly by
 #      com.mikeyferguson.upkeep), then the Brewfile and every subject's
-#      environment (scripts/setup.sh), and the board's whisper model
-#      (scripts/speech-model.sh)
+#      environment (scripts/setup.sh), the board's whisper model
+#      (scripts/speech-model.sh), and Comic Mono, Terminal's font
 #   4  the assistant: ai-config linked, then upkeep's opencode phase once
 #      more (opencode, the parity layer, the DeepSeek key) and the OpenCode
 #      server restarted when a file it reads is newer than it
@@ -161,6 +161,19 @@ if [ "$CODING" = 1 ]; then
 else
   bash scripts/speech-model.sh 2>&1 | sed 's/^/  /'
   [ "${PIPESTATUS[0]}" -eq 0 ] || warn "the whisper model: the line above says why"
+fi
+# Terminal's profile names Comic Mono. upkeep's Brewfile carries the cask, but
+# without the font Terminal silently falls back to its own, so it is checked here.
+comic=""
+for f in "$HOME"/Library/Fonts/ComicMono*.ttf /Library/Fonts/ComicMono*.ttf; do
+  [ -f "$f" ] && comic=1
+done
+if [ -n "$comic" ]; then
+  good "Comic Mono, Terminal's font, is installed"
+elif brew install --cask font-comic-mono >"$LOGS/font.log" 2>&1; then
+  good "installed Comic Mono, Terminal's font; quit and reopen Terminal"
+else
+  warn "brew install --cask font-comic-mono failed; see $LOGS/font.log"
 fi
 
 echo "== 4. the assistant"
