@@ -627,6 +627,7 @@ class Install(Case):
         zp = b.read(os.path.join(b.home, ".zprofile"))
         self.assertIn(U.MANAGED_BEGIN, zp)
         self.assertIn('export ANDROID_HOME="$HOME/Library/Android/sdk"', zp)
+        self.assertIn('export PATH="$HOME/bin:$PATH"', zp)
         self.assertIn("opencode/shell.zsh", zp)
 
     def test_second_install_changes_nothing(self):

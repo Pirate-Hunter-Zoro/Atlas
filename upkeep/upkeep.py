@@ -796,6 +796,7 @@ def shell_block():
         'export ANDROID_HOME="$HOME/Library/Android/sdk"',
         'export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:'
         '$ANDROID_HOME/emulator:$PATH"',
+        'export PATH="$HOME/bin:$PATH"',
         '[ -f "%s" ] && source "%s"' % (upkeep_sh.replace(HOME, "$HOME", 1),
                                         upkeep_sh.replace(HOME, "$HOME", 1)),
         MANAGED_END]) + "\n"
