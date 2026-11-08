@@ -979,15 +979,24 @@ def phase(r, name, fn, *args):
 
 
 def outdated(args=()):
+    """brew's outdated JSON. A query that names formulae or casks exits 1
+    when any of them is outdated -- Homebrew sets its failure flag for named
+    arguments -- so a parseable answer is the answer, whatever the exit code."""
     code, out, err = brew(["outdated", "--json=v2"] + list(args), T_OUTDATED)
-    if code != 0:
-        return [], [], "exit %d: %s" % (code, last_line(err, out))
     try:
         data = json.loads(out)
-        return ([f for f in data.get("formulae") or [] if f.get("name")],
-                [c for c in data.get("casks") or [] if c.get("name")], None)
     except (ValueError, AttributeError) as exc:
+        if code != 0:
+            return [], [], "exit %d: %s" % (code, last_line(err, out))
         return [], [], "unparseable: %s" % exc
+    if not isinstance(data, dict):
+        return [], [], "unparseable: not an object"
+    formulae = data.get("formulae") or []
+    casks = data.get("casks") or []
+    if not isinstance(formulae, list) or not isinstance(casks, list):
+        return [], [], "unparseable: formulae or casks is not a list"
+    return ([f for f in formulae if isinstance(f, dict) and f.get("name")],
+            [c for c in casks if isinstance(c, dict) and c.get("name")], None)
 
 
 def versions(rec):

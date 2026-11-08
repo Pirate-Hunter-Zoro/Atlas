@@ -760,6 +760,30 @@ class FullRun(Case):
                          ["protected-casks", "dry=", "brewfiles", "dry=", "after-brew",
                           "dry=", "toolchain", "dry=", "status", "dry="])
 
+    def test_named_greedy_outdated_exit_one_is_still_the_answer(self):
+        b = self.b
+        cmd = "brew outdated --json=v2 --cask --greedy-auto-updates"
+        answer = json.dumps({"formulae": [], "casks": [
+            {"name": "flutter", "installed_versions": ["3.47.8"],
+             "current_version": "3.47.9"}]})
+        full_scenario(b, exit={cmd: 1}, say={cmd: answer})
+        b.clear_calls()
+        code, out = b.upkeep("run", "--force")
+        self.assertEqual(code, 0, out)
+        self.assertIn("upgrade --cask --greedy-auto-updates flutter", b.argv("brew"))
+        self.assertNotIn("brew outdated (greedy casks)", b.state()["failed"])
+
+    def test_named_greedy_outdated_without_json_still_fails(self):
+        b = self.b
+        cmd = "brew outdated --json=v2 --cask --greedy-auto-updates"
+        full_scenario(b, exit={cmd: 1}, say={cmd: "Error: boom\n"})
+        b.clear_calls()
+        code, out = b.upkeep("run", "--force")
+        self.assertEqual(code, 0, out)
+        self.assertIn("brew outdated (greedy casks)", b.state()["failed"])
+        self.assertFalse([a for a in b.argv("brew")
+                          if a.startswith("upgrade") and "greedy-auto-updates flutter" in a])
+
     def test_failing_protected_casks_hook_keeps_last_answer(self):
         b = self.b
         b.upkeep("run", "--force")
