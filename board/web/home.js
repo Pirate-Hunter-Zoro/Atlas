@@ -49,6 +49,8 @@ var els = {
   said: $("said"),
   openList: $("open-list"),
   openNone: $("open-none"),
+  openHidden: $("open-hidden"),
+  hiddenList: $("hidden-list"),
   newSession: $("new-session"),
   newSessionSub: $("new-session-sub"),
   notices: $("notices"),
@@ -342,6 +344,33 @@ function withDelete(row, rec) {
   return wrap;
 }
 
+/* A session is taken out of Continue, not out of the store: one tap posts
+   /session/hide and the row leaves the list. A hidden one says "show" and
+   puts it back. Nothing is deleted, moved or ended. */
+function hideButton(rec, hidden) {
+  var b = el("button", "row-make row-hide", hidden ? "show" : "hide");
+  b.type = "button";
+  b.title = hidden ? "put this session back in Continue"
+    : "keep this session, off Continue";
+  b.setAttribute("data-hide", hidden ? "show" : "hide");
+  b.setAttribute("data-session", rec.id);
+  b.onclick = function () {
+    b.disabled = true;
+    b.textContent = hidden ? "showing" : "hiding";
+    postJSON("/session/hide", { id: rec.id, hidden: !hidden }).then(function (got) {
+      if (got && got.ok) { refresh(); return; }
+      b.disabled = false;
+      b.textContent = hidden ? "show" : "hide";
+      say((got && got.error) || "the session was not hidden");
+    }).catch(function () {
+      b.disabled = false;
+      b.textContent = hidden ? "show" : "hide";
+      say("the board did not answer; nothing was hidden");
+    });
+  };
+  return b;
+}
+
 /* GIVE TO THE TUTOR, on a canvas's row, open or past: a second tap within
    four seconds posts /s/<id>/give, which reopens an ended canvas and wakes
    one turn on all its pages, then opens its board. */
@@ -386,6 +415,7 @@ function giveButton(rec) {
    rest are one tap away ("show all"), until the page is loaded again. */
 var PAST_SHOWN = 10;
 var pastAll = false;
+var showHidden = false;
 
 function sessionFound(rec, q) {
   return !q || [sessionTitle(rec), rec.subject_name, rec.subject, rec.id]
@@ -395,11 +425,28 @@ function sessionFound(rec, q) {
 function paintSessions(data) {
   var list = (data && data.sessions) || [];
   var q = query();
-  var open = list.filter(function (r) { return !r.ended; });
+  var open = list.filter(function (r) { return !r.ended && !r.hidden; });
+  var hidden = list.filter(function (r) { return !r.ended && r.hidden; });
   var past = list.filter(function (r) { return !!r.ended && sessionFound(r, q); });
   els.openList.innerHTML = "";
-  open.forEach(function (r) { els.openList.appendChild(withDelete(openRow(r), r)); });
-  els.openNone.hidden = open.length > 0;
+  open.forEach(function (r) {
+    var wrap = withDelete(openRow(r), r);
+    wrap.insertBefore(hideButton(r, false), wrap.querySelector(".row-delete"));
+    els.openList.appendChild(wrap);
+  });
+  els.openNone.hidden = open.length > 0 || hidden.length > 0;
+  els.openHidden.hidden = hidden.length === 0;
+  els.openHidden.textContent = (showHidden ? "hide hidden" : "show hidden")
+    + " (" + hidden.length + ")";
+  els.hiddenList.hidden = !showHidden || hidden.length === 0;
+  els.hiddenList.innerHTML = "";
+  if (showHidden) {
+    hidden.forEach(function (r) {
+      var wrap = withDelete(openRow(r), r);
+      wrap.insertBefore(hideButton(r, true), wrap.querySelector(".row-delete"));
+      els.hiddenList.appendChild(wrap);
+    });
+  }
   els.pastList.innerHTML = "";
   var shown = pastAll ? past : past.slice(0, PAST_SHOWN);
   shown.forEach(function (r) { els.pastList.appendChild(withDelete(pastRow(r), r)); });
@@ -1390,6 +1437,7 @@ els.themeBtn.onclick = function () {
 els.reload.onclick = function () { window.location.reload(); };
 els.find.addEventListener("input", repaint);
 els.pastMore.onclick = function () { pastAll = true; repaint(); };
+els.openHidden.onclick = function () { showHidden = !showHidden; repaint(); };
 els.dropperName.addEventListener("input", function () { dropSay(""); paintDropper(); });
 els.dropperName.addEventListener("keydown", function (ev) {
   if (ev.key === "Enter") dropSubject();

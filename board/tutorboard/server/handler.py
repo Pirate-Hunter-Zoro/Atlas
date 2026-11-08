@@ -55,6 +55,7 @@ UNPREFIXED = (
     ("GET", "/subject/delete", "subject-delete-check"),
     ("POST", "/subject/delete", "subject-delete"),
     ("POST", "/session/delete", "session-delete"),
+    ("POST", "/session/hide", "session-hide"),
     ("GET", "/notices.json", "notices"),
     ("GET", "/library", "page"),
     ("GET", "/library/", "page"),
@@ -492,6 +493,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.delete_subject(registry)
         if how == "session-delete":
             return self.delete_session(registry)
+        if how == "session-hide":
+            return self.hide_session(registry)
         if how == "notices":
             # Machinery lines no session took (D16), newest first; no turn ran.
             return self.send_json({"ok": True,
@@ -673,6 +676,26 @@ class Handler(BaseHTTPRequestHandler):
         registry.get(sid)            # drops its entry, the session being gone
         self.note("session %s deleted" % sid)
         return self.send_json({"ok": True, "id": sid})
+
+    def hide_session(self, registry):
+        """POST /session/hide {id, hidden?}: keep the session and take it out
+        of Continue, or put it back. `hidden` defaults to true and must be a
+        boolean. Nothing is moved or ended; the session still opens by URL."""
+        payload = self._payload()
+        if payload is None:
+            return None
+        sid = str(payload.get("id") or "").strip()
+        if not sessions.path(sid, registry.atlas):
+            return self.send_json({"ok": False, "error": "no such session"},
+                                  status=404)
+        hidden = payload.get("hidden", True)
+        if not isinstance(hidden, bool):
+            return self.send_json({"ok": False,
+                                   "error": "hidden is true or false"},
+                                  status=400)
+        sessions.set_hidden(sid, hidden, base=registry.atlas)
+        self.note("session %s %s" % (sid, "hidden" if hidden else "shown"))
+        return self.send_json({"ok": True, "id": sid, "hidden": hidden})
 
     # -- server sent events ---------------------------------------------
     def sse(self, hub):

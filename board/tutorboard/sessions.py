@@ -20,8 +20,8 @@
 
 A session is Mac-only and ignored (`/sessions/`; the audit refuses any path
 under it) and persists until `end`. session.json = {id, title, subject,
-mode, opened, ended, writeup, problem, seen, code, view, doc, sent_late?,
-canvas?, given?, transcribe?};
+mode, opened, ended, writeup, problem, seen, code, view, doc, hidden?,
+sent_late?, canvas?, given?, transcribe?};
 `subject` is a subject id or null, `writeup` a source path from the Atlas
 root or null, `problem` the label of the write-up's problem on their screen
 or null,
@@ -348,6 +348,22 @@ def delete(sid, base=None, now=None):
     dest = trash(os.path.basename(where), now)
     shutil.move(where, dest)
     return dest
+
+
+def set_hidden(sid, hidden=True, base=None):
+    """Keep session `sid` but take it out of Continue: `hidden` is its place
+    on the home screen, never whether it exists or is ended. Clearing it
+    removes the key, so a session nobody hid has no `hidden` at all."""
+    where = _need(sid, base)
+    rec = get(sid, base)
+    if rec is None:
+        raise NoSession("no session %r" % (sid,))
+    if hidden:
+        rec["hidden"] = True
+    else:
+        rec.pop("hidden", None)
+    _save(where, rec)
+    return rec
 
 
 def quiet_line(messages_path, text, signal, now=None, **extra):

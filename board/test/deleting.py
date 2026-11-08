@@ -322,6 +322,30 @@ check("a session whose turn runs gets 409", status == 409
 runner_service.RUNNER = None
 
 # ---------------------------------------------------------------------------
+# a session hides from Continue without being deleted
+# ---------------------------------------------------------------------------
+status, got = ask("POST", "/session/hide", {"id": open_one["id"]})
+check("a session can be hidden, not deleted",
+      status == 200 and got.get("ok") and got.get("hidden") is True
+      and sessions.path(open_one["id"], atlas)
+      and sessions.get(open_one["id"], atlas).get("hidden") is True)
+status, listing = ask("GET", "/sessions.json")
+check("/sessions.json lists it, marked hidden",
+      status == 200 and any(r.get("id") == open_one["id"]
+                            and r.get("hidden") is True
+                            for r in listing.get("sessions", [])))
+status, got = ask("POST", "/session/hide",
+                  {"id": open_one["id"], "hidden": False})
+check("and show puts it back in Continue",
+      status == 200 and sessions.get(open_one["id"], atlas).get("hidden") is None)
+check("a bad hidden value is 400 and changes nothing",
+      ask("POST", "/session/hide",
+          {"id": open_one["id"], "hidden": "yes"})[0] == 400
+      and sessions.get(open_one["id"], atlas).get("hidden") is None)
+check("no such session is 404",
+      ask("POST", "/session/hide", {"id": "../x"})[0] == 404)
+
+# ---------------------------------------------------------------------------
 # the trash, pruned at 30 days
 # ---------------------------------------------------------------------------
 now = time.time()

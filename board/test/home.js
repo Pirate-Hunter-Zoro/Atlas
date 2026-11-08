@@ -195,6 +195,9 @@ async function stubbed() {
                 source: 'courses/Galois-Theory/docs/x/x.' + (body.make === 'deck' ? 'tex' : 'md') };
       }
       if (method === 'POST' && url === '/session/delete') got = { ok: true, id: body.id };
+      if (method === 'POST' && url === '/session/hide') {
+        got = { ok: true, id: body.id, hidden: body.hidden !== false };
+      }
       if (method === 'POST' && url === '/subjects/new') {
         got = { ok: true, subject: { id: 'projects/' + body.name, kind: 'project',
                                      slug: body.name, name: body.name } };
@@ -316,6 +319,44 @@ async function stubbed() {
         deletes().length === 1 && deletes()[0].body.id === '20260901-100000');
   check('and the screen asks for the sessions again',
         w.asked.filter((r) => r.url === '/sessions.json').length >= 2);
+
+  // A session is taken out of Continue without being deleted, and put back.
+  {
+    const listing = JSON.parse(JSON.stringify(answers['/sessions.json']));
+    listing.sessions.push({ id: '20261008-210000', title: 'Hidden lecture',
+      subject: null, subject_name: null, mode: 'teach', ended: null,
+      opened: '2026-10-08 21:00:00', url: '/s/20261008-210000/board',
+      new_cards: 0, last_card: null, hidden: true });
+    const hw = load('', { over: { '/sessions.json': listing } });
+    const hd = hw.document;
+    await sleep(80);
+    const hides = () => hw.asked.filter((r) => r.url === '/session/hide');
+    check('a hidden session is not in Continue',
+          Array.from(hd.querySelectorAll('#open-list .row'))
+            .every((a) => !/Hidden lecture/.test(a.textContent)));
+    const toggle = hd.getElementById('open-hidden');
+    check('Continue offers the hidden count', !toggle.hidden
+          && toggle.textContent === 'show hidden (1)');
+    toggle.click();
+    await sleep(10);
+    check('one tap shows it, with a show button',
+          /Hidden lecture/.test(hd.querySelector('#hidden-list .row').textContent)
+          && /show/.test(hd.querySelector('#hidden-list .row-hide').textContent));
+    const openHide = hd.querySelector('#open-list .row-hide');
+    check('every open row offers hide',
+          openHide && /^hide$/.test(openHide.textContent));
+    openHide.click();
+    await sleep(30);
+    check('one tap posts /session/hide and never deletes',
+          hides().length === 1 && hides()[0].body.id === SID
+          && hides()[0].body.hidden === true
+          && !hw.asked.some((r) => r.url === '/session/delete'));
+    hd.querySelector('#hidden-list .row-hide').click();
+    await sleep(30);
+    check('and the hidden row posts the opposite',
+          hides().length === 2 && hides()[1].body.id === '20261008-210000'
+          && hides()[1].body.hidden === false);
+  }
 
   const courses = Array.from(d.querySelectorAll('#course-list .row'));
   const projects = Array.from(d.querySelectorAll('#project-list .row'));
