@@ -105,6 +105,7 @@ These are built but not yet used for real. Strike each one after an evening on t
     and "+ new".
   - Random lessons first in every picker, and preselected in Annotate's sheet.
   - A subject delete with its typed name.
+  - Hiding an open session from Continue, and showing it again, without ending it.
   - Deletes of a material, a document and a session, each with a second tap.
 - **Sessions:**
   - A new session starts unbound, and "this is for Topology" binds it.

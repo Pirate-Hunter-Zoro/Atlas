@@ -283,8 +283,9 @@ tree gets a `doc.json` written in place, so its ids hold.
   Tutor chooser, notices, a search, courses and projects most recently used first (each row
   can make a deck or paper, or be deleted), the newest ten past sessions (an unbound one can be
   sent to a subject, a canvas given to the tutor), the Annotate a PDF action,
-  the sync health, settings. A script that did not load shows a Retry line, and what
-  breaks is posted to `/client-error`.
+  the sync health, settings. An open session can be hidden from Continue, and shown
+  again, without being ended or deleted. A script that did not load shows a Retry
+  line, and what breaks is posted to `/client-error`.
 - **Board** (`/s/<id>/board`): the session header (subject chip, mode, End), the cards, the
   answer box, the slate. **Slate** (`/s/<id>/slate`) is the full-page writing surface.
 - **Library** (`/library?subject=<id>`): every document and result of a subject, the reader,
