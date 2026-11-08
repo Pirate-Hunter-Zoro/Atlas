@@ -650,6 +650,33 @@ so that $\psi(u)=\phi(g)(r)$ is independent of the representation $u=g(\alpha)$.
 \]
 
 \emph{Equality.} Since $|\operatorname{Emb}_\phi(F(\alpha),L)|=|R|$ always, equality $|\operatorname{Emb}_\phi(F(\alpha),L)|=\deg m$ holds exactly when $|R|=\deg m$; that is, exactly when $\phi(m)$ has $\deg m$ distinct roots in $L$.
+
+
+\emph{Part (b).} We show $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$ by induction on $n=[K:F]$.
+
+\emph{Base case, $n=1$.} Then $K=F$, so the only element of $\operatorname{Emb}_\phi(K,L)$ is $\phi$, and $|\operatorname{Emb}_\phi(K,L)|=1=[K:F]$.
+
+\emph{Inductive step, $n>1$.} Then $F\subsetneq K$, so there is $\alpha\in K\setminus F$; let $m$ be its minimal polynomial over $F$. Consider the tower $K/F(\alpha)/F$, with $\phi\colon F\to L$ a field homomorphism. By part (a),
+\[
+|\operatorname{Emb}_\phi(F(\alpha),L)|\le\deg m=[F(\alpha):F].
+\]
+If $F(\alpha)=K$, we are done. If not, then $[F(\alpha):F]<[K:F]$, and
+\[
+[K:F]=[K:F(\alpha)]\,[F(\alpha):F].
+\]
+Consider $\operatorname{Emb}_\phi(K,L)$ and, for each $\phi^*\colon F(\alpha)\to L$ a field homomorphism, $\operatorname{Emb}_{\phi^*}(K,L)$. The induction hypothesis gives
+\[
+|\operatorname{Emb}_{\phi^*}(K,L)|\le[K:F(\alpha)],
+\]
+and part (a) gives $|\operatorname{Emb}_\phi(F(\alpha),L)|\le[F(\alpha):F]$.
+
+Further,
+\[
+|\operatorname{Emb}_\phi(K,L)|
+=\sum_{\phi^*\in\operatorname{Emb}_\phi(F(\alpha),L)}|\operatorname{Emb}_{\phi^*}(K,L)|
+\le|\operatorname{Emb}_\phi(F(\alpha),L)|\max_{\phi^*}\{|\operatorname{Emb}_{\phi^*}(K,L)|\}
+\le[F(\alpha):F]\,[K:F(\alpha)]=[K:F].
+\]
 % ===== END SOLUTION 20 =====
 
 \end{document}
