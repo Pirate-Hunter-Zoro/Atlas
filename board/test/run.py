@@ -129,20 +129,31 @@ def extras():
     return out
 
 
+# jsdom 31 changed focus(), which keyguard.js and chain.js exercise. Keep the
+# version the suite passes with, and replace a newer one a previous run left.
+JSDOM = "26.1.0"
+
+
 def ensure_jsdom():
-    """jsdom is development-only. Fetch it on first run; carry on without it."""
+    """jsdom is development-only. Fetch the pinned version on first run, or
+    when an older run installed another; carry on without it."""
     if not shutil.which("node"):
         print("node is not installed; the test suite needs it (the board itself does not)")
         sys.exit(1)
-    have = subprocess.run(["node", "-e", "require('jsdom')"], cwd=BOARD,
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    have = subprocess.run(
+        ["node", "-e",
+         "try{process.exit(require('jsdom/package.json').version==='%s'?0:1)}"
+         "catch(e){process.exit(1)}" % JSDOM],
+        cwd=BOARD, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if os.path.isdir(os.path.join(BOARD, "node_modules")) and have.returncode == 0:
         return
     if not shutil.which("npm"):
         print("no npm; the real-DOM suites will skip\n")
         return
-    print("installing jsdom (development only, not needed to run the board)...")
-    proc = subprocess.run(["npm", "install", "--no-save", "--silent", "jsdom"],
+    print("installing jsdom %s (development only, not needed to run the board)..."
+          % JSDOM)
+    proc = subprocess.run(["npm", "install", "--no-save", "--silent",
+                           "jsdom@" + JSDOM],
                           cwd=BOARD, stdout=subprocess.DEVNULL,
                           stderr=subprocess.DEVNULL)
     print("  installed\n" if proc.returncode == 0

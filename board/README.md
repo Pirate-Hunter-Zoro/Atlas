@@ -440,7 +440,8 @@ python3 board/test/run.py sync code    the suites named
 A suite is any `*.py` or `*.js` file in `test/` that `run.py` does not list as a helper:
 discovery, not a registry. The run also covers each subject's `tests/board/*.py`,
 `tools/sync-macros.py --check`, and ai-config's own tests. The suite needs `node`;
-it installs jsdom into `board/node_modules` on first run, for development only.
+it installs a pinned jsdom into `board/node_modules` on first run, for
+development only.
 
 - `tracked.py` audits every tracked path in Atlas for size, recordings, credentials and
   third-party work. It runs early, because a public commit cannot be taken back.
