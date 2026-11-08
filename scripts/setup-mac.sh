@@ -20,7 +20,9 @@
 #   1  main, fast-forward only; once, the checkouts of the retired vendor
 #      submodules go, and so do retired projects that hold only caches
 #   2  bootstrap: `board` on the PATH, ai-config,
-#      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh)
+#      the commit hooks, the tutor-board LaunchAgent (board/bootstrap.sh),
+#      and the Cloudflare access refresher when a subject carries
+#      `.atlas/cloudflare-access.json`
 #   3  the machine's upkeep (upkeep/setup-mac.sh: brew, the shared Brewfile,
 #      opencode, Android, Flutter, fonts, editors, kept current hourly by
 #      com.mikeyferguson.upkeep), then the Brewfile and every subject's
@@ -138,6 +140,72 @@ done
 
 echo "== 2. bootstrap"
 bash board/bootstrap.sh 2>&1 | sed 's/^/  /'
+
+echo "== 2b. Cloudflare access"
+# A subject that carries `.atlas/cloudflare-access.json` names a
+# Cloudflare-protected git host. The refresher exchanges the stored
+# organization token for a fresh application token and rewrites the git
+# header, so only the interactive Cloudflare login is ever manual. With no
+# config, no agent is left loaded.
+shopt -s nullglob
+cf_cfg=("$ROOT"/courses/*/.atlas/cloudflare-access.json \
+        "$ROOT"/projects/*/.atlas/cloudflare-access.json)
+shopt -u nullglob
+CF_LABEL="com.mikeyferguson.cloudflare-access"
+CF_AGENT="$HOME/Library/LaunchAgents/$CF_LABEL.plist"
+if [ "${#cf_cfg[@]}" -eq 0 ]; then
+  if [ -e "$CF_AGENT" ]; then
+    launchctl bootout "gui/$(id -u)/$CF_LABEL" >/dev/null 2>&1
+    rm -f "$CF_AGENT"
+    good "no Cloudflare access config; removed the idle refresher"
+  else
+    good "no Cloudflare access config; nothing to refresh"
+  fi
+else
+  mkdir -p "$(dirname "$CF_AGENT")"
+  cf_tmp="$(mktemp)"
+  cat >"$cf_tmp" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>$CF_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>$ROOT/scripts/cloudflare-access.py</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>StartInterval</key><integer>900</integer>
+  <key>ProcessType</key><string>Background</string>
+  <key>LowPriorityIO</key><true/>
+  <key>StandardOutPath</key><string>$LOGS/cloudflare-access.out</string>
+  <key>StandardErrorPath</key><string>$LOGS/cloudflare-access.err</string>
+</dict>
+</plist>
+PLIST
+  if [ -f "$CF_AGENT" ] && cmp -s "$cf_tmp" "$CF_AGENT"; then
+    rm -f "$cf_tmp"
+    good "the Cloudflare access refresher is installed"
+  else
+    mv "$cf_tmp" "$CF_AGENT"
+    launchctl bootout "gui/$(id -u)/$CF_LABEL" >/dev/null 2>&1
+    good "installed the Cloudflare access refresher (every 15 minutes)"
+  fi
+  if ! launchctl print "gui/$(id -u)/$CF_LABEL" >/dev/null 2>&1; then
+    launchctl bootstrap "gui/$(id -u)" "$CF_AGENT" >/dev/null 2>&1 \
+      || warn "could not load the Cloudflare access refresher; log out and in, then rerun"
+  fi
+  if said="$(/usr/bin/python3 "$ROOT/scripts/cloudflare-access.py" --say 2>&1)"; then
+    good "Cloudflare access: ${said:-nothing to refresh}"
+  else
+    warn "Cloudflare access: $said"
+  fi
+fi
 
 echo "== 3. upkeep and environments"
 # upkeep is the machine's, on every clone of Atlas or Media-Orchestrator: it
