@@ -163,17 +163,42 @@ else
   [ "${PIPESTATUS[0]}" -eq 0 ] || warn "the whisper model: the line above says why"
 fi
 # Terminal's profile names Comic Mono. upkeep's Brewfile carries the cask, but
-# without the font Terminal silently falls back to its own, so it is checked here.
+# a font file on disk is not enough: fontd only serves a face it registered, and
+# a font that arrived after fontd started can stay unregistered, which makes
+# Terminal silently fall back to its own. So the cask is installed when the file
+# is missing, and fontd is restarted when the file is there but the face is not
+# registered.
 comic=""
 for f in "$HOME"/Library/Fonts/ComicMono*.ttf /Library/Fonts/ComicMono*.ttf; do
   [ -f "$f" ] && comic=1
 done
+just_installed=0
+if [ -z "$comic" ]; then
+  if brew install --cask font-comic-mono >"$LOGS/font.log" 2>&1; then
+    comic=1
+    just_installed=1
+  else
+    warn "brew install --cask font-comic-mono failed; see $LOGS/font.log"
+  fi
+fi
 if [ -n "$comic" ]; then
-  good "Comic Mono, Terminal's font, is installed"
-elif brew install --cask font-comic-mono >"$LOGS/font.log" 2>&1; then
-  good "installed Comic Mono, Terminal's font; quit and reopen Terminal"
-else
-  warn "brew install --cask font-comic-mono failed; see $LOGS/font.log"
+  registered=0
+  if command -v atsutil >/dev/null 2>&1 \
+     && atsutil fonts -list 2>/dev/null | grep -i ComicMono >/dev/null; then
+    registered=1
+  fi
+  if [ "$registered" -eq 0 ] && command -v atsutil >/dev/null 2>&1; then
+    killall fontd >/dev/null 2>&1
+    sleep 2
+    atsutil fonts -list 2>/dev/null | grep -i ComicMono >/dev/null && registered=1
+  fi
+  if [ "$registered" -eq 1 ] && [ "$just_installed" -eq 1 ]; then
+    good "installed Comic Mono, Terminal's font; quit and reopen Terminal"
+  elif [ "$registered" -eq 1 ]; then
+    good "Comic Mono, Terminal's font, is registered"
+  else
+    warn "Comic Mono is on disk but macOS has not registered it; restart the Mac"
+  fi
 fi
 
 echo "== 4. the assistant"
