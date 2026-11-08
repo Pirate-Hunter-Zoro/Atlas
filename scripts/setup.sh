@@ -44,7 +44,7 @@
 #    Atlas's root mise.toml is installed first, re-locked only where
 #    brew-upgrade.py's `lock_stale` says, so a clean clone never is.
 # 3. The subjects' tool descriptors, <subject>/tools/<name>.sh: each one this
-#    role uses and lacks is installed (scripts/tools.sh install).
+#    Mac lacks is installed (scripts/tools.sh install).
 #
 # Idempotent: a second run changes nothing and says so. One line per workspace;
 # what each step printed is in ~/.local/state/atlas-setup/<workspace>.log.

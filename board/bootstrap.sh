@@ -41,7 +41,6 @@ set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # The repository root, one level above the tool.
 ROOT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null || dirname "$HERE")"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board"
 NAME=""
 CLONE=1
 PRIVATE_ONLY=0
@@ -161,14 +160,6 @@ atlas_hooks
 say
 
 ai_config
-
-# A coding checkout (`scripts/setup-mac.sh --coding`) serves no board, so it
-# has no tailnet name to take and nothing to publish.
-if [ "$(tr -d '[:space:]' 2>/dev/null <"$CONFIG_DIR/role")" = coding ]; then
-  say "Next:"
-  say "  board doctor --dry    what this machine has, without spending a turn"
-  exit 0
-fi
 
 # --- tailnet identity -------------------------------------------------------
 if [ -n "$NAME" ]; then

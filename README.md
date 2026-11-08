@@ -17,7 +17,7 @@ sessions and the invariants. How a tutor turn teaches is
 - **DeepSeek through OpenCode is the AI.** Every turn, vision request and one-off prompt goes
   to DeepSeek through one recipe, `board/tutorboard/agents/recipes.py`. Nothing chooses another
   assistant. Speech is not AI: Azure Speech first, this Mac's local tools last.
-- **The Mac is the only brain.** Every model turn, compile and deck runs on the Mac mini.
+- **This MacBook Air is the only brain.** Every model turn, compile and deck runs here.
 - **Commits are authored by the owner.** `.githooks/commit-msg` strips assistant trailers.
 
 ## Layout
@@ -61,14 +61,14 @@ Inside a subject:
 Textbooks, lecture slides, assignment handouts, `materials/` and session uploads are ignored.
 Worked solutions, write-ups and the owner's handwritten answers are tracked.
 
-## The Mac and the laptops
+## The one Mac
 
-GitHub is the only channel between machines: `main`, plus one `code/<session-id>` branch per
-open coding session. To code on a laptop, the owner runs `board code <session> <paths>` in a
-terminal there. Each pause becomes a step on `code/<session>`, and the tutor on the Mac answers
-on the iPad. The iPad reaches the Mac over the owner's tailnet.
+The board runs on this MacBook Air, and the iPad reaches it over the owner's tailnet. GitHub
+holds the history and publishes it. A coding session runs `board code <session> <paths>` in a
+terminal on this Mac; each pause becomes a step on the session's local ref, and the tutor answers
+on the iPad.
 
-## Setting up the Mac
+## Setting up this Mac
 
 ```
 git clone https://github.com/Pirate-Hunter-Zoro/Atlas.git
@@ -163,37 +163,9 @@ Atlas's part is `upkeep.d/hook`, which runs `scripts/brew-upgrade.py`:
   A pin behind is also in that subject's session brief, so the session proposes the bump: a
   commit of `mise.toml` and `mise.lock`.
 - upkeep's problems and the hook's reach `atlas-brew status`, `board doctor` and home, and arrive
-  as notifications on every Mac. `upkeep off` stops it.
+  as notifications on this Mac. `upkeep off` stops it.
 
 On the iPad, open the tailnet address in Safari and use Share, then Add to Home Screen.
-
-## Setting up a laptop
-
-```
-git clone https://github.com/Pirate-Hunter-Zoro/Atlas.git
-cd Atlas && bash scripts/setup-mac.sh --coding
-```
-
-A laptop is a coding checkout: it runs `board code` and no board. `--coding` writes `coding` to
-`~/.config/tutor-board/role`, so every later run stays a coding checkout. That run does the Mac's
-steps without the board's LaunchAgent, and boots out one left from before. It skips tailscale
-serve, the DeepSeek key check and the port-8778 check. Deleting the role file makes the next run a
-host.
-
-- `board pull` brings the laptop up to date: Atlas and ai-config. It names
-  each subject whose lockfile moved, and `bash scripts/setup.sh` rebuilds those. `board code
-  <session> <paths>` pulls main first too.
-- `board pull --materials [<subject>...]` copies the Mac mini's ignored inputs over SSH:
-  `materials/`, textbooks, chapter readings and lectures, and assignment sheets. It never copies
-  `.ink/`, `sessions/` or any `.env*`, and deletes nothing. It reads `host` (the Mac mini's tailnet
-  name, which setup asks for) and `host_atlas` (default `Developer/Atlas` under the remote home)
-  from `~/.config/tutor-board/config.json`, and refuses without `host`.
-- **The owner's one step:** turn on Remote Login on the Mac mini (System Settings, General,
-  Sharing), and add the laptop's public SSH key to the Mac mini's `~/.ssh/authorized_keys`.
-- The same upkeep runs here. Outside the window it upgrades only when 48 hours overdue, on AC,
-  and idle 20 minutes, because a laptop is shut at night. Problems arrive as notifications.
-- A tool declared on the iPad reaches the laptop within the hour: `upkeep.d/pull` has upkeep fast-forward a clean
-  `main` and install only what moved (*Pull* in `upkeep/README.md`); a dirty or diverged checkout is skipped, never forced.
 
 ## Assistant CLIs
 
@@ -206,7 +178,7 @@ runs these two, which a second run leaves unchanged:
 - `ai-config/scripts/install.sh` links the contract (`INSTRUCTIONS.md`) and each settings
   file, and loads the daily audit's LaunchAgent.
 - `upkeep/upkeep.py opencode` checks opencode, the key and the parity layer, and the OpenCode
-  server restarts when what it reads changed (see *Setting up the Mac*).
+  server restarts when what it reads changed (see *Setting up this Mac*).
 
 `ai-tools-update` updates each CLI the way that machine installed it: npm for a copy in
 `node_modules`, the CLI's own `update` otherwise. Nothing schedules it; upkeep keeps opencode.

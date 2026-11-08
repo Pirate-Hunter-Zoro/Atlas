@@ -151,7 +151,7 @@ def tools_json():
         return {}
 
 
-def descriptor(name, install=True, update="true", check_cmd=None, roles="host coding",
+def descriptor(name, install=True, update="true", check_cmd=None,
                every=1, stale=14, version_cmd=None, extra=""):
     """A descriptor whose tool is a script under $HOME/.<name>/bin printing
     `<name> <version>`, the version kept in $HOME/.<name>/version."""
@@ -160,10 +160,10 @@ def descriptor(name, install=True, update="true", check_cmd=None, roles="host co
             '2>/dev/null || echo 1.0.0)\\n" >"%s/%s" && chmod +x "%s/%s" && echo x >>'
             '"$HOME/%s.installs"' % (bindir, name, name, bindir, name, bindir, name, name))
     return ("# a fixture tool\n"
-            'T_NAME="%s"\nT_BIN="%s"\nT_BIN_DIR="%s"\nT_ROLES="%s"\n'
+            'T_NAME="%s"\nT_BIN="%s"\nT_BIN_DIR="%s"\n'
             "T_INSTALL='%s'\nT_MANUAL='fetch %s by hand'\nT_UPDATE='%s'\n"
             "T_VERSION='%s'\nT_CHECK='%s'\nT_EVERY_DAYS=%d\nT_STALE_DAYS=%d\n%s"
-            % (name, name, bindir, roles, inst if install else "", name, update,
+            % (name, name, bindir, inst if install else "", name, update,
                version_cmd or "%s --version" % name, check_cmd or "%s" % name,
                every, stale, extra))
 
@@ -380,7 +380,7 @@ try:
     widget = os.path.join(home, ".widget", "bin", "widget")
     check("and the descriptor's tool is installed",
           os.path.exists(widget) and read(os.path.join(home, "widget.installs")) == "x\n"
-          and "1 tool(s) declared for a host, 0 problem(s)" in out1, out1)
+          and "1 tool(s) declared, 0 problem(s)" in out1, out1)
     before = {p: (read(p), os.stat(p).st_mtime_ns) for p in (union, TOOLS_JSON)}
     open(CALLS, "w").close()
     code2, out2 = run(["bash", setup])
@@ -397,28 +397,6 @@ try:
     check("setup's PATH ends in mise's shims", "mise/shims" in read(setup)
           and 'PATH="$PATH:$HOME/.local/share/mise/shims"' in read(setup))
 
-    # The same, as a coding laptop: a coding-only tool goes in once.
-    ROLE = os.path.join(home, ".config", "tutor-board", "role")
-    write(ROLE, "coding\n")
-    write(os.path.join(M, "tools", "coder.sh"), descriptor("coder", roles="coding"))
-    code1, out1 = run(["bash", setup])
-    check("a coding laptop: setup ends clean and installs its coding-only tool",
-          code1 == 0 and "FAILED" not in out1
-          and "2 tool(s) declared for a coding, 0 problem(s)" in out1
-          and read(os.path.join(home, "coder.installs")) == "x\n", out1)
-    before = {p: (read(p), os.stat(p).st_mtime_ns) for p in (union, TOOLS_JSON)}
-    open(CALLS, "w").close()
-    code2, out2 = run(["bash", setup])
-    check("and a second run there is clean and changes nothing",
-          code2 == 0 and "FAILED" not in out2 and "Brewfile.all unchanged" in out2
-          and all((read(p), os.stat(p).st_mtime_ns) == before[p] for p in before)
-          and read(os.path.join(home, "coder.installs")) == "x\n"
-          and sorted(read(CALLS).splitlines()) == sorted(first_calls.splitlines()),
-          (out2, read(CALLS)))
-    os.remove(ROLE)
-    os.remove(os.path.join(M, "tools", "coder.sh"))
-    shutil.rmtree(os.path.join(home, ".coder"))
-    tools("install")
 
     # Off a Mac: refused, and nothing runs.
     write(os.path.join(shims, "uname"), "#!/bin/bash\necho Linux\n", EXE)
@@ -610,23 +588,12 @@ try:
           and not tools_json()["tools"]["widget"].get("failed"), out)
 
     write(os.path.join(M, "tools", "gadget.sh"), descriptor("gadget", install=False))
-    write(os.path.join(M, "tools", "laptopper.sh"),
-          descriptor("laptopper", roles="coding"))
     code, out = tools("install")
     check("a tool with no T_INSTALL is reported with its T_MANUAL, exit 1",
           code == 1 and "gadget is not installed; by hand: fetch gadget by hand" in out
           and tools_json()["tools"]["gadget"]["failed"]
           == "not installed; by hand: fetch gadget by hand", out)
-    check("a coding-only tool is not installed on a host",
-          "laptopper" not in out and "laptopper" not in tools_json()["tools"], out)
-    write(os.path.join(home, ".config", "tutor-board", "role"), "coding\n")
-    code, out = tools("install")
-    check("and is on a coding laptop",
-          "laptopper installed (1.0.0)" in out
-          and os.path.exists(os.path.join(home, ".laptopper", "bin", "laptopper")), out)
-    os.remove(os.path.join(home, ".config", "tutor-board", "role"))
     os.remove(os.path.join(M, "tools", "gadget.sh"))
-    os.remove(os.path.join(M, "tools", "laptopper.sh"))
 
     write(os.path.join(M, "tools", "wrong.sh"), descriptor("other"))
     code, out = tools("install")

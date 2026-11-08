@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# setup-mac.sh -- make this Mac the Atlas host, fully up to date.
+# setup-mac.sh -- make this MacBook Air the Atlas host, fully up to date.
 #
 #     cd ~/Developer/Atlas && bash scripts/setup-mac.sh
-#     cd ~/Developer/Atlas && bash scripts/setup-mac.sh --coding
 #
-# --coding makes a coding checkout instead, a laptop that runs `board code` and
-# no board: it writes `coding` to ~/.config/tutor-board/role, so every rerun
-# stays one, and then step 2 installs no board LaunchAgent and boots out a stray one,
-# and steps 5 and 6 skip tailscale serve, the DeepSeek key and port 8778.
-# Step 6 asks instead for the Mac mini's tailnet name, once, and writes it as
-# `host` in ~/.config/tutor-board/config.json for `board pull --materials`.
-# Deleting the role file makes the next run a host again.
+# This is the one Mac: it serves the board, runs every turn, and is the machine
+# the iPad reaches. There is no second host and no coding-only checkout.
 #
 # A fresh clone or an old checkout, it does the same thing, and a second run
 # changes nothing. A Mac with no Homebrew gets it first (upkeep/setup-mac.sh
@@ -62,16 +56,7 @@ if ! command -v brew >/dev/null 2>&1; then
   hash -r
 fi
 
-# The role is read by board/install.sh and board/bootstrap.sh too.
-ROLE_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/role"
-case "${1:-}" in
-  "") ;;
-  --coding) mkdir -p "$(dirname "$ROLE_FILE")" && printf 'coding\n' >"$ROLE_FILE" ;;
-  *) echo "unknown option: $1 (the one option is --coding)"; exit 1 ;;
-esac
-CODING=0
-[ "$(tr -d '[:space:]' 2>/dev/null <"$ROLE_FILE")" = coding ] && CODING=1
-[ "$CODING" = 1 ] && echo "a coding checkout ($ROLE_FILE): no board, no board LaunchAgent, no tailscale serve"
+[ "$#" -eq 0 ] || { echo "setup-mac.sh takes no options"; exit 1; }
 
 echo "== 1. main"
 if GIT_TERMINAL_PROMPT=0 git pull -q --ff-only origin main 2>"$LOGS/pull.log"; then
@@ -224,12 +209,8 @@ if said="$(python3 scripts/brew-upgrade.py install 2>&1)"; then good "$said"; el
 bash scripts/setup.sh 2>&1 | tee "$LOGS/setup.log" | sed 's/^/  /'
 [ "${PIPESTATUS[0]}" -eq 0 ] || warn "scripts/setup.sh: a FAILED line above names its log"
 # The board's local listener: one whisper model, checksummed, fetched once.
-if [ "$CODING" = 1 ]; then
-  good "skipped the whisper model: a coding checkout serves no board"
-else
-  bash scripts/speech-model.sh 2>&1 | sed 's/^/  /'
-  [ "${PIPESTATUS[0]}" -eq 0 ] || warn "the whisper model: the line above says why"
-fi
+bash scripts/speech-model.sh 2>&1 | sed 's/^/  /'
+[ "${PIPESTATUS[0]}" -eq 0 ] || warn "the whisper model: the line above says why"
 # Terminal's profile names Comic Mono. upkeep's Brewfile carries the cask, but
 # a font file on disk is not enough: fontd only serves a face it registered, and
 # a font that arrived after fontd started can stay unregistered, which makes
@@ -356,9 +337,7 @@ else
 fi
 
 echo "== 5. tailscale"
-if [ "$CODING" = 1 ]; then
-  good "skipped: a coding checkout serves no board"
-elif ! command -v tailscale >/dev/null 2>&1; then
+if ! command -v tailscale >/dev/null 2>&1; then
   warn "no tailscale; the Brewfile installs it, then log in with: tailscale up"
 elif tailscale serve status 2>/dev/null | grep -q '127.0.0.1:8778'; then
   good "tailscale serves http://127.0.0.1:8778"
@@ -369,84 +348,34 @@ else
 fi
 
 echo "== 6. checks"
-if [ "$CODING" = 1 ]; then
-  good "skipped the DeepSeek key and port 8778: the board runs on the Mac mini"
-  # `host` in config.json: read it, else ask once and merge it in. The other
-  # keys are kept; a config.json that is not JSON is left alone.
-  CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/config.json"
-  HOST_PY='
-import json, os, re, sys
-path = sys.argv[1]
-try:
-    with open(path) as fh:
-        cfg = json.load(fh)
-except OSError:
-    cfg = {}
-except ValueError:
-    sys.exit("%s is not JSON, so host was not written" % path)
-if not isinstance(cfg, dict):
-    sys.exit("%s is not a JSON object, so host was not written" % path)
-if len(sys.argv) < 3:
-    print(str(cfg.get("host") or "").strip())
-    sys.exit(0)
-host = sys.argv[2].strip()
-if not re.match(r"^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9][A-Za-z0-9.-]*$", host):
-    sys.exit("%r is not a host name, so host was not written" % host)
-cfg["host"] = host
-os.makedirs(os.path.dirname(path), exist_ok=True)
-with open(path + ".tmp", "w") as fh:
-    json.dump(cfg, fh, indent=2)
-    fh.write("\n")
-os.replace(path + ".tmp", path)
-'
-  host="$(python3 -c "$HOST_PY" "$CONFIG" 2>/dev/null || true)"
-  if [ -z "$host" ]; then
-    answer=""
-    read -r -p "  the Mac mini's tailnet name, for board pull --materials (blank: later): " answer || true
-    if [ -n "$answer" ] && said="$(python3 -c "$HOST_PY" "$CONFIG" "$answer" 2>&1)"; then
-      host="$answer"
-    elif [ -n "$answer" ]; then
-      warn "$said"
-    fi
-  fi
-  answer="${answer:-}"
-  if [ -n "$host" ]; then
-    good "board pull --materials copies from $host (config.json host)"
-  elif [ -z "$answer" ]; then
-    warn "no host in $CONFIG: board pull --materials refuses until a rerun is given the Mac mini's tailnet name"
-  fi
-else
-  # The board's own readiness check, so this line and a turn never disagree:
-  # opencode on the PATH, the DeepSeek key readable, the allowance not spent.
-  if said="$(cd board && python3 -c 'import sys
+# The board's own readiness check, so this line and a turn never disagree:
+# opencode on the PATH, the DeepSeek key readable, the allowance not spent.
+if said="$(cd board && python3 -c 'import sys
 sys.path.insert(0, ".")
 from tutorboard.agents import recipes
 why = recipes.ready()
 print(why or "")
 sys.exit(1 if why else 0)' 2>&1)"; then
-    good "DeepSeek can take a turn: opencode is here and the key is readable"
-  else
-    warn "DeepSeek cannot take a turn: $said (README, Setting up the Mac)"
-  fi
-  code=""
-  for _ in 1 2 3 4 5 6 7 8 9 10; do
-    code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:8778/ || true)"
-    [ "$code" = 200 ] && break
-    sleep 2
-  done
-  if [ "$code" = 200 ]; then
-    good "the board answers on 127.0.0.1:8778"
-  else
-    warn "the board does not answer on 8778; see ~/.local/state/tutor-board/server.log"
-  fi
+  good "DeepSeek can take a turn: opencode is here and the key is readable"
+else
+  warn "DeepSeek cannot take a turn: $said (README, Setting up the Mac)"
+fi
+code=""
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 http://127.0.0.1:8778/ || true)"
+  [ "$code" = 200 ] && break
+  sleep 2
+done
+if [ "$code" = 200 ]; then
+  good "the board answers on 127.0.0.1:8778"
+else
+  warn "the board does not answer on 8778; see ~/.local/state/tutor-board/server.log"
 fi
 python3 board/test/tracked.py >"$LOGS/tracked.log" 2>&1 \
   && good "tracked.py: git can see nothing it must not" || warn "tracked.py fails; see $LOGS/tracked.log"
 
 echo
-if [ "$problems" -eq 0 ] && [ "$CODING" = 1 ]; then
-  echo "THIS CODING CHECKOUT IS UP TO DATE. Run the command a session's header shows: board code <session-id> <paths>."
-elif [ "$problems" -eq 0 ]; then
+if [ "$problems" -eq 0 ]; then
   echo "THE MAC IS UP TO DATE. On the iPad: the tailnet address in Safari, Share, Add to Home Screen."
 else
   echo "$problems thing(s) above still need a person."

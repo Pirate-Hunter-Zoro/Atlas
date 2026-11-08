@@ -407,7 +407,7 @@ lines of report — what changed, which files, what ran, what it said — and th
 
 ### A coding session
 
-The owner may write the code in a terminal on a laptop or this Mac while you
+The owner may write the code in a terminal on this Mac while you
 coach. They run `board code <session> <paths>` there; the session
 header shows that command. Every pause is a step on `code/<session>`, with the
 subject's check. The Mac wakes your turn with a `[code] step N` line.
@@ -467,7 +467,7 @@ figure its pipeline wrote, `/result/<id>` or `/result/<path from the subject
 root>`; the brief names them. **It is an object to work on**, at the top with
 your question under it: one per card, never one you have not opened.
 
-## Work done on a laptop is theirs
+## Work done by the owner is theirs
 
 The brief lists what they committed since your last card and what is
 uncommitted. **It is THEIR work, never yours**: never call it "what we did". If

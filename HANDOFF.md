@@ -50,7 +50,6 @@ Rules that hold throughout:
 - **Git and sync.**
   - TUTOR.md stays tracked, but commits only with End or with real work.
   - End's commit and the sync pass push to GitHub automatically.
-  - Laptops get the ignored course inputs by rsync over SSH from the Mac mini.
 - **Owner files are pre-approved:** the owner's RULES.md files, the subject READMEs and the
   ai-config `update-tools` fix.
 - **Machine upkeep.** One system, `upkeep/`, byte-identical in Atlas and Media-Orchestrator,
@@ -82,15 +81,12 @@ waiting.
   the board updates: force-quit the home-screen app and Safari, because the mini-keyboard state
   sticks to the running app. If the system keyboard itself is floating, pinch it out once.
 - **Speech.** This Mac has `whisper.cpp`, `espeak-ng`, the whisper model and the Azure key.
-  `setup-mac.sh` installs the first three on any other Mac.
-- **For item 9:** turn on Remote Login on the Mac mini, add the laptop's SSH key to it, and give
-  `setup-mac.sh --coding` the Mac mini's tailnet name.
+  `setup-mac.sh` installs the first three.
 - **Read `board/TEACHING.md` once.** Every turn is told to follow it.
 - **Keep `~/.elan`.** Its 2.7 GB v4.34.1 toolchain is reused by every Lean subject.
-- **Delete the ignored `projects/Lean-Theorem-Proving`** (about 14 GB of `.lake`) on any laptop
-  that has it. `subjects.walk` lists any directory under `projects/` as a subject.
-- **Tools on every machine.** Run `bash scripts/setup-mac.sh` twice on the Mac mini, and
-  `bash scripts/setup-mac.sh --coding` twice on each laptop. The second run must
+- **Delete the ignored `projects/Lean-Theorem-Proving`** (about 14 GB of `.lake`) if this Mac
+  has it. `subjects.walk` lists any directory under `projects/` as a subject.
+- **Tools on this Mac.** Run `bash scripts/setup-mac.sh` twice here. The second run must
   end clean with `Brewfile.all unchanged`. The first installs mise, ghostscript and tesseract,
   re-renders the tutor-board plist with mise's shims on its PATH, and deletes the retired
   vendor checkouts and any retired project that holds only caches. One holding anything else
@@ -150,11 +146,11 @@ These are built but not yet used for real. Strike each one after an evening on t
   on the keys. A Pencil tap on the box does nothing; any Pencil touch puts an open keyboard
   away. A card landing or a pinch-zoom while typing leaves the keyboard up. The ⤢ key makes the
   box tall.
-- **Laptop coding:**
-  - In an iPad session bound to a subject with code, run the header's command on the laptop and
+- **Coding:**
+  - In an iPad session bound to a subject with code, run the header's command on this Mac and
     edit one file. A `[code] step` card shows within a minute.
-  - A do-mode `board push` lands on the laptop.
-  - `board code <sid> --end` leaves one commit on main, no `code/*` ref, and the Mac pulled.
+  - A do-mode `board push` lands here.
+  - `board code <sid> --end` leaves one commit on main, no `code/*` ref, and this Mac pulled.
 - **Teach and do on a computation:** in a fresh teach session on hw04, "tell me the (1,3)
   result" gets 169/432 and stops: no E[X₃], no write-up, no commit, the mode unchanged. In do
   mode it gets the same card and touches no file.

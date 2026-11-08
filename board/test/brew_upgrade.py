@@ -11,7 +11,7 @@ argv; the suite refuses to run when one resolves anywhere else. Nothing is
 installed or upgraded on this machine.
 
   - PROTECTED-CASKS: tailscale on the host while it runs as a brew service,
-    nothing on a coding laptop or without the service.
+    nothing without the service.
   - BREWFILES: the union of the root Brewfile and each subject's, written
     once, its path printed; upkeep.d/hook reaches the same answer.
   - AFTER-BREW: a broken .venv is re-synced with `uv sync --locked --extra
@@ -38,14 +38,17 @@ installed or upgraded on this machine.
     outside Atlas or one that is gone does not.
 """
 
+import http.server
 import json
 import os
+import plistlib
 import re
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
+import threading
 from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -100,13 +103,39 @@ ENV = dict(os.environ, HOME=home, PATH=PATH,
 for k in ("TUTORBOARD_COURSES", "TUTORBOARD_SESSION", "TUTORBOARD_TURN", "PYTHONPATH",
           "UPKEEP_DRY_RUN", "MISE_STATE_DIR"):
     ENV.pop(k, None)
+
+# This is the host: a board agent whose interpreter exists, a board answering
+# on a loopback port, and tailscale serving it. The hook's probes then have no
+# board problem to report, and the section on a gone interpreter is the one
+# that makes one.
+class _Board(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+
+    def log_message(self, *args):
+        pass
+
+
+SERVER = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Board)
+PORT = SERVER.server_address[1]
+threading.Thread(target=SERVER.serve_forever, daemon=True).start()
+ENV["HOOK_BOARD_PORT"] = str(PORT)
+AGENT = os.path.join(home, "Library", "LaunchAgents", "tutor-board.plist")
+write(os.path.join(home, ".config", "tutor-board", "config.json"),
+      json.dumps({"port": PORT}) + "\n")
+write(AGENT, plistlib.dumps({"ProgramArguments": ["/usr/bin/python3"]}).decode("utf-8"))
+
 # mise's tracked-configs, under the fixture's XDG_STATE_HOME.
 TRACKED = os.path.join(home, ".local", "state", "mise", "tracked-configs")
 
 EXE = stat.S_IRWXU
 LOG = 'echo "$(basename "$0") $* @ $PWD" >>"$HOOK_CALLS"\n'
-for tool in ("brew", "launchctl", "tailscale"):
+for tool in ("brew", "launchctl"):
     write(os.path.join(shims, tool), "#!/bin/bash\n" + LOG + "exit 0\n", EXE)
+write(os.path.join(shims, "tailscale"), "#!/bin/bash\n" + LOG
+      + '[ "$1 $2" = "serve status" ] && echo "127.0.0.1:${HOOK_BOARD_PORT:-8778}"\n'
+      + "exit 0\n", EXE)
 # uv and mise fail when a file in the work dir says so.
 MISE_ENV_LOG = os.path.join(work, "mise-env.log")
 for tool in ("uv", "mise"):
@@ -185,23 +214,18 @@ try:
     git(atlas, "init", "-q")
     git(atlas, "add", "-A")
     git(atlas, "commit", "-qm", "fixture")
-    ROLE = os.path.join(home, ".config", "tutor-board", "role")
-    write(ROLE, "coding\n")
 
     # ===================================================================
     # protected-casks
     # ===================================================================
     code, out, err = hook("hook", "protected-casks")
-    check("a coding laptop protects nothing", code == 0 and out == "", (out, err))
-    os.remove(ROLE)
-    code, out, err = hook("hook", "protected-casks")
-    check("nor a host whose tailscale is no brew service", code == 0 and out == "", out)
+    check("a host whose tailscale is no brew service protects nothing",
+          code == 0 and out == "", (out, err))
     svc = os.path.join(home, "Library", "LaunchAgents", "homebrew.mxcl.tailscale.plist")
     write(svc, "<plist/>\n")
     code, out, err = hook("hook", "protected-casks")
     check("a host's tailscale brew service is protected", out == "tailscale\n", out)
     os.remove(svc)
-    write(ROLE, "coding\n")
 
     # ===================================================================
     # brewfiles
@@ -517,18 +541,15 @@ try:
     code, out, err = hook("hook", "status")
     check("and tools.json's lines, but never a pin behind",
           "widget failed: T_UPDATE exited 3" in out and "pin behind" not in out, out)
-    os.remove(ROLE)
     write(os.path.join(home, "Library", "LaunchAgents", "tutor-board.plist"),
           "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict><key>ProgramArguments"
           "</key><array><string>/gone/python3</string></array></dict></plist>\n")
     open(CALLS, "w").close()
     code, out, err = hook("hook", "status")
-    check("on the host, a gone board interpreter and an unserved board are named, "
-          "report only",
+    check("on the host, a gone board interpreter is named, report only",
           "the tutor-board LaunchAgent's python /gone/python3 is gone; bash board/install.sh"
-          in out and "tailscale does not serve the board" in out
-          and not calls("bash") and calls("tailscale serve status"), (out, read(CALLS)))
-    write(ROLE, "coding\n")
+          in out and not calls("bash") and calls("tailscale serve status"),
+          (out, read(CALLS)))
 
     # ===================================================================
     # atlas-brew status, install, usage

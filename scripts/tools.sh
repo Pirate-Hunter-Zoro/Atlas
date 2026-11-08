@@ -13,7 +13,6 @@
 #   T_NAME        the file's name without .sh
 #   T_BIN         the command that proves it is installed
 #   T_BIN_DIR     where T_INSTALL puts it when that is not on the PATH, or ""
-#   T_ROLES       the roles it belongs on, "host", "coding" or both; "" is both
 #   T_INSTALL     one command that installs it under $HOME with no prompt, or ""
 #   T_MANUAL      what the owner does by hand when there is no T_INSTALL or it fails
 #   T_UPDATE      one command that updates it in place, or "": then the owner
@@ -37,9 +36,6 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOGS="${XDG_STATE_HOME:-$HOME/.local/state}/atlas-setup"
 LOG="$LOGS/tools.log"
 mkdir -p "$LOGS"
-ROLE=host
-[ "$(tr -d '[:space:]' 2>/dev/null <"${XDG_CONFIG_HOME:-$HOME/.config}/tutor-board/role")" = coding ] \
-  && ROLE=coding
 
 # board/tutorboard/toolplan.py, from board/ so no other tutorboard is found first.
 plan() {
@@ -54,7 +50,7 @@ case "$CMD" in
   *) echo "usage: tools.sh install | update [--force] | list | path | check" >&2; exit 2 ;;
 esac
 
-FIELDS="T_NAME T_BIN T_BIN_DIR T_ROLES T_INSTALL T_MANUAL T_UPDATE T_VERSION T_CHECK T_EVERY_DAYS T_STALE_DAYS"
+FIELDS="T_NAME T_BIN T_BIN_DIR T_INSTALL T_MANUAL T_UPDATE T_VERSION T_CHECK T_EVERY_DAYS T_STALE_DAYS"
 
 # One descriptor into this shell, the last one's fields cleared first.
 load_tool() {
@@ -138,7 +134,6 @@ while IFS="$(printf '\t')" read -r name path subjects last; do
     bad "$path: T_NAME must be $name and T_BIN set"
     continue
   fi
-  case " ${T_ROLES:-host coding} " in *" $ROLE "*) ;; *) continue ;; esac
   declared=$((declared + 1))
   found="$(found_bin)"
   ver=""
@@ -206,8 +201,8 @@ EOF
 
 case "$CMD" in
   path) printf '%s\n' "$dirs" ;;
-  list) [ "$declared" -gt 0 ] || echo "  no tool is declared for a $ROLE" ;;
+  list) [ "$declared" -gt 0 ] || echo "  no tool is declared" ;;
   *) plan record <"$ROWS" || { echo "tools.sh: could not write tools.json" >&2; failed=$((failed + 1)); }
-     echo "$declared tool(s) declared for a $ROLE, $failed problem(s)" ;;
+     echo "$declared tool(s) declared, $failed problem(s)" ;;
 esac
 [ "$failed" = 0 ]

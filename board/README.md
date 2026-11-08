@@ -2,8 +2,8 @@
 
 A live tutoring board. A tutor turn writes lesson cards as files, and `serve.py` pushes them to
 every browser holding the session open, typeset. Handwriting, typed answers and uploads come
-back into an inbox that wakes the next turn. It runs on the owner's Mac mini, the only machine
-where a model is called.
+back into an inbox that wakes the next turn. It runs on the owner's MacBook Air, the only
+machine where a model is called.
 
 [TEACHING.md](TEACHING.md) is the method every turn follows. The repository's own
 [README](../README.md) has the hard constraints and machine setup.
@@ -323,7 +323,7 @@ tree gets a `doc.json` written in place, so its ids hold.
 
 One git ref per coding session, `code/<session-id>` (`code.py`).
 
-- `board code <session> <path>...`, run by the owner in a terminal on a laptop or this Mac,
+- `board code <session> <path>...`, run by the owner in a terminal on this Mac,
   holds those paths. A new hold there fast-forwards main first; a refused pull is said and the
   hold goes on. After 10 s of quiet it snapshots them through a temporary index, so HEAD,
   the index and main never move. The commit-time gate and the subject's check run over the

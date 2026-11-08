@@ -85,7 +85,6 @@ SETUP_DIR = os.path.join(os.environ.get("XDG_STATE_HOME")
 LOG = os.path.join(SETUP_DIR, "upkeep-hook.log")
 CONFIG_DIR = os.path.join(os.environ.get("XDG_CONFIG_HOME")
                           or os.path.join(HOME, ".config"), "tutor-board")
-ROLE_FILE = os.path.join(CONFIG_DIR, "role")
 BOARD_CONFIG = os.path.join(CONFIG_DIR, "config.json")
 AGENTS = os.path.join(HOME, "Library", "LaunchAgents")
 BOARD_AGENT = os.path.join(AGENTS, "tutor-board.plist")
@@ -208,14 +207,6 @@ def save_state(state):
         os.replace(STATE + ".tmp", STATE)
     except OSError as exc:
         log("! could not write %s: %s" % (STATE, exc))
-
-
-def read_role():
-    try:
-        with open(ROLE_FILE, encoding="utf-8") as fh:
-            return "coding" if fh.read().strip() == "coding" else "host"
-    except OSError:
-        return "host"
 
 
 def board_port():
@@ -381,14 +372,12 @@ def probe_board_serve():
     return out
 
 
-def probes(role, acting):
+def probes(acting):
     found = []
-    if role == "host":
-        found += probe_board_agent(acting)
+    found += probe_board_agent(acting)
     found += probe_venvs(acting)
     found += probe_tex()
-    if role == "host":
-        found += probe_board_serve()
+    found += probe_board_serve()
     for p in found:
         log("problem: %s; %s" % (p["what"], p["fix"]))
     return found
@@ -816,9 +805,8 @@ def status_lines(state):
 
 def cmd_hook(ph):
     trim_log()
-    role = read_role()
     if ph == "protected-casks":
-        if role == "host" and tailscale_service():
+        if tailscale_service():
             print("tailscale")
         return 0
     if ph == "brewfiles":
@@ -827,10 +815,9 @@ def cmd_hook(ph):
             print(bf)
         return 0
     state = load_state()
-    state["role"] = role
     if ph == "after-brew":
         log("after-brew: the repairs")
-        state.update({"problems": probes(role, True), "probed_at": stamp(),
+        state.update({"problems": probes(True), "probed_at": stamp(),
                       "after_brew_at": stamp()})
         save_state(state)
         return 0
@@ -857,7 +844,7 @@ def cmd_hook(ph):
             state["toolchain_success"] = stamp()
         save_state(state)
         return 0
-    state.update({"problems": probes(role, False), "probed_at": stamp()})
+    state.update({"problems": probes(False), "probed_at": stamp()})
     save_state(state)
     for line in status_lines(state):
         print(line)
@@ -865,9 +852,8 @@ def cmd_hook(ph):
 
 
 def cmd_repair():
-    role = read_role()
     state = load_state()
-    state.update({"role": role, "problems": probes(role, True), "probed_at": stamp()})
+    state.update({"problems": probes(True), "probed_at": stamp()})
     save_state(state)
     for line in status_lines(state):
         print(line)
@@ -881,7 +867,6 @@ def cmd_status():
         return 1
     print("upkeep:   %s" % care.summary(STATE_DIR))
     state = load_state()
-    print("role:     %s" % read_role())
     print("atlas:    toolchain %s, probed %s" % (state.get("toolchain_success") or "never",
                                                  state.get("probed_at") or "never"))
     lines = care.lines(STATE_DIR)
