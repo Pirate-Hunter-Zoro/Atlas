@@ -68,6 +68,8 @@ DEFAULT_FOLDERS = ["INBOX", "Junk", "Junk Email"]
 CODE_RE = re.compile(r"(?<!\d)(\d{6})(?!\d)")
 CODE_FALLBACK_RE = re.compile(r"(?<!\d)(\d{4,8})(?!\d)")
 TAG_RE = re.compile(r"<[^>]+>")
+CALLBACK_RE = re.compile(
+    r"https://[^\s<>\"']+/cdn-cgi/access/callback\?[^\s<>\"']+")
 UA = "atlas-cloudflare-email-login/1"
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -285,17 +287,23 @@ def find_pin(cfg, since, show, password):
                     if match and match not in sender:
                         continue
                     text = message_text(msg)
+                    link_match = CALLBACK_RE.search(text)
+                    link = link_match.group(0) if link_match else ""
                     found = CODE_RE.search(text) or CODE_FALLBACK_RE.search(text)
-                    if not found:
+                    code = found.group(1) if found else ""
+                    if not code and link:
+                        code = urllib.parse.parse_qs(
+                            urllib.parse.urlparse(link).query).get(
+                                "code", [""])[0]
+                    if not code:
                         continue
-                    code = found.group(1)
                     if delete:
                         conn.store(mid, "+FLAGS", "\\Deleted")
                         try:
                             conn.expunge()
                         except imaplib.IMAP4.error:
                             pass
-                    return code
+                    return code, link
             time.sleep(5)
     except imaplib.IMAP4.error as exc:
         raise RuntimeError("IMAP login or search failed for %s: %s"
@@ -357,7 +365,19 @@ def login(cfg, app, show, dry_run=False):
         raise RuntimeError("%s: Cloudflare did not send a PIN (HTTP %s); check "
                            "that email is allowed on the Access app"
                            % (app, status))
-    code = find_pin(cfg, before, show, password)
+    code, link = find_pin(cfg, before, show, password)
+    if link:
+        status, headers, _body = http(link, timeout=30)
+        token = token_in(headers)
+        if not token and status in (301, 302, 303, 307, 308):
+            follow = location(headers)
+            if follow.startswith("https://"):
+                status, headers, _body = http(follow, timeout=30)
+                token = token_in(headers)
+        if not token or exp_of(token) is None:
+            raise RuntimeError("%s: the emailed login link did not yield a "
+                               "token (HTTP %s)" % (app, status))
+        return token
     status, headers, _body = http("https://%s/cdn-cgi/access/callback" % team,
                                   {"code": code, "nonce": nonce})
     loc = location(headers)
@@ -368,17 +388,19 @@ def login(cfg, app, show, dry_run=False):
     if parsed.path.startswith("/cdn-cgi/access/login/"):
         raise RuntimeError("%s: Cloudflare rejected the PIN; it may have "
                            "expired before it was read" % app)
-    token = urllib.parse.parse_qs(parsed.query).get("token", [""])[0]
-    if not token:
-        token = authorization_cookie(headers)
+    token = token_in(headers)
     if not token or exp_of(token) is None:
         raise RuntimeError("%s: Cloudflare accepted the PIN but returned no "
                            "token" % app)
     return token
 
 
-def authorization_cookie(headers):
-    """The token from a Set-Cookie: CF_Authorization=... header, or ""."""
+def token_in(headers):
+    """The token from a redirect's query or a CF_Authorization cookie, or ""."""
+    parsed = urllib.parse.urlparse(location(headers))
+    query = urllib.parse.parse_qs(parsed.query).get("token", [""])[0]
+    if query:
+        return query
     found = re.search(r"CF_Authorization=([^;\s]+)", headers.get("set-cookie") or "")
     return found.group(1) if found else ""
 
