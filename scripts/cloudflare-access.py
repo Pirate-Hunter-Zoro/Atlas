@@ -115,6 +115,14 @@ def notify(title, message):
         pass
 
 
+def secure_config():
+    """The git header is a credential; keep its file owner-only."""
+    try:
+        os.chmod(os.path.join(HOME, ".gitconfig"), 0o600)
+    except OSError:
+        pass
+
+
 def git(*args):
     try:
         p = subprocess.run(["git"] + list(args), stdout=subprocess.PIPE,
@@ -216,6 +224,7 @@ def refresh(path, show=False):
             token = header[len(prefix):] if code == 0 and \
                 header.startswith(prefix) else ""
             new_exp = exp_of(token) if token else None
+            secure_config()
             line = "%s: refreshed by email PIN, expires %s" % (
                 app, stamp(new_exp))
             log(line)
@@ -240,6 +249,7 @@ def refresh(path, show=False):
     if code != 0:
         return fail(app, "%s: could not write the git header: %s" % (app, err),
                     show)
+    secure_config()
     line = "%s: refreshed, expires %s" % (app, stamp(new_exp))
     log(line)
     say(line, show)

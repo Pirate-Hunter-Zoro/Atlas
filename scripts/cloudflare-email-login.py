@@ -418,6 +418,10 @@ def write_header(key, prefix, token):
     if p.returncode != 0:
         raise RuntimeError("could not write the git header: %s"
                            % (p.stderr or "").strip())
+    try:
+        os.chmod(os.path.join(HOME, ".gitconfig"), 0o600)
+    except OSError:
+        pass
 
 
 def config_paths(extra):
