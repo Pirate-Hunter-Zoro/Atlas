@@ -369,10 +369,18 @@ def login(cfg, app, show, dry_run=False):
         raise RuntimeError("%s: Cloudflare rejected the PIN; it may have "
                            "expired before it was read" % app)
     token = urllib.parse.parse_qs(parsed.query).get("token", [""])[0]
+    if not token:
+        token = authorization_cookie(headers)
     if not token or exp_of(token) is None:
         raise RuntimeError("%s: Cloudflare accepted the PIN but returned no "
                            "token" % app)
     return token
+
+
+def authorization_cookie(headers):
+    """The token from a Set-Cookie: CF_Authorization=... header, or ""."""
+    found = re.search(r"CF_Authorization=([^;\s]+)", headers.get("set-cookie") or "")
+    return found.group(1) if found else ""
 
 
 def write_header(key, prefix, token):
