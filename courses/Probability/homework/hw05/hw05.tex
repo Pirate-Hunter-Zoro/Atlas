@@ -45,6 +45,11 @@ Consider a post office with two clerks. Three people, A, B, and C, enter simulta
 (c) the service times are exponential with mean $1/\mu$?
 \end{problem}
 % ===== SOLUTION 5.4 =====
+(a) $\Pr = 0$. A and B will finish in 10 minutes, and C won't start until then.
+
+(b) Service times $1,2,3$ minutes; A, B first, then C. A must be 3 minutes, and B and C must be 1 minute each. Only $1$ of the $27$ possible triples.
+
+(c) $$\Pr(A > B+C) = \Pr(A\text{ outlasts }B)\cdot\Pr(A\text{ then outlasts }C) = \Pr(A\text{ outlasts }B)\cdot\Pr(A\text{ outlasts }C)\ \text{(memoryless)} = \tfrac12\cdot\tfrac12 = \tfrac14.$$
 % ===== END SOLUTION 5.4 =====
 
 \begin{problem}{5.1}
@@ -73,5 +78,12 @@ Here $1/\mu$ is the mean service time, and you wait for the five others plus you
 
 By memorylessness, the customer already in service has the same mean remaining service time $1/\mu$, no matter how long they have already been served.
 % ===== END SOLUTION 5.2 =====
+
+\begin{problem}{5.6}
+In Example 5.3 if server $i$ serves at an exponential rate $\lambda_i$, $i=1,2$, show that
+$$\Pr\{\text{Smith is not last}\} = \left(\frac{\lambda_1}{\lambda_1+\lambda_2}\right)^{2} + \left(\frac{\lambda_2}{\lambda_1+\lambda_2}\right)^{2}.$$
+\end{problem}
+% ===== SOLUTION 5.6 =====
+% ===== END SOLUTION 5.6 =====
 
 \end{document}
