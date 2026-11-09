@@ -193,6 +193,11 @@ def imap_date(when):
     return "%02d-%s-%04d" % (t.tm_mday, MONTHS[t.tm_mon - 1], t.tm_year)
 
 
+def imap_mailbox(name):
+    """A mailbox name quoted for SELECT; Gmail's `[Gmail]/All Mail` has a space."""
+    return '"%s"' % str(name).replace("\\", "\\\\").replace('"', '\\"')
+
+
 def imap_host_for(address, explicit):
     if explicit:
         return str(explicit)
@@ -265,7 +270,7 @@ def find_pin(cfg, since, show, password):
                 conn = imaplib.IMAP4_SSL(host, port, ssl_context=ctx)
                 conn.login(address, password)
             for folder in folders:
-                typ, _ = conn.select(folder, readonly=not delete)
+                typ, _ = conn.select(imap_mailbox(folder), readonly=not delete)
                 if typ != "OK":
                     continue
                 typ, data = conn.search(None, "SINCE %s" % searched)
