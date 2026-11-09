@@ -130,8 +130,9 @@ echo "== 2b. Cloudflare access"
 # A subject that carries `.atlas/cloudflare-access.json` names a
 # Cloudflare-protected git host. The refresher exchanges the stored
 # organization token for a fresh application token and rewrites the git
-# header, so only the interactive Cloudflare login is ever manual. With no
-# config, no agent is left loaded.
+# header. When that session is gone and the config names an email, the same
+# run reads the one-time PIN from that mailbox and signs in with no browser.
+# With no config, no agent is left loaded.
 shopt -s nullglob
 cf_cfg=("$ROOT"/courses/*/.atlas/cloudflare-access.json \
         "$ROOT"/projects/*/.atlas/cloudflare-access.json)

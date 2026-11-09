@@ -9,11 +9,12 @@ A subject may carry `.atlas/cloudflare-access.json`:
 header is for; with it, nothing runs while that directory is absent. The
 git key is `http.<app>/.extraHeader` unless the file names one.
 
-The header holds a short-lived application token. This asks cloudflared for
-the app's token, which it exchanges from the stored organization token, so
-the header stays fresh until the organization session expires. After that,
-the only way in is `cloudflared access login <app>` at a browser, and a
-notification says so.
+The header holds a short-lived application token. This first asks cloudflared
+for the app's token, which it exchanges from the stored organization token, so
+the header stays fresh while that session lives. When it cannot, and the
+subject names an `email`, this runs cloudflare-email-login.py, which reads the
+one-time PIN from that mailbox and signs in with no browser. A subject without
+an `email` gets a notification instead.
 
     cloudflare-access.py [--config PATH]... [--say]
 
@@ -50,6 +51,10 @@ PREFIX = "Cf-Access-Jwt-Assertion: "
 RENEW_SECONDS = 3600
 TOKEN_TIMEOUT = 60
 NOTIFY_EVERY = 6 * 3600
+EMAIL_LOGIN = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), "cloudflare-email-login.py")
+EMAIL_RETRY = 1800
+EMAIL_BACKOFF = 6 * 3600
 
 
 def now():
@@ -206,8 +211,20 @@ def refresh(path, show=False):
     token = (p.stdout or "").strip()
     new_exp = exp_of(token) if p.returncode == 0 else None
     if p.returncode != 0 or not token or not new_exp or new_exp <= now():
+        if email_login(path, app, key, prefix, show):
+            code, header, _ = git("config", "--global", "--get", key)
+            token = header[len(prefix):] if code == 0 and \
+                header.startswith(prefix) else ""
+            new_exp = exp_of(token) if token else None
+            line = "%s: refreshed by email PIN, expires %s" % (
+                app, stamp(new_exp))
+            log(line)
+            say(line, show)
+            remember(app, True, new_exp, line)
+            return True, line
         detail = (p.stderr or "").strip().splitlines()
-        return fail(app, "%s: the Cloudflare session needs a login: run "
+        return fail(app, "%s: the Cloudflare session needs a login and the "
+                    "email PIN bot could not take over: run "
                     "`cloudflared access login %s` in Terminal"
                     % (app, app) + (" (%s)" % detail[-1] if detail else ""),
                     show)
@@ -225,7 +242,7 @@ def refresh(path, show=False):
                     show)
     line = "%s: refreshed, expires %s" % (app, stamp(new_exp))
     log(line)
-    say(line, quiet)
+    say(line, show)
     remember(app, True, new_exp, line)
     return True, line
 
@@ -255,6 +272,58 @@ def remember(app, ok, exp, detail):
         entry["exp"] = exp
         entry["exp_iso"] = stamp(exp)
     write_state(said)
+
+
+def email_login(path, app, key, prefix, show):
+    """Run the subject's email-PIN login. True when the header ends up fresh.
+
+    Only a subject whose config names an `email` opts in. A cooldown keeps a
+    broken mailbox from mailing a PIN on every run; three failures back off to
+    the six-hour notification interval.
+    """
+    if not os.path.isfile(EMAIL_LOGIN):
+        return False
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        return False
+    if not isinstance(cfg, dict) or not cfg.get("email"):
+        return False
+    said = read_state()
+    entry = said.setdefault("apps", {}).setdefault(app, {})
+    last = entry.get("email_at") or 0
+    streak = int(entry.get("email_fails") or 0)
+    wait = EMAIL_RETRY if streak < 3 else EMAIL_BACKOFF
+    if now() - last < wait:
+        return False
+    entry["email_at"] = now()
+    write_state(said)
+    p = None
+    try:
+        p = subprocess.run(
+            [sys.executable, EMAIL_LOGIN, "--config", path, "--say"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=300)
+    except (OSError, subprocess.SubprocessError) as exc:
+        log("%s: email login did not run (%s)" % (app, exc))
+    if p is not None:
+        for line in ((p.stdout or "") + (p.stderr or "")).splitlines():
+            if line.strip():
+                log("email: " + line.strip())
+    code, header, _ = git("config", "--global", "--get", key)
+    token = header[len(prefix):] if code == 0 and header.startswith(prefix) \
+        else ""
+    new_exp = exp_of(token) if token else None
+    said = read_state()
+    entry = said.setdefault("apps", {}).setdefault(app, {})
+    if p is not None and p.returncode == 0 and new_exp and new_exp > now():
+        entry["email_fails"] = 0
+        write_state(said)
+        return True
+    entry["email_fails"] = streak + 1
+    write_state(said)
+    return False
 
 
 def main(argv):
