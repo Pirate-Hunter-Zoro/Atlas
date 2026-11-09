@@ -11,9 +11,9 @@
 
 Session 20261103-163801 works Part I of the owner's uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22.
 
-The write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07. 20(a) and 20(b) are closed; `% ===== SOLUTION 20 =====` holds both arguments, and the PDF built clean at 2026-11-07 18:02. 20(b)'s page (t0010-r8) is filed as `handwritten/ch07-20.png`. Card 0029 grades 20(b) whole and notes its one slip: the IH remark must bound `Emb_{phi*}(K,L)` for a fixed `phi*`, not `Emb_phi(K,L)`; the displayed chain is correct.
+The write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07. 20(a) and 20(b) are closed; `% ===== SOLUTION 20 =====` holds both arguments, and the PDF built clean at 2026-11-07 18:02. 20(b)'s page (t0010-r8) is filed as `handwritten/ch07-20.png`; card 0029 grades it and notes its one slip (the IH remark must bound `Emb_{phi*}(K,L)` for fixed `phi*`).
 
-Now: 20(c), posed in card 0029. The rung is the identification of `Gal(K/F)` with `Emb_phi(K,K)` for `L=K` and `phi` the inclusion, then (b). After 20(c): 20(d), 20(e); then 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+Now: 20(c), stated "Deduce that $|\operatorname{Gal}(K/F)|\le[K:F]$." Card 0031 corrected their `psi(k)=k` line (a map fixing F need not fix alpha) and their unnecessary `K=F(alpha)` step. Card 0032 answers their "I feel like I'm missing a theorem" turn: the missing fact is linear algebra, that an F-subspace of the finite-dimensional space K with dimension equal to [K:F] is all of K, so the injective psi is surjective. The open step: with phi the inclusion F->K, `Emb_phi(K,K)=Gal(K/F)`, and part (b) gives the inequality. When they land it, write up 20(c) under label 20; then 20(d), 20(e); then 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
 
 Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and do not ask them to name the map. Their 2026-11-07 turn demands every write-up go in the actual homework document as we go, never a `docs/` write-up; card 0024 records it. Mode stays teach.
 
