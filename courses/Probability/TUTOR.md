@@ -9,17 +9,23 @@
 
 ## Now
 
-hw04 is closed. All nine problems -- 2, 3, 5, 14, 34, 40, 52, 60, 76 -- are answered and written up; due October 26.
+hw05 is open on the Chapters 5 and 8 sheet. The sheet sets Ch 5 exercises 1, 2, 4, 6, 15, 21; Ch 8 exercises 3, 13; plus 5.2* and 8.12*, which are not handed in. The set is homework/hw05/hw05.tex; the sheet is filed at homework/hw05/assignment/Prob.Homework5.pdf, out of git. The session is bound to hw05.
 
-Turn t0002-r24 directed that the "168 pairs" sentence be deleted from Problem 76; card 0033 reports it done and the PDF rebuilt. Its region now ends the degree table at $\sum_i d_i=336$, and the only use of $336$ is $2/336=1/168$ for the corner. No third Proposition 4.4 citation was named, so 40 and 76 are the two.
+Steering (2026-11-09): do ALL handed-in problems, in sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. The starred 5.2* and 8.12* stay dropped.
 
-Earlier, turn t0002-r23 asked for three write-up changes, all in hw04.tex and rebuilt: Proposition 4.4 cited in 40 and 76 (Section 4.4, printed p. 204); a verbatim Mathematica block in Problem 34 producing its RREF; d_i defined in 76. Mathematica is not installed here, so that snippet is unrun; the RREF it prints was checked by exact rational row reduction.
+5.1 is DONE and written up from t0003-r1 (homework/hw05/handwritten/hw05-5.1.png): both parts correct, (a) and (b) e^-1.
 
-Standing direction (2026-10-25): keep the knight-graph argument to the degree table and $\sum_i d_i=336$; no pair-count or double-count sentence.
+Next is 5.2, posed at card 0003, region EMPTY. At t0003-r2 they wrote E[sum X_i]=sum E[X_i]=5μ (count and mean wrong). At t0003-r3 they wrote E[sum X_i]=sum E[X_i]=6/μ with "1/μ is mean service time, gotta wait for 5 others plus your own" — answer and count now correct. Card 0005 credits both and asks only for the missing memorylessness reason: why the in-service customer's residual is again exponential with mean 1/μ rather than shortened. Write up 5.2 once that reason is stated.
 
-Standing instruction (2026-10-24): they will not do algebra. Give every arithmetic step, simplification, matrix product or numeric value exactly and directly, in the card, without asking them for it. Ask only for reasoning: which object, which argument, which symmetry.
+5.4 is posed (card 0001), region EMPTY, waiting after 5.2. Answers to grade against: 5.4 (a) 0, (b) 1/27, (c) 1/4.
 
-Standing pattern: when they ask "can you google this", they want the fact checked. Verify it by computing or enumerating, and say that is how it was checked.
+Exercise numbers are the eleventh edition. Read them off the page image; the extracted text drops stacked fractions (5.1 mean is 1/2 hour, not 21).
+
+Standing instruction (2026-10-24): they will not do algebra. Give every arithmetic step, simplification, matrix product or numeric value exactly and directly in the card, without asking. Ask only for reasoning: which object, which argument, which symmetry.
+
+Standing pattern: when they ask "can you google this", they want the fact checked. Verify it by computing or enumerating, and say how it was checked.
+
+hw04 is closed; all nine problems written up, due October 26.
 
 ## Open decisions
 

@@ -1,0 +1,77 @@
+% ===========================================================================
+%  Homework 05
+%
+%  A write-up: one problem environment per question, and beneath it a marked
+%  solution region holding the agreed argument. `board writeup add <label>`
+%  writes both and rebuilds the PDF; a region stays empty until its answer is
+%  agreed. Code goes in verbatim, so nothing here needs shell-escape.
+% ===========================================================================
+\documentclass[11pt]{article}
+% The subject's own preamble when it has one (`latex/coursemacros.sty`, on
+% TEXINPUTS through `board build`), else a plain one.
+\IfFileExists{coursemacros.sty}{\usepackage{coursemacros}}{%
+  \usepackage{amsmath}\usepackage{amssymb}\usepackage{amsthm}%
+  \usepackage[margin=1in]{geometry}\usepackage{graphicx}}
+% The board's macro vocabulary, every one a \providecommand, so a card's
+% notation typesets here too and the subject's definitions still win.
+\IfFileExists{board-macros.tex}{\input{board-macros.tex}}{}
+\ifdefined\problem\else
+\newenvironment{problem}[1]
+  {\par\medskip\noindent\textbf{Problem #1.}\ \itshape}
+  {\par\medskip}
+\fi
+\ifdefined\solution\else
+\newenvironment{solution}
+  {\par\noindent\textbf{Solution.}\ }
+  {\par\medskip}
+\fi
+\providecommand{\todo}[1]{\textbf{[TODO: #1]}}
+
+\title{Homework 05}
+\author{Mikey Ferguson}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% One problem/solution pair per question, in the order the sheet or the
+% session posed them.
+
+\begin{problem}{5.4}
+Consider a post office with two clerks. Three people, A, B, and C, enter simultaneously. A and B go directly to the clerks, and C waits until either A or B leaves before he begins service. What is the probability that A is still in the post office after the other two have left when
+
+(a) the service time for each clerk is exactly (nonrandom) ten minutes?
+(b) the service times are $i$ with probability $\tfrac13$, $i=1,2,3$?
+(c) the service times are exponential with mean $1/\mu$?
+\end{problem}
+% ===== SOLUTION 5.4 =====
+% ===== END SOLUTION 5.4 =====
+
+\begin{problem}{5.1}
+The time $T$ required to repair a machine is an exponentially distributed random variable with mean $\tfrac12$ (hours).
+
+(a) What is the probability that a repair time exceeds $\tfrac12$ hour?
+(b) What is the probability that a repair takes at least $12\tfrac12$ hours given that its duration exceeds 12 hours?
+\end{problem}
+% ===== SOLUTION 5.1 =====
+The repair time $T$ is exponentially distributed with mean $\tfrac12$ hour, so $\lambda = 1/(\tfrac12) = 2$.
+
+For (a), integrate the density:
+$$P(T > \tfrac12) = \int_{1/2}^{\infty} f(t)\,dt = \int_{1/2}^{\infty} 2e^{-2t}\,dt = \left. 2\cdot(-\tfrac12)e^{-2t} \right|_{1/2}^{\infty} = e^{-1} = \frac{1}{e} \approx 0.368.$$
+
+For (b), memorylessness gives
+$$P(T \ge 12\tfrac12 \mid T > 12) = P(T \ge \tfrac12) = \frac{1}{e} \quad \text{again}.$$
+% ===== END SOLUTION 5.1 =====
+
+\begin{problem}{5.2}
+Suppose that you arrive at a single-teller bank to find five other customers in the bank, one being served and the other four waiting in line. You join the end of the line. If the service times are all exponential with rate $\mu$, what is the expected amount of time you will spend in the bank?
+\end{problem}
+% ===== SOLUTION 5.2 =====
+The expected time in the bank is
+$$E\left[\sum_{i=1}^{6} X_i\right] = \sum_{i=1}^{6} E[X_i] = \frac{6}{\mu}.$$
+Here $1/\mu$ is the mean service time, and you wait for the five others plus your own: six service times in all.
+
+By memorylessness, the customer already in service has the same mean remaining service time $1/\mu$, no matter how long they have already been served.
+% ===== END SOLUTION 5.2 =====
+
+\end{document}
