@@ -57,6 +57,8 @@ from datetime import datetime
 sys.dont_write_bytecode = True
 
 HOME = os.path.expanduser("~")
+HEADER_FILE = os.path.join(HOME, ".config", "atlas", "git-extraheader")
+HEADER_INCLUDE = "~/.config/atlas/git-extraheader"
 ATLAS = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SETUP_DIR = os.path.join(
     os.environ.get("XDG_STATE_HOME") or os.path.join(HOME, ".local", "state"),
@@ -410,18 +412,52 @@ def token_in(headers):
     return found.group(1) if found else ""
 
 
+def ensure_header_file():
+    """Create the 0600 include file and wire it into ~/.gitconfig once."""
+    try:
+        os.makedirs(os.path.dirname(HEADER_FILE), mode=0o700, exist_ok=True)
+        os.chmod(os.path.dirname(HEADER_FILE), 0o700)
+        if not os.path.exists(HEADER_FILE):
+            with open(HEADER_FILE, "a", encoding="utf-8"):
+                pass
+        os.chmod(HEADER_FILE, 0o600)
+    except OSError:
+        return
+    paths = subprocess.run(
+        ["git", "config", "--global", "--get-all", "include.path"],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        universal_newlines=True, timeout=30)
+    present = (paths.stdout or "").splitlines() if paths.returncode == 0 else []
+    if HEADER_INCLUDE not in present:
+        subprocess.run(
+            ["git", "config", "--global", "--add", "include.path",
+             HEADER_INCLUDE],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=30)
+    secure_files()
+
+
+def secure_files():
+    for path in (os.path.join(HOME, ".gitconfig"), HEADER_FILE):
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+
+
 def write_header(key, prefix, token):
-    p = subprocess.run(["git", "config", "--global", "--replace-all",
-                        key, prefix + token],
+    ensure_header_file()
+    subprocess.run(["git", "config", "--global", "--unset-all", key],
+                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                   universal_newlines=True, timeout=30)
+    p = subprocess.run(["git", "config", "--file", HEADER_FILE,
+                        "--replace-all", key, prefix + token],
                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                        universal_newlines=True, timeout=30)
     if p.returncode != 0:
         raise RuntimeError("could not write the git header: %s"
                            % (p.stderr or "").strip())
-    try:
-        os.chmod(os.path.join(HOME, ".gitconfig"), 0o600)
-    except OSError:
-        pass
+    secure_files()
 
 
 def config_paths(extra):

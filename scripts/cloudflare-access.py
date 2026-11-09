@@ -47,6 +47,8 @@ SETUP_DIR = os.path.join(
     "atlas-setup")
 LOG = os.path.join(SETUP_DIR, "cloudflare-access.log")
 LOG_MAX = 2000000
+HEADER_FILE = os.path.join(HOME, ".config", "atlas", "git-extraheader")
+HEADER_INCLUDE = "~/.config/atlas/git-extraheader"
 PREFIX = "Cf-Access-Jwt-Assertion: "
 RENEW_SECONDS = 3600
 TOKEN_TIMEOUT = 60
@@ -117,10 +119,31 @@ def notify(title, message):
 
 def secure_config():
     """The git header is a credential; keep its file owner-only."""
+    for path in (os.path.join(HOME, ".gitconfig"), HEADER_FILE):
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+
+
+def ensure_header_file():
+    """Create the 0600 include file and wire it into ~/.gitconfig once.
+
+    The token then lives outside ~/.gitconfig, which only carries the include.
+    """
     try:
-        os.chmod(os.path.join(HOME, ".gitconfig"), 0o600)
+        os.makedirs(os.path.dirname(HEADER_FILE), mode=0o700, exist_ok=True)
+        os.chmod(os.path.dirname(HEADER_FILE), 0o700)
+        if not os.path.exists(HEADER_FILE):
+            with open(HEADER_FILE, "a", encoding="utf-8"):
+                pass
+        os.chmod(HEADER_FILE, 0o600)
     except OSError:
-        pass
+        return
+    code, paths, _ = git("config", "--global", "--get-all", "include.path")
+    if code != 0 or HEADER_INCLUDE not in paths.splitlines():
+        git("config", "--global", "--add", "include.path", HEADER_INCLUDE)
+    secure_config()
 
 
 def git(*args):
@@ -191,6 +214,8 @@ def refresh(path, show=False):
             return True, line
     key = str(cfg.get("git_key") or "http.%s/.extraHeader" % app)
     prefix = str(cfg.get("header") or PREFIX)
+    ensure_header_file()
+    git("config", "--global", "--unset-all", key)
     renew = int(cfg.get("renew_minutes") or 60) * 60
     token_bin = shutil.which("cloudflared", path=os.environ.get(
         "PATH", "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"))
@@ -198,7 +223,7 @@ def refresh(path, show=False):
         line = ("%s: cloudflared is not installed; run `brew install "
                 "cloudflared`" % app)
         return fail(app, line, show)
-    code, header, _ = git("config", "--global", "--get", key)
+    code, header, _ = git("config", "--file", HEADER_FILE, "--get", key)
     current = header[len(prefix):] if code == 0 and header.startswith(prefix) \
         else ""
     current_exp = exp_of(current) if current else None
@@ -220,7 +245,7 @@ def refresh(path, show=False):
     new_exp = exp_of(token) if p.returncode == 0 else None
     if p.returncode != 0 or not token or not new_exp or new_exp <= now():
         if email_login(path, app, key, prefix, show):
-            code, header, _ = git("config", "--global", "--get", key)
+            code, header, _ = git("config", "--file", HEADER_FILE, "--get", key)
             token = header[len(prefix):] if code == 0 and \
                 header.startswith(prefix) else ""
             new_exp = exp_of(token) if token else None
@@ -244,7 +269,7 @@ def refresh(path, show=False):
         say(line, show)
         remember(app, True, new_exp, line)
         return True, line
-    code, _out, err = git("config", "--global", "--replace-all", key,
+    code, _out, err = git("config", "--file", HEADER_FILE, "--replace-all", key,
                           prefix + token)
     if code != 0:
         return fail(app, "%s: could not write the git header: %s" % (app, err),
@@ -321,7 +346,7 @@ def email_login(path, app, key, prefix, show):
         for line in ((p.stdout or "") + (p.stderr or "")).splitlines():
             if line.strip():
                 log("email: " + line.strip())
-    code, header, _ = git("config", "--global", "--get", key)
+    code, header, _ = git("config", "--file", HEADER_FILE, "--get", key)
     token = header[len(prefix):] if code == 0 and header.startswith(prefix) \
         else ""
     new_exp = exp_of(token) if token else None
