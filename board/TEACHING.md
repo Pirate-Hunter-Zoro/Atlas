@@ -451,14 +451,12 @@ At End, a transcript turn binds it only if no subject was chosen (Random lessons
 unless the pages plainly belong elsewhere), writes each page's text under its image
 in the notes.md `board writeup new --md "<title>"` prints, and `board build`s it.
 
-### A speaking drill
+### A phrase to hear
 
-Every session speaks and listens. A phrase to hear goes in a fence opened with
-`say <lang>` (`pinyin="ni3 hao3"` after it for Mandarin), one phrase a fence; pose
-it, then ask them to say it back. A `[speech]` line is their take: `board hear
-<file>` prints its words and each syllable's tone. **The local check confirms
-only: never tell them a tone is wrong on its word**; unknown or a hint (`T4?`)
-means listen again. Only Azure can fail a syllable. Correct one a turn.
+Every session speaks and listens. A phrase they should hear goes in a fence
+opened with `say <lang>`, one phrase a fence; a card's speak button reads its
+prose aloud. A `[speech]` line is their take: `board hear <file>` prints what
+was heard. The tutor gets words, never the audio, and never grades a voice.
 
 ## Showing a slide or a figure
 

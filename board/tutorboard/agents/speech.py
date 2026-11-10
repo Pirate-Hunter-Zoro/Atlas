@@ -1,12 +1,10 @@
-"""Who speaks, who listens and who judges pronunciation: the speech table.
+"""Who speaks and who listens: the speech table.
 
 Speech is not the tutor: DeepSeek has no audio model, so Azure Speech does
-the jobs it can and this Mac does the rest. Three jobs, each a `kind`:
+the jobs it can and this Mac does the rest. Two jobs, each a `kind`:
 
     tts      text to an m4a the board plays
     stt      a 16 kHz mono WAV to the words heard, with timings when known
-    assess   a WAV against the words it was meant to say: per-syllable tones,
-             a word diff and a verdict
 
 `DEFAULT_SPEECH` holds the recipes, `azure` and `local`, and `order`, the
 order each kind tries them in: Azure first, this Mac last. `config.json`'s
@@ -23,7 +21,6 @@ A recipe added in the config names the code that drives it with `via`
 `order` names it.
 """
 
-import base64
 import json
 import os
 import re
@@ -38,7 +35,7 @@ import uuid
 from tutorboard import keys, machine, paths
 from tutorboard.speech import audio
 
-KINDS = ("tts", "stt", "assess")
+KINDS = ("tts", "stt")
 LOCAL = "local"
 TIMEOUT = 60
 
@@ -49,8 +46,7 @@ LIMIT_SECONDS = 3600
 
 DEFAULT_SPEECH = {
     "order": {"tts": ["azure", "local"],
-              "stt": ["azure", "local"],
-              "assess": ["azure", "local"]},
+              "stt": ["azure", "local"]},
     "recipes": {
         "azure": {
             "label": "Azure Speech",
@@ -60,22 +56,11 @@ DEFAULT_SPEECH = {
             "tts": {"endpoint": "https://{region}.tts.speech.microsoft.com/"
                                 "cognitiveservices/v1",
                     "format": "riff-24khz-16bit-mono-pcm"},
-            # STT and assessment: the REST short-audio endpoint, WAV PCM
-            # 16 kHz mono, at most 30 s; assessment adds the base64
-            # Pronunciation-Assessment header.
+            # STT: the REST short-audio endpoint, WAV PCM 16 kHz mono, at
+            # most 30 s.
             "stt": {"endpoint": "https://{region}.stt.speech.microsoft.com/"
                                 "speech/recognition/conversation/"
                                 "cognitiveservices/v1"},
-            "assess": {"endpoint": "https://{region}.stt.speech.microsoft.com/"
-                                   "speech/recognition/conversation/"
-                                   "cognitiveservices/v1",
-                       "langs": ["zh-CN", "zh-HK", "zh-TW", "en-US", "en-GB",
-                                 "en-AU", "en-CA", "en-IN", "ja-JP", "ko-KR",
-                                 "fr-FR", "fr-CA", "de-DE", "es-ES", "es-MX",
-                                 "it-IT", "pt-BR", "pt-PT", "nl-NL", "ru-RU",
-                                 "ar-SA", "vi-VN", "th-TH", "hi-IN", "pl-PL",
-                                 "sv-SE", "nb-NO", "da-DK", "fi-FI", "ca-ES",
-                                 "ta-IN", "ms-MY"]},
             "voices": {"zh-CN": "zh-CN-XiaoxiaoNeural",
                        "zh-TW": "zh-TW-HsiaoChenNeural",
                        "ja-JP": "ja-JP-NanamiNeural",
@@ -90,8 +75,7 @@ DEFAULT_SPEECH = {
                        "en-GB": "en-GB-SoniaNeural",
                        "ga-IE": ["ga-IE-OrlaNeural", "ga-IE-ColmNeural"]},
             # USD; the free tier covers most of a week's use.
-            "prices": {"tts_per_char": 0.000016, "stt_per_minute": 0.0167,
-                       "assess_per_minute": 0.022},
+            "prices": {"tts_per_char": 0.000016, "stt_per_minute": 0.0167},
         },
         "local": {
             "label": "this Mac",
@@ -99,7 +83,6 @@ DEFAULT_SPEECH = {
             # Irish (ga) first among them.
             "tts": {"cmd": ["say"], "fallback_cmd": ["espeak-ng"]},
             "stt": {"cmd": ["whisper-cli"], "model": "ggml-small-q5_1.bin"},
-            "assess": {"module": "tutorboard.speech.tones"},
             # A premium voice first, when it is downloaded.
             "voices": {"zh-CN": "Tingting", "ja-JP": "Kyoko",
                        "fr-FR": "Amélie", "fr-CA": "Amélie",
@@ -432,10 +415,8 @@ def run(kind, lang, job, live=None, cfg=None):
     name)`. Raises Refused with every recipe's reason when none could.
 
     `job` per kind:
-      tts     {text, dest, voice?, pinyin?}            -> {path}
-      stt     {wav}                                    -> {text, words}
-      assess  {wav, ref, pinyin?, words?, heard?, reference?}
-                                                       -> tones.assess's shape
+      tts     {text, dest, voice?}   -> {path}
+      stt     {wav}                  -> {text, words}
 
     One line goes to `live/cost.jsonl` (the session's), or to the state
     directory's `speech-cost.jsonl` when there is no session; bare `board
@@ -574,17 +555,12 @@ def azure_voice(spec, lang, wanted=None):
     return choices[0] if choices else None
 
 
-def ssml(lang, voice, text, pinyin=None):
-    """The SSML Azure reads. Mandarin with `pinyin` is spoken from the pinyin
-    (SAPI phones, `ni 3 hao 3`), so a polyphone is read as taught."""
-    said = _xml(text)
-    if pinyin and primary(lang) == "zh":
-        phones = " ".join("%s %s" % (s[:-1], s[-1]) if s[-1:].isdigit() else s
-                          for s in pinyin_syllables(pinyin))
-        said = '<phoneme alphabet="sapi" ph="%s">%s</phoneme>' % (_xml(phones), said)
+def ssml(lang, voice, text):
+    """The SSML Azure reads."""
     return ("<speak version='1.0' xml:lang='%s' "
             "xmlns='http://www.w3.org/2001/10/synthesis'>"
-            "<voice name='%s'>%s</voice></speak>" % (lang, _xml(voice), said))
+            "<voice name='%s'>%s</voice></speak>"
+            % (lang, _xml(voice), _xml(text)))
 
 
 def _azure_tts(spec, name, lang, job):
@@ -592,7 +568,7 @@ def _azure_tts(spec, name, lang, job):
     if not voice:
         raise Refused("no Azure voice for %s" % lang)
     raw = _post(name, _endpoint(spec, "tts"),
-                ssml(lang, voice, job["text"], job.get("pinyin")).encode("utf-8"),
+                ssml(lang, voice, job["text"]).encode("utf-8"),
                 {"Ocp-Apim-Subscription-Key": keys.get(spec.get("needs_key")) or "",
                  "Content-Type": "application/ssml+xml",
                  "X-Microsoft-OutputFormat": (spec.get("tts") or {}).get("format")
@@ -601,23 +577,11 @@ def _azure_tts(spec, name, lang, job):
     return _landed_wav(raw, job["dest"])
 
 
-def assessment_header(ref):
-    """The Pronunciation-Assessment header: base64 of its JSON."""
-    params = {"ReferenceText": ref, "GradingSystem": "HundredMark",
-              "Granularity": "Phoneme", "Dimension": "Comprehensive",
-              "EnableMiscue": True}
-    return base64.b64encode(json.dumps(params, ensure_ascii=False)
-                            .encode("utf-8")).decode("ascii")
-
-
-def _azure_recognise(spec, name, lang, job, ref=None):
-    kind = "assess" if ref else "stt"
-    url = _endpoint(spec, kind) + "?language=%s&format=detailed" % lang
+def _azure_recognise(spec, name, lang, job):
+    url = _endpoint(spec, "stt") + "?language=%s&format=detailed" % lang
     headers = {"Ocp-Apim-Subscription-Key": keys.get(spec.get("needs_key")) or "",
                "Content-Type": "audio/wav; codecs=audio/pcm; samplerate=16000",
                "Accept": "application/json"}
-    if ref:
-        headers["Pronunciation-Assessment"] = assessment_header(ref)
     got = _json(_post(name, url, _wav_bytes(job), headers), "Azure")
     status = got.get("RecognitionStatus")
     if status in ("NoMatch", "InitialSilenceTimeout", "BabbleTimeout"):
@@ -645,65 +609,6 @@ def _azure_stt(spec, name, lang, job):
                       "end": start + dur if start is not None else None})
     return {"text": (got.get("DisplayText") or "").strip(), "words": words,
             "seconds": audio.seconds(job["wav"])}
-
-
-def _pa(obj, field):
-    """A pronunciation score, flat or under `PronunciationAssessment`."""
-    if field in obj:
-        return obj.get(field)
-    return (obj.get("PronunciationAssessment") or {}).get(field)
-
-
-ERROR_OPS = {"None": "equal", "Omission": "missing", "Insertion": "extra",
-             "Mispronunciation": "wrong", "UnexpectedBreak": "equal",
-             "MissingBreak": "equal", "Monotone": "equal"}
-
-
-def _azure_assess(spec, name, lang, job):
-    from tutorboard.speech import tones
-    got, best = _azure_recognise(spec, name, lang, job, ref=job["ref"])
-    secs = audio.seconds(job["wav"])
-    if best is None:
-        return dict(tones.unheard(job["ref"], lang, job.get("pinyin")),
-                    seconds=secs)
-    targets = tones.targets(job.get("pinyin"))
-    syllables, words, n = [], [], 0
-    for w in best.get("Words") or []:
-        acc = _pa(w, "AccuracyScore")
-        op = ERROR_OPS.get(str(_pa(w, "ErrorType") or "None"), "wrong")
-        words.append({"op": op,
-                      "target": w.get("Word", "") if op != "extra" else "",
-                      "heard": w.get("Word", "") if op != "missing" else "",
-                      "score": acc})
-        if op == "extra":
-            continue
-        chars = [c for c in w.get("Word", "") if not c.isspace()] \
-            if primary(lang) == "zh" else [w.get("Word", "")]
-        for ch in chars:
-            t = targets[n] if n < len(targets) else None
-            n += 1
-            sure = (acc or 0) / 100.0
-            right = sure >= 0.8 and op == "equal"
-            # Azure scores the phonemes itself, so it alone may fail one.
-            syllables.append({
-                "syllable": ch, "target": t and t["target"],
-                "expect": t and t["expect"],
-                "heard": (t and t["expect"]) if right else "unknown",
-                "call": "right" if right else "wrong" if op != "equal"
-                else "unknown", "hint": None,
-                "confidence": round(sure, 2)})
-    score = _pa(best, "PronScore")
-    if score is None:
-        score = _pa(best, "AccuracyScore")
-    off = [w["target"] or w["heard"] for w in words if w["op"] != "equal"]
-    verdict = ("score %s/100" % int(round(score or 0))
-               + (": check %s" % ", ".join("'%s'" % o for o in off[:4]) if off
-                  else ", every word as written"))
-    return {"verdict": verdict, "score": score, "syllables": syllables,
-            "words": words, "heard": (got.get("DisplayText") or "").strip(),
-            "scores": {k: _pa(best, k) for k in ("AccuracyScore", "FluencyScore",
-                                                  "CompletenessScore", "PronScore")},
-            "prototype": False, "seconds": secs}
 
 
 def multipart_body(fields, files):
@@ -830,27 +735,11 @@ def whisper_words(got):
     return {"text": text.strip(), "words": words}
 
 
-def _local_assess(spec, name, lang, job):
-    from tutorboard.speech import tones
-    return tones.assess(job["wav"], job["ref"], lang, pinyin=job.get("pinyin"),
-                        words=job.get("words"), heard=job.get("heard"),
-                        reference=job.get("reference"))
-
-
-def pinyin_syllables(pinyin):
-    from tutorboard.speech import tones
-    return [s["syllable"] + (s["target"][1:] if s["target"] and
-                             s["target"].startswith("T") else "5")
-            for s in tones.targets(pinyin)]
-
-
 DRIVERS = {
     ("azure", "tts"): _azure_tts,
     ("azure", "stt"): _azure_stt,
-    ("azure", "assess"): _azure_assess,
     ("local", "tts"): _local_tts,
     ("local", "stt"): _local_stt,
-    ("local", "assess"): _local_assess,
 }
 
 

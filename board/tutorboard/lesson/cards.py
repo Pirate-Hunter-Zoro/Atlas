@@ -10,7 +10,6 @@ because a truncated file mid-write would otherwise reach the glass empty.
 import os
 import re
 import time
-import urllib.parse
 
 from .. import reasoning
 from ..course import library
@@ -73,7 +72,7 @@ def extract_tikz(body, jobs, repo):
     return extract_say(TIKZ_BLOCK.sub(sub, body), jobs, repo)
 
 
-# A phrase to hear: ```say zh-CN pinyin="ni3 hao3"``` around the words.
+# A phrase to hear: ```say zh-CN``` around the words.
 SAY_BLOCK = re.compile(
     r"^[ \t]*```[ \t]*say[ \t]+([A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2})"
     r"((?:[ \t]+[a-z]+=\"[^\"\n]*\")*)[ \t]*\n(.*?)^[ \t]*```[ \t]*$",
@@ -89,10 +88,8 @@ def say_attrs(raw):
 def extract_say(body, jobs, repo):
     """Replace each `say` fence with `@@SAY:<sha>:<status>:<lang>@@` and the
     words after it, which the client makes a play button fetching
-    `/speech/<sha>.m4a`. Pinyin rides in the marker, percent-encoded, as
-    `@@SAY:<sha>:<status>:<lang>:<pinyin>@@`: in the words it could not be
-    told from a phrase that itself ends in parentheses. A phrase not yet cached is queued, as a
-    figure is, as a `say` job (`server/tikz.py` hands it to `speech/synth.py`)."""
+    `/speech/<sha>.m4a`. A phrase not yet cached is queued, as a figure is,
+    as a `say` job (`server/tikz.py` hands it to `speech/synth.py`)."""
     if "```" not in body:
         return body
     found = []
@@ -105,17 +102,14 @@ def extract_say(body, jobs, repo):
         if not lang or not text:
             return match.group(0)
         attrs = say_attrs(match.group(2))
-        pinyin = attrs.get("pinyin") or None
         voice = attrs.get("voice") or _subject_voice(repo, lang, found)
-        name, src = synth.job(lang, text, pinyin, voice,
+        name, src = synth.job(lang, text, voice,
                               None if getattr(repo, "sessionless", False)
                               else getattr(repo, "live", None))
         status = synth.status(name)
         if status == "pending":
             jobs.append((name, "say", src))
-        return "\n\n@@SAY:%s:%s:%s%s@@ %s\n\n" % (
-            name, status, lang,
-            ":" + urllib.parse.quote(pinyin, safe="") if pinyin else "", text)
+        return "\n\n@@SAY:%s:%s:%s@@ %s\n\n" % (name, status, lang, text)
 
     return SAY_BLOCK.sub(sub, body)
 

@@ -1,9 +1,9 @@
-"""One take: converted, transcribed, judged, and written beside the audio.
+"""One take: converted, transcribed, and written beside the audio.
 
     sessions/<id>/speech/<base>.<ext>          the recording as it arrived
                                                (`<base>.orig.wav` for a WAV)
     sessions/<id>/speech/<base>.wav            16 kHz mono, what every listener reads
-    sessions/<id>/speech/<base>.heard.json     what was heard and the verdict
+    sessions/<id>/speech/<base>.heard.json     what was heard
 
 The tutor is handed the `.heard.json`, never the audio: `line` is the waking
 inbox line and `summary` what `board hear` prints. Sessions are ignored by
@@ -12,12 +12,10 @@ git and the audit refuses audio, so a recording never leaves this disk.
 
 import json
 import os
-import shutil
-import tempfile
 import time
 
 from tutorboard.agents import speech
-from tutorboard.speech import audio, synth
+from tutorboard.speech import audio
 
 AUDIO_EXTS = (".m4a", ".mp4", ".webm", ".ogg", ".oga", ".opus", ".wav", ".caf",
               ".aac", ".mp3")
@@ -36,17 +34,7 @@ def ext_for(filename, ctype=""):
     return ".m4a"
 
 
-def reference_wav(lang, ref, pinyin, voice, live, box):
-    """The phrase as TTS says it, as a 16 kHz WAV in `box`, or None."""
-    try:
-        _name, m4a = synth.ensure(lang, ref, pinyin, voice, live)
-        return audio.to_wav16k(m4a, os.path.join(box, "reference.wav"))
-    except (speech.Refused, audio.Unconvertible, OSError):
-        return None
-
-
-def take(live, recording, lang, ref=None, pinyin=None, voice=None, cfg=None,
-         answers=None):
+def take(live, recording, lang, cfg=None, answers=None):
     """Hear the recording at `recording` (inside `live/speech/`): write
     `<base>.wav` and `<base>.heard.json` beside it and return the record.
     Raises `speech.Refused` when nobody could transcribe it, and
@@ -73,28 +61,12 @@ def take(live, recording, lang, ref=None, pinyin=None, voice=None, cfg=None,
         if os.path.exists(wav):
             os.remove(wav)
         raise
-    rec = {"base": base, "lang": lang, "target": ref or "", "pinyin": pinyin or "",
-           "answers": answers, "heard": heard.get("text") or "",
+    rec = {"base": base, "lang": lang, "answers": answers,
+           "heard": heard.get("text") or "",
            "words": heard.get("words") or [], "stt_by": stt_by,
            "seconds": round(audio.seconds(wav), 2),
            "audio": os.path.basename(recording), "t": time.time(),
            "iso": time.strftime("%Y-%m-%d %H:%M:%S")}
-    rec["assess"] = None
-    if ref:
-        box = tempfile.mkdtemp(prefix="speech-ref-")
-        try:
-            reference = (reference_wav(lang, ref, pinyin, voice, live, box)
-                         if speech.primary(lang) == "zh" else None)
-            try:
-                rec["assess"], rec["assess_by"] = speech.run("assess", lang, {
-                    "wav": wav, "ref": ref, "pinyin": pinyin,
-                    "words": rec["words"], "heard": rec["heard"],
-                    "reference": reference}, live=live, cfg=cfg)
-            except speech.Refused as exc:
-                rec["assess_error"] = str(exc)
-        finally:
-            shutil.rmtree(box, ignore_errors=True)
-    rec["verdict"] = verdict(rec)
     rec["took"] = round(time.time() - began, 2)
     rec["file"] = os.path.join(folder, base + ".heard.json")
     with open(rec["file"] + ".tmp", "w", encoding="utf-8") as fh:
@@ -103,62 +75,19 @@ def take(live, recording, lang, ref=None, pinyin=None, voice=None, cfg=None,
     return rec
 
 
-def verdict(rec):
-    if not rec.get("heard"):
-        return "Nothing was heard."
-    if rec.get("assess"):
-        return rec["assess"].get("verdict") or ""
-    if rec.get("assess_error"):
-        return "Not judged: %s" % rec["assess_error"]
-    return "No target was set, so nothing was judged."
-
-
 def line(rec):
-    """The waking inbox line: what was heard, what was meant, the verdict."""
-    return "[speech] heard: '%s'. Target: '%s'. %s" % (
-        rec.get("heard") or "", rec.get("target") or "", rec.get("verdict") or "")
+    """The waking inbox line: what was heard."""
+    return "[speech] heard: '%s'." % (rec.get("heard") or "")
 
 
 def summary(rec):
     """What `board hear` prints of a heard record."""
     out = ["heard:   %s  (%s, %s)" % (rec.get("heard") or "(nothing)",
-                                      rec.get("lang"), rec.get("stt_by")),
-           "target:  %s%s" % (rec.get("target") or "(none)",
-                              "  [%s]" % rec["pinyin"] if rec.get("pinyin") else ""),
-           "verdict: %s" % (rec.get("verdict") or "")]
-    got = rec.get("assess") or {}
-    if got.get("syllables"):
-        out.append("tones:   " + "  ".join(
-            "%s %s->%s (%.2f)" % (s.get("syllable") or s.get("pinyin") or "?",
-                                  s.get("expect") or "?", _heard_as(s),
-                                  s.get("confidence") or 0)
-            for s in got["syllables"]))
-        if any(_heard_as(s).endswith("?") for s in got["syllables"]):
-            out.append("         (a tone with ? is an unconfirmed hint, never a "
-                       "wrong tone)")
-    off = [w for w in got.get("words") or [] if w.get("op") != "equal"]
-    if off:
-        out.append("words:   " + ", ".join(
-            "%s '%s'%s" % (w["op"], w.get("target") or w.get("heard"),
-                           " as '%s'" % w["heard"] if w["op"] == "wrong" else "")
-            for w in off))
-    if got.get("prototype"):
-        out.append("(%s)" % (got.get("label") or "a prototype"))
+                                      rec.get("lang"), rec.get("stt_by"))]
+    words = [w.get("text") for w in rec.get("words") or [] if w.get("text")]
+    if words:
+        out.append("words:   " + "  ".join(words))
     return "\n".join(out)
-
-
-def _heard_as(s):
-    """A syllable's tone as `board hear` prints it: the tone confirmed,
-    `wrong` only where the recipe failed it, a hint with a question mark; a
-    record from before `call` never has a mismatch read as wrong."""
-    heard = s.get("heard") or "unknown"
-    if s.get("call") == "wrong":
-        return "wrong"
-    if s.get("hint"):
-        return "%s?" % s["hint"]
-    if not s.get("call") and heard not in ("unknown", s.get("expect")):
-        return "%s?" % heard
-    return heard
 
 
 def newest(live):

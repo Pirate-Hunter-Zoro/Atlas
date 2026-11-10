@@ -2087,10 +2087,8 @@ body[data-ended] #notesend, body[data-ended] #drop {
   border: 1px solid var(--ink-3); background: transparent; color: var(--ink);
 }
 .say-words { font-size: 1.25rem; }
-.say-pinyin { font-family: var(--ui); font-size: .85rem; color: var(--ink-3); }
 
 #speakbox { display: flex; flex-direction: column; gap: .55rem; padding: .7rem .9rem; color: #e9e7e2; }
-#speak-target { font-size: 1.05rem; }
 #speakrow { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; }
 #speak-rec {
   font: inherit; font-family: var(--ui); font-size: .9rem; cursor: pointer;
@@ -2112,15 +2110,3 @@ body[data-ended] #notesend, body[data-ended] #drop {
   padding: .45rem .7rem .55rem; display: flex; flex-direction: column; gap: .35rem;
 }
 #heard .heard-text { font-size: 1.05rem; }
-#heard .heard-target, #heard .heard-verdict { font-family: var(--ui); font-size: .78rem; color: #b9bcc4; }
-#heard .tones { display: flex; gap: .35rem; flex-wrap: wrap; }
-#heard .tone {
-  display: inline-flex; gap: .3rem; align-items: baseline;
-  padding: .15rem .45rem; border-radius: .35rem; border: 1px solid #3a3e47;
-  font-family: var(--ui); font-size: .8rem;
-}
-#heard .tone .t { font-weight: 700; }
-#heard .tone.ok { border-color: #9fd49a; color: #9fd49a; }
-#heard .tone.off { border-color: #e0827c; color: #e0827c; }
-#heard .tone.unknown { color: #8b8f98; border-style: dashed; }
-#heard .tone.hint { color: #8b8f98; border-style: dotted; font-style: italic; }

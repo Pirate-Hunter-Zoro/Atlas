@@ -117,9 +117,8 @@ The assistant runs these. The student never does.
     board eyes [--answer]              can the assistant driving this actually see?
     board see <path> [--page N]        what is in this image or PDF page, in words
     board hear <file>                  a take's .heard.json as words: what was
-                                       heard, the target, each syllable's tone.
-                                       An audio file is heard first, with
-                                       --lang, --ref and --pinyin; --json
+                                       heard. An audio file is heard first,
+                                       with --lang; --json
 
 Card kinds: lesson, question, correct, wrong, review, note, recap. (A `review`
 card is you reviewing an answer.)
@@ -1854,11 +1853,10 @@ def cmd_hear(live, args):
     """What a take said, in words.
 
         board hear sessions/<id>/speech/t0007-r1.heard.json
-        board hear take.m4a --lang zh-CN --ref 你好 --pinyin "ni3 hao3"
+        board hear take.m4a --lang zh-CN
         board hear ... --json
 
-    A `.heard.json` is printed: what was heard, the target, the verdict and
-    each syllable's target and heard tone with its confidence. Any other file
+    A `.heard.json` is printed: what was heard and the words. Any other file
     is heard first, through the speech chains (`agents/speech.py`), in a
     scratch copy: nothing is written beside it. The tutor reads takes this
     way and never opens the audio.
@@ -1869,7 +1867,7 @@ def cmd_hear(live, args):
     rest = []
     it = iter(args)
     for a in it:
-        if a in ("--lang", "--ref", "--pinyin"):
+        if a in ("--lang",):
             opts[a[2:]] = next(it, "")
         elif not a.startswith("--"):
             rest.append(a)
@@ -1897,8 +1895,7 @@ def cmd_hear(live, args):
         try:
             copy = os.path.join(box, "take" + hear.ext_for(path))
             shutil.copyfile(path, copy)
-            rec = hear.take(None, copy, opts["lang"], ref=opts.get("ref") or None,
-                            pinyin=opts.get("pinyin") or None)
+            rec = hear.take(None, copy, opts["lang"])
         except (speech.Refused, audio.Unconvertible) as exc:
             print("not heard: %s" % exc, file=sys.stderr)
             return 1

@@ -336,15 +336,11 @@ def reading_sense(repo):
 # A subject with a `speech` block, or a session holding a heard take.
 SPEECH_SENSE = (
     "THIS SESSION SPEAKS AND LISTENS. A phrase they should hear goes in a "
-    "fence opened with `say <lang>`, with `pinyin=\"ni3 hao3\"` after it for "
-    "Mandarin, and gets a play button. A `[speech]` line is a take they "
-    "recorded: what was heard, the target and the verdict; its `file:` is the "
-    "heard record, which `board hear <file>` prints with each syllable's tone. "
-    "The local tone check is a prototype that confirms only: a tone it marks "
-    "right was heard right, and any other is unconfirmed, a hint like `T4?` "
-    "at most, so never tell them a tone is wrong on its word; listen again. "
-    "Only Azure, which scores the phonemes itself, can fail a syllable. Run "
-    "the drill as TEACHING.md says under `A speaking drill`. "
+    "fence opened with `say <lang>` and gets a play button. A card's speak "
+    "button reads its prose aloud, without its math or code. A `[speech]` "
+    "line is a take they recorded: what was heard; its `file:` is the heard "
+    "record, which `board hear <file>` prints. The tutor gets words, never "
+    "the audio. Never grade a voice. "
 )
 
 
