@@ -307,6 +307,19 @@ try:
     got = s.once()
     check("and the next pass has nothing to do",
           got["pulled"] is False and head(mac) == w.main() == mac_head)
+    # A failure recorded by the process before a restart must not outlive the
+    # network coming back: the first good pass clears it.
+    with open(os.path.join(w.state, sync.PULL_STATE), "w") as fh:
+        json.dump({"ok": False, "step": "ls-remote", "t": 1,
+                   "said": "fatal: unable to access 'https://github.com/"
+                           "Pirate-Hunter-Zoro/Atlas.git/': Could not resolve "
+                           "host: github.com"}, fh)
+    got = w.sync(mac).once()
+    told = sync.health(mac, state_dir=w.state, fresh=True)
+    check("a restarted sync clears a stale ls-remote failure once origin "
+          "answers",
+          got["pulled"] is False and told["synced"] is True
+          and told["lines"] == [], told)
 
     # ======================================================================
     # a staged file: skipped, nothing lost
@@ -449,6 +462,8 @@ try:
           got["pulled"] is None and rec.get("step") == "ls-remote"
           and "gone.git" in rec.get("said", "")
           and "repository exists" not in rec.get("said", ""), rec)
+
+
 
     # ======================================================================
     # the sha checked is the sha published; the ledger notes only its own

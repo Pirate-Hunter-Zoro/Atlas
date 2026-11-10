@@ -376,8 +376,10 @@ class Sync(object):
                     and self._last[0][1] == "push":
                 # A merge this thread made, not pushed yet.
                 self._push(main)
-            elif self._last is not None and not self._last[0][0]:
-                # The remote answers again after a failure.
+            else:
+                # The remote answers: clear any failure pull.json still holds
+                # from an earlier process, so a restarted board stops calling
+                # a recovered network "not synced".
                 self._record(True, "ls-remote", "", remote=main)
         forget()
         return {"pulled": pulled, "heard": heard_code}
