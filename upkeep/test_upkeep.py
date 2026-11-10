@@ -13,6 +13,7 @@ run when any fake resolves anywhere else. upkeep itself runs under
 /usr/bin/python3, the interpreter its LaunchAgents use.
 """
 
+import fcntl
 import json
 import os
 import plistlib
@@ -2519,6 +2520,22 @@ class Storage(unittest.TestCase):
         code, out = self.run_storage("run")
         self.assertEqual(code, 0, out)
         self.assertTrue(os.path.isdir(cache))
+
+    def test_a_held_upkeep_lock_skips(self):
+        cache = os.path.join(self.repo, "a", "__pycache__")
+        os.makedirs(cache)
+        self.age(cache, 30)
+        path = os.path.join(self.state, "upkeep.lock")
+        fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            code, out = self.run_storage("run")
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.isdir(cache))
+        self.assertIn("upkeep tick is running", out)
 
 
 if __name__ == "__main__":

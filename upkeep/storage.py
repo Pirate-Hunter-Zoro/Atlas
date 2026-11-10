@@ -17,6 +17,7 @@ an installed app, a package, a session, an upload or a document. Stdlib only;
 runs under /usr/bin/python3 (3.9), as every upkeep program does.
 """
 
+import fcntl
 import json
 import os
 import shutil
@@ -189,10 +190,20 @@ def tool(name):
 
 
 def upkeep_busy():
+    """True while a run holds upkeep's flock. The lock file outlives the run,
+    so ask the kernel, never the file's mtime."""
     try:
-        return time.time() - os.path.getmtime(UPKEEP_LOCK) < 7200
+        fd = os.open(UPKEEP_LOCK, os.O_RDWR)
     except OSError:
         return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        return True
+    fcntl.flock(fd, fcntl.LOCK_UN)
+    os.close(fd)
+    return False
 
 
 def registered_repos():
