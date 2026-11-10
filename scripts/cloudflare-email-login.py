@@ -253,6 +253,20 @@ def mailbox_password(cfg):
     return keychain(service, account)
 
 
+def delete_mail(conn, mid, gmail):
+    """Remove the PIN mail; Gmail needs a COPY to Trash as well. Never fatal."""
+    if gmail:
+        try:
+            conn.copy(mid, imap_mailbox("[Gmail]/Trash"))
+        except imaplib.IMAP4.error as exc:
+            log("could not copy the PIN mail to Trash: %s" % exc)
+    try:
+        conn.store(mid, "+FLAGS", "\\Deleted")
+        conn.expunge()
+    except imaplib.IMAP4.error as exc:
+        log("could not delete the PIN mail: %s" % exc)
+
+
 def find_pin(cfg, since, show, password):
     """Wait for the PIN mail and return its code. Deletes it unless kept."""
     address = cfg["email"]
@@ -261,6 +275,9 @@ def find_pin(cfg, since, show, password):
     folders = cfg.get("imap_folders") or DEFAULT_FOLDERS
     match = str(cfg.get("from_match") or "cloudflare").lower()
     delete = cfg.get("delete_email", True) is not False
+    domain = address.rsplit("@", 1)[-1].lower()
+    gmail = (host == "imap.gmail.com"
+             or domain in ("gmail.com", "googlemail.com"))
     deadline = now() + int(cfg.get("timeout") or 180)
     ctx = ssl.create_default_context()
     searched = imap_date(since - 120)
@@ -272,7 +289,12 @@ def find_pin(cfg, since, show, password):
                 conn = imaplib.IMAP4_SSL(host, port, ssl_context=ctx)
                 conn.login(address, password)
             for folder in folders:
-                typ, _ = conn.select(imap_mailbox(folder), readonly=not delete)
+                try:
+                    typ, _ = conn.select(imap_mailbox(folder),
+                                         readonly=not delete)
+                except imaplib.IMAP4.error as exc:
+                    log("cannot select %r: %s" % (folder, exc))
+                    continue
                 if typ != "OK":
                     continue
                 typ, data = conn.search(None, "SINCE %s" % searched)
@@ -305,11 +327,7 @@ def find_pin(cfg, since, show, password):
                     if not code:
                         continue
                     if delete:
-                        conn.store(mid, "+FLAGS", "\\Deleted")
-                        try:
-                            conn.expunge()
-                        except imaplib.IMAP4.error:
-                            pass
+                        delete_mail(conn, mid, gmail)
                     return code, link
             time.sleep(5)
     except imaplib.IMAP4.error as exc:
