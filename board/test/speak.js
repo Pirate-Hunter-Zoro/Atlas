@@ -4,12 +4,10 @@
 // AudioContext and the audio element stubbed: the third answer tab and its
 // box; getUserMedia asked for only on the record tap, and every track stopped
 // when the take ends; audio/mp4 chosen where it can be made, else WebM/Opus;
-// the take posted to /speech/say with the phrase it aims at, and the heard
-// block with a tone chip per syllable; a card's speak button posting
-// /speech/card and playing what it answers, fetched whole into a Blob; a
-// `say` phrase drawn and played; and auto-speak, which plays a new card's
-// phrases and never its prose, a per-subject choice that takes the subject's
-// `speech.auto` until one is made, and whose tap unlocks iOS audio.
+// the take posted to /speech/say with the question it answers, and the heard
+// block; a card's speak button posting /speech/card and playing what it
+// answers, fetched whole into a Blob; and a `say` phrase drawn and played.
+// Nothing plays unasked.
 //
 // jsdom is a development-only dependency; without it this test skips.
 
@@ -39,6 +37,9 @@ check(at('src="/static/speak.js"') > 0 && at('src="/static/speak.js"') < at('src
       'speak.js loads before board.js', 'speak.js does not load before board.js');
 check(/"\/static\/speak\.js"/.test(SW), 'and it is in the service worker\'s shell',
       'speak.js is not in sw.js SHELL');
+check(at('id="speak-auto"') < 0 && at('id="speak-target"') < 0,
+      'there is no auto-speak toggle and no target phrase box',
+      'the removed language-drill controls are still in the page');
 
 // ---- the page, with every audio API stubbed --------------------------------
 const dom = new JSDOM(HTML, {
@@ -66,7 +67,6 @@ window.addEventListener('error', (e) => fail('uncaught: ' + e.message));
 // What was fetched, and what the server says.
 const fetched = [];
 let heardReply = null;
-let notMade = [];
 window.fetch = (u, init) => {
   const url = String(u);
   fetched.push({ url, init: init || {} });
@@ -79,9 +79,6 @@ window.fetch = (u, init) => {
   }
   if (/\/speech\/say$/.test(url)) {
     return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(heardReply) });
-  }
-  if (notMade.some((sha) => url.endsWith('/speech/' + sha + '.m4a'))) {
-    return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ ok: false }) });
   }
   if (/\/speech\/[0-9a-f]{32}\.m4a$/.test(url)) {
     return Promise.resolve({ ok: true, status: 200,
@@ -159,7 +156,7 @@ try {
 const now = Date.now() / 1000;
 const SHA = 'a'.repeat(32);
 const question = { id: '0001', kind: 'question', title: 'Say hello',
-                   body: 'Say this:\n\n@@SAY:' + SHA + ':ready:zh-CN:ni3%20hao3@@ 你好\n\nThen stop.',
+                   body: 'Say this:\n\n@@SAY:' + SHA + ':ready:zh-CN@@ 你好\n\nThen stop.',
                    mtime: now };
 const lesson = { id: '0002', kind: 'lesson', title: '', body: 'A card with no head.',
                  mtime: now - 10 };
@@ -168,31 +165,21 @@ function paint(extra) {
   window.__render(Object.assign({
     state: { course: 'Mandarin', subject: 'courses/Mandarin' },
     cards: [lesson, question], turns: [], messages: [], uploads: [], slate: [],
-    speech: { lang: 'zh-CN', native: 'en-US', voice: null, auto: true },
+    speech: { lang: 'zh-CN', native: 'en-US', voice: null },
   }, extra || {}));
 }
 
 (async () => {
-  // Auto-speak is on for this subject: the first frame only learns what is
-  // there, and speaks nothing.
+  // Opening the board reads nothing out and plays nothing.
   paint();
   await sleep(20);
-  check(!posts(/\/speech\/card$/).length,
-        'the first frame speaks nothing, even with auto-speak on',
-        'opening the board read out every card already on it');
-
-  // Auto-speak is on before anyone touches its toggle, so the first tap
-  // anywhere is what unlocks iOS audio.
-  plays.length = 0;
+  check(!posts(/\/speech\/card$/).length && plays.length === 0,
+        'the first frame speaks nothing: no card is read, no phrase played',
+        'opening the board started audio');
   doc.body.click();
-  check(plays.length === 1 && /^data:audio/.test(plays[0]),
-        'the first tap anywhere plays a silent clip: the iOS unlock, with auto-speak '
-        + 'on before its toggle is touched', 'the first tap unlocked nothing: '
-        + JSON.stringify(plays));
   await sleep(10);
-  doc.body.click();
-  check(plays.length === 1, 'and only the first: the player stays unlocked',
-        'every tap replays the silent clip');
+  check(plays.length === 0, 'and a tap anywhere plays nothing unasked',
+        'a tap made the board play audio');
 
   // ---- the tab ------------------------------------------------------------
   const tab = doc.getElementById('tab-speak');
@@ -209,11 +196,6 @@ function paint(extra) {
         'and the tab reads as the one in use', 'the tab state does not follow the speak tab');
   check(gum.length === 0, 'opening the tab does not ask for the microphone',
         'getUserMedia ran before any record tap');
-  check(/你好/.test(doc.getElementById('speak-target').textContent)
-        && /ni3 hao3/.test(doc.getElementById('speak-target').textContent),
-        'the take is aimed at the question\'s say phrase',
-        'the box does not show the phrase a take aims at: '
-        + doc.getElementById('speak-target').textContent);
 
   // ---- the MIME choice -----------------------------------------------------
   check(window.Speak.mime() === 'audio/mp4', 'audio/mp4 where the browser can make it',
@@ -224,18 +206,7 @@ function paint(extra) {
   supported = ['audio/mp4', 'audio/webm;codecs=opus'];
 
   // ---- a take --------------------------------------------------------------
-  heardReply = {
-    ok: true, turn: '0003', rev: 1,
-    heard: { heard: '你好', target: '你好', pinyin: 'ni3 hao3', verdict: 'tones confirmed on 你',
-             assess: { prototype: true, syllables: [
-               { syllable: '你', expect: 'T2', heard: 'T2', call: 'right', hint: null, confidence: 0.9 },
-               { syllable: '好', expect: 'T3', heard: 'unknown', call: 'unknown', hint: 'T1', confidence: 0.7 },
-               { syllable: '吗', expect: 'neutral', heard: 'unknown', call: 'unknown', hint: null, confidence: 0.1 },
-               // Azure's phoneme-level failure, the only kind that is wrong.
-               { syllable: '们', expect: 'T2', heard: 'unknown', call: 'wrong', hint: null, confidence: 0.3 },
-               // A record from before `call`: a mismatch is a hint, never wrong.
-               { syllable: '我', expect: 'T3', heard: 'T4', confidence: 0.6 }] } },
-  };
+  heardReply = { ok: true, turn: '0003', rev: 1, heard: { heard: '你好' } };
   const rec = doc.getElementById('speak-rec');
   rec.click();
   await sleep(20);
@@ -260,28 +231,19 @@ function paint(extra) {
   check(form && form.get('audio') && form.get('audio').name === 'take.m4a'
         && form.get('audio').type === 'audio/mp4',
         'as multipart, the audio a take.m4a', 'the audio part is wrong');
-  check(form && form.get('answers') === '0001' && form.get('lang') === 'zh-CN'
-        && form.get('ref') === '你好' && form.get('pinyin') === 'ni3 hao3',
-        'with the question it answers, the language, the target and its pinyin',
+  check(form && form.get('answers') === '0001' && form.get('lang') === 'zh-CN',
+        'with the question it answers and the language',
         'the take\'s fields are wrong: ' + (form ? JSON.stringify([...form.entries()]
           .filter(([k]) => k !== 'audio')) : 'none'));
+  check(form && !form.get('ref') && !form.get('pinyin'),
+        'and no target phrase or pinyin: nothing is graded',
+        'the take still carries a target: ' + JSON.stringify([...form.keys()]));
   await sleep(10);
   const heard = doc.getElementById('heard');
   check(!heard.hidden && /heard: 你好/.test(heard.textContent),
         'the heard block says "heard: 你好"', 'no heard block: ' + heard.textContent);
-  const chips = heard.querySelectorAll('.tone');
-  const marks = [...chips].map(c => c.className.replace('tone ', '')).join(' ');
-  check(chips.length === 5, 'with a chip per syllable', 'tone chips: ' + chips.length);
-  check(marks === 'ok hint unknown off hint',
-        'confirmed, an unconfirmed hint, unjudged and Azure\'s wrong each marked apart, '
-        + 'and an old mismatch only a hint', 'the chips are marked: ' + marks);
-  const texts = [...chips].map(c => c.querySelector('.t').textContent).join(' ');
-  check(texts === 'T2 T1? ? \u2717 T4?',
-        'and each says it in text, not colour alone: a hint with its question mark',
-        'the chips say: ' + texts);
-  check(/unconfirmed/.test(chips[1].title) && !/wrong/.test(chips[1].title),
-        'a hint\'s title says unconfirmed, never wrong', 'hint title: ' + chips[1].title);
-  check(/tones confirmed on 你/.test(heard.textContent), 'with the verdict under them', 'no verdict');
+  check(!heard.querySelector('.tone') && !heard.querySelector('.syl'),
+        'and shows no tone chips', 'the heard block still draws tone chips');
   check(!/stop/.test(rec.textContent) && !doc.getElementById('speak-meter').classList.contains('on'),
         'and the button is back to record', 'the box still looks like it is recording');
 
@@ -307,11 +269,9 @@ function paint(extra) {
 
   // The heard block comes back from a speech turn after a reload.
   paint({ turns: [{ id: '0003', rev: 1, kind: 'speech', answers: '0001', from: 'student',
-                    t: now + 5, text: '你号', target: '你好', pinyin: 'ni3 hao3',
-                    verdict: 'heard 号 for 好',
-                    tones: [{ syllable: '你', expect: 'T2', heard: 'T2', confidence: 0.8 }] }] });
+                    t: now + 5, text: '你号' }] });
   await sleep(10);
-  check(/heard: 你号/.test(heard.textContent) && heard.querySelectorAll('.tone').length === 1,
+  check(/heard: 你号/.test(heard.textContent),
         'a speech turn repaints the heard block', 'the turn did not repaint the heard block');
   check(/heard: 你号/.test((doc.querySelector('.mine[data-turn="0003"]') || {}).textContent || ''),
         'and the transcript shows what was heard', 'the speech turn is not in the transcript');
@@ -337,8 +297,8 @@ function paint(extra) {
 
   const phrase = doc.querySelector('.card[data-card="0001"] .say-phrase');
   check(phrase && phrase.dataset.sha === SHA && phrase.dataset.lang === 'zh-CN'
-        && phrase.dataset.text === '你好' && phrase.dataset.pinyin === 'ni3 hao3',
-        'a say fence is drawn as a phrase with its words and pinyin',
+        && phrase.dataset.text === '你好' && !phrase.dataset.pinyin,
+        'a say fence is drawn as a phrase with its words, and no pinyin field',
         'the say phrase was not drawn: ' + (phrase ? phrase.outerHTML : 'none'));
   check(phrase && /Say this/.test(doc.querySelector('.card[data-card="0001"] .body').textContent)
         && /Then stop/.test(doc.querySelector('.card[data-card="0001"] .body').textContent),
@@ -348,10 +308,9 @@ function paint(extra) {
                               body: '@@SAY:' + 'e'.repeat(32) + ':ready:zh-CN@@ 谢谢 (thank you)' }],
                     turns: [], messages: [], uploads: [], slate: [], speech: null });
   const bare2 = doc.querySelector('.card[data-card="0009"] .say-phrase');
-  check(bare2 && bare2.dataset.text === '谢谢 (thank you)' && bare2.dataset.pinyin === '',
-        'a phrase without pinyin keeps its own parentheses: no pinyin is made of them',
-        'the phrase\'s own parentheses were taken for pinyin: '
-        + (bare2 ? JSON.stringify(bare2.dataset) : 'none'));
+  check(bare2 && bare2.dataset.text === '谢谢 (thank you)',
+        'a phrase keeps its own parentheses as words',
+        'the phrase\'s words were cut: ' + (bare2 ? JSON.stringify(bare2.dataset) : 'none'));
   paint();
   await sleep(10);
   plays.length = 0;
@@ -361,84 +320,30 @@ function paint(extra) {
         'its play button fetches /speech/<sha>.m4a and plays it',
         'the phrase did not play');
 
-  // ---- auto-speak ----------------------------------------------------------
-  const auto = doc.getElementById('speak-auto');
-  check(auto && auto.getAttribute('aria-pressed') === 'true',
-        'auto-speak starts as the subject\'s speech.auto says', 'auto-speak is not on by default');
+  // ---- nothing plays unasked ----------------------------------------------
   const SHA2 = 'b'.repeat(32);
-  const cardPosts = posts(/\/speech\/card$/).length;
+  plays.length = 0;
   paint({ cards: [lesson, question, { id: '0004', kind: 'lesson', title: 'Next',
                                       body: 'A new card.\n\n@@SAY:' + SHA2 + ':ready:zh-CN@@ 谢谢',
                                       mtime: now + 20 }] });
   await sleep(30);
-  check(gets(new RegExp('/speech/' + SHA2 + '\\.m4a$')).length === 1,
-        'a new card\'s say phrase plays unasked while it is on',
-        'the new card\'s phrase was not played');
-  check(posts(/\/speech\/card$/).length === cardPosts,
-        'and its prose is not read: target phrases only',
-        'auto-speak read the whole card aloud');
+  check(!gets(new RegExp('/speech/' + SHA2 + '\\.m4a$')).length && plays.length === 0,
+        'a new card\'s phrase does not play unasked',
+        'a fresh card started audio by itself');
+  check(posts(/\/speech\/card$/).length === asked.length,
+        'and a new card is never read aloud by itself',
+        'a fresh card was read aloud');
+  check(!doc.getElementById('speak-auto'), 'and there is no auto-speak toggle',
+        'the auto-speak toggle is still in the menu');
 
-  // A phrase freshly written is still being made when its card lands.
-  const SHA4 = '9'.repeat(32);
-  const card4 = { id: '0004', kind: 'lesson', title: 'Next', mtime: now + 20,
-                  body: 'A new card.\n\n@@SAY:' + SHA2 + ':ready:zh-CN@@ 谢谢' };
-  const morning = (status) => ({ id: '0006', kind: 'lesson', title: 'Morning', mtime: now + 25,
-                                 body: '@@SAY:' + SHA4 + ':' + status + ':zh-CN@@ 早上好' });
-  notMade = [SHA4];
-  paint({ cards: [lesson, question, card4, morning('pending')] });
-  await sleep(30);
-  check(!gets(new RegExp('/speech/' + SHA4 + '\\.m4a$')).length,
-        'a new phrase still pending is not fetched, to a 404 and dropped',
-        'a pending phrase was fetched before it was made');
-  plays.length = 0;
-  notMade = [];
-  paint({ cards: [lesson, question, card4, morning('ready')] });
-  await sleep(30);
-  check(gets(new RegExp('/speech/' + SHA4 + '\\.m4a$')).length === 1
-        && plays.length === 1 && /^blob:/.test(plays[0]),
-        'it plays unasked on the frame that says it is ready',
-        'the phrase made after its card landed never played: ' + JSON.stringify(plays));
-  paint({ cards: [lesson, question, card4, morning('ready')] });
-  await sleep(30);
-  check(gets(new RegExp('/speech/' + SHA4 + '\\.m4a$')).length === 1,
-        'and once', 'an owed phrase played again on a later frame');
-  check(doc.querySelector('.card[data-card="0006"] .say-phrase').dataset.status === 'ready',
-        'the card is redrawn when what it was waiting for is made',
-        'the card still says its phrase is pending');
   const figured = (status) => ({ id: '0007', kind: 'lesson', title: 'Figure', mtime: now + 26,
                                  body: '@@FIGURE:' + 'ab'.repeat(8) + ':' + status + '@@' });
-  paint({ cards: [lesson, question, card4, morning('ready'), figured('pending')] });
-  paint({ cards: [lesson, question, card4, morning('ready'), figured('ready')] });
+  paint({ cards: [lesson, question, figured('pending')] });
+  paint({ cards: [lesson, question, figured('ready')] });
   check(doc.querySelector('.card[data-card="0007"] .figure img')
         && !doc.querySelector('.card[data-card="0007"] .figure.pending'),
-        'and so is a figure compiled after its card landed',
+        'a figure compiled after its card landed is drawn',
         'a figure made after its card landed still says compiling');
-
-  await sleep(30);
-  plays.length = 0;
-  auto.click();
-  check(plays.length === 0,
-        'the toggle\'s tap does not replay the clip once the player is unlocked',
-        'the toggle tap replayed the silent clip: ' + JSON.stringify(plays));
-  check(window.localStorage.getItem('speak-auto:courses/Mandarin') === '0'
-        && auto.getAttribute('aria-pressed') === 'false',
-        'turned off, and stored for this subject', 'the choice was not stored per subject');
-  const SHA3 = 'd'.repeat(32);
-  paint({ cards: [lesson, question, { id: '0005', kind: 'lesson', title: 'Later',
-                                      body: '@@SAY:' + SHA3 + ':ready:zh-CN@@ 再见', mtime: now + 30 }] });
-  await sleep(30);
-  check(!gets(new RegExp('/speech/' + SHA3 + '\\.m4a$')).length
-        && auto.getAttribute('aria-pressed') === 'false',
-        'and a stored off outranks the subject\'s default', 'auto-speak came back on');
-
-  // Another subject has its own choice, and its own default.
-  paint({ state: { course: 'Topology', subject: 'courses/Topology' }, speech: null });
-  check(auto.getAttribute('aria-pressed') === 'false',
-        'a subject with no speech block defaults to off', 'auto-speak is on for a maths subject');
-  auto.click();
-  check(window.localStorage.getItem('speak-auto:courses/Topology') === '1'
-        && window.localStorage.getItem('speak-auto:courses/Mandarin') === '0',
-        'and its choice is kept apart from the other subject\'s', 'auto-speak leaked between subjects');
 
   console.log(errors.length ? '\n' + errors.length + ' FAILURES'
                             : '\nevery session speaks, listens and shows what it heard');

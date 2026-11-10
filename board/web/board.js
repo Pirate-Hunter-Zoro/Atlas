@@ -1029,20 +1029,15 @@ function renderStored(src, store) {
     }
 
     /* a `say` phrase (`lesson/cards.extract_say`): a play button that fetches
-       the phrase whole, and the words. web/speak.js plays it. The pinyin is
-       the marker's percent-encoded fourth field, never read off the words:
-       a phrase may itself end in parentheses. */
-    var said = line.match(/^\s*@@SAY:([0-9a-f]+):(\w+):([A-Za-z0-9-]+)(?::([A-Za-z0-9%._~-]*))?@@\s*(.*)$/);
+       the phrase whole, and the words. web/speak.js plays it. */
+    var said = line.match(/^\s*@@SAY:([0-9a-f]+):(\w+):([A-Za-z0-9-]+)@@\s*(.*)$/);
     if (said) {
-      var words = said[5].trim(), pin = "";
-      try { pin = said[4] ? decodeURIComponent(said[4]) : ""; } catch (e) { pin = ""; }
+      var words = said[4].trim();
       out.push('<div class="say-phrase" data-sha="' + said[1] + '" data-status="'
                + said[2] + '" data-lang="' + said[3] + '" data-text="'
-               + attrText(words, store) + '" data-pinyin="'
-               + attrText(pin, store) + '">'
+               + attrText(words, store) + '">'
                + '<button type="button" class="say-play" aria-label="play">▶</button>'
                + '<span class="say-words" lang="' + said[3] + '">' + inline(words) + "</span>"
-               + (pin ? '<span class="say-pinyin">' + inline(pin) + "</span>" : "")
                + "</div>");
       i++;
       continue;
@@ -1843,8 +1838,7 @@ function render(data) {
     var run = item.card ? (streakAt[item.card.id] || 0) : 0;
     /* And how many of its figures and `say` phrases are still being made:
        the frame that says one is ready does not touch the card file, so
-       without this the card would say "compiling" until a reload, and a
-       phrase owed to auto-speak would never be played. */
+       without this the card would say "compiling" until a reload. */
     var making = item.card ? ((item.card.body || "").match(
       /@@(?:FIGURE|SAY):[0-9a-f]+:pending\b/g) || []).length : 0;
     var wantKey = stamp + (item.card
@@ -3775,7 +3769,7 @@ if (window.Problem) {
 }
 
 /* SPEAKING AND LISTENING. speak.js owns the spoken half of the answer panel,
-   the speak buttons, the phrases and auto-speak; this hands it the session's
+   the speak buttons and the phrases; this hands it the session's
    routes and the question a take answers, and `render` paints it. */
 if (window.Speak) {
   window.Speak.init({

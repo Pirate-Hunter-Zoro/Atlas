@@ -379,18 +379,16 @@ DeepSeek through OpenCode is the AI. Nothing chooses another assistant.
 Every session speaks and listens; a subject's `speech.lang` only sets the default language.
 
 - `agents/speech.py` is a table of its own, `azure` then `local`, with an `order` per kind
-  (`tts`, `stt`, `assess`). config.json's `speech` block is laid over it: `recipes` per name,
+  (`tts`, `stt`). config.json's `speech` block is laid over it: `recipes` per name,
   `order` per kind. `chain` passes over a recipe that is unkeyed, missing
   its command, limited, stood down or without the language, and always ends with `local`,
   which the config may tune but never remove, key or narrow to a language:
-  `say` (espeak-ng for Irish), `whisper-cli` with the model `scripts/speech-model.sh` fetches,
-  and `speech/tones.py`, a stdlib tone check labelled a prototype. Azure takes
-  `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` in keys.env.
-- A card's fence opened with `say <lang>` (optional `pinyin="..."`) becomes
-  `@@SAY:<sha>:<status>:<lang>[:<pinyin, percent-encoded>]@@ <words>` (pinyin in the marker,
-  since words may end in parentheses), synthesised on the TikZ thread into the speech cache
-  (`paths.SPEECH`) and served at `/speech/<sha>.m4a`. `POST /speech/card` speaks a card's
-  prose without its math or code.
+  `say` (espeak-ng where macOS has no voice), and `whisper-cli` with the model
+  `scripts/speech-model.sh` fetches. Azure takes `AZURE_SPEECH_KEY` and
+  `AZURE_SPEECH_REGION` in keys.env.
+- A card's fence opened with `say <lang>` becomes `@@SAY:<sha>:<status>:<lang>@@ <words>`,
+  synthesised on the TikZ thread into the speech cache (`paths.SPEECH`) and served at
+  `/speech/<sha>.m4a`. `POST /speech/card` speaks a card's prose without its math or code.
 - `POST /s/<id>/speech/say` takes a recording and writes `sessions/<id>/speech/<base>.heard.json`
   beside it; the tutor gets a waking `[speech]` line naming that file, never the audio, and
   reads it with `board hear`. Each job writes one `cost.jsonl` line (a job with no session,
@@ -400,10 +398,7 @@ Every session speaks and listens; a subject's `speech.lang` only sets the defaul
 - `web/speak.js` is the speak tab (`#tab-speak`, `#speakbox`): `getUserMedia` on the record
   tap only, every track stopped after the take, `audio/mp4` else `audio/webm;codecs=opus`. It
   also adds each card's speak button and plays `say` phrases from a Blob, since nothing serves
-  a Range. The menu's auto-speak plays a new card's phrases, never its prose; a phrase still
-  being made plays on the frame that says it is ready. It is stored per subject and defaults
-  to `speech.auto`. The first tap anywhere unlocks iOS audio, so a default of on needs no
-  tap on the toggle.
+  a Range. Nothing plays unasked.
 
 ## Invariants
 

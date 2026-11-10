@@ -49,22 +49,20 @@ def read_config(root):
 
 
 # ---------------------------------------------------------------------------
-# a subject's SPEECH: the language it drills, spoken and heard
+# a subject's SPEECH: the language it speaks and hears
 # ---------------------------------------------------------------------------
 #
-#     "speech": {"lang": "zh-CN", "native": "en-US", "voice": "Tingting",
-#                "auto": true}
+#     "speech": {"lang": "zh-CN", "native": "en-US", "voice": "Tingting"}
 #
 # `lang` is what a `say` phrase and a take are in unless they say otherwise;
 # `native` is what a card read aloud is in (en-US when unset); `voice` names
-# a voice for `lang`; `auto` is whether new cards are spoken unasked, on by
-# default once a language is set. Every session can speak and listen; this
-# only sets the defaults.
+# a voice for `lang`. Every session can speak and listen; this only sets the
+# defaults.
 SPEECH_LANG = re.compile(r"\A[A-Za-z]{2,3}(?:[-_][A-Za-z0-9]{2,8}){0,2}\Z")
 
 
 def clean_speech(raw):
-    """`{lang, native, voice, auto}` from `tutorboard.json`'s `speech`, or
+    """`{lang, native, voice}` from `tutorboard.json`'s `speech`, or
     None when it is absent or names no language. Never raises."""
     if not isinstance(raw, dict):
         return None
@@ -77,8 +75,7 @@ def clean_speech(raw):
             "native": native.replace("_", "-") if SPEECH_LANG.match(native)
             else "en-US",
             "voice": str(voice).strip()[:80] if isinstance(voice, str)
-            and voice.strip() else None,
-            "auto": bool(raw.get("auto", True))}
+            and voice.strip() else None}
 
 
 # ---------------------------------------------------------------------------

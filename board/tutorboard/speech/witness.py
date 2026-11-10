@@ -1,10 +1,10 @@
-"""`board doctor`'s speech lines: what this Mac can speak, hear and judge, and
+"""`board doctor`'s speech lines: what this Mac can speak and hear, and
 one word spoken and heard back.
 
     dry      per kind, the chain `agents/speech.chain` would walk with each
              recipe's reason when it is passed over, then the local recipe's
              state: `say` and its voices, espeak-ng, whisper-cli and its
-             model, the tone check
+             model
     witness  one word, picked at random, through the TTS chain and back
              through the STT chain; it passes only when the word comes back
 
@@ -22,8 +22,8 @@ from tutorboard import paths
 from tutorboard.agents import speech
 from tutorboard.speech import audio
 
-WORDS = ("orange", "window", "garden", "seven", "yellow", "river", "music",
-         "pencil")
+WORDS = ("orange", "window", "garden", "yellow", "river", "music",
+         "pencil", "table")
 LANG = "en-US"
 
 
@@ -35,8 +35,8 @@ def _chain_line(kind, lang, cfg):
 
 
 def local_state(cfg=None):
-    """`[(ok, line)]`: the local recipe's TTS, STT and assessment, as they
-    stand on this machine."""
+    """`[(ok, line)]`: the local recipe's TTS and STT, as they stand on
+    this machine."""
     cfg = speech.load() if cfg is None else cfg
     spec = (cfg.get("recipes") or {}).get(speech.LOCAL) or {}
     out = []
@@ -61,8 +61,6 @@ def local_state(cfg=None):
         else "whisper-cli %s, but no model in %s (bash scripts/speech-model.sh)"
         % (whisper, paths.MODELS))))
     conv = [t for t in ("afconvert", "ffmpeg") if shutil.which(t)]
-    out.append((True, "local assess: tutorboard/speech/tones.py, a prototype: "
-                      "Mandarin tones and a word diff; others the word diff"))
     out.append((bool(conv), "audio:        %s" % (
         " and ".join(conv) + ("" if "ffmpeg" in conv else
                               "; ffmpeg MISSING, so a WebM take cannot be read")
@@ -99,7 +97,7 @@ def report(dry=False, cfg=None, out=print):
     never fails: a Mac without whisper still teaches."""
     cfg = speech.load() if cfg is None else cfg
     for kind in speech.KINDS:
-        out(_chain_line(kind, LANG if kind != "assess" else "zh-CN", cfg))
+        out(_chain_line(kind, LANG, cfg))
     for _ok, line in local_state(cfg):
         out(line)
     if dry:

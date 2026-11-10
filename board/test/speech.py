@@ -1,39 +1,32 @@
 #!/usr/bin/env python3
-"""Speech: every tutor speaks, listens and judges pronunciation.
+"""Speech: every tutor speaks and listens.
 
     python3 test/speech.py
 
 Nothing here needs a network, a key or a speech binary. A local http.server
-stands in for Azure; a script stands in for whisper-cli and another
-for `say`; every WAV is synthesised at run time with `wave`.
+stands in for Azure; a script stands in for whisper-cli and another for
+`say`; every WAV is synthesised at run time with the standard library.
 
-  - THE TABLE: azure and local, in that order for every kind; the
+  - THE TABLE: azure and local, in that order for `tts` and `stt`; the
     config's `speech` block is laid over it; `chain` passes over a recipe
     that is unkeyed, missing its command, limited, stood down or without the
-    language, and always ends with local.
-  - THE HOSTED RECIPES, against the stand-in: Azure's SSML, its short-audio
-    STT and the base64 Pronunciation-Assessment header. A refusal passes the
-    job on to this Mac; a 429
-    marks the recipe limited and an unreachable host stands it down. Each job
-    writes one cost line.
-  - THE TONE CHECK, on sine sweeps: T1-T4 in any order, through voiced runs
-    and through whisper's timings; a split syllable merged back; silence is
-    unknown; pinyin parsed with sandhi; DTW; the word diff; the prototype
-    label on every result. The local check confirms or abstains: no input,
-    a wrong tone included, ever gets a syllable called wrong, and the
-    board's Tingting voice, on phrases SURE was never set on and at three
-    rates, gets none called wrong and some confirmed.
+    language, and always ends with local. There is no pronunciation grade.
+  - THE HOSTED RECIPES, against the stand-in: Azure's SSML and its
+    short-audio STT. A refusal passes the job on to this Mac; a 429 marks the
+    recipe limited and an unreachable host stands it down. Each job writes one
+    cost line.
+  - THE SUBJECT: `speech.lang` is the default language, and `SPEECH_SENSE`
+    tells a turn that the session speaks and listens.
   - THE ROUTE, end to end with STT stubbed: a take saved under the session's
-    speech/, heard, judged, a turn record and a waking `[speech]` line whose
-    `file:` is the heard record and never the audio; an ended session 409;
-    phrases served by a strict sha name; a card read without its math.
+    speech/, heard, a turn record and a waking `[speech]` line whose `file:`
+    is the heard record and never the audio; an ended session 409; phrases
+    served by a strict sha name; a card read without its math.
   - THE CARDS: a `say` fence becomes a placeholder and a job for the cache.
   - SETUP: the model download is checksummed and a second run fetches nothing.
   - THE REAL BINARIES, when this Mac has them: one word spoken and heard back.
     Absent, that witness is SKIPPED, loudly.
 """
 
-import base64
 import contextlib
 import http.client
 import http.server
@@ -77,7 +70,7 @@ from tutorboard.course import repo as course_repo             # noqa: E402
 from tutorboard.lesson import cards, inbox                    # noqa: E402
 from tutorboard.server import handler, multipart              # noqa: E402
 from tutorboard.server.routes import speaking                 # noqa: E402
-from tutorboard.speech import audio, synth, tones             # noqa: E402
+from tutorboard.speech import audio, synth                    # noqa: E402
 
 fails = []
 R = 16000
@@ -102,39 +95,10 @@ def skip(name, why):
 # ---------------------------------------------------------------------------
 # audio, made here
 # ---------------------------------------------------------------------------
-CONTOURS = {
-    "T1": lambda t: 230.0,
-    "T2": lambda t: 170.0 + 100.0 * t,
-    "T3": lambda t: (185.0 - 55.0 * t / 0.6) if t < 0.6 else (130.0 + 35.0 * (t - 0.6) / 0.4),
-    "T4": lambda t: 270.0 - 130.0 * t,
-}
-
-
-def syllable(f_of_t, dur=0.3, amp=0.5):
-    """A voiced syllable: three harmonics on a pitch contour, with soft edges."""
-    out, ph, n = [], 0.0, int(dur * R)
-    edge = 0.02 * R
-    for i in range(n):
-        ph += 2 * math.pi * f_of_t(i / float(n)) / R
-        env = min(1.0, i / edge, (n - i) / edge)
-        out.append(amp * env * (math.sin(ph) + 0.5 * math.sin(2 * ph)
-                                + 0.25 * math.sin(3 * ph)) / 1.75)
-    return out
-
-
-def silence(dur=0.12):
-    return [0.0] * int(dur * R)
-
-
-def phrase(names, dur=0.3, gap=0.12):
-    """Syllables in these tones, separated by silence; with the span of each."""
-    out, spans = silence(gap), []
-    for name in names:
-        start = len(out) / float(R)
-        out += syllable(CONTOURS[name], dur)
-        spans.append((start, len(out) / float(R)))
-        out += silence(gap)
-    return out, spans
+def tone(dur=0.4, freq=220.0, amp=0.5):
+    """A steady voiced tone: enough for a converter and a fake whisper."""
+    n = int(dur * R)
+    return [amp * math.sin(2 * math.pi * freq * i / R) for i in range(n)]
 
 
 def wav(path, samples):
@@ -173,23 +137,24 @@ try:
     D = speech.DEFAULT_SPEECH
     check("the table holds azure and local",
           set(D["recipes"]) == {"azure", "local"})
+    check("two jobs, tts and stt, and no pronunciation grade",
+          speech.KINDS == ("tts", "stt") and not hasattr(speech, "_azure_assess"))
     check("and tries them in that order for every kind",
           all(D["order"][k] == ["azure", "local"] for k in speech.KINDS))
     az = D["recipes"]["azure"]
     check("azure takes AZURE_SPEECH_KEY and AZURE_SPEECH_REGION",
           az["needs_key"] == "AZURE_SPEECH_KEY"
           and az["region_key"] == "AZURE_SPEECH_REGION")
-    check("azure's Irish voices are Orla and Colm",
-          az["voices"]["ga-IE"] == ["ga-IE-OrlaNeural", "ga-IE-ColmNeural"])
+    check("azure has no assessment endpoint or price",
+          "assess" not in az and "assess_per_minute" not in az.get("prices", {}))
     check("and no OpenAI recipe or driver is left",
           not any(n.startswith("_openai") for n in dir(speech))
           and not any(v == "openai" for v, _k in speech.DRIVERS))
     lo = D["recipes"]["local"]
-    check("local is say (espeak-ng after it), whisper-cli and the tone check",
+    check("local is say (espeak-ng after it) and whisper-cli",
           lo["tts"]["cmd"] == ["say"] and lo["tts"]["fallback_cmd"] == ["espeak-ng"]
           and lo["stt"]["cmd"] == ["whisper-cli"]
-          and lo["assess"]["module"] == "tutorboard.speech.tones"
-          and not lo.get("needs_key"))
+          and "assess" not in lo and not lo.get("needs_key"))
 
     cfg = speech.load({"order": {"tts": ["spare", "azure"]},
                        "recipes": {"azure": {"voices": {"zh-CN": "zh-CN-YunxiNeural"}},
@@ -217,10 +182,16 @@ try:
               all(isinstance(kept.get(k), dict) for k in speech.KINDS)
               and not any(f in kept for f in ("via", "needs_key", "region_key", "langs"))
               and not any("langs" in kept[k] for k in speech.KINDS)
-              and speech.unavailable({"recipes": {"local": kept}}, "local", "assess",
+              and speech.unavailable({"recipes": {"local": kept}}, "local", "tts",
                                      "zh-CN") is None, kept)
     check("the defaults themselves are never changed by a load",
           "azure" in speech.DEFAULT_SPEECH["recipes"])
+    try:
+        speech.run("assess", "zh-CN", {"wav": "/nowhere.wav"}, cfg=cfg)
+        raised = False
+    except ValueError as exc:
+        raised = "tts" in str(exc) and "stt" in str(exc)
+    check("and asking for a pronunciation grade is refused", raised)
 
     # A fake `say`: it lists voices, and writes bytes where -o says.
     bin_dir = os.path.join(box, "bin")
@@ -289,12 +260,8 @@ try:
     write_keys(AZURE_SPEECH_KEY="az-key", AZURE_SPEECH_REGION="westeurope")
     full = speech.load({"recipes": {"local": LOCAL}})
     check("keyed, the chain is azure, then this Mac",
-          speech.chain("tts", "zh-CN", full) == ["azure", "local"])
-    check("and so is assessment's",
-          speech.chain("assess", "zh-CN", full) == ["azure", "local"])
-    check("a language a recipe lacks passes it over: no Azure assessment of Irish",
-          speech.chain("assess", "ga-IE", full) == ["local"]
-          and speech.chain("tts", "ga-IE", full)[0] == "azure")
+          speech.chain("tts", "zh-CN", full) == ["azure", "local"]
+          and speech.chain("stt", "zh-CN", full) == ["azure", "local"])
     check("and no Azure voice for Swahili",
           "azure" not in speech.chain("tts", "sw-KE", full))
     swapped = speech.load({"order": {"tts": ["local", "azure"]},
@@ -324,7 +291,7 @@ try:
     seen = []
     behave = {"azure_tts": 200, "azure_stt": 200, "azure_stream": False}
     reply_wav = os.path.join(box, "reply.wav")
-    wav(reply_wav, syllable(CONTOURS["T1"], 0.4))
+    wav(reply_wav, tone(0.4))
     with open(reply_wav, "rb") as fh:
         REPLY = fh.read()
 
@@ -349,22 +316,10 @@ try:
             if self.path.startswith("/azure/stt"):
                 if behave["azure_stt"] != 200:
                     return self.answer(behave["azure_stt"], b"slow down", "text/plain")
-                pa = self.headers.get("Pronunciation-Assessment")
-                if pa:
-                    rec["pa"] = json.loads(base64.b64decode(pa).decode("utf-8"))
-                    got = {"RecognitionStatus": "Success", "DisplayText": "你好。",
-                           "NBest": [{"PronScore": 82.5, "AccuracyScore": 80,
-                                      "FluencyScore": 90, "CompletenessScore": 100,
-                                      "Words": [
-                                          {"Word": "你", "AccuracyScore": 95,
-                                           "ErrorType": "None"},
-                                          {"Word": "好", "AccuracyScore": 40,
-                                           "ErrorType": "Mispronunciation"}]}]}
-                else:
-                    got = {"RecognitionStatus": "Success", "DisplayText": "你好。",
-                           "NBest": [{"Display": "你好。", "Words": [
-                               {"Word": "你好", "Offset": 1200000,
-                                "Duration": 6000000}]}]}
+                got = {"RecognitionStatus": "Success", "DisplayText": "你好。",
+                       "NBest": [{"Display": "你好。", "Words": [
+                           {"Word": "你好", "Offset": 1200000,
+                            "Duration": 6000000}]}]}
                 return self.answer(200, json.dumps(got).encode("utf-8"),
                                    "application/json")
             return self.answer(404, b"?", "text/plain")
@@ -383,22 +338,20 @@ try:
         s.bind(("127.0.0.1", 0))
         dead = "http://127.0.0.1:%d" % s.getsockname()[1]
     HOSTED = {"azure": {"tts": {"endpoint": base + "/azure/tts/{region}"},
-                        "stt": {"endpoint": base + "/azure/stt/{region}"},
-                        "assess": {"endpoint": base + "/azure/stt/{region}"}},
+                        "stt": {"endpoint": base + "/azure/stt/{region}"}},
               "local": LOCAL}
     live = os.path.join(box, "live")
     os.makedirs(live)
     take_wav = os.path.join(box, "take.wav")
-    samples, spans = phrase(["T2", "T3"])
-    wav(take_wav, samples)
+    wav(take_wav, tone())
     with open(take_wav, "rb") as fh:
         TAKE = fh.read()
 
     cfg = speech.load({"recipes": HOSTED})
     if CONVERTS:
         dest = os.path.join(box, "zh.m4a")
-        got, by = speech.run("tts", "zh-CN", {"text": "你好", "pinyin": "ni3 hao3",
-                                              "dest": dest}, live=live, cfg=cfg)
+        got, by = speech.run("tts", "zh-CN", {"text": "你好", "dest": dest},
+                             live=live, cfg=cfg)
         req = seen[-1]
         check("azure speaks first: SSML to the regional endpoint with the key",
               by == "azure" and req["path"].endswith("/westeurope")
@@ -407,9 +360,9 @@ try:
               and req["headers"].get("X-Microsoft-OutputFormat")
               == "riff-24khz-16bit-mono-pcm", req["headers"])
         ssml = req["body"].decode("utf-8")
-        check("in the language's voice, the pinyin read as SAPI phones",
+        check("in the language's voice, with no phoneme override",
               "zh-CN-XiaoxiaoNeural" in ssml and "xml:lang='zh-CN'" in ssml
-              and 'alphabet="sapi" ph="ni 3 hao 3"' in ssml, ssml)
+              and "phoneme" not in ssml, ssml)
         check("and the WAV it answers lands as an m4a",
               os.path.getsize(dest) > 0 and open(dest, "rb").read(12)[4:8] == b"ftyp")
         costs = [json.loads(l) for l in open(os.path.join(live, "cost.jsonl"))]
@@ -448,29 +401,12 @@ try:
           and "format=detailed" in req["path"]
           and req["headers"].get("Content-Type")
           == "audio/wav; codecs=audio/pcm; samplerate=16000"
-          and req["body"] == TAKE and "Pronunciation-Assessment" not in req["headers"])
+          and req["body"] == TAKE
+          and "Pronunciation-Assessment" not in req["headers"])
     check("and its words come back with their timings",
           got["text"] == "你好。" and got["words"][0]["text"] == "你好"
           and abs(got["words"][0]["start"] - 0.12) < 1e-6
           and abs(got["words"][0]["end"] - 0.72) < 1e-6, got)
-
-    got, by = speech.run("assess", "zh-CN", {"wav": take_wav, "ref": "你好",
-                                             "pinyin": "ni3 hao3", "heard": "你好"},
-                         live=live, cfg=cfg)
-    pa = seen[-1].get("pa") or {}
-    check("assessment sends the base64 Pronunciation-Assessment header",
-          pa == {"ReferenceText": "你好", "GradingSystem": "HundredMark",
-                 "Granularity": "Phoneme", "Dimension": "Comprehensive",
-                 "EnableMiscue": True}, pa)
-    check("and reads back a score, a word diff and per-syllable confidence",
-          by == "azure" and got["score"] == 82.5
-          and [w["op"] for w in got["words"]] == ["equal", "wrong"]
-          and got["syllables"][0]["heard"] == "T2"
-          and got["syllables"][1]["heard"] == "unknown"
-          and got["syllables"][1]["confidence"] == 0.4
-          and "好" in got["verdict"], got)
-    check("and Azure, which scores the phonemes itself, may fail a syllable",
-          [s["call"] for s in got["syllables"]] == ["right", "wrong"], got)
 
     heard_says = os.path.join(box, "whisper-heard.json")
     with open(heard_says, "w") as fh:
@@ -485,17 +421,38 @@ try:
           speech.chain("stt", "zh-CN", cfg) == ["local"])
     behave["azure_stt"] = 200
     clear_marks()
-    n = len(seen)
     unreach = speech.load({"recipes": dict(HOSTED, azure={
         "stt": {"endpoint": dead + "/stt/{region}"}})})
     got, by = speech.run("stt", "zh-CN", {"wav": take_wav}, live=live, cfg=unreach)
     check("an unreachable host is stood down and this Mac answers",
           by == "local" and speech.chain("stt", "zh-CN", unreach)[0] == "local")
     clear_marks()
+
+    # whisper-cli under -ml 1 cuts a segment per token, and a Chinese
+    # character of two tokens ends one segment halfway through its UTF-8.
+    ni = "你".encode("utf-8")
+    raw = (b'{"transcription": ['
+           b'{"offsets": {"from": 100, "to": 200}, "text": "' + ni[:2] + b'"},'
+           b'{"offsets": {"from": 200, "to": 300}, "text": "' + ni[2:] + b'"},'
+           b'{"offsets": {"from": 300, "to": 330}, "text": "\xef\xbc\x8c"},'
+           b'{"offsets": {"from": 330, "to": 600}, "text": "' + "好".encode() + b'"}]}')
+    split_says = os.path.join(box, "whisper-split.json")
+    with open(split_says, "w") as fh:
+        json.dump({"raw_hex": raw.hex()}, fh)
+    os.environ["WHISPER_SAYS"] = split_says
+    got, by = speech.run("stt", "zh-CN", {"wav": take_wav}, live=live,
+                         cfg=speech.load({"order": {"stt": ["local"]},
+                                          "recipes": {"local": LOCAL}}))
+    check("a character whisper cut in two is joined whole, never U+FFFD",
+          by == "local" and got["text"] == "你，好" and "\ufffd" not in got["text"], got)
+    check("with the first half's start and the second's end, and punctuation "
+          "no word",
+          [(w["text"], w["start"], w["end"]) for w in got["words"]]
+          == [("你", 0.1, 0.3), ("好", 0.33, 0.6)], got["words"])
     os.environ.pop("WHISPER_SAYS", None)
     costs = [json.loads(l) for l in open(os.path.join(live, "cost.jsonl"))]
     check("every job that answered wrote exactly one cost line",
-          len(costs) == (7 if CONVERTS else 4)
+          len(costs) == (7 if CONVERTS else 5)
           and all(c["requests"] == 1 and c["tokens"] == 0 for c in costs), costs)
     body, ctype = speech.multipart_body([("a", "1")], [("f", "x.wav", "audio/wav", b"RIFF")])
     check("the hand-built multipart ends with its closing boundary",
@@ -538,285 +495,8 @@ try:
           "no turn has reported" in out.getvalue() and "only-speech" in out.getvalue()
           and "no session" not in out.getvalue(), out.getvalue())
 
-    # whisper-cli under -ml 1 cuts a segment per token, and a Chinese
-    # character of two tokens ends one segment halfway through its UTF-8.
-    ni = "你".encode("utf-8")
-    raw = (b'{"transcription": ['
-           b'{"offsets": {"from": 100, "to": 200}, "text": "' + ni[:2] + b'"},'
-           b'{"offsets": {"from": 200, "to": 300}, "text": "' + ni[2:] + b'"},'
-           b'{"offsets": {"from": 300, "to": 330}, "text": "\xef\xbc\x8c"},'
-           b'{"offsets": {"from": 330, "to": 600}, "text": "' + "好".encode() + b'"}]}')
-    split_says = os.path.join(box, "whisper-split.json")
-    with open(split_says, "w") as fh:
-        json.dump({"raw_hex": raw.hex()}, fh)
-    os.environ["WHISPER_SAYS"] = split_says
-    got, by = speech.run("stt", "zh-CN", {"wav": take_wav},
-                         cfg=speech.load({"order": {"stt": ["local"]},
-                                          "recipes": {"local": LOCAL}}))
-    check("a character whisper cut in two is joined whole, never U+FFFD",
-          by == "local" and got["text"] == "你，好" and "\ufffd" not in got["text"], got)
-    check("with the first half's start and the second's end, and punctuation "
-          "no word",
-          [(w["text"], w["start"], w["end"]) for w in got["words"]]
-          == [("你", 0.1, 0.3), ("好", 0.33, 0.6)], got["words"])
-    check("so whisper's timings still count out to the syllables past a comma",
-          tones.from_words([{"text": "你", "start": 0.1, "end": 0.3},
-                            {"text": "，", "start": 0.3, "end": 0.33},
-                            {"text": "好", "start": 0.33, "end": 0.6}], 2)
-          == [[10, 30], [33, 60]])
-    os.environ.pop("WHISPER_SAYS", None)
-
     # =======================================================================
-    # 3. THE TONE CHECK
-    # =======================================================================
-    for order in (["T1", "T2", "T3", "T4"], ["T4", "T3", "T2", "T1"],
-                  ["T3", "T1", "T4", "T2"]):
-        samples, spans = phrase(order)
-        path = os.path.join(box, "sweep.wav")
-        wav(path, samples)
-        pin = " ".join("ma%s" % t[1] for t in order)
-        got = tones.assess(path, "妈麻马骂", "zh-CN", pinyin=pin)
-        heard = [s["heard"] for s in got["syllables"]]
-        check("sine sweeps %s are heard as %s" % (" ".join(order), " ".join(heard)),
-              heard == order and got["segmented_by"] == "voiced runs", got["verdict"])
-    words = [{"text": "妈", "start": a, "end": b} for a, b in spans]
-    got = tones.assess(path, "妈麻马骂", "zh-CN", pinyin=pin, words=words)
-    check("whisper's timings, when they count out, place the syllables",
-          got["segmented_by"] == "whisper timings"
-          and [s["heard"] for s in got["syllables"]] == order)
-    check("each syllable has its target, expected and heard tone and a confidence",
-          all(set(("syllable", "target", "expect", "heard", "confidence", "start",
-                   "end")) <= set(s) for s in got["syllables"])
-          and got["syllables"][0]["syllable"] == "妈")
-    check("every result says it is a prototype",
-          got["prototype"] is True and "prototype" in got["verdict"])
-
-    # Four syllables, two of them broken by a dropout: six runs, merged to four.
-    samples = silence()
-    for name in ("T1", "T4", "T2", "T1"):
-        one = syllable(CONTOURS[name], 0.3)
-        if name in ("T4", "T2"):
-            cut = len(one) // 2
-            one = one[:cut] + silence(0.06) + one[cut:]
-        samples += one + silence()
-    path = os.path.join(box, "broken.wav")
-    wav(path, samples)
-    got = tones.assess(path, "妈骂麻妈", "zh-CN", pinyin="ma1 ma4 ma2 ma1")
-    check("six voiced runs for four syllables are merged to four (%d runs)"
-          % got["voiced_runs"],
-          got["voiced_runs"] == 6 and len(got["syllables"]) == 4
-          and [s["heard"] for s in got["syllables"]] == ["T1", "T4", "T2", "T1"],
-          [s["heard"] for s in got["syllables"]])
-
-    path = os.path.join(box, "quiet.wav")
-    wav(path, silence(1.0))
-    got = tones.assess(path, "你好", "zh-CN", pinyin="ni3 hao3")
-    check("silence is unknown, never a tone, and never wrong",
-          [s["heard"] for s in got["syllables"]] == ["unknown", "unknown"]
-          and "tone off" not in got["verdict"], got["verdict"])
-
-    aims = tones.targets("ni3 hao3")
-    check("pinyin: the written tone, and third-tone sandhi in what is expected",
-          [(a["syllable"], a["target"], a["expect"]) for a in aims]
-          == [("ni", "T3", "T2"), ("hao", "T3", "T3")])
-    aims = tones.targets("nǐ hǎo ma")
-    check("tone marks read as tones, an untoned syllable as neutral",
-          [a["target"] for a in aims] == ["T3", "T3", "neutral"]
-          and aims[0]["syllable"] == "ni")
-    check("不 before a fourth tone is expected second",
-          [a["expect"] for a in tones.targets("bu4 shi4")] == ["T2", "T4"])
-    for joined, want in (("zhōngguó", [("zhong", "T1"), ("guo", "T2")]),
-                         ("nǐhǎo", [("ni", "T3"), ("hao", "T3")]),
-                         ("xuésheng", [("xue", "T2"), ("sheng", "neutral")]),
-                         ("zhong1guo2", [("zhong", "T1"), ("guo", "T2")]),
-                         ("xī'ān", [("xi", "T1"), ("an", "T1")]),
-                         ("xīān", [("xi", "T1"), ("an", "T1")]),
-                         ("jiangu", [("jian", None), ("gu", None)])):
-        got = [(a["syllable"], a["target"]) for a in tones.targets(joined)]
-        check("joined pinyin %s is cut into its syllables" % joined, got == want, got)
-    check("a breve is read as the third tone it was typed for",
-          [a["target"] for a in tones.targets("nĭ hăo wŏ")] == ["T3", "T3", "T3"])
-    phones = speech.ssml("zh-CN", "v", "中国你好", "zhōngguó nǐhǎo")
-    check("so Azure's SAPI phones are one number a syllable",
-          'ph="zhong 1 guo 2 ni 3 hao 3"' in phones, phones)
-    aims = tones.targets("wǒ hǎo, nǐ hǎo. hǎo")
-    check("third-tone sandhi stays inside its phrase, never across a comma or stop",
-          [a["expect"] for a in aims] == ["T2", "T3", "T2", "T3", "T3"], aims)
-    samples, _spans = phrase(["T2", "T3"])
-    path = os.path.join(box, "nihao.wav")
-    wav(path, samples)
-    got = tones.assess(path, "你好", "zh-CN", pinyin="ni3 hao3")
-    check("so ni3 hao3 said as T2 T3 is every tone confirmed",
-          [s["heard"] for s in got["syllables"]] == ["T2", "T3"]
-          and [s["call"] for s in got["syllables"]] == ["right", "right"]
-          and got["verdict"].startswith("every tone confirmed"), got["verdict"])
-    samples, _spans = phrase(["T4", "T3"])
-    wav(path, samples)
-    got = tones.assess(path, "你好", "zh-CN", pinyin="ni3 hao3")
-    first = got["syllables"][0]
-    check("and said as T4 T3, 你 is unconfirmed with a T4 hint, never off",
-          first["heard"] == "unknown" and first["call"] == "unknown"
-          and first["hint"] == "T4" and first["confidence"] >= tones.SURE
-          and got["syllables"][1]["call"] == "right"
-          and "confirmed on 好" in got["verdict"] and "off" not in got["verdict"]
-          and got["score"] is None, (got["verdict"], first))
-
-    # Confirm or abstain: whatever the take, the local check never fails a
-    # syllable. Every tone said as every other, a level hum, noise, and a
-    # phrase with no pinyin at all.
-    def never_wrong(got):
-        bad = [s for s in got["syllables"]
-               if s["call"] not in ("right", "unknown")
-               or s["heard"] not in (s["expect"], "unknown")
-               or (s["call"] == "right") != (s["heard"] != "unknown")]
-        verdict = got["verdict"].lower()
-        return not bad and not any(w in verdict for w in ("off", "wrong", "wanted"))
-    names = ["T1", "T2", "T3", "T4"]
-    takes, bad = 0, []
-    probe = os.path.join(box, "probe.wav")
-    for shift in (1, 2, 3):
-        said = names[shift:] + names[:shift]
-        for meant in (names, list(reversed(names))):
-            if any(a == b for a, b in zip(said, meant)):
-                continue
-            samples, _spans = phrase(said)
-            wav(probe, samples)
-            got = tones.assess(probe, "妈麻马骂", "zh-CN",
-                               pinyin=" ".join("ma%s" % t[1] for t in meant))
-            takes += 1
-            if not never_wrong(got) or got["confirmed"]:
-                bad.append((said, meant, got["verdict"]))
-        got = tones.assess(probe, "妈麻马骂", "zh-CN")
-        takes += 1
-        if not never_wrong(got) or got["confirmed"]:
-            bad.append((said, None, got["verdict"]))
-    rng = __import__("random").Random(14)
-    wav(probe, [rng.uniform(-0.5, 0.5) for _ in range(R)])
-    for pin in ("ni3 hao3", "ma1 ma2 ma3 ma4", None):
-        got = tones.assess(probe, "你好", "zh-CN", pinyin=pin)
-        takes += 1
-        if not never_wrong(got):
-            bad.append(("noise", pin, got["verdict"]))
-    wav(probe, phrase(["T1", "T1", "T1"])[0])
-    for pin in ("ma4 ma3 ma2", "ma1 ma1 ma1", "ma ma ma", None):
-        got = tones.assess(probe, "妈妈妈", "zh-CN", pinyin=pin)
-        takes += 1
-        if not never_wrong(got):
-            bad.append(("hum", pin, got["verdict"]))
-    check("no take, a wrong tone on every syllable included, gets a syllable "
-          "called wrong (%d takes)" % takes, not bad and takes >= 14,
-          "\n".join(map(str, bad)))
-
-    same = tones.contour(path)
-    other_path = os.path.join(box, "other.wav")
-    wav(other_path, phrase(["T1", "T1"])[0])
-    near, far = tones.dtw(same, same), tones.dtw(same, tones.contour(other_path))
-    check("DTW against the reference: the same contour is ~0, another is not",
-          near is not None and near < 0.05 and far > 1.0, (near, far))
-    got = tones.assess(path, "你好", "zh-CN", pinyin="ni3 hao3", reference=other_path)
-    check("and the result carries the distance",
-          got["contour"] and got["contour"]["dtw"] > 1.0)
-
-    diff = tones.word_diff("我是学生", "我是老师生", "zh-CN")
-    check("the word diff marks what was said wrong, missing or extra",
-          [(d["op"], d["target"], d["heard"]) for d in diff]
-          == [("equal", "我", "我"), ("equal", "是", "是"), ("wrong", "学", "老"),
-              ("extra", "", "师"), ("equal", "生", "生")], diff)
-    got = tones.assess(take_wav, "Bonjour madame", "fr-FR", heard="bonjour monsieur")
-    check("another language gets the word diff and no tones",
-          got["syllables"] == [] and "monsieur" in got["verdict"]
-          and got["tones"].startswith("only Mandarin"))
-
-    # A non-final third tone before another tone is the half third: low and
-    # level, which is T3 there, and a meant neutral tone is never wrong.
-    low = [-3.0] * 12
-    check("a low level syllable is the half third, T3, before another tone",
-          tones.classify(low, (0, 12), half=True, expect="T3")[0] == "T3")
-    check("and not called wrong for a meant neutral tone",
-          tones.classify([2.5] * 12, (0, 12), expect="neutral")[0] == "unknown")
-    dip = [v for v in (-4.2, -5.8, -6.4, -6.2, -5.2) for _ in range(2)]
-    check("a second tone that dips before it rises, low at a phrase's end, is "
-          "never called a third",
-          tones.classify(dip, (0, 10), expect="T2")[0] in ("T2", "unknown"))
-
-    # The board's own reference voice, judged against its own pinyin. The
-    # local check confirms or abstains, so no syllable may be called wrong;
-    # and it must confirm some, or the check is inert.
-    TINGTING = [("你好", "nǐ hǎo"), ("谢谢", "xiè xie"), ("我是学生", "wǒ shì xuésheng"),
-                ("中国", "zhōngguó"), ("我很好", "wǒ hěn hǎo"),
-                ("老师好", "lǎoshī hǎo"), ("今天天气很好", "jīntiān tiānqì hěn hǎo"),
-                ("我们去吃饭吧", "wǒmen qù chīfàn ba"),
-                ("你叫什么名字", "nǐ jiào shénme míngzi"), ("不是", "bú shì")]
-    # Held out: none of these set SURE. 一 and 不 are written as spoken.
-    HELD_OUT = [("我喜欢中文", "wǒ xǐhuan zhōngwén"),
-                ("我买了一本书", "wǒ mǎi le yì běn shū"),
-                ("他是老师", "tā shì lǎoshī"), ("你去哪里", "nǐ qù nǎlǐ"),
-                ("我想喝水", "wǒ xiǎng hē shuǐ"), ("明天见", "míngtiān jiàn"),
-                ("请坐", "qǐng zuò"), ("对不起", "duì bu qǐ"),
-                ("没关系", "méi guānxi"), ("我爱你", "wǒ ài nǐ"),
-                ("这是什么", "zhè shì shénme"), ("我不知道", "wǒ bù zhīdào"),
-                ("他们都很忙", "tāmen dōu hěn máng"),
-                ("你会说汉语吗", "nǐ huì shuō hànyǔ ma"),
-                ("我有两个哥哥", "wǒ yǒu liǎng gè gēge"),
-                ("今天星期一", "jīntiān xīngqī yī"), ("现在几点", "xiànzài jǐ diǎn"),
-                ("我要一杯咖啡", "wǒ yào yì bēi kāfēi"),
-                ("北京很大", "běijīng hěn dà"), ("她喜欢唱歌", "tā xǐhuan chànggē"),
-                ("我们一起学习", "wǒmen yìqǐ xuéxí"), ("不客气", "bú kèqi"),
-                ("你吃饭了吗", "nǐ chī fàn le ma"), ("生日快乐", "shēngrì kuàilè")]
-    has_voice = bool(shutil.which("say")) and "Tingting" in subprocess.run(
-        ["say", "-v", "?"], capture_output=True, text=True).stdout \
-        if shutil.which("say") else False
-
-    def tingting(phrases, rate, tag):
-        """`(syllables, confirmed, wrong)` for these phrases said by Tingting
-        at `rate` words a minute (None: her default), rendered side by side."""
-        aiffs = [os.path.join(box, "tingting-%s-%d.aiff" % (tag, k))
-                 for k in range(len(phrases))]
-        procs = [subprocess.Popen(["say", "-v", "Tingting"]
-                                  + (["-r", str(rate)] if rate else [])
-                                  + ["-o", aiff, zh])
-                 for aiff, (zh, _py) in zip(aiffs, phrases)]
-        if any(p.wait() for p in procs):
-            raise RuntimeError("say -v Tingting failed")
-        total, confirmed, wrong = 0, 0, []
-        for aiff, (zh, py) in zip(aiffs, phrases):
-            said = audio.to_wav16k(aiff, aiff[:-5] + ".wav")
-            for syl in tones.assess(said, zh, "zh-CN", pinyin=py)["syllables"]:
-                total += 1
-                if syl["call"] == "right" and syl["heard"] == syl["expect"]:
-                    confirmed += 1
-                elif syl["call"] != "unknown" or syl["heard"] != "unknown":
-                    wrong.append("%s %s: %s %s at %.2f, meant %s" % (
-                        zh, syl["pinyin"], syl["call"], syl["heard"],
-                        syl["confidence"], syl["expect"]))
-        return total, confirmed, wrong
-
-    if has_voice and CONVERTS:
-        total, confirmed, wrong = tingting(TINGTING, None, "ten")
-        check("Tingting's ten phrases: no syllable called wrong (%d of %d "
-              "confirmed)" % (confirmed, total), not wrong, "\n".join(wrong))
-        check("and a third of the syllables or more are confirmed",
-              confirmed >= 12, confirmed)
-        for rate in (140, None, 240):
-            total, confirmed, wrong = tingting(HELD_OUT, rate, rate or "default")
-            print("     held out at say -r %s: %d of %d syllables confirmed (%.2f)"
-                  % (rate or "default", confirmed, total,
-                     confirmed / float(total or 1)))
-            check("Tingting's %d held-out phrases at say -r %s: no syllable "
-                  "called wrong, %d of %d confirmed"
-                  % (len(HELD_OUT), rate or "default", confirmed, total),
-                  not wrong and confirmed > 0, "\n".join(wrong))
-    else:
-        print()
-        print("SKIPPED THE TINGTING SELF-CHECK: this Mac lacks %s, so the tone "
-              "check was NOT run against the board's own reference voice, on "
-              "its ten phrases or the %d held out."
-              % ("the Tingting voice for `say`" if not has_voice
-                 else "afconvert or ffmpeg", len(HELD_OUT)))
-        print()
-
-    # =======================================================================
-    # 4. THE SUBJECT'S SPEECH, AND WHAT A TURN IS TOLD
+    # 3. THE SUBJECT'S SPEECH, AND WHAT A TURN IS TOLD
     # =======================================================================
     os.makedirs(os.path.join(atlas, "courses", "Mandarin"))
     os.makedirs(os.path.join(atlas, "courses", "Algebra"))
@@ -828,13 +508,12 @@ try:
     subprocess.run(["git", "init", "-q", atlas], check=True)
     said = config.read_config(os.path.join(atlas, "courses", "Mandarin"))["speech"]
     check("read_config keeps a subject's speech, with its defaults",
-          said == {"lang": "zh-CN", "native": "en-US", "voice": "Tingting", "auto": True},
-          said)
+          said == {"lang": "zh-CN", "native": "en-US", "voice": "Tingting"}, said)
     check("and drops one that names no language",
           config.clean_speech({"voice": "x"}) is None
           and config.read_config(os.path.join(atlas, "courses", "Algebra"))["speech"] is None)
 
-    sid = sessions.new("drill", base=atlas)["id"]
+    sid = sessions.new("take", base=atlas)["id"]
     sessions.bind(sid, "courses/Mandarin", base=atlas)
     math_sid = sessions.new("algebra", base=atlas)["id"]
     sessions.bind(math_sid, "courses/Algebra", base=atlas)
@@ -852,31 +531,31 @@ try:
         fh.write("{}")
     check("then it is",
           sense.SPEECH_SENSE in sense.session_sense(math_repo))
-    check("SPEECH_SENSE says the local check confirms only, and Azure alone fails",
-          "never tell them a tone is wrong" in sense.SPEECH_SENSE
-          and "Only Azure" in sense.SPEECH_SENSE)
-    check("SPEECH_SENSE names `board hear`, and that is a command",
+    check("SPEECH_SENSE never grades a voice, and says so",
+          "never grade a voice" in sense.SPEECH_SENSE.lower()
+          and "tone" not in sense.SPEECH_SENSE.lower())
+    check("and names `board hear`, which is a command",
           "board hear" in sense.SPEECH_SENSE)
-    check("and says the local tone check is a prototype",
-          "prototype" in sense.SPEECH_SENSE)
 
     # =======================================================================
-    # 5. CARDS: a `say` fence
+    # 4. CARDS: a `say` fence
     # =======================================================================
     jobs = []
-    body = ("Say this:\n\n```say zh-CN pinyin=\"ni3 hao3\"\n你好\n```\n\n"
+    body = ("Say this:\n\n```say zh-CN\n你好\n```\n\n"
             "```python\nprint(1)\n```\n")
     out = cards.extract_tikz(body, jobs, repo)
-    name = synth.sha("zh-CN", "你好", "ni3 hao3", "Tingting")
+    name = synth.sha("zh-CN", "你好", "Tingting")
     check("a say fence becomes a placeholder with the phrase after it",
-          ("@@SAY:%s:pending:zh-CN:ni3%%20hao3@@ 你好\n" % name) in out
+          ("@@SAY:%s:pending:zh-CN@@ 你好\n" % name) in out
           and "```python" in out, out)
     check("and one job for the compiler thread, in the subject's voice",
           len(jobs) == 1 and jobs[0][0] == name and jobs[0][1] == "say"
           and json.loads(jobs[0][2])["voice"] == "Tingting"
           and json.loads(jobs[0][2])["live"] == repo.live, jobs)
+    check("no pinyin rides in the marker or the job",
+          "pinyin" not in out and "pinyin" not in jobs[0][2])
     out = cards.extract_tikz("```say zh-CN\n谢谢 (thank you)\n```\n", [], repo)
-    check("a phrase without pinyin keeps its own parentheses as words",
+    check("a phrase keeps its own parentheses as words",
           "zh-CN@@ 谢谢 (thank you)\n" in out, out)
     os.makedirs(paths.SPEECH, exist_ok=True)
     with open(os.path.join(paths.SPEECH, name + ".m4a"), "wb") as fh:
@@ -884,8 +563,8 @@ try:
     jobs = []
     out = cards.extract_tikz(body, jobs, repo)
     check("a cached phrase is ready and queues nothing",
-          ("@@SAY:%s:ready:zh-CN:" % name) in out and not jobs)
-    write_config({"order": {"tts": ["local"], "stt": ["local"], "assess": ["local"]},
+          ("@@SAY:%s:ready:zh-CN@@" % name) in out and not jobs)
+    write_config({"order": {"tts": ["local"], "stt": ["local"]},
                   "recipes": {"local": LOCAL}})
     synth.make(paths.SPEECH, "f" * 32, synth.job("en-US", "hello")[1])
     check("the compiler's say job makes the phrase through the TTS chain",
@@ -904,22 +583,19 @@ try:
           and "here" in spoken and "http" not in spoken, spoken)
 
     # =======================================================================
-    # 6. THE ROUTE, end to end, STT stubbed by the fake whisper-cli
+    # 5. THE ROUTE, end to end, STT stubbed by the fake whisper-cli
     # =======================================================================
     from tutorboard.server import app
     httpd = app.make_server(atlas, 0, start=False)
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     PORT = httpd.server_port
     says = os.path.join(box, "whisper-says.json")
-    samples, spans = phrase(["T2", "T3"])
     with open(says, "w") as fh:
         json.dump({"transcription": [
-            {"text": "你", "offsets": {"from": int(spans[0][0] * 1000),
-                                      "to": int(spans[0][1] * 1000)}},
-            {"text": "好", "offsets": {"from": int(spans[1][0] * 1000),
-                                      "to": int(spans[1][1] * 1000)}}]}, fh)
+            {"text": "你", "offsets": {"from": 0, "to": 300}},
+            {"text": "好", "offsets": {"from": 330, "to": 600}}]}, fh)
     os.environ["WHISPER_SAYS"] = says
-    wav(take_wav, samples)
+    wav(take_wav, tone())
     with open(take_wav, "rb") as fh:
         TAKE = fh.read()
 
@@ -956,12 +632,11 @@ try:
 
     with open(os.path.join(repo.cards, "0003-ask.md"), "w") as fh:
         fh.write("---\nkind: question\n---\nSay 你好 back to me. $x^2$\n")
-    status, got = post_take(sid, TAKE, {"lang": "zh-CN", "ref": "你好",
-                                        "pinyin": "ni3 hao3", "answers": "0003"})
+    status, got = post_take(sid, TAKE, {"lang": "zh-CN", "answers": "0003"})
     rec = got.get("heard") or {}
     check("POST /s/<id>/speech/say hears the take: 200, the words, by local",
           status == 200 and got.get("ok") and rec.get("heard") == "你好"
-          and rec.get("stt_by") == "local" and rec.get("assess_by") == "local",
+          and rec.get("stt_by") == "local" and "assess" not in rec,
           (status, got))
     base = rec.get("base") or ""
     folder = os.path.join(where, "speech")
@@ -976,20 +651,19 @@ try:
           and open(os.path.join(folder, base + ".orig.wav"), "rb").read() == TAKE,
           os.listdir(folder))
     heard = json.load(open(os.path.join(folder, base + ".heard.json")))
-    check("the heard record judges each syllable against the pinyin",
-          [s["heard"] for s in heard["assess"]["syllables"]] == ["T2", "T3"]
-          and heard["assess"]["segmented_by"] == "whisper timings"
-          and heard["assess"]["prototype"] is True, heard.get("assess"))
+    check("the heard record has the words and no grade",
+          heard["heard"] == "你好" and "assess" not in heard
+          and "verdict" not in heard and "pinyin" not in heard, heard)
     turns_rec = [json.loads(l) for l in open(os.path.join(where, "turns.jsonl"))]
     t = turns_rec[-1]
-    check("a turn record of kind speech, answering the card, with its tones",
+    check("a turn record of kind speech, answering the card",
           t["kind"] == "speech" and t["answers"] == "0003" and t["text"] == "你好"
-          and t["target"] == "你好" and len(t["tones"]) == 2 and not t["read"], t)
+          and not t["read"] and "tones" not in t and "target" not in t, t)
     msgs = inbox.unread(repo)
     m = msgs[-1]
-    check("and a waking [speech] line: heard, target, verdict",
-          m["text"].startswith("[speech] heard: '你好'. Target: '你好'. every tone confirmed")
-          and inbox.wakes(m), m.get("text"))
+    check("and a waking [speech] line: what was heard",
+          m["text"].startswith("[speech] heard: '你好'.") and inbox.wakes(m),
+          m.get("text"))
     shown = inbox.render([m], repo)
     check("whose file: is the heard record, and the tutor never gets the audio",
           ("file: %s" % os.path.join(folder, base + ".heard.json")) in shown
@@ -1003,8 +677,8 @@ try:
           and os.path.getsize(repo.messages_path) == size,
           (raw_last[:80], size, os.path.getsize(repo.messages_path)))
     costs = [json.loads(l) for l in open(os.path.join(where, "cost.jsonl"))]
-    check("the session's cost.jsonl has the STT and the assessment",
-          [c["speech"] for c in costs] == ["stt", "assess"], costs)
+    check("the session's cost.jsonl has the STT alone",
+          [c["speech"] for c in costs] == ["stt"], costs)
     status, raw = get("/s/%s/speech/last.json" % sid)
     check("GET /speech/last.json gives the newest heard record back",
           status == 200 and json.loads(raw)["heard"]["base"] == base)
@@ -1021,8 +695,7 @@ try:
         subprocess.run([a.replace("{out}", made) for a in argv], check=True)
         with open(made, "rb") as fh:
             data = fh.read()
-        status, got = post_take(sid, data, {"lang": "zh-CN", "ref": "你好",
-                                            "pinyin": "ni3 hao3"},
+        status, got = post_take(sid, data, {"lang": "zh-CN"},
                                 filename="take" + ext,
                                 ctype="audio/mp4" if ext == ".m4a"
                                 else "audio/webm;codecs=opus")
@@ -1039,8 +712,7 @@ try:
     answers = {}
 
     def one_take(k):
-        answers[k] = post_take(sid, TAKE, {"lang": "zh-CN", "ref": "你好",
-                                           "pinyin": "ni3 hao3"})
+        answers[k] = post_take(sid, TAKE, {"lang": "zh-CN"})
     racing = [threading.Thread(target=one_take, args=(k,)) for k in (0, 1)]
     for th in racing:
         th.start()
@@ -1061,10 +733,10 @@ try:
               os.path.isfile(os.path.join(folder, b + ".heard.json")) for b in bases),
           bases)
 
-    status, got = post_take(sid, TAKE, {"ref": "你好", "pinyin": "ni3 hao3"})
+    status, got = post_take(sid, TAKE, {})
     check("with no lang, the subject's speech.lang is used",
           status == 200 and got["heard"]["lang"] == "zh-CN", got)
-    status, got = post_take(math_sid, TAKE, {"ref": "你好"})
+    status, got = post_take(math_sid, TAKE, {})
     check("and a subject without one is asked to say which",
           status == 400 and "language" in got.get("error", ""), got)
     status, got = post_take(sid, b"", {"lang": "zh-CN"})
@@ -1119,7 +791,7 @@ try:
     os.makedirs(fakes)
     conv_log = os.path.join(box, "conv.log")
     small = os.path.join(box, "small.wav")
-    wav(small, syllable(CONTOURS["T1"], 0.4))
+    wav(small, tone(0.4))
 
     def fake(name, body):
         path = os.path.join(fakes, name)
@@ -1212,7 +884,7 @@ try:
           os.listdir(os.path.join(deaf_live, "speech")))
 
     # =======================================================================
-    # 7. `board hear`, the audit, the multipart fields
+    # 6. `board hear`, the audit, the multipart fields
     # =======================================================================
     loader = importlib.machinery.SourceFileLoader("boardcli", os.path.join(ROOT, "bin", "board"))
     spec = importlib.util.spec_from_loader("boardcli", loader)
@@ -1221,14 +893,13 @@ try:
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         code = board.main(["hear", os.path.join(folder, base + ".heard.json")])
-    check("`board hear <file>` prints what was heard and each syllable's tone",
+    check("`board hear <file>` prints what was heard and the words",
           code == 0 and "heard:   你好" in out.getvalue()
-          and "你 T2->T2" in out.getvalue() and "prototype" in out.getvalue(),
+          and "words:" in out.getvalue() and "prototype" not in out.getvalue(),
           out.getvalue())
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
-        code = board.main(["hear", take_wav, "--lang", "zh-CN", "--ref", "你好",
-                           "--pinyin", "ni3 hao3", "--json"])
+        code = board.main(["hear", take_wav, "--lang", "zh-CN", "--json"])
     said = json.loads(out.getvalue()) if code == 0 else {}
     check("and an audio file is heard first, in a scratch copy",
           code == 0 and said.get("heard") == "你好"
@@ -1242,7 +913,7 @@ try:
               any("audio" in p for p in audit.problems(rel)))
 
     fields = {}
-    body, ctype = speech.multipart_body([("ref", "你好"), ("lang", "zh-CN")],
+    body, ctype = speech.multipart_body([("lang", "zh-CN")],
                                         [("audio", "a.wav", "audio/wav", b"RIFFxx")])
     folder2 = tempfile.mkdtemp(dir=box)
     types = []
@@ -1251,11 +922,11 @@ try:
                                lambda i, f: os.path.join(folder2, "x" + f),
                                fields=fields, types=types)
     check("the board's multipart reader keeps plain fields when asked",
-          fields == {"ref": "你好", "lang": "zh-CN"} and types == ["audio/wav"]
+          fields == {"lang": "zh-CN"} and types == ["audio/wav"]
           and open(got[0][1], "rb").read() == b"RIFFxx")
 
     # =======================================================================
-    # 8. SETUP
+    # 7. SETUP
     # =======================================================================
     brew = open(os.path.join(ATLAS_ROOT, "Brewfile")).read()
     check("the Brewfile has whisper.cpp, ffmpeg and espeak-ng",
@@ -1303,16 +974,16 @@ try:
           bad.stdout)
 
     # =======================================================================
-    # 9. DOCTOR, and the real binaries when they are here
+    # 8. DOCTOR, and the real binaries when they are here
     # =======================================================================
     from tutorboard.speech import witness
     lines = []
     ok = witness.report(dry=True, cfg=speech.load({"recipes": {"local": LOCAL}}),
                         out=lines.append)
     joined = "\n".join(lines)
-    check("doctor --dry names the chains and the local TTS, STT and assessment",
+    check("doctor --dry names the chains and the local TTS and STT, and no grade",
           ok and "speech tts" in joined and "local tts:" in joined
-          and "local stt:" in joined and "local assess:" in joined, joined)
+          and "local stt:" in joined and "local assess:" not in joined, joined)
     lines = []
     with open(says, "w") as fh:
         json.dump({"transcription": [{"text": " Wrong", "offsets": {}}]}, fh)
@@ -1347,4 +1018,4 @@ finally:
 if fails:
     print("\n%d failed: %s" % (len(fails), "; ".join(fails)))
     sys.exit(1)
-print("\nevery tutor speaks, listens and judges pronunciation")
+print("\nevery tutor speaks and listens")

@@ -1,12 +1,11 @@
 """Speech: a take heard, a card read aloud, a phrase played.
 
     POST /speech/say         session   one take, multipart: the `audio` file and
-                                       the fields `answers`, `ref`, `lang` and
-                                       `pinyin`. Saved under the session's
-                                       speech/, converted, transcribed, judged
-                                       when there is a `ref`; one turn record
-                                       and one waking `[speech]` line naming
-                                       the `.heard.json`, never the audio
+                                       the fields `answers` and `lang`. Saved
+                                       under the session's speech/, converted
+                                       and transcribed; one turn record and one
+                                       waking `[speech]` line naming the
+                                       `.heard.json`, never the audio
     POST /speech/card        session   `{card}`: the card's prose, math and
                                        code skipped, spoken in the subject's
                                        `native` language; `{sha, url}`
@@ -131,18 +130,13 @@ def say(h, repo):
         return h.send_json({"ok": False, "error": "say which language: `lang`, "
                             "or `speech.lang` in the subject's tutorboard.json"},
                            status=400)
-    ref = (fields.get("ref") or "").strip()[:500] or None
-    pinyin = (fields.get("pinyin") or "").strip()[:500] or None
     answers = (fields.get("answers") or "").strip() or turns.newest_question(repo)
-    voice = mine.get("voice") if speech.clean_lang(mine.get("lang")) == lang else None
     try:
-        rec = hear.take(repo.live, recording, lang, ref=ref, pinyin=pinyin,
-                        voice=voice, answers=answers)
+        rec = hear.take(repo.live, recording, lang, answers=answers)
     except (speech.Refused, audio.Unconvertible) as exc:
         h.note("speech take %s not heard: %s" % (base, exc))
         return h.send_json({"ok": False, "error": "not heard: %s" % exc,
                             "audio": os.path.basename(recording)}, status=502)
-    got = rec.get("assess") or {}
     # Takes heard side by side finish side by side: the id is taken and
     # written under one lock, so two never share it.
     with _TURN_LOCK:
@@ -153,18 +147,13 @@ def say(h, repo):
             "answers": answers,
             "t": time.time(), "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
             "from": "student",
-            "text": rec["heard"], "target": rec["target"], "pinyin": rec["pinyin"],
-            "lang": lang, "verdict": rec["verdict"],
-            "tones": [{k: s.get(k) for k in ("syllable", "pinyin", "expect", "heard",
-                                             "call", "hint", "confidence")}
-                      for s in got.get("syllables") or []],
-            "prototype": bool(got.get("prototype")),
+            "text": rec["heard"],
+            "lang": lang,
             "heard": "/speech/%s.heard.json" % base,
             "read": False,
         }
         turns.write_turn(repo, record)
         msg = dict(record, text=hear.line(rec), heard=rec["file"])
-        msg.pop("tones", None)
         # ASCII, as every inbox writer: `inbox._mark_read` patches a line in place
         # only when the re-dumped line fits, and a rewrite of the whole file could
         # lose a line appended meanwhile.
@@ -228,7 +217,7 @@ def card(h, repo):
     voice = mine.get("voice") if speech.clean_lang(mine.get("lang")) == lang else None
     live = None if is_sessionless(repo) else repo.live
     try:
-        sha, _path = synth.ensure(lang, text, None, voice, live)
+        sha, _path = synth.ensure(lang, text, voice, live)
     except speech.Refused as exc:
         return h.send_json({"ok": False, "error": "could not be spoken: %s" % exc},
                            status=503)

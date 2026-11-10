@@ -3,7 +3,7 @@
     ~/.cache/tutor-board/speech/<sha>.m4a      (paths.SPEECH)
 
 A card's `say` fence and a card read aloud are both a phrase: a language, the
-words, an optional pinyin and voice. `sha` names it, so the same phrase in two
+words and an optional voice. `sha` names it, so the same phrase in two
 sessions is made once and served from one URL, `/speech/<sha>.m4a`. A phrase
 nobody could synthesise leaves `<sha>.err` saying why, which is tried again
 after `RETRY_SECONDS`, since a voice may be downloaded or a key added since.
@@ -27,9 +27,9 @@ def cache():
     return paths.SPEECH
 
 
-def sha(lang, text, pinyin=None, voice=None):
+def sha(lang, text, voice=None):
     """The phrase's name in the cache."""
-    key = json.dumps([lang or "", text or "", pinyin or "", voice or ""],
+    key = json.dumps([lang or "", text or "", voice or ""],
                      ensure_ascii=False)
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
 
@@ -55,10 +55,10 @@ def status(name, where=None):
     return "pending"
 
 
-def job(lang, text, pinyin=None, voice=None, live=None):
+def job(lang, text, voice=None, live=None):
     """`(name, src)`: the compiler's job for one phrase (`server/tikz.py`)."""
-    return sha(lang, text, pinyin, voice), json.dumps(
-        {"lang": lang, "text": text, "pinyin": pinyin, "voice": voice,
+    return sha(lang, text, voice), json.dumps(
+        {"lang": lang, "text": text, "voice": voice,
          "live": live}, ensure_ascii=False)
 
 
@@ -81,7 +81,7 @@ def make(where, name, src):
         return
     try:
         speech.run("tts", said.get("lang"), {
-            "text": said.get("text") or "", "pinyin": said.get("pinyin"),
+            "text": said.get("text") or "",
             "voice": said.get("voice"),
             "dest": os.path.join(where, name + ".m4a")}, live=said.get("live"))
     except speech.Refused as exc:
@@ -93,11 +93,11 @@ def make(where, name, src):
         pass
 
 
-def ensure(lang, text, pinyin=None, voice=None, live=None):
+def ensure(lang, text, voice=None, live=None):
     """The phrase's `(sha, m4a path)`, synthesised now if it is not cached.
     Raises `agents.speech.Refused` when nobody could."""
     from tutorboard.agents import speech
-    name, src = job(lang, text, pinyin, voice, live)
+    name, src = job(lang, text, voice, live)
     target = os.path.join(cache(), name + ".m4a")
     if os.path.isfile(target):
         return name, target
