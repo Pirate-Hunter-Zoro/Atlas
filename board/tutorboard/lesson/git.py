@@ -21,10 +21,16 @@ _DIRTY = {}
 DIRTY_TTL = 8.0
 
 
+def invalidate_dirty():
+    """Forget every workspace's cached badge, so the next poll asks git."""
+    _DIRTY.clear()
+
+
 def repo_dirty(repo):
     """How many files are uncommitted in this workspace, or None if unknown:
     the board's unsaved-work badge. Scoped by `save_pathspec`, the scope
-    `run_push` commits.
+    `run_push` commits, and filtered by `memo_only`: a TUTOR.md-only change
+    saves nothing, so it must not paint a count either.
     """
     now = time.time()
     key = os.path.realpath(repo.root)
@@ -43,7 +49,14 @@ def repo_dirty(repo):
             if p.returncode == 0:
                 lines = [l for l in p.stdout.decode("utf-8", "replace").splitlines()
                          if l.strip()]
-                value = len(lines)
+                names = []
+                for line in lines:
+                    # `XY <path>`, and a rename is `XY <old> -> <new>`.
+                    rel = line[3:].strip().strip('"')
+                    if " -> " in rel:
+                        rel = rel.split(" -> ", 1)[1]
+                    names.append(rel)
+                value = 0 if memo_only(names) else len(lines)
         except (OSError, subprocess.TimeoutExpired):
             value = None
     _DIRTY[key] = (now, value)
@@ -200,6 +213,10 @@ def save(top, root, specs, message=None):
     found = changed(top, specs)
     if found is not None and memo_only(found):
         ok, pushed = gitops.push(top)
+        # Never pair the TUTOR.md message with "already up to date": nothing
+        # was committed, and the change is still sitting there by design.
+        if pushed == "already up to date":
+            return ok, QUIET
         return ok, "%s\n%s" % (QUIET, pushed)
     if not message:
         real_top, real_root = os.path.realpath(top), os.path.realpath(root)

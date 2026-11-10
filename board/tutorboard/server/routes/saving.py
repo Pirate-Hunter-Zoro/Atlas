@@ -24,7 +24,7 @@ def post(h, repo, path):
         except Exception:
             payload = {}
         record = git.run_push(repo, (payload.get("message") or "").strip() or None)
-        git._DIRTY["value"] = None      # ask again now, not in eight seconds
+        git.invalidate_dirty()          # ask again now, not in eight seconds
         # Clear the end-of-session offer either way; a failure shows as a
         # banner with the reason rather than as a standing prompt.
         st = repo.state()
@@ -40,7 +40,7 @@ def post(h, repo, path):
             rec = git.run_hw_build(repo)
         except Exception as e:                       # noqa: BLE001
             rec = {"ok": False, "detail": "build failed: %s" % e}
-        git._DIRTY["value"] = None      # a new PDF is uncommitted; say so
+        git.invalidate_dirty()          # a new PDF is uncommitted; say so
         h.hub.worker.dirty.set()
         return h.send_json(rec)
 
@@ -68,7 +68,7 @@ def post(h, repo, path):
         rec.setdefault("scope", "shot")
         with open(os.path.join(repo.live, "export.json"), "w", encoding="utf-8") as fh:
             json.dump(rec, fh, indent=2)
-        git._DIRTY["value"] = None      # the new file is uncommitted; say so
+        git.invalidate_dirty()          # the new file is uncommitted; say so
         h.hub.worker.dirty.set()
         return h.send_json(rec)
 
