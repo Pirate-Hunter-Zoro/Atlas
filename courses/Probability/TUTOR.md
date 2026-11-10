@@ -9,13 +9,13 @@
 
 ## Now
 
-hw05 is open on the Chapters 5 and 8 sheet. Sheet: Ch 5 exercises 1, 2, 4, 6, 15, 21; Ch 8 exercises 3, 13; plus 5.2* and 8.12*, not handed in. Set: homework/hw05/hw05.tex. Sheet: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
+hw05 is open on the Chapters 5 and 8 sheet. Sheet: Ch 5 exercises 1, 2, 4, 6, 15, 21; Ch 8 exercises 3, 13; plus 5.2* and 8.12*, not handed in. Set: homework/hw05/hw05.tex. Assignment PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
 
 Steering (2026-11-09): all handed-in problems, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped.
 
-DONE, written up: 5.1; 5.2 = 6/μ; 5.4 = (a) 0, (b) 1/27, (c) 1/4. Pages hw05-5.1/-5.2/-5.4.png from t0003 r1/r3/r6 (5.4: r4 = (a), r5 = (b), r6 = (c)).
+DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 = (a) 0, (b) 1/27, (c) 1/4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7, filed hw05-5.6.png). Their whole conditional split was correct as written.
 
-5.6 is open (posed card 0009, pinned on their screen). Rung: condition on which customer leaves first; in the clerk-1-first case, which two exponentials race and at what rates — Smith on clerk 1 at λ₁ versus the remaining customer on clerk 2 at λ₂, fresh by memorylessness. Target: P{Smith not last} = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))², each term being λ_i/(λ₁+λ₂) for the first departure times λ_i/(λ₁+λ₂) for Smith winning.
+5.15 is open (posed card 0010, on their screen). One hundred iid exponentials, mean 200 h, stop at the 5th failure; find E[T], Var(T). Rung asked: rate of the first failure with all 100 on test (100/200 = 1/2, mean 2 h). Then survivor counts drop: rates 99/200, 98/200, 97/200, 96/200. T is a sum of five independent exponential gaps, so E[T] = 200(1/100+1/99+1/98+1/97+1/96), Var(T) = 200²(1/100²+1/99²+1/98²+1/97²+1/96²).
 
 Exercise numbers are 11th edition; read stacked fractions off the page image (5.1 mean is 1/2 hour, not 21).
 

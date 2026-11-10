@@ -84,6 +84,17 @@ In Example 5.3 if server $i$ serves at an exponential rate $\lambda_i$, $i=1,2$,
 $$\Pr\{\text{Smith is not last}\} = \left(\frac{\lambda_1}{\lambda_1+\lambda_2}\right)^{2} + \left(\frac{\lambda_2}{\lambda_1+\lambda_2}\right)^{2}.$$
 \end{problem}
 % ===== SOLUTION 5.6 =====
+Let $C$ be Smith, and let $A$ and $B$ be the two customers, $A$ at clerk 1 and $B$ at clerk 2. Condition on which of $A$ and $B$ leaves first:
+$$\Pr\{C\text{ not last}\} = \Pr\{C<B \mid A<B\}\Pr\{A<B\} + \Pr\{C<A \mid B<A\}\Pr\{B<A\}.$$
+By memorylessness, $C$ takes on the distribution of whoever finishes first, so
+$$= \Pr\{A<B\}\Pr\{A<B\} + \Pr\{B<A\}\Pr\{B<A\}$$
+$$= \left(\frac{\lambda_1}{\lambda_1+\lambda_2}\right)^{2} + \left(\frac{\lambda_2}{\lambda_1+\lambda_2}\right)^{2}.$$
 % ===== END SOLUTION 5.6 =====
+
+\begin{problem}{5.15}
+One hundred items are simultaneously put on a life test. Suppose the lifetimes of the individual items are independent exponential random variables with mean 200 hours. The test will end when there have been a total of 5 failures. If $T$ is the time at which the test ends, find $E[T]$ and $\mathrm{Var}(T)$.
+\end{problem}
+% ===== SOLUTION 5.15 =====
+% ===== END SOLUTION 5.15 =====
 
 \end{document}
