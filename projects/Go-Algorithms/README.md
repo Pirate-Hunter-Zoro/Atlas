@@ -2,7 +2,7 @@
 
 Classical data structures and algorithms, implemented in Go by hand, each with a
 correctness argument, a cost analysis, and tests that scale. The mathematical companion to
-Spirit Forge.
+Longtable.
 
 Only coaching documents and Atlas metadata exist. There is no code or `go.mod` yet.
 

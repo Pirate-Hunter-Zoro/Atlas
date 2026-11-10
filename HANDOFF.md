@@ -55,9 +55,10 @@ Rules that hold throughout:
 - **Machine upkeep.** One system, `upkeep/`, byte-identical in Atlas and Media-Orchestrator,
   keeps every Mac installed and current; `flutter doctor` stays green. Atlas adds only its
   `upkeep.d/hook`.
-- **Spirit-Forge:** the verification language is Lean 4 without Mathlib. Zig, Rust and
-  containerization are the three things the project exercises, each with a real job in the game.
-  Flutter stays the client as planned.
+- **Longtable:** the verification language is Lean 4 without Mathlib. Rust, Zig, Kubernetes
+  and Flutter are the things the project exercises, each with a real job in the table. The
+  product is offline first and iPad first, uses SRD 5.1 plus the owner's homebrew, and replaces
+  the physical materials of a D&D table.
 - **A blank canvas.** Home opens a canvas to write on with no tutor, for notes at a lecture. It
   saves to Random lessons, any subject or nowhere, and goes to a tutor at any time (item 12).
   Handing it over wakes one tutor turn.
@@ -66,8 +67,7 @@ Rules that hold throughout:
   - A finished textbook ingest wakes one tutor turn.
 - **Speech.**
   - Azure first, local last.
-  - A language course auto-speaks target phrases only.
-  - Gaelic means Irish (ga-IE).
+  - Narrates boxed text on a tap; nothing auto-plays and no voice is graded.
 
 ## Owner files
 
@@ -157,10 +157,10 @@ These are built but not yet used for real. Strike each one after an evening on t
 - **Answers:**
   - A response typing out, and the typed half of the answer panel.
   - Whether the verdict band and streak chip feel like information or like a scoreboard.
-- **Speech,** on a subject whose `speech.lang` is zh-CN:
-  - A zh-CN `say` phrase plays.
-  - A take on the speak tab shows "heard: ..." within about 5 s, with a tone chip per syllable.
-  - `board doctor --dry` names a working local TTS, STT and assessment.
+- **Speech:**
+  - A card reads aloud from its speak button, and a `say` phrase plays on its own button.
+  - A take on the speak tab shows "heard: ..." within about 5 s.
+  - `board doctor --dry` names a working local TTS and STT.
 
 ## The work it is for
 
@@ -169,4 +169,4 @@ Each item's open tasks live in its subject's TUTOR.md.
 1. **Probability and Galois Theory homework**, with items 10 and 11 taking the friction out.
 2. **The Colibri course** (`courses/Colibri`): the lesson from card 0048, and the pitch deck's
    rounds.
-3. **Spirit-Forge:** Sparring spirit in Rust, then the Lean thread.
+3. **Longtable:** First roll in Rust, then The sheet and The table.

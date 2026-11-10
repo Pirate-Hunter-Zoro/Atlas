@@ -1,0 +1,24 @@
+# Build output and caches.
+/target/
+.dart_tool/
+zig-out/
+.zig-cache/
+zig-pkg/
+/dist/
+/build/
+
+# Signing keys and development identities.
+*.jks
+*.keystore
+key.properties
+
+# Local saves and traces; golden traces in traces/*.jsonl stay tracked.
+/saves/
+*.db
+*.sqlite
+*.sqlite3
+/traces/*.local.jsonl
+
+# Local cluster and chart packages.
+*.kubeconfig
+/charts/*.tgz

@@ -3,7 +3,7 @@
 ## Purpose
 
 This project serves the owner's growth toward a software engineering role in May 2027, beside
-Spirit Forge. Spirit Forge builds whole systems; this project is the mathematical side of
+Longtable. Longtable builds whole systems; this project is the mathematical side of
 computer science. The owner implements classical data structures and algorithms in Go and
 argues why each one is correct and what it costs.
 
