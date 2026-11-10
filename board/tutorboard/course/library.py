@@ -1133,15 +1133,91 @@ def _settle(repo, doc):
               file=sys.stderr)
 
 
+def _current_writeup(repo, subject):
+    """The compiled write-up the newest session on `subject` is working on:
+    `{path, rel, title, set, iso}` or None.
+
+    A session pins its set in session.json `writeup`; its last compile records
+    the PDF in `hw.json`. Both are files, so both are checked: the subject is
+    one of ours (`sessions.subject_dir`), and every path resolves inside it
+    (`paper.resolve`, whose `pdf_in` is the containment test, and
+    `paths.within` for a PDF beside the pinned source). A miss is ordinary.
+    """
+    from .. import sessions                           # local: avoids a cycle
+
+    if not subject:
+        return None
+    base = getattr(repo, "atlas", None) or subjects.root()
+    found = sessions.subject_dir(subject, base)
+    if not found:
+        return None
+    root = os.path.realpath(found["root"])
+    for rec in sessions.all(base):
+        sid = rec.get("id")
+        if rec.get("subject") != subject or not sid:
+            continue
+        try:
+            home = sessions.repo(sid, base)
+        except (LookupError, OSError):
+            continue
+        built = paper.record(home, "homework") or {}
+        target, _filename = paper.resolve(home, "homework")
+        if not target:
+            # Not compiled through hw.json: the set's own PDF beside its pin,
+            # when the pin is inside this subject.
+            rel = str(rec.get("writeup") or "")
+            if not rel.endswith(".tex") or not rel.startswith(subject + "/"):
+                continue
+            parts = rel.replace("\\", "/").split("/")
+            if any(p in ("", ".", "..") for p in parts):
+                continue
+            tex = os.path.realpath(os.path.join(base, rel))
+            beside = os.path.splitext(tex)[0] + ".pdf"
+            if not paths.within(tex, root) or not paths.within(beside, root) \
+                    or not os.path.isfile(beside):
+                continue
+            target = beside
+        target = os.path.realpath(target)
+        if not paths.within(target, root):
+            continue
+        at = _mtime(target)
+        return {
+            "path": target,
+            "rel": os.path.relpath(target, root).replace(os.sep, "/"),
+            "title": _pretty(os.path.splitext(os.path.basename(target))[0]),
+            "set": str(built.get("set") or ""),
+            "iso": time.strftime("%Y-%m-%d", time.localtime(at)) if at else "",
+        }
+    return None
+
+
 def status(repo):
     """What the library page draws, and nothing more."""
     from . import ledger                              # local: avoids a cycle
 
     root = repo.root
+    base = getattr(repo, "atlas", None) or subjects.root()
     try:
-        found = documents(root)
+        found = list(documents(root))
     except Exception:                                        # noqa: BLE001
         found = []
+    found_subject = subjects.find(root, base) if root else None
+    subject = (found_subject or {}).get("id") or ""
+    try:
+        current = _current_writeup(repo, subject)
+    except Exception:                                        # noqa: BLE001
+        current = None
+    current_id = ""
+    if current:
+        for doc in found:
+            try:
+                same = os.path.realpath(
+                    os.path.join(root, *doc["rel"].split("/"))) == current["path"]
+            except (KeyError, OSError, ValueError):
+                same = False
+            if same:
+                current_id = doc["id"]
+                break
     from ..lesson import notes as lesson_notes        # local: avoids a cycle
     from ..server.routes import writing               # local: avoids a cycle
     try:
@@ -1154,6 +1230,7 @@ def status(repo):
         sent = {}
     buried = None
     for doc in found:
+        doc["current"] = bool(current_id) and doc["id"] == current_id
         doc["iso"] = (time.strftime("%Y-%m-%d", time.localtime(doc["at"]))
                       if doc["at"] else "")
         _settle(repo, doc)
@@ -1187,9 +1264,23 @@ def status(repo):
             doc["wiped"] = wiped(repo, doc, buried)
         except Exception:                                    # noqa: BLE001
             doc["wiped"] = {}
-    found_subject = subjects.find(root) if root else None
-    return {"workspace": subjects.identify(root), "documents": found,
-            "subject": (found_subject or {}).get("id") or "",
+    # The current write-up sorts first, so the page's own card is the top row.
+    if current_id:
+        found = ([d for d in found if d["id"] == current_id]
+                 + [d for d in found if d["id"] != current_id])
+    current_doc = next((d for d in found if d["id"] == current_id), None)
+    out_current = None
+    if current:
+        out_current = {
+            "id": current_id,
+            "title": (current_doc or {}).get("title") or current["title"],
+            "set": current.get("set") or "",
+            "rel": current.get("rel") or "",
+            "iso": (current_doc or {}).get("iso") or current.get("iso") or "",
+            "pdf": True,
+        }
+    return {"workspace": subjects.identify(root, base), "documents": found,
+            "subject": subject, "current": out_current,
             "writeups": WRITEUPS}
 
 

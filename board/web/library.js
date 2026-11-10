@@ -275,6 +275,11 @@ function paint(got) {
 
   openWanted();
 
+  /* THE WRITE-UP THE SESSION IS ON, ABOVE THE LIST. The list is every
+     document this workspace has written, so the set being compiled was
+     somewhere in the middle of it and the owner landed on an old one. */
+  paintCurrent(got);
+
   /* THREE GROUPS, IN THE SERVER'S ORDER: what the board made (each with its
      doc.json), what was already here, and the materials put here to be read.
      A heading only once there is more than one of them. Inside each group,
@@ -285,16 +290,20 @@ function paint(got) {
   var groups = {};
   docs.forEach(function (d) { groups[d.group || "legacy"] = true; });
   var many = Object.keys(groups).length > 1;
+  var seenGroup = {};
   var here = null, part = null;
   docs.forEach(function (doc) {
     var g = doc.group || "legacy";
     if (many && g !== part) {
       part = g;
       here = null;
-      var gh = document.createElement("div");
-      gh.className = "lib-group";
-      gh.textContent = GROUP_WORDS[g] || g;
-      els.list.appendChild(gh);
+      if (!seenGroup[g]) {
+        seenGroup[g] = true;
+        var gh = document.createElement("div");
+        gh.className = "lib-group";
+        gh.textContent = GROUP_WORDS[g] || g;
+        els.list.appendChild(gh);
+      }
     }
     if (doc.dir !== here) {
       here = doc.dir;
@@ -305,6 +314,69 @@ function paint(got) {
     }
     els.list.appendChild(row(doc));
   });
+}
+
+/* THE CURRENT WRITE-UP, AT THE TOP. `got.current` is the compiled PDF the
+   newest session on this subject pinned, and the server has already matched it
+   to the document record whose `rel` it resolved to. The card opens that same
+   record, so it goes through the one reader every other row uses. */
+function paintCurrent(got) {
+  var cur = got && got.current;
+  if (!cur) return;
+  var doc = null;
+  docs.forEach(function (d) {
+    if (!doc && ((cur.id && d.id === cur.id) || (cur.rel && d.rel === cur.rel))) {
+      doc = d;
+    }
+  });
+  var box = document.createElement("div");
+  box.className = "lib-current";
+  box.style.cssText = "border:1px solid var(--rule);border-radius:.5rem;"
+    + "background:var(--paper-2);padding:.9rem;margin:0 .2rem 1rem;"
+    + "display:flex;flex-direction:column;gap:.35rem";
+
+  var head = document.createElement("div");
+  head.textContent = "Current homework";
+  head.style.cssText = "font-size:.66rem;font-weight:700;letter-spacing:.12em;"
+    + "text-transform:uppercase;color:var(--ink-3)";
+  box.appendChild(head);
+
+  var title = document.createElement("strong");
+  title.textContent = cur.title || (doc && doc.title) || "the current write-up";
+  box.appendChild(title);
+
+  var meta = document.createElement("span");
+  meta.className = "lib-meta";
+  meta.textContent = [
+    cur.set || "",
+    doc ? (doc.group === "material" ? "material"
+      : (doc.type || (doc.kind === "deck" ? "deck" : "paper"))) : "",
+    cur.iso ? "built " + cur.iso : "",
+    doc && doc.pages ? doc.pages + (doc.pages === 1 ? " page" : " pages") : ""
+  ].filter(Boolean).join("  ·  ");
+  box.appendChild(meta);
+
+  var acts = document.createElement("div");
+  acts.className = "lib-acts";
+  var open = act("Open the current writeup", "", function () {
+    if (doc) read(doc);
+  });
+  open.disabled = !doc || !doc.pdf;
+  acts.appendChild(open);
+  if (doc && doc.group !== "material") {
+    acts.appendChild(act("say what is wrong", "quiet", function () {
+      say(doc, 0);
+    }));
+  }
+  box.appendChild(acts);
+  if (!doc) {
+    var note = document.createElement("span");
+    note.className = "lib-stale";
+    note.textContent = "It is not in this library's list, so it cannot be "
+      + "opened here.";
+    box.appendChild(note);
+  }
+  els.list.insertBefore(box, els.list.firstChild);
 }
 
 /* THE DOCUMENT THE CALLER CAME FOR, opened once, with `?doc=<id>`, because
@@ -466,6 +538,16 @@ function row(doc) {
     doc.pdf ? (doc.iso ? "built " + doc.iso : "") : "no PDF yet"
   ].filter(Boolean).join("  ·  ");
   box.appendChild(meta);
+
+  /* THE ROW THE CARD ABOVE POINTS AT. The server sorts it first, and this says
+     why it is first. */
+  if (doc.current) {
+    var current = document.createElement("span");
+    current.className = "lib-current-tag";
+    current.textContent = "current homework";
+    current.style.cssText = "font-size:.74rem;font-weight:600;color:var(--note)";
+    box.appendChild(current);
+  }
 
   if (STATUS_WORDS[doc.status]) {
     var st = document.createElement("span");
