@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Rendered by `upkeep install`: @HOME@, @UPKEEP@ and @PATH@ become absolute.
+     Daily at 13:20, outside the upkeep run's 03:00-07:59 window. storage.py
+     reclaims an allowlist of caches and old files, never an installed app, a
+     package, a session or an upload. No RunAtLoad, so loading never cleans.
+     /usr/bin/python3, as every upkeep program. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.mikeyferguson.storage</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/python3</string>
+        <string>@UPKEEP@/storage.py</string>
+        <string>run</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>@HOME@</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>13</integer>
+        <key>Minute</key>
+        <integer>20</integer>
+    </dict>
+    <key>RunAtLoad</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>Nice</key>
+    <integer>5</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>@PATH@</string>
+        <key>HOME</key>
+        <string>@HOME@</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>@HOME@/.local/state/upkeep/storage.log</string>
+    <key>StandardErrorPath</key>
+    <string>@HOME@/.local/state/upkeep/storage.log</string>
+</dict>
+</plist>

@@ -16,7 +16,9 @@ installed and kept current. Edit it in one repo, copy it to the other, and bump
                                       than the running server); restart it when either is above 0
     upkeep doctor                     the one-minute opencode tick
     upkeep status                     the last run's findings; exit 1 on any problem
-    upkeep off | on                   every run and doctor tick does nothing, or works again
+    upkeep off | on                   every run, doctor and storage tick does nothing, or works again
+    upkeep storage [run [--dry-run] [--force] | status]
+                                      the daily storage tick now, or what the last one reclaimed
     sudo bash upkeep/root/install.sh  once per Mac: Xcode license and first launch, App Store auto-updates
 
 `upkeep` is `~/.local/bin/upkeep`, a link to the installed copy.
@@ -30,7 +32,8 @@ installed and kept current. Edit it in one repo, copy it to the other, and bump
 | `~/.config/upkeep/off` | the off switch |
 | `~/.local/state/upkeep/` | `state.json`, `doctor.json`, `upkeep.log` (trimmed at 2 MB), `upkeep.lock`, `Brewfile.all` |
 | `~/.zprofile` | the block between `# >>> upkeep >>>` and `# <<< upkeep <<<`: JAVA_HOME, ANDROID_HOME, SDK paths, `opencode/shell.zsh` |
-| `launchd/` | `com.mikeyferguson.upkeep` (hourly) and `com.mikeyferguson.opencode-doctor` (every 60 s) |
+| `launchd/` | `com.mikeyferguson.upkeep` (hourly), `com.mikeyferguson.opencode-doctor` (every 60 s) and `com.mikeyferguson.storage` (daily 13:20) |
+| `storage.py` | the storage tick the `storage` agent runs (below); `run` and `status` |
 | `opencode/` | the DeepSeek parity layer: `install.py`, `coder`, `shell.zsh`; its `launchd/*.plist` load like the others |
 | `appearance/` | `vscode.json` (the only VS Code keys set) and the Terminal profile |
 | `root/` | the root LaunchDaemon `com.mikeyferguson.upkeep-root`; status in `/Library/Application Support/upkeep-root/status.json` |
@@ -70,6 +73,20 @@ Each failure is recorded and the run goes on.
    upgraded) runs only after a pull (*Pull* below).
 10. `brew cleanup --prune=7` (never autoremove; skipped while a brew runs, such as a
     hook's worker), state, and a notification for each new problem line.
+
+## Storage
+
+`com.mikeyferguson.storage` runs `storage.py run` once a day at 13:20, outside the
+run's window, and does nothing while `upkeep off` is in place or a run holds the
+lock. It reclaims only an allowlist: Homebrew's download cache, the npm, Go and
+pip caches, Xcode DerivedData older than two weeks, unavailable simulators,
+`__pycache__` older than a week under registered repos, and logs older than two
+weeks under the state directory, `~/.local/state/atlas-setup` and each repo's
+`sessions`. Every target must sit under `$HOME` and is never followed through a
+symlink. It never removes an installed app, a package, a session, an upload or a
+document, and a file newer than its threshold is left alone. `upkeep storage
+status` prints what the last tick reclaimed; the log is `storage.log` beside the
+other upkeep state.
 
 ## Rules
 

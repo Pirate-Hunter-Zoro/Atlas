@@ -615,7 +615,8 @@ class Install(Case):
                                                         "repos.json"))), [b.repo])
         link = os.path.join(b.home, ".local", "bin", "upkeep")
         self.assertEqual(os.readlink(link), os.path.join(b.share, "upkeep.py"))
-        self.assertEqual(sorted(b.loaded()), [U.DOCTOR_LABEL, U.LABEL])
+        self.assertEqual(sorted(b.loaded()),
+                         sorted([U.DOCTOR_LABEL, "com.mikeyferguson.storage", U.LABEL]))
         plist = os.path.join(b.home, "Library", "LaunchAgents", U.LABEL + ".plist")
         with open(plist, "rb") as fh:
             job = plistlib.load(fh)
@@ -2431,6 +2432,93 @@ class InstallNoop(Case):
         code, out = b.install()
         self.assertIn("copied to", out)
         self.assertTrue(b.read(os.path.join(b.share, "README.md")).endswith("an edit\n"))
+
+
+class Storage(unittest.TestCase):
+    """storage.py: the daily tick reclaims allowlisted files only."""
+
+    def setUp(self):
+        self.root = os.path.realpath(tempfile.mkdtemp(prefix="storage-test-"))
+        self.home = os.path.join(self.root, "home")
+        self.state = os.path.join(self.home, ".local", "state", "upkeep")
+        self.repo = os.path.join(self.home, "repo")
+        self.bin = os.path.join(self.root, "bin")
+        for d in (self.home, self.state, self.repo, self.bin):
+            os.makedirs(d)
+        self.write(os.path.join(self.home, ".config", "upkeep", "repos.json"),
+                   json.dumps([self.repo]))
+        # An empty bin: no brew, npm, go, pip, xcrun, so only temp paths are touched.
+        self.env = dict(os.environ, HOME=self.home, PATH=self.bin,
+                        UPKEEP_STATE_DIR=self.state)
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def write(self, path, text):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(text)
+
+    def age(self, path, days):
+        t = time.time() - days * 86400
+        os.utime(path, (t, t))
+
+    def run_storage(self, *args):
+        p = subprocess.run([PY, os.path.join(HERE, "storage.py")] + list(args),
+                           env=self.env, stdout=subprocess.PIPE,
+                           stderr=subprocess.STDOUT, universal_newlines=True,
+                           timeout=120)
+        return p.returncode, p.stdout
+
+    def test_dry_run_leaves_everything(self):
+        cache = os.path.join(self.repo, "a", "__pycache__")
+        os.makedirs(cache)
+        self.write(os.path.join(cache, "x.pyc"), "x")
+        self.age(cache, 30)
+        logf = os.path.join(self.state, "upkeep.log")
+        self.write(logf, "old\n")
+        self.age(logf, 30)
+        code, out = self.run_storage("run", "--force", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.isdir(cache))
+        self.assertTrue(os.path.isfile(logf))
+        self.assertIn("would:", out)
+
+    def test_old_pycache_and_log_go_fresh_pycache_stays(self):
+        old = os.path.join(self.repo, "a", "__pycache__")
+        fresh = os.path.join(self.repo, "b", "__pycache__")
+        for d in (old, fresh):
+            os.makedirs(d)
+            self.write(os.path.join(d, "x.pyc"), "x")
+        self.age(old, 30)
+        oldlog = os.path.join(self.state, "upkeep.log")
+        self.write(oldlog, "old\n")
+        self.age(oldlog, 30)
+        code, out = self.run_storage("run", "--force")
+        self.assertEqual(code, 0, out)
+        self.assertFalse(os.path.isdir(old))
+        self.assertTrue(os.path.isdir(fresh))
+        self.assertFalse(os.path.exists(oldlog))
+
+    def test_off_switch_stops_it(self):
+        self.write(os.path.join(self.home, ".config", "upkeep", "off"), "")
+        cache = os.path.join(self.repo, "a", "__pycache__")
+        os.makedirs(cache)
+        self.age(cache, 30)
+        code, out = self.run_storage("run", "--force")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.isdir(cache))
+        self.assertIn("off by owner", out)
+
+    def test_recent_tick_is_not_repeated(self):
+        self.write(os.path.join(self.state, "storage.json"),
+                   json.dumps({"last_success": time.strftime("%Y-%m-%dT%H:%M:%S")}))
+        cache = os.path.join(self.repo, "a", "__pycache__")
+        os.makedirs(cache)
+        self.age(cache, 30)
+        code, out = self.run_storage("run")
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.isdir(cache))
 
 
 if __name__ == "__main__":

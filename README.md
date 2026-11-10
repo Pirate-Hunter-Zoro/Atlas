@@ -146,6 +146,10 @@ carries the same bytes, so a Mac with either repo gets it. Hourly, gated to once
 Brewfile union, updates brew's npm globals, keeps opencode, the DeepSeek key, the Android SDK,
 Flutter, Xcode's checks, fonts, VS Code and Terminal in order, and makes `flutter doctor` green.
 
+A second LaunchAgent, `com.mikeyferguson.storage`, runs `upkeep/storage.py` daily at
+13:20 and reclaims only allowlisted caches and old logs; `upkeep/README.md` (*Storage*)
+has the list and the safety rules. `upkeep off` stops it too.
+
 Atlas's part is `upkeep.d/hook`, which runs `scripts/brew-upgrade.py`:
 
 - It holds tailscale while the host runs it as a brew service, because it carries the board's

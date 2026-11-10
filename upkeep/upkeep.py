@@ -3126,8 +3126,19 @@ def cmd_status():
     return 1 if lines else 0
 
 
+def cmd_storage(flags):
+    """`upkeep storage`: the daily storage tick's own program, with its flags."""
+    path = os.path.join(SHARE, "storage.py")
+    try:
+        return subprocess.call([sys.executable, path] + list(flags))
+    except OSError as exc:
+        print("! could not run %s: %s" % (path, exc), file=sys.stderr)
+        return 1
+
+
 USAGE = ("usage: upkeep install --repo ROOT | run [--force] [--dry-run] "
-         "| opencode [--dry-run] | doctor | status | off | on")
+         "| opencode [--dry-run] | doctor | status | off | on "
+         "| storage [run [--dry-run] [--force] | status]")
 
 
 def main(argv):
@@ -3141,6 +3152,8 @@ def main(argv):
             print(USAGE, file=sys.stderr)
             return 2
         return cmd_install(flags[1])
+    if cmd == "storage":
+        return cmd_storage(flags)
     allowed = {"run": ("--dry-run", "--force"), "opencode": ("--dry-run",)}
     if cmd not in ("run", "opencode", "doctor", "status", "off", "on", "settle") \
             or any(f not in allowed.get(cmd, ()) for f in flags):
