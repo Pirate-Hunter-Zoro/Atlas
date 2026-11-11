@@ -118,6 +118,38 @@ $$\operatorname{Var}(T)=200^2\sum_{i=0}^{4}\left(\frac{1}{100-i}\right)^2 .$$
 In a certain system, a customer must first be served by server 1 and then by server 2. The service times at server $i$ are exponential with rate $\mu_i$, $i=1,2$. An arrival finding server 1 busy waits in line for that server. Upon completion of service at server 1, a customer either enters service with server 2 if that server is free or else remains with server 1 (blocking any other customer from entering service) until server 2 is free. Customers depart the system after being served by server 2. Suppose that when you arrive there is one customer in the system and that customer is being served by server 1. What is the expected total time you spend in the system?
 \end{problem}
 % ===== SOLUTION 5.21 =====
+$$E[\max(0,S_2-X)],\qquad S_2\sim\mathrm{Exp}(\mu_2),\ X\sim\mathrm{Exp}(\mu_1)\ \text{(independent)}.$$
+$$\int_0^\infty\int_x^\infty (y-x)\,\mu_2 e^{-\mu_2 y}\,\mu_1 e^{-\mu_1 x}\,dy\,dx
+=\mu_1\mu_2\int_0^\infty e^{-\mu_1 x}\int_x^\infty (y-x)e^{-\mu_2 y}\,dy\,dx
+=\frac{\mu_1}{\mu_2(\mu_1+\mu_2)}.$$
+$$E[T]=\frac{2}{\mu_1}+\frac{1}{\mu_2}+\frac{\mu_1}{\mu_2(\mu_1+\mu_2)}.$$
+
+\begin{verbatim}
+import random
+
+mu1, mu2 = 2.0, 3.0            # service rates in the statement
+n = 1_000_000
+random.seed(0)
+
+blocked = 0.0
+for _ in range(n):
+    s2 = random.expovariate(mu2)   # other customer's service at server 2
+    x  = random.expovariate(mu1)   # your service at server 1
+    blocked += max(0.0, s2 - x)    # the blocked stretch
+blocked /= n
+
+print("blocked ~", blocked, "  formula", mu1 / (mu2 * (mu1 + mu2)))
+print("E[T]    =", 2 / mu1 + 1 / mu2 + blocked)
+\end{verbatim}
 % ===== END SOLUTION 5.21 =====
+
+\begin{problem}{8.3}
+The manager of a market can hire either Mary or Alice. Mary, who gives service at an exponential rate of 20 customers per hour, can be hired at a rate of \$3 per hour. Alice, who gives service at an exponential rate of 30 customers per hour, can be hired at a rate of \$C per hour. The manager estimates that, on the average, each customer's time is worth \$1 per hour and should be accounted for in the model. Assume customers arrive at a Poisson rate of 10 per hour.
+
+(a) What is the average cost per hour if Mary is hired? If Alice is hired?
+(b) Find $C$ if the average cost per hour is the same for Mary and Alice.
+\end{problem}
+% ===== SOLUTION 8.3 =====
+% ===== END SOLUTION 8.3 =====
 
 \end{document}
