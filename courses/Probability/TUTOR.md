@@ -11,9 +11,9 @@
 
 hw05, Chapters 5 and 8 sheet, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped. Set: homework/hw05/hw05.tex. Sheet PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
 
-DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7); 5.15 (t0003-r14, page hw05-5.15.png); 5.21 (t0003-r19, page hw05-5.21.png). Its answer: E[T] = 2/μ₁ + 1/μ₂ + μ₁/(μ₂(μ₁+μ₂)) = 2/μ₁ + 2/μ₂ − 1/(μ₁+μ₂). The region holds their blocked-stretch integral and the runnable code block they asked for.
+DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7); 5.15 (t0003-r14, page hw05-5.15.png); 5.21 (t0003-r19, page hw05-5.21.png). Its answer: E[T] = 2/μ₁ + 2/μ₂ − 1/(μ₁+μ₂). The region holds their blocked-stretch integral plus only the Mathematica `joint` and `Integrate` for it. The `ET` line came out on their instruction "No ET= part"; the Monte Carlo came out earlier. hw05.pdf rebuilt clean at 3 pages. Do not add either back unless they ask.
 
-8.3 posed at card 0022 and on their screen. Rung asked: with Mary hired, give λ and μ and the mean number in the system. Held: λ=10, μ=20, L=λ/(μ−λ)=1; Mary cost \$4/hr, Alice \$(C+0.5)/hr, so C=\$3.50 (cost = wage + \$1×L, L the number in the system). Do not quote the answer. Then 8.13 remains. Keep steps tiny; they signalled fatigue at the 5.15 expansion.
+8.3 posed at card 0022; rung re-asked at card 0025 after two diversions to the 5.21 code. Rung: with Mary hired, give λ and μ and the mean number in the system. Held: λ=10, μ=20, L=λ/(μ−λ)=1; Mary cost $4/hr, Alice $(C+0.5)/hr, so C=$3.50 (cost = wage + $1×L). Do not quote the answer. Then 8.13 remains. Keep steps tiny; they signalled fatigue at the 5.15 expansion.
 
 ## Open decisions
 

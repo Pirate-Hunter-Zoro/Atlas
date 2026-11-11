@@ -125,21 +125,14 @@ $$\int_0^\infty\int_x^\infty (y-x)\,\mu_2 e^{-\mu_2 y}\,\mu_1 e^{-\mu_1 x}\,dy\,
 $$E[T]=\frac{2}{\mu_1}+\frac{1}{\mu_2}+\frac{\mu_1}{\mu_2(\mu_1+\mu_2)}.$$
 
 \begin{verbatim}
-import random
+Clear[mu1, mu2, x, y];
 
-mu1, mu2 = 2.0, 3.0            # service rates in the statement
-n = 1_000_000
-random.seed(0)
+(* S2 ~ Exp(mu2), X ~ Exp(mu1), independent *)
+joint = mu1 Exp[-mu1 x] mu2 Exp[-mu2 y];
 
-blocked = 0.0
-for _ in range(n):
-    s2 = random.expovariate(mu2)   # other customer's service at server 2
-    x  = random.expovariate(mu1)   # your service at server 1
-    blocked += max(0.0, s2 - x)    # the blocked stretch
-blocked /= n
-
-print("blocked ~", blocked, "  formula", mu1 / (mu2 * (mu1 + mu2)))
-print("E[T]    =", 2 / mu1 + 1 / mu2 + blocked)
+blocked = Integrate[(y - x) joint, {x, 0, Infinity}, {y, x, Infinity},
+  Assumptions -> mu1 > 0 && mu2 > 0]
+(* mu1/(mu2 (mu1 + mu2)) *)
 \end{verbatim}
 % ===== END SOLUTION 5.21 =====
 
