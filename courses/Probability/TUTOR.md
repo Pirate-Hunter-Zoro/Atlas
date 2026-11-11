@@ -9,21 +9,15 @@
 
 ## Now
 
-hw05 is open on the Chapters 5 and 8 sheet. Sheet: Ch 5 exercises 1, 2, 4, 6, 15, 21; Ch 8 exercises 3, 13; plus 5.2* and 8.12*, not handed in. Set: homework/hw05/hw05.tex. Assignment PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
+hw05, Chapters 5 and 8 sheet, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped. Set: homework/hw05/hw05.tex. Sheet PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
 
-Steering (2026-11-09): all handed-in problems, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped.
+DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7); 5.15 (t0003-r14, page hw05-5.15.png). Its answer: E[T] = 200(1/100+…+1/96) = 19210001/1882188 ≈ 10.21 h; Var(T) = 200²Σ(1/(100−i))² = 73820204010001/3542631667344 ≈ 20.84.
 
-DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 = (a) 0, (b) 1/27, (c) 1/4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7, filed hw05-5.6.png). Their whole conditional split was correct as written.
+5.21 posed at card 0017; statement now in hw05.tex and on their screen. Rung asked: list the stretches of their time in the system in order, and which stretch can be delayed and by whom. Expected: wait 1/μ₁, own service at 1, then block only if the customer ahead is still at server 2; then own service at 2. E[T] = 2/μ₁ + 1/μ₂ + μ₁/(μ₂(μ₁+μ₂)); verified by simulation, but confirm their route rather than quoting it.
 
-5.15 is open (posed card 0010, on their screen). One hundred iid exponentials, mean 200 h, stop at the 5th failure; find E[T], Var(T). Rung asked: rate of the first failure with all 100 on test (100/200 = 1/2, mean 2 h). Then survivor counts drop: rates 99/200, 98/200, 97/200, 96/200. T is a sum of five independent exponential gaps, so E[T] = 200(1/100+1/99+1/98+1/97+1/96), Var(T) = 200²(1/100²+1/99²+1/98²+1/97²+1/96²).
+Then 8.3, 8.13 remain. Keep steps tiny; they signalled fatigue at the 5.15 expansion.
 
-Exercise numbers are 11th edition; read stacked fractions off the page image (5.1 mean is 1/2 hour, not 21).
-
-Standing (2026-10-24): no algebra from them. State every arithmetic step, simplification, matrix product and numeric value exactly in the card; ask only for reasoning — which object, which argument, which symmetry.
-
-When they ask "can you google this", they want the fact checked: verify by computing or enumerating and say how it was checked.
-
-hw04 closed; all nine written up.
+Exercise numbers are 11th edition; read stacked fractions off the page image.
 
 ## Open decisions
 

@@ -95,6 +95,29 @@ $$= \left(\frac{\lambda_1}{\lambda_1+\lambda_2}\right)^{2} + \left(\frac{\lambda
 One hundred items are simultaneously put on a life test. Suppose the lifetimes of the individual items are independent exponential random variables with mean 200 hours. The test will end when there have been a total of 5 failures. If $T$ is the time at which the test ends, find $E[T]$ and $\mathrm{Var}(T)$.
 \end{problem}
 % ===== SOLUTION 5.15 =====
+Let $q=\tfrac{1}{200}$ failures per hour be the rate of one item. While all $100$ items are alive the first failure arrives at rate $100q=\tfrac{1}{2}$, so $E[\text{first failure}]=\tfrac{1}{2}$ hour.
+
+Each component's lifetime is memoryless: once one component dies we face the same problem with one fewer component. The $i$-th gap has rate $(100-i)/200$, hence mean
+$$\mu_i=\frac{200}{100-i},\qquad i=0,\dots,4 .$$
+This holds regardless of the value each gap takes, so the gap lengths are independent.
+
+Thus $T=\sum_{i=0}^{4}X_i$ with the $X_i$ independent exponentials of mean $\mu_i$, and
+$$E[T]=\sum_{i=0}^{4}\mu_i=200\left(\frac{1}{100}+\frac{1}{99}+\frac{1}{98}+\frac{1}{97}+\frac{1}{96}\right)=\frac{19210001}{1882188}\approx 10.21\ \text{hours}.$$
+
+For the variance,
+$$\operatorname{Var}(T)=E\Big[\Big(\sum_i X_i\Big)^2\Big]-\Big(E\Big[\sum_i X_i\Big]\Big)^2 .$$
+Expanding the square,
+$$\Big(\sum_i X_i\Big)^2=\sum_{i=0}^{4}X_i^2+\sum_{i<j}2X_iX_j .$$
+Taking expectations term by term, and using independence so that $2E[X_iX_j]=2E[X_i]E[X_j]=2\mu_i\mu_j$ for $i\neq j$, the cross terms are exactly the ones being subtracted, and cancel:
+$$\operatorname{Var}(T)=\sum_{i=0}^{4}\left(E[X_i^2]-\mu_i^2\right)=\sum_{i=0}^{4}\operatorname{Var}(X_i).$$
+For each exponential $X_i$ with mean $\mu_i$ the variance is $\mu_i^2$, so
+$$\operatorname{Var}(T)=200^2\sum_{i=0}^{4}\left(\frac{1}{100-i}\right)^2 .$$
 % ===== END SOLUTION 5.15 =====
+
+\begin{problem}{5.21}
+In a certain system, a customer must first be served by server 1 and then by server 2. The service times at server $i$ are exponential with rate $\mu_i$, $i=1,2$. An arrival finding server 1 busy waits in line for that server. Upon completion of service at server 1, a customer either enters service with server 2 if that server is free or else remains with server 1 (blocking any other customer from entering service) until server 2 is free. Customers depart the system after being served by server 2. Suppose that when you arrive there is one customer in the system and that customer is being served by server 1. What is the expected total time you spend in the system?
+\end{problem}
+% ===== SOLUTION 5.21 =====
+% ===== END SOLUTION 5.21 =====
 
 \end{document}
