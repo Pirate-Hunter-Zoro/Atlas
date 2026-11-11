@@ -11,11 +11,13 @@
 
 Session 20261103-163801 works Part I of the owner's uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22.
 
-The write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07. 20(a) and 20(b) are closed; `% ===== SOLUTION 20 =====` holds both arguments, and the PDF built clean at 2026-11-07 18:02. 20(b)'s page (t0010-r8) is filed as `handwritten/ch07-20.png`; card 0029 grades it and notes its one slip (the IH remark must bound `Emb_{phi*}(K,L)` for fixed `phi*`).
+The write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07. 20(a)-(c) are closed and written up; `board writeup status` reports 8 of 8 with a clean build at 2026-11-09 13:56.
 
-Now: 20(c), stated "Deduce that $|\operatorname{Gal}(K/F)|\le[K:F]$." Card 0031 corrected their `psi(k)=k` line (a map fixing F need not fix alpha) and their unnecessary `K=F(alpha)` step. Card 0032 answers their "I feel like I'm missing a theorem" turn: the missing fact is linear algebra, that an F-subspace of the finite-dimensional space K with dimension equal to [K:F] is all of K, so the injective psi is surjective. The open step: with phi the inclusion F->K, `Emb_phi(K,K)=Gal(K/F)`, and part (b) gives the inequality. When they land it, write up 20(c) under label 20; then 20(d), 20(e); then 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+Now: 20(d). On t0010-r16 (2026-11-10 12:21) they wrote the whole induction step: $\le$ from (b), base case, reduction to $|\operatorname{Emb}_\phi(F(\alpha),L)|=[F(\alpha):F]$, and the fibre sum $[F(\alpha):F]\cdot[K:F(\alpha)]$. All correct except one inference: they justified distinctness of $\phi(m)$'s roots by $f$ splitting ("whatever that means"), which gives roots in $L$ but not distinctness. Card 0040 answers what "splits" means and re-teaches distinctness from separability: fields are subfields of $\mathbb{C}$ (char 0), so irreducible $m$ has $\gcd(m,m')=1$, preserved by $\phi$, so $\phi(m)$ has no repeated root; with $\phi(m)\mid\phi(f)$ splitting, $\phi(m)$ has $\deg m$ distinct roots. Asked them to rewrite that line, which closes 20(d).
 
-Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and do not ask them to name the map. Their 2026-11-07 turn demands every write-up go in the actual homework document as we go, never a `docs/` write-up; card 0024 records it. Mode stays teach.
+Next: once the distinctness line is fixed, write up 20(d) under label 20, then 20(e), then 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+
+Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and never ask them to name a map. Their 2026-11-07 turn demands every write-up go in the actual homework document as we go, never a `docs/` write-up; card 0024 records it. Mode stays teach.
 
 ## Open decisions
 
@@ -23,6 +25,7 @@ The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound
 
 ## Done recently
 
+- 20(c) closed on t0010-r11 and written up under label 20: with φ the inclusion F→K, Emb_φ(K,K) = {ψ: K→K | ψ|_F = φ} = Gal(K/F), and part (b)'s bound gives |Gal(K/F)| ≤ [K:F]. The same page states part (a)'s count, that |Emb_φ(F(α),L)| is always the number of roots of φ(m) in L.
 - 19(d) closed on t0270 and written up under label 19: the division $\sqrt3=\zeta_{12}^2/\zeta_{12}^3+\zeta_{12}^4/\zeta_{12}^3=\zeta_{12}^{-1}+\zeta_{12}=\zeta_{12}^{11}+\zeta_{12}$, i.e. $x^{11}+x$ at $x=\zeta_{12}$, matching $2\cos(\pi/6)=\sqrt3$. Filed t0270 as `handwritten/ch07-19.png`; PDF clean.
 - 19(c) closed on t0267 and written up under label 19: the product $\sqrt m=i^{k}\prod_{p\mid m}\sqrt p$, the gcd/order argument $\QQ(\zeta_n)=\QQ(\zeta_N^{N/n})\subseteq\QQ(\zeta_N)$, the modulus $N=4|m|$ placing $i$, every odd $\sqrt p$ (split by $p\pmod4$ via 18(d)) and $\sqrt2$, then field closure. PDF clean.
 - 19(b) closed on t0259 and written up under label 19: $\zeta_8^2=i$, $\zeta_8+\zeta_8^{-1}=\sqrt2$, $\zeta_8+\zeta_8^{3}=i\sqrt2=\sqrt{-2}$, one element of $\QQ(\zeta_8)$ per target.
