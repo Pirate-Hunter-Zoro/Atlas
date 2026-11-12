@@ -11,13 +11,15 @@
 
 Session 20261103-163801 works Part I of the owner's uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22.
 
-The write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07. 20(a)-(c) are closed and written up; `board writeup status` reports 8 of 8 with a clean build at 2026-11-09 13:56.
+The write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07. Problems 20(a)-(e) are written up and the Problem 21 statement sits under an empty region; the PDF rebuilt clean at 2026-11-12 10:57. `board writeup status` reports 8 of 9, next 21.
 
-Now: 20(d). On t0010-r16 (2026-11-10 12:21) they wrote the whole induction step: $\le$ from (b), base case, reduction to $|\operatorname{Emb}_\phi(F(\alpha),L)|=[F(\alpha):F]$, and the fibre sum $[F(\alpha):F]\cdot[K:F(\alpha)]$. All correct except one inference: they justified distinctness of $\phi(m)$'s roots by $f$ splitting ("whatever that means"), which gives roots in $L$ but not distinctness. Card 0040 answers what "splits" means and re-teaches distinctness from separability: fields are subfields of $\mathbb{C}$ (char 0), so irreducible $m$ has $\gcd(m,m')=1$, preserved by $\phi$, so $\phi(m)$ has no repeated root; with $\phi(m)\mid\phi(f)$ splitting, $\phi(m)$ has $\deg m$ distinct roots. Asked them to rewrite that line, which closes 20(d).
+20(e) closed on t0010-r17: take φ the inclusion F→K, write K=F(α) with minimal polynomial m, set f=m; part (d) gives |Emb_φ(K,K)|=[K:F], part (c) turns that into |Gal(K/F)|=[K:F]. The page's opening line supplies the missing distinctness reason — |Emb| counts the roots of φ(m), so it reaches deg m exactly when there are deg m distinct roots — which is what separability gives. The (d) region still carries the owner's original line and is left as typed.
 
-Next: once the distinctness line is fixed, write up 20(d) under label 20, then 20(e), then 21, 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+Now: 21(a), just posed. Rung asked: fix j∈S and take a solution y supported inside S; why must y−(y_j/x_j)x be zero? The move: it is a solution supported in S and zero at j, so if nonzero its support is a proper subset of S, against minimality; hence zero and y=(y_j/x_j)x.
 
-Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and never ask them to name a map. Their 2026-11-07 turn demands every write-up go in the actual homework document as we go, never a `docs/` write-up; card 0024 records it. Mode stays teach.
+Next: 21(b) Dedekind's lemma, then 21(c). Then 22. Parts II-IV wait; the ch07 sheet (Problems 13-19) stays closed.
+
+Steering: t0006 demanded the surjectivity candidate outright, so give definitions outright and never ask them to name a map. Their 2026-11-07 turn demands every write-up go in the actual homework document as we go, never a `docs/` write-up; card 0024 records it. The 2026-11-12 turn says "type up ... and let's move on": do not re-litigate the distinctness line; it is flagged once and left. Mode stays teach.
 
 ## Open decisions
 
@@ -25,12 +27,9 @@ The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound
 
 ## Done recently
 
-- 20(c) closed on t0010-r11 and written up under label 20: with φ the inclusion F→K, Emb_φ(K,K) = {ψ: K→K | ψ|_F = φ} = Gal(K/F), and part (b)'s bound gives |Gal(K/F)| ≤ [K:F]. The same page states part (a)'s count, that |Emb_φ(F(α),L)| is always the number of roots of φ(m) in L.
-- 19(d) closed on t0270 and written up under label 19: the division $\sqrt3=\zeta_{12}^2/\zeta_{12}^3+\zeta_{12}^4/\zeta_{12}^3=\zeta_{12}^{-1}+\zeta_{12}=\zeta_{12}^{11}+\zeta_{12}$, i.e. $x^{11}+x$ at $x=\zeta_{12}$, matching $2\cos(\pi/6)=\sqrt3$. Filed t0270 as `handwritten/ch07-19.png`; PDF clean.
-- 19(c) closed on t0267 and written up under label 19: the product $\sqrt m=i^{k}\prod_{p\mid m}\sqrt p$, the gcd/order argument $\QQ(\zeta_n)=\QQ(\zeta_N^{N/n})\subseteq\QQ(\zeta_N)$, the modulus $N=4|m|$ placing $i$, every odd $\sqrt p$ (split by $p\pmod4$ via 18(d)) and $\sqrt2$, then field closure. PDF clean.
-- 19(b) closed on t0259 and written up under label 19: $\zeta_8^2=i$, $\zeta_8+\zeta_8^{-1}=\sqrt2$, $\zeta_8+\zeta_8^{3}=i\sqrt2=\sqrt{-2}$, one element of $\QQ(\zeta_8)$ per target.
-- 18(c) closed on t0248 and written up under label 18: the double sum with $l=km$, multiplicativity of the symbol collapsing $(k/p)^2$ to $1$, and the inner sum $p-1$ at $m=p-1$ against $-1$ elsewhere. The final arithmetic, $g^2=(-1/p)p$, was card 0149's.
-- 17(a) closed and written up as label 17: existence of $\sigma$ via Corollary 2 of Theorem 7.5 over $\QQ(i)$, $|\sigma|=4$ from $\sigma^{2}(\alpha)=-\alpha$, $|\tau|=2$, $\tau\sigma\tau^{-1}=\sigma^{-1}$ checked at $i$ and $i\alpha$, the eight $\sigma^{a}\tau^{b}$ distinct, hence $\operatorname{Gal}(E/\QQ)\cong D_{4}$.
-- The automorphisms and splitting-fields worksheet, problems 7-12: Aut(ℚ(ζₙ)/ℚ) inside (ℤ/nℤ)ˣ, Φₚ irreducible, the machine on x⁴+1, the splitting field of x³−2, and the finite-field pair.
-- The solutions stranded in a retired project's `writeup.tex` were moved into `ch07-homework.tex`: 13(d), 14(a)-(c), 15(b)-(d), 16(a)-(c).
-- The $p=13$, $d=2$ worked case of 13(d), carried from that project's writeup.tex into ch07-homework.tex, with the nine 13(d) pages as `handwritten/ch07-13d*.png`.
+- 20(e) closed on t0010-r17 and written up under label 20: φ the inclusion F→K, K=F(α) with minimal polynomial m, f=m, part (d) gives |Emb_φ(K,K)|=[K:F], part (c) identifies it with Gal(K/F). The same page's opening line names the distinctness reason. Problem 21 posed under an empty region.
+- 20(d) typed into label 20 on 2026-11-12 from t0010-r16 (filed `handwritten/ch07-20.png`): the induction, base case, reduction to |Emb_φ(F(α),L)|=[F(α):F], and the fibre sum. The distinctness line is kept as written; separability is the missing reason.
+- 20(c) closed on t0010-r11 and written up under label 20: φ the inclusion F→K, Emb_φ(K,K)=Gal(K/F), part (b)'s bound gives |Gal(K/F)|≤[K:F].
+- 19(d) closed and written up under label 19: √3=ζ₁₂⁻¹+ζ₁₂, i.e. x¹¹+x at ζ₁₂, matching 2cos(π/6). Filed `handwritten/ch07-19.png`.
+- 19(c), 19(b), 18(c) and 17(a) closed and written up under labels 19, 19, 18 and 17: the √m product, the ζ₈ targets, the double sum with l=km, and the D₄ presentation.
+- The automorphisms and splitting-fields worksheet (7-12), and the solutions moved from the retired project's writeup.tex (13(d), 14(a)-(c), 15(b)-(d), 16(a)-(c)), are in ch07-homework.tex.

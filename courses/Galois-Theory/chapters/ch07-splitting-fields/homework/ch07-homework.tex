@@ -686,6 +686,39 @@ since $\phi(a)=a$. Since $|\operatorname{Emb}_\phi(K,K)|\le[K:F]$, this means
 \[
 |\operatorname{Gal}(K/F)|\le[K:F].
 \]
+\emph{Part (d).} Now $K$ is the splitting field over $F$ of some $f\in F[x]$, and $\phi(f)$ splits into linear factors in $L$. Part (b) already gives $|\operatorname{Emb}_\phi(K,L)|\le[K:F]$, so it remains to prove equality. We induct again on $[K:F]$.
+
+\emph{Base case.} The base case is identical to that of part (b): if $K=F$, the only element of $\operatorname{Emb}_\phi(K,L)$ is $\phi$, so $|\operatorname{Emb}_\phi(K,L)|=1=[K:F]$.
+
+\emph{Inductive step.} Let $\alpha\in K\setminus F$, with minimal polynomial $m$ over $F$. By part (a), $\operatorname{Emb}_\phi(F(\alpha),L)$ is in bijection with the roots of $\phi(m)$ in $L$, so it is enough to show that $\phi(m)$ has $\deg m$ distinct roots in $L$. Since $m\mid f$ and $\phi$ is a homomorphism, $\phi(m)\mid\phi(f)$. The polynomial $\phi(f)$ splits into linear factors in $L$, hence so does $\phi(m)$, and therefore the roots of $\phi(m)$ are distinct. Thus
+\[
+|\operatorname{Emb}_\phi(F(\alpha),L)|=\deg m=[F(\alpha):F].
+\]
+
+For each $\phi^*\in\operatorname{Emb}_\phi(F(\alpha),L)$, the inductive hypothesis gives $[K:F(\alpha)]$ embeddings of $K$ in $L$ extending $\phi^*$. Summing over the fibres,
+\[
+|\operatorname{Emb}_\phi(K,L)|
+=\sum_{\phi^*\in\operatorname{Emb}_\phi(F(\alpha),L)}|\operatorname{Emb}_{\phi^*}(K,L)|
+=[F(\alpha):F]\,[K:F(\alpha)]=[K:F].
+\]
+This completes the induction and proves $|\operatorname{Emb}_\phi(K,L)|=[K:F]$.
+\emph{Part (e).} Take $\phi$ to be the inclusion $F\to K$. Write $K=F(\alpha)$ and let $m(x)$ be the minimal polynomial of $\alpha$ over $F$, so $m(\alpha)=0$. Then $f=m$ suffices: $K$ is the splitting field of $m$ over $F$. Applying part (d) with $L=K$ gives
+\[
+|\operatorname{Emb}_\phi(K,K)|=[K:F],
+\]
+and part (c) identifies $\operatorname{Emb}_\phi(K,K)$ with $\operatorname{Gal}(K/F)$. Hence $|\operatorname{Gal}(K/F)|=[K:F]$.
 % ===== END SOLUTION 20 =====
+
+\begin{problem}{21}
+These two facts are the engine behind the fundamental theorem.
+
+\textbf{(a)} Let $L$ be a field and consider a homogeneous system of $n$ linear equations in $n+1$ unknowns with coefficients in $L$. Recall why it has a nonzero solution. Now let $x=(x_1,\dots,x_{n+1})$ be a nonzero solution with the fewest nonzero coordinates, and let $S=\{j:x_j\neq0\}$. Show that every solution $y$ with $\{j:y_j\neq0\}\subseteq S$ is a scalar multiple of $x$.
+
+\textbf{(b)} (Dedekind's lemma.) Let $G$ be a group, $L$ a field, and $\chi_1,\dots,\chi_n\colon G\to L^\times$ distinct group homomorphisms. Show that $\chi_1,\dots,\chi_n$ are linearly independent over $L$ as functions $G\to L$: if $c_1\chi_1+\cdots+c_n\chi_n=0$ with $c_i\in L$, then all $c_i=0$.
+
+\textbf{(c)} (A second proof of Problem 20(c).) Let $K/F$ be a finite extension of degree $d$. Show that $\operatorname{Hom}_F(K,K)$, the $F$-linear maps $K\to K$, is a $K$-vector space of dimension $d$ under $(c\cdot T)(a)=cT(a)$. Then apply (b) to the restrictions of the elements of $\operatorname{Gal}(K/F)$ to $G=K^\times$ and conclude $|\operatorname{Gal}(K/F)|\le d$.
+\end{problem}
+% ===== SOLUTION 21 =====
+% ===== END SOLUTION 21 =====
 
 \end{document}
