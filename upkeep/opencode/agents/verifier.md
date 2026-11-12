@@ -1,7 +1,7 @@
 ---
-description: Read-only verifier on the larger model. Tries to refute a change against the owner's request and Done-when list; returns pass or fail with evidence.
+description: Read-only verifier on the flash model. Tries to refute a change against the owner's request and Done-when list; returns pass or fail with evidence.
 mode: subagent
-model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-flash
 variant: max
 permission:
   doom_loop: allow

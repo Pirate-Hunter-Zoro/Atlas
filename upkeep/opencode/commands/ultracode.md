@@ -1,6 +1,6 @@
 ---
 description: Take on a large coding task by orchestrating subagents with workflow scripts
-model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-flash
 ---
 Task: $ARGUMENTS
 

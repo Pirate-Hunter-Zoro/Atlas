@@ -1,7 +1,7 @@
 ---
-description: Slow, careful subagent on the larger model at maximum reasoning. Use for hard design, proofs, tricky bugs.
+description: Slow, careful subagent on the flash model at maximum reasoning. Use for hard design, proofs, tricky bugs.
 mode: subagent
-model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-flash
 variant: max
 permission:
   doom_loop: allow

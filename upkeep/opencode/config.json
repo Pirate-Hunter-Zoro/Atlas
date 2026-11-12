@@ -14,8 +14,7 @@
   "provider": {
     "deepseek": {
       "models": {
-        "deepseek-flash": { "variants": { "nothink": { "thinking": { "type": "disabled" } } } },
-        "deepseek-v4-pro": { "variants": { "nothink": { "thinking": { "type": "disabled" } } } }
+        "deepseek-flash": { "variants": { "nothink": { "thinking": { "type": "disabled" } } } }
       }
     }
   },

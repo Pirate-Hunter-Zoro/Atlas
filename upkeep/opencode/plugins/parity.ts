@@ -679,11 +679,16 @@ function errorOf(msg: any) {
   return e.data?.message ?? e.name ?? "error";
 }
 
+const FLASH_MODEL = "deepseek/deepseek-flash";
+const RETIRED_MODEL = /v4-pro/i;
+
 function splitModel(model?: string) {
   if (!model) return undefined;
   const i = model.indexOf("/");
-  if (i < 0) return { providerID: "deepseek", modelID: model };
-  return { providerID: model.slice(0, i), modelID: model.slice(i + 1) };
+  if (i < 0) return { providerID: "deepseek", modelID: RETIRED_MODEL.test(model) ? "deepseek-flash" : model };
+  const providerID = model.slice(0, i);
+  const modelID = model.slice(i + 1);
+  return { providerID, modelID: RETIRED_MODEL.test(modelID) ? "deepseek-flash" : modelID };
 }
 
 async function finishAgent(job: Job) {
@@ -5038,7 +5043,7 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
           description: z.string().describe("3-5 words"),
           agent: z.string().optional().describe("Agent name, default general"),
           background: z.boolean().optional(),
-          model: z.string().optional().describe("provider/model, e.g. deepseek/deepseek-v4-pro"),
+          model: z.string().optional().describe("provider/model, e.g. deepseek/deepseek-flash"),
           variant: z.string().optional(),
           worktree: z.string().optional().describe("Directory the child works in"),
         },
@@ -5355,6 +5360,14 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       if (!cfg.mcp.playwright && process.env.PARITY_BROWSER_MCP !== "0") cfg.mcp.playwright = { ...BROWSER_MCP };
       if (!cfg.shell && process.env.PARITY_BASH !== "0" && existsSync("/bin/bash")) cfg.shell = "/bin/bash";
       toolShell = basename(cfg.shell || process.env.SHELL || "zsh");
+      for (const key of ["model", "small_model"]) {
+        if (RETIRED_MODEL.test(String(cfg[key] ?? ""))) cfg[key] = FLASH_MODEL;
+      }
+      for (const spec of Object.values(cfg.agent ?? {})) {
+        if (spec && typeof spec === "object" && RETIRED_MODEL.test(String((spec as any).model ?? ""))) {
+          (spec as any).model = FLASH_MODEL;
+        }
+      }
     },
 
     "experimental.chat.system.transform": async (_input: any, output: any) => {

@@ -1,7 +1,7 @@
 ---
-description: Read-only code reviewer on the larger model. Finds correctness bugs in a diff or files and reports them; never edits.
+description: Read-only code reviewer on the flash model. Finds correctness bugs in a diff or files and reports them; never edits.
 mode: subagent
-model: deepseek/deepseek-v4-pro
+model: deepseek/deepseek-flash
 permission:
   doom_loop: allow
   external_directory: allow

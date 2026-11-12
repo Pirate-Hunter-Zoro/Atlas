@@ -23,6 +23,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DEAD_PROVIDERS = ("openrouter", "groq", "cloudflare")
+# V4 Pro is retired: no config this installer writes or merges leaves it selectable.
+FORBIDDEN_MODEL_MARKER = "v4-pro"
 # A skill that names a Claude-only surface would send DeepSeek after tools it does not have.
 CLAUDE_ONLY = re.compile(
     r"mcp__claude|mcp__computer-use|mcp__Claude_Browser|mcp__remote-devices|Claude desktop app"
@@ -159,6 +161,12 @@ def merge_config(cfg, managed, home, cfg_dir):
     for dead in DEAD_PROVIDERS:
         prov.pop(dead, None)
     cfg["provider"] = deep_merge(prov, managed["provider"])
+    for spec in cfg["provider"].values():
+        models = spec.get("models") if isinstance(spec, dict) else None
+        if not isinstance(models, dict):
+            continue
+        for name in [n for n in models if FORBIDDEN_MODEL_MARKER in n]:
+            models.pop(name, None)
     exp = cfg.get("experimental") if isinstance(cfg.get("experimental"), dict) else {}
     exp["primary_tools"] = union(exp.get("primary_tools"), managed["experimental"]["primary_tools"])
     cfg["experimental"] = exp

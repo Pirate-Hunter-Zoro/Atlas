@@ -66,8 +66,10 @@ class FreshHome(Base):
         self.assertEqual(c["subagent_depth"], 3)
         self.assertEqual(c["permission"], "allow")
         self.assertEqual(c["agent"]["build"]["permission"], {"doom_loop": "allow", "external_directory": "allow"})
-        for m in ("deepseek-flash", "deepseek-v4-pro"):
-            self.assertEqual(c["provider"]["deepseek"]["models"][m]["variants"]["nothink"], {"thinking": {"type": "disabled"}})
+        self.assertEqual(c["provider"]["deepseek"]["models"]["deepseek-flash"]["variants"]["nothink"],
+                         {"thinking": {"type": "disabled"}})
+        self.assertNotIn("deepseek-v4-pro", c["provider"]["deepseek"]["models"],
+                         "V4 Pro must never be selectable")
         self.assertEqual(c["experimental"]["primary_tools"], ["wakeup", "cron_create", "cron_delete", "monitor", "workflow"])
         self.assertNotIn("instructions", c)
         pkg = json.loads((self.cfg / "package.json").read_text())
@@ -120,6 +122,16 @@ class ExistingConfig(Base):
             self.assertEqual(c["agent"][name]["permission"], {"doom_loop": "allow", "external_directory": "allow"})
         self.assertNotIn("instructions", c, "capabilities reach the model through the plugin, not instructions")
         self.assertNotIn("mcp", c, "the browser MCP comes from the plugin, so --pure never starts it")
+
+    def test_existing_v4_pro_model_is_pruned(self):
+        self.write_cfg(json.dumps({"provider": {"deepseek": {"models": {
+            "deepseek-flash": {"name": "flash"},
+            "deepseek-v4-pro": {"name": "DeepSeek V4 Pro"},
+            "deepseek-v4-pro-0813": {"name": "snapshot"},
+        }}}}))
+        self.run_install()
+        models = self.config()["provider"]["deepseek"]["models"]
+        self.assertEqual(sorted(models), ["deepseek-flash"], "no V4 Pro id survives a merge")
 
     def test_legacy_doctor_and_install_agree(self):
         # MO's opencodedoctor sets permission to the string "allow" whenever it is anything else.
@@ -269,6 +281,11 @@ class Templates(unittest.TestCase):
         src = (HERE / "plugins" / "parity.ts").read_text()
         self.assertEqual(re.findall(r"^export\s+(?:const|function|async function|default)\s*(\w*)", src, re.M), ["ParityPlugin"])
 
+    def test_plugin_never_names_v4_pro(self):
+        src = (HERE / "plugins" / "parity.ts").read_text()
+        self.assertNotIn("deepseek-v4-pro", src, "a model override must never resolve to V4 Pro")
+        self.assertIn("const RETIRED_MODEL = /v4-pro/i;", src)
+
     def test_plugin_has_every_tool(self):
         src = (HERE / "plugins" / "parity.ts").read_text()
         for name in ("wakeup", "cron_create", "cron_list", "cron_delete", "bg_shell", "bg_output", "bg_kill",
@@ -389,11 +406,9 @@ class AgentFiles(unittest.TestCase):
         return frontmatter(HERE / "agents" / f"{name}.md")
 
     def test_models(self):
-        for name in ("deep", "reviewer", "verifier"):
-            self.assertEqual(self.agent(name)["model"], "deepseek/deepseek-v4-pro", name)
-        for name in ("worker", "fixer", "structured"):
+        for name in ("deep", "reviewer", "verifier", "worker", "fixer", "structured"):
             self.assertEqual(self.agent(name)["model"], "deepseek/deepseek-flash", name)
-        self.assertEqual(frontmatter(HERE / "commands" / "ultracode.md")["model"], "deepseek/deepseek-v4-pro")
+        self.assertEqual(frontmatter(HERE / "commands" / "ultracode.md")["model"], "deepseek/deepseek-flash")
         self.assertNotIn("agent", frontmatter(HERE / "commands" / "ultracode.md"),
                          "a subagent would run /ultracode as a subtask, which ends before its workflows report")
 
@@ -534,7 +549,7 @@ class Prompts(unittest.TestCase):
         fm = frontmatter(HERE / "commands" / "ultracode.md")
         self.assertEqual(command_problems(fm), [])
         self.assertEqual(command_problems({**fm, "subtask": "true"}), ["subtask"])
-        self.assertEqual(command_problems({**fm, "model": "deepseek/deepseek-flash"}), ["model"])
+        self.assertEqual(command_problems({**fm, "model": "deepseek/deepseek-v4-pro"}), ["model"])
         self.assertEqual(command_problems({**fm, "agent": "deep"}), ["agent"])
 
     def test_verifier_fails_a_brief_without_the_request(self):
@@ -586,9 +601,9 @@ def missing_needles(text, needles):
 
 
 def command_problems(fm):
-    """What keeps /ultracode from orchestrating on v4-pro in the session it was typed in."""
+    """What keeps /ultracode on flash in the session it was typed in."""
     bad = [k for k in ("subtask", "agent") if k in fm]
-    if fm.get("model") != "deepseek/deepseek-v4-pro":
+    if fm.get("model") != "deepseek/deepseek-flash":
         bad.append("model")
     return bad
 
