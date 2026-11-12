@@ -719,6 +719,30 @@ These two facts are the engine behind the fundamental theorem.
 \textbf{(c)} (A second proof of Problem 20(c).) Let $K/F$ be a finite extension of degree $d$. Show that $\operatorname{Hom}_F(K,K)$, the $F$-linear maps $K\to K$, is a $K$-vector space of dimension $d$ under $(c\cdot T)(a)=cT(a)$. Then apply (b) to the restrictions of the elements of $\operatorname{Gal}(K/F)$ to $G=K^\times$ and conclude $|\operatorname{Gal}(K/F)|\le d$.
 \end{problem}
 % ===== SOLUTION 21 =====
+\emph{Part (a).} The system has $n$ equations in $n+1$ unknowns, so it has a nonzero solution. Among all nonzero solutions choose $x=(x_1,\dots,x_{n+1})$ with the fewest nonzero coordinates, and put $S=\{j:x_j\neq0\}$. We show that every solution $y$ with $\{j:y_j\neq0\}\subseteq S$ is a scalar multiple of $x$.
+
+Let $j\in S$ and set $z=y-(y_j/x_j)x$. This is legitimate because $x_j\neq0$. Since the system is homogeneous and $x$ and $y$ are solutions, $z$ is a solution. Also $z_j=y_j-(y_j/x_j)x_j=0$, so $j\notin S_z$. Since $x$ and $y$ both vanish off $S$, their difference $z$ vanishes off $S$ too, so $S_z\subseteq S\setminus\{j\}$, a proper subset of $S$.
+
+A nonzero $z$ would then be a nonzero solution with fewer nonzero coordinates than $x$, contradicting the choice of $x$. Hence $z=0$, so $y=(y_j/x_j)x$.
+
+\emph{Part (b).} Suppose there is a nontrivial relation $c_1\chi_1+\cdots+c_n\chi_n=0$ with $c_i\in L$, and choose one with the fewest nonzero coefficients. Choose $g\in G$ with $\chi_1(g)\neq\chi_n(g)$. Evaluating the relation at $gx$ and using $\chi_i(gx)=\chi_i(g)\chi_i(x)$,
+\[
+c_1\chi_1(g)\chi_1(x)+\cdots+c_n\chi_n(g)\chi_n(x)=0
+\]
+for every $x\in G$. Multiplying the relation at $x$ by $\chi_1(g)$ gives
+\[
+\chi_1(g)c_1\chi_1(x)+\cdots+\chi_1(g)c_n\chi_n(x)=0.
+\]
+Subtracting the second identity from the first,
+\[
+c_1\chi_1(g)\chi_1(x)+\cdots+c_n\chi_n(g)\chi_n(x)
+-\bigl(\chi_1(g)c_1\chi_1(x)+\cdots+\chi_1(g)c_n\chi_n(x)\bigr)=0 .
+\]
+The $i=1$ terms cancel, leaving the coefficient
+\[
+c_n\bigl(\chi_n(g)-\chi_1(g)\bigr)
+\]
+of $\chi_n(x)$, which is nonzero since $c_n\neq0$ and $\chi_n(g)\neq\chi_1(g)$. So we have a nontrivial relation with fewer terms than our original, a contradiction. Hence all $c_i=0$.
 % ===== END SOLUTION 21 =====
 
 \end{document}
