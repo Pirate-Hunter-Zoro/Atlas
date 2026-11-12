@@ -743,6 +743,58 @@ The $i=1$ terms cancel, leaving the coefficient
 c_n\bigl(\chi_n(g)-\chi_1(g)\bigr)
 \]
 of $\chi_n(x)$, which is nonzero since $c_n\neq0$ and $\chi_n(g)\neq\chi_1(g)$. So we have a nontrivial relation with fewer terms than our original, a contradiction. Hence all $c_i=0$.
+
+\emph{Part (c).} Let $e_1,\dots,e_d$ be a basis of $K$ over $F$. For $T\in\operatorname{Hom}_F(K,K)$ put $v_i=T(e_i)$, so that every $a=\sum_i a_i e_i\in K$ satisfies
+\[
+T(a)=T\Big(\sum_i a_i e_i\Big)=\sum_i a_i v_i .
+\]
+This is the map that corresponds to the $K$-tuple $(v_1,\dots,v_d)$.
+
+For $a,b\in K$ and $c\in F$,
+\[
+T(a+b)=T\Big(\sum_i (a_i+b_i)e_i\Big)=\sum_i (a_i+b_i)v_i=\sum_i a_i v_i+\sum_i b_i v_i=T(a)+T(b),
+\]
+\[
+T(ca)=T\Big(\sum_i c a_i e_i\Big)=\sum_i c a_i v_i=c\,T(a),
+\]
+so $T$ is $F$-linear.
+
+The correspondence $T\mapsto(v_1,\dots,v_d)$ identifies $\operatorname{Hom}_F(K,K)$ with $K^d$, and
+\[
+F^{d^2}\cong K^d\cong\operatorname{Hom}_F(K,K),
+\]
+so $\operatorname{Hom}_F(K,K)$ has dimension $d$ over $K$.
+
+Finally $\operatorname{Gal}(K/F)\subseteq\operatorname{Hom}_F(K,K)$. Restrict each $T\in\operatorname{Gal}(K/F)$ to $G=K^\times$; by part (b) these restrictions are linearly independent over $K$. A linearly independent set in a $K$-vector space of dimension $d$ has at most $d$ elements, so
+\[
+|\operatorname{Gal}(K/F)|\le d .
+\]
 % ===== END SOLUTION 21 =====
+
+\begin{problem}{22}
+These seven steps prove the fundamental theorem.
+
+Let $K/F$ be a finite extension with group $G=\operatorname{Gal}(K/F)$. For a subgroup $H\le G$ write $K^H=\{a\in K:\sigma(a)=a\text{ for all }\sigma\in H\}$. The theorem says:
+
+If $K/F$ is Galois, the maps $H\mapsto K^H$ and $L\mapsto\operatorname{Gal}(K/L)$ are mutually inverse, inclusion-reversing bijections between the subgroups of $G$ and the intermediate fields $F\subseteq L\subseteq K$, with $[K:K^H]=|H|$ and $[K^H:F]=[G:H]$. Moreover $K^H/F$ is Galois if and only if $H\unlhd G$, and then $\operatorname{Gal}(K^H/F)\cong G/H$.
+
+Steps (a)--(c) hold for any finite extension; from (d) on, assume $K/F$ is Galois.
+
+\textbf{(a)} (Artin's lemma.) Let $H\le G$ be a subgroup with $|H|=n$. Show that $[K:K^H]\le n$.
+
+\textbf{(b)} Show that $\operatorname{Gal}(K/K^H)=H$ exactly, and that $[K:K^H]=|H|$.
+
+\textbf{(c)} (The two definitions of ``Galois'' agree.) Suppose $|\operatorname{Gal}(K/F)|=[K:F]$. Show that $K^G=F$, and that for every $\alpha\in K$ the polynomial $\prod_\beta(x-\beta)$, over the distinct elements $\beta$ of the orbit $G\alpha$, is the minimal polynomial of $\alpha$ over $F$. Conclude that $K$ is a splitting field over $F$.
+
+\textbf{(d)} Now let $K/F$ be Galois and $L$ an intermediate field. Show that $K/L$ is Galois and that $K^{\operatorname{Gal}(K/L)}=L$.
+
+\textbf{(e)} Conclude that the two maps are inverse bijections, that they reverse inclusions, and that $[K^H:F]=[G:H]$.
+
+\textbf{(f)} Show that for $\sigma\in G$ and $H\le G$, $\sigma(K^H)=K^{\sigma H\sigma^{-1}}$. Deduce that if $K^H/F$ is Galois then $H\unlhd G$.
+
+\textbf{(g)} Conversely, suppose $H\unlhd G$ and let $L=K^H$. Show that restriction $\sigma\mapsto\sigma|_L$ is a well-defined homomorphism $G\to\operatorname{Gal}(L/F)$ with kernel $H$. Use a counting argument to conclude that it is surjective, that $L/F$ is Galois, and that $\operatorname{Gal}(L/F)\cong G/H$.
+\end{problem}
+% ===== SOLUTION 22 =====
+% ===== END SOLUTION 22 =====
 
 \end{document}

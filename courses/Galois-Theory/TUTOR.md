@@ -9,9 +9,11 @@
 
 ## Now
 
-Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. Write-up lives in `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20(a)-(e), 21(a) and 21(b) are written up, and 21(c)'s F-linearity rung is done. On t0010-r28 the owner proved the map built from a tuple is $F$-linear ($T(a+b)=T(a)+T(b)$, $T(ca)=c\,T(a)$), the rung card 0054 asked. Card 0055 credits it and asks one question: show the correspondence $T\mapsto(T(e_1),\dots,T(e_d))$ is $K$-linear -- that $c\cdot T$ is again $F$-linear with tuple $c\,(T(e_1),\dots,T(e_d))$, and likewise for sums -- so $\operatorname{Hom}_F(K,K)$ is a $K$-vector space of dimension $d$. After that: apply (b) to the restrictions of $\operatorname{Gal}(K/F)$ to $K^\times$ for $|\operatorname{Gal}(K/F)|\le d$; then write up 21(c) and pose and do 22.
+Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20(a)-(e) and 21(a)-(c) are written up. Problem 22 is posed and pinned, its solution region empty; it is the seven-step proof of the fundamental theorem.
 
-STRONG STEERING: one question per card, hold it (set on t0010-r26). Define a term before using it; the owner objects to vague wording (t0010-r27 "What rule?").
+21(c) closed on t0010-r29 at the owner's direction. They wrote the full route and, on being told the one missing step (the K-linearity of $T\mapsto(T(e_1),\dots,T(e_d))$, i.e. that $(c\cdot T)$ is F-linear with tuple $c\,(T(e_i))$ for $c\in K$), said it was trivial and to write up what we have and move on. Card 0057 wrote it up faithfully to the page: the identification $F^{d^2}\cong K^d\cong\operatorname{Hom}_F(K,K)$ is recorded exactly as their diagram states it, not proved. The K-linearity proof is dropped; do not reopen it.
+
+Next: teach Problem 22. Step (a) (Artin's lemma) is posed; its first rung asks them to count the n-equation system in n+1 unknowns and see from 21(a) that it has a nonzero solution. Close (a) before (b). One question per card; define a term before using it.
 
 ## Open decisions
 
@@ -19,6 +21,7 @@ The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound
 
 ## Done recently
 
+- 21(c) closed on t0010-r29 and written up under label 21 at the owner's direction (card 0057): the correspondence $T\mapsto(T(e_1),\dots,T(e_d))$, additivity and F-scaling, the K-vector-space identification $F^{d^2}\cong K^d\cong\operatorname{Hom}_F(K,K)$ as their diagram states it, restriction to $K^\times$, Dedekind (b), and $|\operatorname{Gal}(K/F)|\le d$. The K-linearity check for $c\in K$ was not written; the owner called it trivial and moved on. Problem 22 posed and pinned.
 - 21(b) Dedekind's lemma closed on t0010-r24 and written up under label 21: the owner chose $g$ with $\chi_1(g)\neq\chi_n(g)$, evaluated at $gx$, subtracted $\chi_1(g)$ times the relation at $x$, and boxed $c_n(\chi_n(g)-\chi_1(g))\neq0$; the survivor is a nontrivial relation among $\chi_2,\dots,\chi_n$ with fewer terms than the minimal one, a contradiction. Page filed `handwritten/ch07-21.png`. Card 0050 posed 21(c).
 - 21(a) closed on t0010 and written up under label 21: the minimal-support argument from t0010-r20 (subtracting the multiple of $x$ strictly shrinks the support) and the rank-nullity existence clause.
 - 20(e) closed on t0010-r17 and written up under label 20: $\phi$ the inclusion $F\to K$, $K=F(\alpha)$ with minimal polynomial $m$, $f=m$, part (d) gives $|\operatorname{Emb}_\phi(K,K)|=[K:F]$, part (c) identifies it with $\operatorname{Gal}(K/F)$.
