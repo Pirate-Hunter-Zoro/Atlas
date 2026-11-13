@@ -11,9 +11,9 @@
 
 hw05, Chapters 5 and 8 sheet, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped. Set: homework/hw05/hw05.tex. Sheet PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
 
-DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7); 5.15 (t0003-r14, page hw05-5.15.png); 5.21 (t0003-r19, page hw05-5.21.png). Its answer: E[T] = 2/μ₁ + 2/μ₂ − 1/(μ₁+μ₂). The region holds their blocked-stretch integral plus only the Mathematica `joint` and `Integrate` for it. The `ET` line came out on their instruction "No ET= part"; the Monte Carlo came out earlier. hw05.pdf rebuilt clean at 3 pages. Do not add either back unless they ask.
+DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7); 5.15 (t0003-r14, page hw05-5.15.png); 5.21 (t0003-r19, page hw05-5.21.png), E[T] = 2/μ₁ + 2/μ₂ − 1/(μ₁+μ₂), region holds their blocked-stretch integral plus only the Mathematica `joint` and `Integrate`; 8.3 (card 0031, page hw05-8.3.png from t0003-r24), written up from t0003-r23's Mary chain and t0003-r24's Alice chain, C=$3.50. 5.21's `ET` line and its Monte Carlo stay out unless they ask. hw05.pdf rebuilt clean at 4 pages.
 
-8.3 posed at card 0022; rung re-asked at card 0025 after two diversions to the 5.21 code. Rung: with Mary hired, give λ and μ and the mean number in the system. Held: λ=10, μ=20, L=λ/(μ−λ)=1; Mary cost $4/hr, Alice $(C+0.5)/hr, so C=$3.50 (cost = wage + $1×L). Do not quote the answer. Then 8.13 remains. Keep steps tiny; they signalled fatigue at the 5.15 expansion.
+8.13 IN PROGRESS: posed at card 0031, statement on their screen, region EMPTY. First rung asked: the two rates out of state "server 1 idle" and the state each lands in. Held answer: proportion of time server i is idle is μᵢ/(μ₁+μ₂+μ₃) (stationarity checked exactly). Route: state = the idle server, q(i→j) = μⱼ, rate out of i is the sum of the other two, then solve πQ = 0. Keep steps tiny; they signalled fatigue at the 5.15 expansion.
 
 ## Open decisions
 
