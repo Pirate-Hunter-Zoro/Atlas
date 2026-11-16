@@ -70,6 +70,8 @@ class FreshHome(Base):
                          {"thinking": {"type": "disabled"}})
         self.assertNotIn("deepseek-v4-pro", c["provider"]["deepseek"]["models"],
                          "V4 Pro must never be selectable")
+        self.assertEqual(c["provider"]["deepseek"]["blacklist"], ["deepseek-v4-pro"],
+                         "V4 Pro must not be in the model catalog")
         self.assertEqual(c["experimental"]["primary_tools"], ["wakeup", "cron_create", "cron_delete", "monitor", "workflow"])
         self.assertNotIn("instructions", c)
         pkg = json.loads((self.cfg / "package.json").read_text())
@@ -130,8 +132,9 @@ class ExistingConfig(Base):
             "deepseek-v4-pro-0813": {"name": "snapshot"},
         }}}}))
         self.run_install()
-        models = self.config()["provider"]["deepseek"]["models"]
-        self.assertEqual(sorted(models), ["deepseek-flash"], "no V4 Pro id survives a merge")
+        deepseek = self.config()["provider"]["deepseek"]
+        self.assertEqual(sorted(deepseek["models"]), ["deepseek-flash"], "no V4 Pro id survives a merge")
+        self.assertEqual(deepseek["blacklist"], ["deepseek-v4-pro"], "V4 Pro is out of the catalog")
 
     def test_legacy_doctor_and_install_agree(self):
         # MO's opencodedoctor sets permission to the string "allow" whenever it is anything else.
@@ -284,7 +287,10 @@ class Templates(unittest.TestCase):
     def test_plugin_never_names_v4_pro(self):
         src = (HERE / "plugins" / "parity.ts").read_text()
         self.assertNotIn("deepseek-v4-pro", src, "a model override must never resolve to V4 Pro")
-        self.assertIn("const RETIRED_MODEL = /v4-pro/i;", src)
+        self.assertIn("const RETIRED_MODEL = /\\bpro\\b|v4pro/i;", src)
+        self.assertIn('output.message.model = { ...output.message.model, ...flashModel() };', src,
+                      "the saved message's model is what the run loop calls")
+        self.assertIn("for (const table of [cfg.agent, cfg.command])", src)
 
     def test_plugin_has_every_tool(self):
         src = (HERE / "plugins" / "parity.ts").read_text()

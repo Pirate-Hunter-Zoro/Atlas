@@ -680,15 +680,28 @@ function errorOf(msg: any) {
 }
 
 const FLASH_MODEL = "deepseek/deepseek-flash";
-const RETIRED_MODEL = /v4-pro/i;
+const FLASH_PROVIDER = "deepseek";
+const FLASH_ID = "deepseek-flash";
+// Any model id naming Pro is retired. V4 Pro is worse and dearer, it is no longer served, and
+// naming it on the next start would fail. Config, agents and commands pin Flash; this catches a
+// session or a hand-typed override that still names Pro.
+const RETIRED_MODEL = /\bpro\b|v4pro/i;
+
+function isRetiredModel(model?: { providerID?: string; modelID?: string }) {
+  return !!model && RETIRED_MODEL.test(`${model.providerID ?? ""}/${model.modelID ?? ""}`);
+}
+
+function flashModel() {
+  return { providerID: FLASH_PROVIDER, modelID: FLASH_ID };
+}
 
 function splitModel(model?: string) {
   if (!model) return undefined;
   const i = model.indexOf("/");
-  if (i < 0) return { providerID: "deepseek", modelID: RETIRED_MODEL.test(model) ? "deepseek-flash" : model };
+  if (i < 0) return { providerID: FLASH_PROVIDER, modelID: RETIRED_MODEL.test(model) ? FLASH_ID : model };
   const providerID = model.slice(0, i);
   const modelID = model.slice(i + 1);
-  return { providerID, modelID: RETIRED_MODEL.test(modelID) ? "deepseek-flash" : modelID };
+  return { providerID, modelID: RETIRED_MODEL.test(modelID) ? FLASH_ID : modelID };
 }
 
 async function finishAgent(job: Job) {
@@ -5363,9 +5376,11 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
       for (const key of ["model", "small_model"]) {
         if (RETIRED_MODEL.test(String(cfg[key] ?? ""))) cfg[key] = FLASH_MODEL;
       }
-      for (const spec of Object.values(cfg.agent ?? {})) {
-        if (spec && typeof spec === "object" && RETIRED_MODEL.test(String((spec as any).model ?? ""))) {
-          (spec as any).model = FLASH_MODEL;
+      for (const table of [cfg.agent, cfg.command]) {
+        for (const spec of Object.values(table ?? {})) {
+          if (spec && typeof spec === "object" && RETIRED_MODEL.test(String((spec as any).model ?? ""))) {
+            (spec as any).model = FLASH_MODEL;
+          }
         }
       }
     },
@@ -5446,6 +5461,12 @@ export const ParityPlugin = async ({ client, directory, worktree }: any) => {
     "chat.message": async (input: any, output: any) => {
       const id = input?.sessionID;
       if (!id) return;
+      // The message's own model is what the run loop resolves and calls, so forcing it here is
+      // the one place that covers a session pinned to Pro, a typed override, and every child.
+      if (output?.message && isRetiredModel(output.message.model)) {
+        output.message.model = { ...output.message.model, ...flashModel() };
+      }
+      if (isRetiredModel(input?.model)) Object.assign(input.model, flashModel());
       waits.delete(id);
       const g = guardOf(id);
       const texts = (output?.parts ?? []).filter((p: any) => p?.type === "text" && !p.synthetic).map((p: any) => String(p.text ?? ""));

@@ -47,7 +47,7 @@ When the user asks about your capabilities, features, commands, agents, buzzword
 - `/review [path|branch|commit]`: a read-only bug review of the diff.
 - `/simplify [target]`: simplify the changed code and apply the fixes.
 - `@deep`: the flash model at maximum reasoning, for hard bugs, design and proofs. `@worker`: multi-step side work that can start its own subagents. `@reviewer`: read-only review. `@verifier`: read-only, tries to refute a change against the request and returns `pass` or `fail`. `@fixer`: fixes what a verdict names, in the files its brief lists.
-- Every agent and every workflow subagent runs on V4.1 Flash. A V4 Pro model id is retired: a config or override that names one resolves to flash.
+- Every agent and every workflow subagent runs on V4.1 Flash. V4 Pro is retired: it is not in the model catalog, and any session, config or override that still names it is rewritten to Flash on every message.
 - Plain words reach the rest: "in the background" (`task`, `bg_shell`), "wait until" (`monitor`), "check back in an hour" or "every day at 9" (`wakeup`, `cron_create`), "fork this" or "in a worktree" (`fork`, `worktree_create`).
 - In Media-Orchestrator, "read HANDOFF.md and get to work" works its open items. "Do it", "fix it" or "Fuck learning" switch to doing mode.
 

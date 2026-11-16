@@ -16,7 +16,9 @@ Gives DeepSeek inside OpenCode (1.19.5) the long-running harness tools: wakeups,
 | `shell.zsh` | sourced from the upkeep block in `~/.zprofile` | Exports `env`; `oc` and `ocrun` attach to the server with `--dir "$PWD"`, or run a local opencode when it is down |
 | `coder` | `~/bin/coder` | Same attach-or-fallback; keeps the line `exec opencode --auto` the doctor looks for |
 
-The config merge parses JSONC and keeps every unmanaged key. A file that does not parse is reported and left alone. A commented original is saved once as `opencode.jsonc.before-upkeep`, because the rewrite drops comments. The merge deletes the `openrouter`, `groq` and `cloudflare` provider blocks, and drops `plugin` entries for files under `plugin/` or `plugins/`, which load automatically.
+The config merge parses JSONC and keeps every unmanaged key. A file that does not parse is reported and left alone. A commented original is saved once as `opencode.jsonc.before-upkeep`, because the rewrite drops comments. The merge deletes the `openrouter`, `groq` and `cloudflare` provider blocks, drops any `deepseek` model entry naming V4 Pro, and sets `provider.deepseek.blacklist` to it, so the model is not in the catalog. It also drops `plugin` entries for files under `plugin/` or `plugins/`, which load automatically.
+
+The plugin's `chat.message` hook rewrites every user message that names Pro to `deepseek/deepseek-flash` before it is saved. The run loop reads the saved message's model, so a session, agent or override pinned to Pro makes no Pro request, even where Pro is already absent from the catalog.
 
 Top-level `permission` stays the string `"allow"`, because MO's legacy opencodedoctor resets any other value every minute. `doom_loop` and `external_directory` still default to ask under it, so `agent.{build,plan,general,explore}` and the agent files allow them.
 

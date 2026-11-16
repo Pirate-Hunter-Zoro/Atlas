@@ -396,6 +396,26 @@ process.exit(0);
         self.assertEqual(r["cfg"]["mcp"]["playwright"]["command"][-1], "@playwright/mcp@latest")
         self.assertEqual(r["kept"]["mcp"]["playwright"], {"type": "remote", "url": "x"})
 
+    def test_a_message_naming_pro_is_sent_as_flash(self):
+        out = self.run_node("models", r"""
+const P = await load(process.cwd());
+const pro = { message: { model: { providerID: "deepseek", modelID: "deepseek-v4-pro", variant: "max" } }, parts: [] };
+const flash = { message: { model: { providerID: "deepseek", modelID: "deepseek-flash" } }, parts: [] };
+await P["chat.message"]({ sessionID: "s-pro", model: { providerID: "deepseek", modelID: "deepseek-v4-pro" } }, pro);
+await P["chat.message"]({ sessionID: "s-flash" }, flash);
+const cfg = { model: "deepseek/deepseek-v4-pro", small_model: "deepseek/deepseek-flash",
+              command: { ultracode: { model: "deepseek/deepseek-v4-pro" } } };
+await P.config(cfg);
+console.log(JSON.stringify({ pro: pro.message.model, flash: flash.message.model, cfg }));
+process.exit(0);
+""")
+        r = json.loads(out)
+        self.assertEqual(r["pro"], {"providerID": "deepseek", "modelID": "deepseek-flash", "variant": "max"})
+        self.assertEqual(r["flash"], {"providerID": "deepseek", "modelID": "deepseek-flash"},
+                         "a message already on flash is left alone")
+        self.assertEqual(r["cfg"]["model"], "deepseek/deepseek-flash")
+        self.assertEqual(r["cfg"]["command"]["ultracode"]["model"], "deepseek/deepseek-flash")
+
     def test_an_installed_capabilities_edit_reaches_a_running_server(self):
         out = self.run_node("reread", r"""
 import { writeFileSync, utimesSync } from "node:fs";

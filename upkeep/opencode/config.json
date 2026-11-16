@@ -13,6 +13,7 @@
   },
   "provider": {
     "deepseek": {
+      "blacklist": ["deepseek-v4-pro"],
       "models": {
         "deepseek-flash": { "variants": { "nothink": { "thinking": { "type": "disabled" } } } }
       }
