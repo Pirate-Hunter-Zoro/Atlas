@@ -5,7 +5,8 @@
 
 Copies the plugin, agents, commands and capabilities.md; merges the managed keys of
 config.json into opencode.jsonc (JSONC-aware, every other key kept); pins the plugin SDK in
-package.json; copies skills from ~/.claude/skills and ~/.agents/skills into
+package.json; moves a stored V4 Pro selection (model.json, session rows) to V4.1 Flash;
+copies skills from ~/.claude/skills and ~/.agents/skills into
 ~/.config/opencode/skills (not hidden directories, not Claude-only skills) without deleting
 anything; installs ~/bin/coder. Prints one line per
 change, then `changed: N`, the count (`would: ` before each under --dry-run). Exit
@@ -18,13 +19,18 @@ import os
 import plistlib
 import re
 import shutil
+import sqlite3
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 DEAD_PROVIDERS = ("openrouter", "groq", "cloudflare")
-# V4 Pro is retired: no config this installer writes or merges leaves it selectable.
+# V4 Pro is retired: no config this installer writes or merges leaves it selectable,
+# and a stored selection naming it is moved to flash rather than failing as unavailable.
 FORBIDDEN_MODEL_MARKER = "v4-pro"
+RETIRED_MODEL = re.compile(r"v4-pro", re.I)
+FLASH_MODEL = "deepseek/deepseek-flash"
+FLASH_PROVIDER, FLASH_ID = FLASH_MODEL.split("/", 1)
 # A skill that names a Claude-only surface would send DeepSeek after tools it does not have.
 CLAUDE_ONLY = re.compile(
     r"mcp__claude|mcp__computer-use|mcp__Claude_Browser|mcp__remote-devices|Claude desktop app"
@@ -160,13 +166,25 @@ def merge_config(cfg, managed, home, cfg_dir):
     prov = cfg.get("provider") if isinstance(cfg.get("provider"), dict) else {}
     for dead in DEAD_PROVIDERS:
         prov.pop(dead, None)
+    own_blacklist = {pid: list(spec["blacklist"]) for pid, spec in prov.items()
+                     if isinstance(spec, dict) and isinstance(spec.get("blacklist"), list)}
     cfg["provider"] = deep_merge(prov, managed["provider"])
+    # The blacklist keeps the retired id out of the model picker however an older client
+    # remembers it. Union it, so a provider blacklist the owner already wrote survives.
+    for pid, spec in managed["provider"].items():
+        target = cfg["provider"].get(pid)
+        if isinstance(target, dict) and isinstance(spec.get("blacklist"), list):
+            target["blacklist"] = union(union(own_blacklist.get(pid), target.get("blacklist")),
+                                        spec["blacklist"])
     for spec in cfg["provider"].values():
         models = spec.get("models") if isinstance(spec, dict) else None
         if not isinstance(models, dict):
             continue
         for name in [n for n in models if FORBIDDEN_MODEL_MARKER in n]:
             models.pop(name, None)
+    for spec in agents.values():
+        if isinstance(spec, dict) and RETIRED_MODEL.search(str(spec.get("model") or "")):
+            spec["model"] = managed["model"]
     exp = cfg.get("experimental") if isinstance(cfg.get("experimental"), dict) else {}
     exp["primary_tools"] = union(exp.get("primary_tools"), managed["experimental"]["primary_tools"])
     cfg["experimental"] = exp
@@ -333,6 +351,83 @@ class Installer:
     def coder(self):
         self.copy(self.src / "coder", self.home / "bin" / "coder", mode=0o755)
 
+    def base(self, var, parts):
+        """Where opencode keeps runtime state: $VAR when the owner set it, else under HOME."""
+        env = os.environ.get(var) if self.home.resolve() == Path.home().resolve() else None
+        return Path(env) if env else self.home.joinpath(*parts)
+
+    def retire_runtime(self):
+        """Move a remembered V4 Pro selection to flash, so it resolves instead of failing."""
+        self.retire_model_json()
+        self.retire_sessions()
+
+    def retire_model_json(self):
+        path = self.base("XDG_STATE_HOME", (".local", "state")) / "opencode" / "model.json"
+        if not path.is_file():
+            return
+        try:
+            data = json.loads(path.read_text() or "{}")
+        except ValueError as e:
+            self.problem(f"{path} is not valid JSON ({e}); left alone")
+            return
+        if not isinstance(data, dict):
+            return
+        changed = False
+        for key in ("recent", "favorite"):
+            items = data.get(key)
+            if not isinstance(items, list):
+                continue
+            kept = [x for x in items
+                    if FORBIDDEN_MODEL_MARKER not in json.dumps(x).lower()]
+            if len(kept) != len(items):
+                data[key] = kept
+                changed = True
+        variants = data.get("variant")
+        if isinstance(variants, dict):
+            for key in [k for k in variants if FORBIDDEN_MODEL_MARKER in str(k).lower()]:
+                variants.pop(key)
+                changed = True
+        if changed:
+            self.change(f"drop retired V4 Pro selections from {path}")
+            self.write(path, json.dumps(data, separators=(",", ":")))
+
+    def retire_sessions(self):
+        path = self.base("XDG_DATA_HOME", (".local", "share")) / "opencode" / "opencode.db"
+        if not path.is_file():
+            return
+        try:
+            con = sqlite3.connect(str(path), timeout=5)
+        except sqlite3.Error as e:
+            self.problem(f"{path} could not be opened ({e}); sessions left alone")
+            return
+        changed = 0
+        try:
+            rows = con.execute(
+                "select id, model from session where model is not null and lower(model) like ?",
+                ("%" + FORBIDDEN_MODEL_MARKER + "%",)).fetchall()
+            for sid, raw in rows:
+                try:
+                    model = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(model, dict):
+                    continue
+                model["id"] = FLASH_ID
+                model["providerID"] = FLASH_PROVIDER
+                if not self.dry:
+                    con.execute("update session set model=? where id=?",
+                                (json.dumps(model, separators=(",", ":")), sid))
+                changed += 1
+            if changed and not self.dry:
+                con.commit()
+        except sqlite3.Error as e:
+            self.problem(f"{path}: {e}")
+            return
+        finally:
+            con.close()
+        if changed:
+            self.change(f"point {changed} session(s) at {FLASH_MODEL} in {path}")
+
     def state_dirs(self):
         d = self.home / ".local" / "state" / "opencode"
         if not d.is_dir():
@@ -341,7 +436,8 @@ class Installer:
                 d.mkdir(parents=True, exist_ok=True)
 
     def run(self):
-        for step in (self.files, self.package_json, self.config, self.skills, self.coder, self.state_dirs):
+        for step in (self.files, self.package_json, self.config, self.retire_runtime,
+                     self.skills, self.coder, self.state_dirs):
             try:
                 step()
             except OSError as e:

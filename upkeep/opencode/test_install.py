@@ -4,6 +4,7 @@ import json
 import os
 import plistlib
 import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -136,6 +137,17 @@ class ExistingConfig(Base):
         self.assertEqual(sorted(deepseek["models"]), ["deepseek-flash"], "no V4 Pro id survives a merge")
         self.assertEqual(deepseek["blacklist"], ["deepseek-v4-pro"], "V4 Pro is out of the catalog")
 
+    def test_a_blacklist_the_owner_wrote_survives(self):
+        self.write_cfg(json.dumps({"provider": {"deepseek": {"blacklist": ["deepseek-v4-0813"]}}}))
+        self.run_install()
+        self.assertEqual(self.config()["provider"]["deepseek"]["blacklist"],
+                         ["deepseek-v4-0813", "deepseek-v4-pro"])
+
+    def test_an_agent_model_on_v4_pro_moves_to_flash(self):
+        self.write_cfg(json.dumps({"agent": {"deep": {"model": "deepseek/deepseek-v4-pro"}}}))
+        self.run_install()
+        self.assertEqual(self.config()["agent"]["deep"]["model"], "deepseek/deepseek-flash")
+
     def test_legacy_doctor_and_install_agree(self):
         # MO's opencodedoctor sets permission to the string "allow" whenever it is anything else.
         self.write_cfg(LIVE_LIKE)
@@ -220,6 +232,62 @@ class ExistingConfig(Base):
         self.run_install()
         self.assertFalse((self.cfg / "capabilities.md").is_symlink())
         self.assertEqual(target.read_text(), "old")
+
+
+class RetiredState(Base):
+    def model_json(self, data):
+        d = self.home / ".local/state/opencode"
+        d.mkdir(parents=True)
+        path = d / "model.json"
+        path.write_text(json.dumps(data))
+        return path
+
+    def sessions(self, rows):
+        d = self.home / ".local/share/opencode"
+        d.mkdir(parents=True)
+        db = d / "opencode.db"
+        con = sqlite3.connect(db)
+        con.execute("create table session (id text primary key, model text)")
+        con.executemany("insert into session values (?, ?)",
+                        [(sid, json.dumps(model)) for sid, model in rows])
+        con.commit()
+        con.close()
+        return db
+
+    def test_model_json_drops_retired_choices(self):
+        path = self.model_json({
+            "recent": [{"providerID": "deepseek", "modelID": "deepseek-v4-pro"}, "deepseek/deepseek-flash"],
+            "favorite": ["deepseek/deepseek-v4-pro-0813"],
+            "variant": {"deepseek/deepseek-flash": "nothink", "deepseek/deepseek-v4-pro": "default"},
+        })
+        rc, out, _ = self.run_install()
+        self.assertEqual(rc, 0, out)
+        data = json.loads(path.read_text())
+        self.assertEqual(data["recent"], ["deepseek/deepseek-flash"])
+        self.assertEqual(data["favorite"], [])
+        self.assertEqual(data["variant"], {"deepseek/deepseek-flash": "nothink"})
+
+    def test_sessions_on_v4_pro_point_at_flash(self):
+        db = self.sessions([
+            ("a", {"id": "deepseek-v4-pro", "providerID": "deepseek", "variant": "default"}),
+            ("b", {"id": "deepseek-flash", "providerID": "deepseek"}),
+        ])
+        rc, out, _ = self.run_install()
+        self.assertEqual(rc, 0, out)
+        con = sqlite3.connect(db)
+        rows = dict(con.execute("select id, model from session"))
+        con.close()
+        self.assertEqual(json.loads(rows["a"]),
+                         {"id": "deepseek-flash", "providerID": "deepseek", "variant": "default"})
+        self.assertEqual(json.loads(rows["b"]), {"id": "deepseek-flash", "providerID": "deepseek"})
+
+    def test_dry_run_leaves_a_retired_selection_alone(self):
+        path = self.model_json({"recent": ["deepseek/deepseek-v4-pro"], "favorite": [], "variant": {}})
+        before = path.read_text()
+        rc, out, _ = self.run_install(dry=True)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("would: drop retired V4 Pro selections", out)
+        self.assertEqual(path.read_text(), before)
 
 
 class Skills(Base):
