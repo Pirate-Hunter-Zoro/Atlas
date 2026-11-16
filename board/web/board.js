@@ -23,6 +23,61 @@ function sessionBase() {
 var BASE = sessionBase();
 var SESSION = BASE ? decodeURIComponent(BASE.slice(3)) : "";
 
+/* WHAT BROKE ON THIS PAGE, told to the board: POST /client-error, which puts
+   one line in its log. The iPad has no console anybody reads, and a board
+   that freezes with nothing on the wire is otherwise invisible. Same shape
+   and same limits as home.js: `keepalive` outlives a reload, the same line
+   is sent once per page, at most BEACON_BURST a minute, and telling never
+   throws. `page` is this fixed name, never a path or a session id. */
+var BEACON_BURST = 6;
+var beaconSent = {};
+var beaconMinute = { at: 0, n: 0 };
+
+function beaconCut(s, n) {
+  return String(s === undefined || s === null ? "" : s).slice(0, n);
+}
+
+function beacon(what, src, msg, stack) {
+  try {
+    var key = what + "|" + src + "|" + msg;
+    if (beaconSent[key]) return;
+    var now = Date.now();
+    if (now - beaconMinute.at > 60000) beaconMinute = { at: now, n: 0 };
+    if (beaconMinute.n >= BEACON_BURST) return;
+    beaconMinute.n += 1;
+    beaconSent[key] = true;
+    var p = fetch("/client-error", {
+      method: "POST",
+      keepalive: true,
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ page: "board", what: beaconCut(what, 40),
+                             src: beaconCut(src, 300),
+                             msg: beaconCut(msg, 500),
+                             stack: beaconCut(stack, 2000),
+                             ua: beaconCut(navigator.userAgent, 200) })
+    });
+    if (p && p.catch) p.catch(function () { /* the board is down: nothing to tell */ });
+  } catch (e) { /* telling must never be what breaks the page */ }
+}
+
+/* Capture phase, because a script, a stylesheet or an image that failed to
+   load fires its error on the element and it does not bubble. */
+window.addEventListener("error", function (ev) {
+  var t = ev && ev.target;
+  if (t && t !== window && (t.src || t.href)) {
+    beacon("load", t.src || t.href, "did not load (" + beaconCut(t.tagName, 20).toLowerCase() + ")");
+    return;
+  }
+  beacon("error", ev && ev.filename ? ev.filename + ":" + (ev.lineno || 0) : "",
+         ev && ev.message, ev && ev.error && ev.error.stack);
+}, true);
+
+window.addEventListener("unhandledrejection", function (ev) {
+  var r = ev && ev.reason;
+  beacon("rejection", "", r && r.message ? r.message : r, r && r.stack);
+});
+
 function api(path, init) { return fetch(BASE + path, init); }
 
 /* Every focus this page gives a text field goes through keyguard.js, which

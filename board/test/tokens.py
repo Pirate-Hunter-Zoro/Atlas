@@ -390,6 +390,40 @@ try:
     check("and a table-less spec records the tokens and NO dollar figure, "
           "which is honest rather than wrong",
           "usd" not in bare and "rate" not in bare)
+
+    # A malformed usage event must cost nothing, not the turn. A token value
+    # can arrive as an object, a word or null, and `cost` can be anything the
+    # model-adjacent stream carries; int()/float() on those used to raise from
+    # `read_turn_usage`, which loop.py calls after the model has already
+    # answered, so a bad count killed the turn.
+    bad = "\n".join([
+        json.dumps({"type": "step_finish", "sessionID": "ses_bad", "part": {
+            "cost": {"usd": 1},
+            "tokens": {"input": {"x": 1}, "output": "12", "reasoning": None,
+                       "cache": {"read": [1], "write": 5}}}}),
+        json.dumps({"type": "step_finish", "sessionID": "ses_bad", "part": {
+            "cost": "free",
+            "tokens": {"input": "1000", "output": 0.0, "reasoning": "-",
+                       "cache": {"read": "20", "write": None}}}}),
+    ])
+    u = usage.read_opencode_usage(bad)
+    check("a malformed token count or cost is zero, not a raised exception",
+          u.get("in") == 1000 and u.get("out") == 12
+          and u.get("cache_read") == 20 and u.get("cache_write") == 5
+          and u.get("tokens") == 1037 and u.get("usd") == 0.0)
+    check("and a step_finish whose part is not an object is skipped, not fatal",
+          usage.read_opencode_usage(json.dumps(
+              {"type": "step_finish", "sessionID": "ses_bad", "part": "x"})) == {})
+    badpath = tempfile.mkstemp(prefix="tutor-cost-bad-", suffix=".log")[1]
+    try:
+        with open(badpath, "w", encoding="utf-8") as fh:
+            fh.write(bad + "\n")
+        got = usage.read_turn_usage(badpath, 0)
+        check("read_turn_usage keeps its promise never to raise on a bad count",
+              got.get("in") == 1000 and got.get("tokens") == 1037
+              and got.get("usd") == 0.0)
+    finally:
+        os.unlink(badpath)
 finally:
     os.unlink(logpath)
 
