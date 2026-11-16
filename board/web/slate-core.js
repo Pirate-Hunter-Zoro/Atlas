@@ -2373,6 +2373,9 @@ function create(opts) {
      is the student's decision, not a guess. Without a hook this sends, exactly
      as it always did. */
   bSend.onclick = function () {
+    /* Defined before anything that can throw: a host hook that blows up must
+       not leave Send disabled for the rest of the lesson. */
+    var free = function () { bSend.disabled = false; };
     var go = function () {
       /* Say something on this frame: a send encodes a PNG synchronously
          before the request, and a button that swallows a tap gets pressed
@@ -2381,16 +2384,29 @@ function create(opts) {
       savedTag.textContent = "sending…";
       savedTag.classList.add("busy");
       bSend.disabled = true;
-      if (opts.onSending) opts.onSending();
+      if (opts.onSending) {
+        try {
+          opts.onSending();
+        } catch (e) {
+          /* The tap did nothing, so let them tap again, and tell the host
+             (the board's error beacon hears the rethrow). */
+          free();
+          throw e;
+        }
+      }
       /* And it stays refused until the send has actually gone. Two taps is two
          answers, and the reason for the second tap was always that the first
          appeared to do nothing. Released on a timer as well, because a request
          that hangs must not take the button with it. */
-      var free = function () { bSend.disabled = false; };
       var run = function () {
         setTimeout(free, 8000);
-        var going = save(true);
-        if (going && going.then) going.then(free, free); else free();
+        try {
+          var going = save(true);
+          if (going && going.then) going.then(free, free); else free();
+        } catch (e) {
+          free();
+          throw e;
+        }
       };
       /* Two frames, not one. A `requestAnimationFrame` callback runs BEFORE the
          paint it belongs to, so doing the encode in the first one blocks the

@@ -7,6 +7,7 @@ the line in the session's `cost.jsonl` that `board cost` adds up.
 """
 
 import json
+import math
 import os
 import time
 
@@ -79,7 +80,8 @@ def turn_words(path, offset):
 
 def read_turn_usage(path, offset, spec=None):
     """What OpenCode said this turn cost, or {} if it did not say. Never
-    raises. Dollars are recomputed from `spec`'s price table (`priced`)."""
+    raises: a malformed count is zero, not a failed turn. Dollars are
+    recomputed from `spec`'s price table (`priced`)."""
     got = read_opencode_usage(turn_words(path, offset))
     return priced(got, spec) if got else got
 
@@ -106,19 +108,40 @@ def turn_text(said):
     events = opencode_events(said)
     if not events:
         return said or ""
-    return "\n".join(str((d.get("part") or {}).get("text") or "")
-                     for d in events if d.get("type") == "text")
+    return "\n".join(str(d["part"].get("text") or "")
+                     for d in events if d.get("type") == "text"
+                     and isinstance(d.get("part"), dict))
+
+
+def _number(value, kind):
+    """`value` as a `kind` number, or 0 when it is not one. OpenCode's event
+    stream is model-adjacent JSON: a count can arrive as a string, an object,
+    null or nonsense. A malformed number is not worth failing a turn that has
+    already been paid for, and never raises."""
+    try:
+        n = kind(value)
+    except (TypeError, ValueError, OverflowError):
+        try:
+            n = kind(float(value))
+        except (TypeError, ValueError, OverflowError):
+            return kind(0)
+    if isinstance(n, float) and not math.isfinite(n):
+        return kind(0)
+    return n
 
 
 def read_opencode_usage(blob):
     """OpenCode's `--format json` event stream: one `step_finish` per round
     trip, summed. Reasoning is billed as output. OpenCode's own `cost` is kept
-    as `usd` unless the recipe has a price table.
+    as `usd` unless the recipe has a price table. A token count or cost that
+    is not a number counts as zero, so this never raises on a malformed event.
     """
     trips, session = [], ""
     for d in opencode_events(blob):
         session = d.get("sessionID") or session
-        part = d.get("part") or {}
+        part = d.get("part")
+        if not isinstance(part, dict):
+            continue
         if d.get("type") == "step_finish" and isinstance(part.get("tokens"), dict):
             trips.append(part)
     if not trips:
@@ -130,7 +153,7 @@ def read_opencode_usage(blob):
             got = part.get("tokens")
             for key in path:
                 got = got.get(key) if isinstance(got, dict) else None
-            n += int(got or 0)
+            n += _number(got, int)
         return n
     got_in, out = summed("input"), summed("output") + summed("reasoning")
     read, written = summed("cache", "read"), summed("cache", "write")
@@ -141,7 +164,7 @@ def read_opencode_usage(blob):
         "cache_write": written,
         "cache_read": read,
         "requests": len(trips),
-        "usd": round(sum(float(p.get("cost") or 0.0) for p in trips), 6),
+        "usd": round(sum(_number(p.get("cost"), float) for p in trips), 6),
         "models": [],
         "session": session,
     }
