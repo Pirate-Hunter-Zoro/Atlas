@@ -9,28 +9,14 @@
 
 ## Now
 
-hw05, Chapters 5 and 8 sheet, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped. Set: homework/hw05/hw05.tex. Sheet PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git. Bound to hw05.
+hw05, Chapters 5 and 8 sheet, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 8.13. 5.2* and 8.12* dropped. Set: homework/hw05/hw05.tex. Sheet PDF: homework/hw05/assignment/Prob.Homework5.pdf, out of git.
 
-DONE, written up: 5.1 (t0003-r1); 5.2 = 6/μ (t0003-r3); 5.4 (t0003 r4/r5/r6); 5.6 = (λ₁/(λ₁+λ₂))² + (λ₂/(λ₁+λ₂))² (t0003-r7); 5.15 (t0003-r14, page hw05-5.15.png); 5.21 (t0003-r19, page hw05-5.21.png), E[T] = 2/μ₁ + 2/μ₂ − 1/(μ₁+μ₂), region holds their blocked-stretch integral plus only the Mathematica `joint` and `Integrate`; 8.3 (card 0031, page hw05-8.3.png from t0003-r24), written up from t0003-r23's Mary chain and t0003-r24's Alice chain, C=$3.50. 5.21's `ET` line and its Monte Carlo stay out unless they ask. hw05.pdf rebuilt clean at 4 pages.
+THE SHEET IS DONE, all eight written up, nothing outstanding, nothing owed. No direction given on what comes next; wait for the owner.
 
-8.13 IN PROGRESS: posed at card 0031, statement on their screen, region EMPTY. First rung asked: the two rates out of state "server 1 idle" and the state each lands in. Held answer: proportion of time server i is idle is μᵢ/(μ₁+μ₂+μ₃) (stationarity checked exactly). Route: state = the idle server, q(i→j) = μⱼ, rate out of i is the sum of the other two, then solve πQ = 0. Keep steps tiny; they signalled fatigue at the 5.15 expansion.
-
-## Open decisions
-
-## Done recently
-
-Problem 76 closed at card 0031, written up from t0002-r22 (handwritten/hw04-76.png). Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, both parts in the SOLUTION 60 region; page t0002-r19 is handwritten/hw04-60b.png, and the part (a) page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
-5.2 closed at card 0005, written up from t0003-r3 (handwritten/hw05-5.2.png). 5.1 was written up from t0003-r1 (handwritten/hw05-5.1.png).
+8.13: their setup is theirs — idle-server state, cyclic balance (π₂+π₃)μ₁=π₁(μ₂+μ₃), normalization, A (4x3, first three rows rank 2), b=(0,0,0,1). At their request I solved it: π_i = μ_i/(μ₁+μ₂+μ₃). At their later request (card 0038) the Mathematica code now solves the FULL 4x3 Ax=b with LinearSolve, no row dropped, and shows both outputs: the π vector and the residual {0,0,0,0}. Full system is consistent, so least squares is exact; verified on several exact-fraction triples. Region prose and code updated; hw05.pdf rebuilds clean at 5 pages. Page filed as handwritten/hw05-8.13.png.
 
 ## Open decisions
 
 ## Done recently
 
-Problem 76 closed at card 0031, written up from t0002-r22 (handwritten/hw04-76.png). Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, both parts in the SOLUTION 60 region; page t0002-r19 is handwritten/hw04-60b.png, and the part (a) page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
-5.2 closed at card 0005, written up from t0003-r3 (handwritten/hw05-5.2.png). 5.1 was written up from t0003-r1 (handwritten/hw05-5.1.png).
-
-## Open decisions
-
-## Done recently
-
-Turn t0002-r23 asked for citations and justification in hw04.tex; card 0032 reports them. Problem 76 closed at card 0031 and was written up from t0002-r22 (handwritten/hw04-76.png). Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, both parts in the SOLUTION 60 region; page t0002-r19 is handwritten/hw04-60b.png, and the part (a) page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek.
+Problem 76 closed at card 0031, written up from t0002-r22 (handwritten/hw04-76.png). Problem 60 closed at card 0027: the system was theirs, the solving was arithmetic at their request, both parts in the SOLUTION 60 region; page t0002-r19 is handwritten/hw04-60b.png, and the part (a) page t0002-r17 is handwritten/hw04-60.png. Problem 52 closed at card 0021. Exercise 34 transcribed in full at card 0017; exercise 14 from t0002-r5, and its region keeps the four TikZ diagrams credited to DeepSeek. 5.2 closed at card 0005, written up from t0003-r3 (handwritten/hw05-5.2.png). 5.1 was written up from t0003-r1 (handwritten/hw05-5.1.png).

@@ -161,6 +161,42 @@ $$\boxed{\tfrac12+C\ \$\text{/hr}}.$$
 Two customers move about among three servers. Upon completion of service at server $i$, the customer leaves that server and enters service at whichever of the other two servers is free. (Therefore, there are always two busy servers.) If the service times at server $i$ are exponential with rate $\mu_i$, $i=1,2,3$, what proportion of time is server $i$ idle?
 \end{problem}
 % ===== SOLUTION 8.13 =====
+The state is the idle server. In state $i$, servers $j$ and $k$ are busy, where $\{i,j,k\}=\{1,2,3\}$. The rate out of state $i$ is $\mu_j+\mu_k$, and a completion at server $j$ moves that customer to the free server, giving the balance equations
+$$(\pi_2+\pi_3)\mu_1=\pi_1(\mu_2+\mu_3),$$
+$$(\pi_1+\pi_3)\mu_2=\pi_2(\mu_1+\mu_3),$$
+$$(\pi_1+\pi_2)\mu_3=\pi_3(\mu_1+\mu_2),$$
+with normalization
+$$\pi_1+\pi_2+\pi_3=1.$$
+Rearranged, these are the four rows
+$$\pi_1(\mu_2+\mu_3)-\pi_2\mu_1-\pi_3\mu_1=0,$$
+$$-\pi_1\mu_2+\pi_2(\mu_1+\mu_3)-\pi_3\mu_2=0,$$
+$$-\pi_1\mu_3-\pi_2\mu_3+\pi_3(\mu_1+\mu_2)=0,$$
+$$\pi_1+\pi_2+\pi_3=1,$$
+so the system is $A x=b$ with
+$$A=\begin{pmatrix}\mu_2+\mu_3 & -\mu_1 & -\mu_1\\ -\mu_2 & \mu_1+\mu_3 & -\mu_2\\ -\mu_3 & -\mu_3 & \mu_1+\mu_2\\ 1 & 1 & 1\end{pmatrix},\qquad b=\begin{pmatrix}0\\0\\0\\1\end{pmatrix},\qquad x=\begin{pmatrix}\pi_1\\\pi_2\\\pi_3\end{pmatrix}.$$
+The three balance rows have rank 2, so together with normalization the system has the unique solution
+$$\pi_1=\frac{\mu_1}{\mu_1+\mu_2+\mu_3},\qquad \pi_2=\frac{\mu_2}{\mu_1+\mu_2+\mu_3},\qquad \pi_3=\frac{\mu_3}{\mu_1+\mu_2+\mu_3}.$$
+Solving the full $4\times 3$ system $Ax=b$ in Mathematica:
+
+\begin{verbatim}
+Clear[mu1, mu2, mu3, A, b, pi];
+A = {{mu2 + mu3, -mu1, -mu1},
+     {-mu2, mu1 + mu3, -mu2},
+     {-mu3, -mu3, mu1 + mu2},
+     {1, 1, 1}};
+b = {0, 0, 0, 1};
+
+(* A is 4x3, so LinearSolve returns the least-squares solution.
+   The system is consistent, so that solution is exact. *)
+pi = Simplify[LinearSolve[A, b]]
+  Out: {mu1/(mu1 + mu2 + mu3), mu2/(mu1 + mu2 + mu3), mu3/(mu1 + mu2 + mu3)}
+
+(* Check all four rows, the redundant balance rows included. *)
+Simplify[A . pi - b]
+  Out: {0, 0, 0, 0}
+\end{verbatim}
+
+The residual is $A\pi-b=0$ on every row, so the full system is satisfied.
 % ===== END SOLUTION 8.13 =====
 
 \end{document}
