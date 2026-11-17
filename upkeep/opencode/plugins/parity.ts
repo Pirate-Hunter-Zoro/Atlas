@@ -4239,8 +4239,17 @@ async function inUltracode(session: string, client: any, directory: string): Pro
   return false;
 }
 
+// Scratch a tool leaves beside a checkout: browser snapshots, bytecode and editor droppings. It is
+// never source, so removing or rewriting it cannot change what the live board serves. The names are
+// exact, so `sessions/`, `materials/` and the like stay protected.
+const SCRATCH_NAMES = new Set([".playwright-mcp", "__pycache__", ".pytest_cache", ".mypy_cache", ".DS_Store"]);
+
+function isScratchPath(p: string): boolean {
+  return resolve(p).split(/[\\/]+/).some((part) => SCRATCH_NAMES.has(part));
+}
+
 // /ultracode, its subagents and its workflow agents write files only in a linked worktree:
-// the checkout a session starts in may be serving the owner live.
+// the checkout a session starts in may be serving the owner live. Scratch is the one exception.
 async function ultracodeTreeRule(call: Call, cmds: Cmd[] | undefined, client: any): Promise<string | undefined> {
   if (!EDIT_TOOLS.has(call.tool) && !cmds?.length) return undefined;
   if (!(await inUltracode(call.session, client, call.directory))) return undefined;
@@ -4252,6 +4261,7 @@ async function ultracodeTreeRule(call: Call, cmds: Cmd[] | undefined, client: an
   if (EDIT_TOOLS.has(call.tool)) paths.push(...filePaths(call).paths);
   for (const c of cmds ?? []) for (const t of writesOf(c).targets) for (const p of globPathsOf(t, c)) if (p) paths.push(p);
   for (const p of paths) {
+    if (isScratchPath(p)) continue;
     const top = primaryCheckout(p);
     if (top) return refuse(p, top);
   }

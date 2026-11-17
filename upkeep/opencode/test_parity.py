@@ -1072,16 +1072,21 @@ const write = (f, s) => check(P, "write", { filePath: f, content: "x" }, s);
 const sh = (c, s) => check(P, "bash", { command: c }, s);
 const before = await edit(main + "/board/a.py", "u1");
 await P["command.execute.before"]({ command: "ultracode", sessionID: "u1", arguments: "x" }, { parts: [] });
+await check(P, "todowrite", { todos: [{ content: "survey", status: "pending" }, { content: "build", status: "pending" }] }, "u1");
 const refused = [
   await edit(main + "/board/a.py", "u1"), await write(main + "/README.md", "u1"), await write(main + "/new/dir/f.txt", "u1"),
   await sh("echo x > " + main + "/f.txt", "u1"), await sh("cp a " + main + "/board/", "u1"), await sh("tee " + main + "/t.md < a", "u1"),
   await edit(main + "/board/a.py", "kid"), await sh("echo x > " + main + "/g.txt", "grandkid"),
+  await sh("rm -rf " + main + "/sessions", "u1"),
+  await sh("rm -rf " + main + "/.playwright-mcp " + main + "/board", "u1"),
 ];
 const allowed = [
   await edit(wt + "/board/a.py", "u1"), await write(wt + "/new/f.txt", "u1"), await sh("echo x > " + wt + "/f.txt", "u1"),
   await write(loose + "/f.txt", "u1"), await sh("echo x > /tmp/parity-ultra-probe", "u1"), await edit(wt + "/a.py", "kid"),
   await sh("git -C " + main + " status", "u1"), await sh("cat " + main + "/README.md", "u1"),
   await edit(main + "/board/a.py", "plain"), await sh("echo x > " + main + "/f.txt", "plain"),
+  await sh("rm -rf " + main + "/.playwright-mcp", "u1"), await write(main + "/__pycache__/x.pyc", "u1"),
+  await sh("rm -rf /tmp/parity-ultra-scratch/__pycache__", "u1"),
 ];
 console.log(JSON.stringify({ before, refused, allowed }));
 process.exit(0);
