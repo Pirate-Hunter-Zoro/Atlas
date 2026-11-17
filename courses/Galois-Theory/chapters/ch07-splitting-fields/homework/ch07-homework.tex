@@ -795,6 +795,43 @@ Steps (a)--(c) hold for any finite extension; from (d) on, assume $K/F$ is Galoi
 \textbf{(g)} Conversely, suppose $H\unlhd G$ and let $L=K^H$. Show that restriction $\sigma\mapsto\sigma|_L$ is a well-defined homomorphism $G\to\operatorname{Gal}(L/F)$ with kernel $H$. Use a counting argument to conclude that it is surjective, that $L/F$ is Galois, and that $\operatorname{Gal}(L/F)\cong G/H$.
 \end{problem}
 % ===== SOLUTION 22 =====
+\emph{Part (a).} Suppose $[K:K^H]>n$. Then there are $n+1$ linearly independent elements $k_1,\dots,k_{n+1}$ of $K$, so that $\sum_{i=1}^{n+1}a_ik_i=0$ with $a_i\in K^H$ forces $a_i=0$ for all $i$.
+
+Let $\sigma\in H$. Then
+\[
+\sigma\Big(\sum_{i=1}^{n+1}a_ik_i\Big)=\sum_{i=1}^{n+1}a_i\sigma(k_i)=0 .
+\]
+Varying $\sigma$ over $H$ gives $n$ equations with $n+1$ unknowns,
+\[
+\sigma(k_i)\cdot a=0 ,
+\]
+where $\sigma(k_i)$ has shape $n\times(n+1)$ (the $K$-basis with each $\sigma\in H$ applied) and $a$ has shape $(n+1)\times1$ (coefficients in $K$ to solve for). Through rank--nullity there is a nonzero solution. Take one with the fewest nonzero elements, $a$; the entries $a_1,\dots,a_s$ are nonzero and $a$ satisfies $\sigma(k_i)a=0$.
+
+Let $\sigma\in H$ and set
+\[
+c=a_1\sigma(a)-\sigma(a_1)a .
+\]
+Note $c_1=0$. Further, since $\sigma$ sends $0$ to $0$, $c$ is $0$ wherever $a$ is $0$. And $c$ is a solution to $\sigma(k_i)\cdot x=0$ because the $\sigma(a_i)$ are all still roots of each row of $\sigma(k_i)x$, since each $a_i$ is a root. It has more zero elements than $a$. So $c$ must be trivial.
+
+Hence
+\[
+a_1\sigma(a_i)-\sigma(a_1)a_i=0,\qquad a_1\neq0,
+\]
+that is,
+\[
+\sigma(a_i)=\frac{a_i}{a_1}\sigma(a_1).
+\]
+But
+\[
+\sigma\Big(\frac{a_i}{a_1}\Big)=\frac{\sigma(a_i)}{\sigma(a_1)},
+\]
+so $a_i/a_1$ is fixed by all $\sigma$ and is in $K^H$.
+
+Recall $\sum_{i=1}^{n+1}a_ik_i=0$, which gives
+\[
+k_1+\sum_{i=2}^{n+1}\frac{a_i}{a_1}k_i=0 .
+\]
+The coefficients lie in $K^H$, namely $1,a_2/a_1,a_3/a_1,\dots,a_{n+1}/a_1$. They are not all zero, so $k_1,\dots,k_{n+1}$ are not linearly independent, a contradiction. So $[K:K^H]\le n$.
 % ===== END SOLUTION 22 =====
 
 \end{document}

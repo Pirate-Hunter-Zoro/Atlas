@@ -9,11 +9,13 @@
 
 ## Now
 
-Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20(a)-(e) and 21(a)-(c) are written up. Problem 22 is posed and pinned, its solution region empty; it is the seven-step proof of the fundamental theorem.
+Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20, 21 and 22(a) are written up. Problem 22 is pinned; it is the seven-step proof of the fundamental theorem.
 
-21(c) closed on t0010-r29 at the owner's direction. They wrote the full route and, on being told the one missing step (the K-linearity of $T\mapsto(T(e_1),\dots,T(e_d))$, i.e. that $(c\cdot T)$ is F-linear with tuple $c\,(T(e_i))$ for $c\in K$), said it was trivial and to write up what we have and move on. Card 0057 wrote it up faithfully to the page: the identification $F^{d^2}\cong K^d\cong\operatorname{Hom}_F(K,K)$ is recorded exactly as their diagram states it, not proved. The K-linearity proof is dropped; do not reopen it.
+22(a), Artin's lemma, is closed on t0019-r8 and typed into label 22 from t0019-r7 plus the new line: `c` solves the row system because the $\sigma(a_i)$ are still roots of the $\sigma$-indexed rows, i.e. $\sigma$ permutes the rows $\tau(k_i)$ to $\sigma\tau(k_i)$. Page filed `handwritten/ch07-22.png`.
 
-Next: teach Problem 22. Step (a) (Artin's lemma) is posed; its first rung asks them to count the n-equation system in n+1 unknowns and see from 21(a) that it has a nonzero solution. Close (a) before (b). One question per card; define a term before using it.
+Open rung: 22(b). Card 0066 posed it and asked only what 20(c)'s bound gives at base field $K^H$, $|\operatorname{Gal}(K/K^H)|\le[K:K^H]$, against (a)'s $[K:K^H]\le|H|$. Let them find the free inclusion $H\le\operatorname{Gal}(K/K^H)$ themselves. Each later `add 22` replaces the whole solution region, so carry (a) forward in every add.
+
+Next: on their 22(b) argument, extend label 22 with (a) as typed, then pose (c), the two definitions of Galois agreeing.
 
 ## Open decisions
 
@@ -29,3 +31,4 @@ The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound
 - 20(c) closed on t0010-r11 and written up under label 20: $\phi$ the inclusion $F\to K$, part (b)'s bound gives $|\operatorname{Gal}(K/F)|\le[K:F]$.
 - 19(d) closed and written up under label 19: $\sqrt3=\zeta_{12}^{-1}+\zeta_{12}$, matching $2\cos(\pi/6)$. Filed `handwritten/ch07-19.png`.
 - 19(b), 19(c), 18(c) and 17(a) closed and written up under labels 19, 19, 18 and 17: the $\sqrt m$ product, the $\zeta_8$ targets, the double sum with $l=km$, and the $D_4$ presentation.
+- 22(a) closed on t0019-r8 and written up under label 22 from t0019-r7 plus their $\sigma(a)$ reason; page filed `handwritten/ch07-22.png`. Card 0066 posed 22(b).
