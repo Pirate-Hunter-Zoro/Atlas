@@ -9,13 +9,11 @@
 
 ## Now
 
-Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20, 21 and 22(a) are written up. Problem 22 is pinned; it is the seven-step proof of the fundamental theorem.
+Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20, 21 and 22(a),(b) are typed into label 22. Problem 22 is pinned; it is the seven-step proof of the fundamental theorem.
 
-22(a), Artin's lemma, is closed on t0019-r8 and typed into label 22 from t0019-r7 plus the new line: `c` solves the row system because the $\sigma(a_i)$ are still roots of the $\sigma$-indexed rows, i.e. $\sigma$ permutes the rows $\tau(k_i)$ to $\sigma\tau(k_i)$. Page filed `handwritten/ch07-22.png`.
+22(c) is at its last step. They got $K^G=F$ by the tower law, the orbit product fixed by $G$ hence in $F$, and the orbit product equal to $m_\alpha$ because each factor divides the irreducible $m_\alpha$. On t0019-r12 they wrote $K=F(\gamma_1,\dots,\gamma_n)$, $m_{\gamma_i}=\prod_{\beta\in G\gamma_i}(x-\beta)$, roots $\beta=\sigma(\gamma_i)\in K$, then $\prod_i(x-\gamma_i)$. Card 0070 said that product's coefficients lie in $K$, not $F$; named $M=\prod_i m_{\gamma_i}\in F[x]$; and asked them to show $M$'s splitting field is exactly $K$ (roots all in $K$; $F$ with those roots gives $F(\gamma_1,\dots,\gamma_n)=K$).
 
-Open rung: 22(b). Card 0066 posed it and asked only what 20(c)'s bound gives at base field $K^H$, $|\operatorname{Gal}(K/K^H)|\le[K:K^H]$, against (a)'s $[K:K^H]\le|H|$. Let them find the free inclusion $H\le\operatorname{Gal}(K/K^H)$ themselves. Each later `add 22` replaces the whole solution region, so carry (a) forward in every add.
-
-Next: on their 22(b) argument, extend label 22 with (a) as typed, then pose (c), the two definitions of Galois agreeing.
+Open rung: those two inclusions. When agreed, add label 22 carrying (a) and (b) forward: each later `add 22` replaces the whole solution region.
 
 ## Open decisions
 
@@ -32,3 +30,4 @@ The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound
 - 19(d) closed and written up under label 19: $\sqrt3=\zeta_{12}^{-1}+\zeta_{12}$, matching $2\cos(\pi/6)$. Filed `handwritten/ch07-19.png`.
 - 19(b), 19(c), 18(c) and 17(a) closed and written up under labels 19, 19, 18 and 17: the $\sqrt m$ product, the $\zeta_8$ targets, the double sum with $l=km$, and the $D_4$ presentation.
 - 22(a) closed on t0019-r8 and written up under label 22 from t0019-r7 plus their $\sigma(a)$ reason; page filed `handwritten/ch07-22.png`. Card 0066 posed 22(b).
+- 22(b) closed on t0019-r9 and written up under label 22 after (a): the chain $|H|\le|\operatorname{Gal}(K/K^H)|\le[K:K^H]\le|H|$ from the definition, 20(c) and (a), so all equal and $\operatorname{Gal}(K/K^H)=H$, $[K:K^H]=|H|$. Card 0067 posed 22(c).

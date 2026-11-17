@@ -832,6 +832,26 @@ Recall $\sum_{i=1}^{n+1}a_ik_i=0$, which gives
 k_1+\sum_{i=2}^{n+1}\frac{a_i}{a_1}k_i=0 .
 \]
 The coefficients lie in $K^H$, namely $1,a_2/a_1,a_3/a_1,\dots,a_{n+1}/a_1$. They are not all zero, so $k_1,\dots,k_{n+1}$ are not linearly independent, a contradiction. So $[K:K^H]\le n$.
+
+\emph{Part (b).} Note $H\subseteq\operatorname{Gal}(K/K^H)$ by definition, so $|H|\le|\operatorname{Gal}(K/K^H)|$. Problem 20(c) gives $|\operatorname{Gal}(K/K^H)|\le[K:K^H]$, and part (a) gives $[K:K^H]\le|H|$. Hence
+\[
+|H|\le|\operatorname{Gal}(K/K^H)|\le[K:K^H]\le|H| .
+\]
+All terms are equal. Since $H\subseteq\operatorname{Gal}(K/K^H)$ and these two sets have equal size, $\operatorname{Gal}(K/K^H)=H$; the ends give $[K:K^H]=|H|$.
+
+\emph{Part (c).} First $F\subseteq K^G$ definitionally, and $[K:K^G]=|G|=[K:F]$. Since $F\subseteq K^G$, the tower law gives $[K^G:F]=1$, so $F=K^G$.
+
+Now that $F=K^G$, if the coefficients of $\prod_{\beta\in G\alpha}(x-\beta)$ are fixed by $\sigma\in G$, then clearly that product is in $F[x]$. For $\sigma\in G$,
+\[
+\sigma\Big(\prod_{\beta\in G\alpha}(x-\beta)\Big)=\prod_{\beta\in G\alpha}(x-\sigma(\beta))=\prod_{\beta\in G\alpha}(x-\beta),
+\]
+since $\sigma(\beta)=\sigma g(\alpha)$ for some $g\in G$, and so we just have a reordering of the roots, since $\sigma G=G$. So $\prod_{\beta\in G\alpha}(x-\beta)\in F[x]$.
+
+That product is the minimal polynomial of $\alpha$: $\alpha$ has minimal polynomial $m_\alpha(x)$ over $F$, and $m_\alpha(\alpha)=0$ gives $m_\alpha(\sigma(\alpha))=0$ for every $\sigma\in G$, hence $m_\alpha(\beta)=0$ for every $\beta\in G\alpha$. So $\prod_{\beta\in G\alpha}(x-\beta)$ divides $m_\alpha(x)$, and therefore it is the minimal polynomial $m_\alpha(x)$.
+
+Write $K=F(\nu_1,\dots,\nu_n)$, with $n$ finite because $K/F$ is finite. For each $i$, $m_{\nu_i}=\prod_{\beta\in G\nu_i}(x-\beta)$, and each root $\beta=\sigma(\nu_i)$ lies in $K$. So every $m_{\nu_i}$ splits in $K[x]$.
+
+Let $f(x)=\prod_{i\in N_n}m_{\nu_i}(x)$. Each factor has coefficients in $F$, so $f\in F[x]$, and all its roots lie in $K$. Hence $K$ is a splitting field of $f$ over $F$: by definition of the $\nu_i$, $K$ is the smallest such field containing all the roots of $f$. $\square$
 % ===== END SOLUTION 22 =====
 
 \end{document}
