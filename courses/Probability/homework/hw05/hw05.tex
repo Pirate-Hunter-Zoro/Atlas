@@ -47,9 +47,17 @@ Consider a post office with two clerks. Three people, A, B, and C, enter simulta
 % ===== SOLUTION 5.4 =====
 (a) $\Pr = 0$. A and B will finish in 10 minutes, and C won't start until then.
 
-(b) Service times $1,2,3$ minutes; A, B first, then C. A must be 3 minutes, and B and C must be 1 minute each. Only $1$ of the $27$ possible triples.
+(b) Service times $1,2,3$ minutes; A, B first, then C. A must be 3 minutes, and B and C must be 1 minute each. Only $1$ of the $27$ possible triples, so
+$$\boxed{\Pr=\tfrac{1}{27}}.$$
 
-(c) $$\Pr(A > B+C) = \Pr(A\text{ outlasts }B)\cdot\Pr(A\text{ then outlasts }C) = \Pr(A\text{ outlasts }B)\cdot\Pr(A\text{ outlasts }C)\ \text{(memoryless)} = \tfrac12\cdot\tfrac12 = \tfrac14.$$
+
+(c)
+
+$$\begin{aligned}
+\Pr(A > B+C) &= \Pr(A\text{ outlasts }B)\cdot\Pr(A\text{ then outlasts }C)\\
+&= \Pr(A\text{ outlasts }B)\cdot\Pr(A\text{ outlasts }C)\ \text{(memoryless)}\\
+&= \tfrac12\cdot\tfrac12 = \tfrac14.
+\end{aligned}$$
 % ===== END SOLUTION 5.4 =====
 
 \begin{problem}{5.1}
@@ -119,9 +127,11 @@ In a certain system, a customer must first be served by server 1 and then by ser
 \end{problem}
 % ===== SOLUTION 5.21 =====
 $$E[\max(0,S_2-X)],\qquad S_2\sim\mathrm{Exp}(\mu_2),\ X\sim\mathrm{Exp}(\mu_1)\ \text{(independent)}.$$
-$$\int_0^\infty\int_x^\infty (y-x)\,\mu_2 e^{-\mu_2 y}\,\mu_1 e^{-\mu_1 x}\,dy\,dx
-=\mu_1\mu_2\int_0^\infty e^{-\mu_1 x}\int_x^\infty (y-x)e^{-\mu_2 y}\,dy\,dx
-=\frac{\mu_1}{\mu_2(\mu_1+\mu_2)}.$$
+$$\begin{aligned}
+&\int_0^\infty\int_x^\infty (y-x)\,\mu_2 e^{-\mu_2 y}\,\mu_1 e^{-\mu_1 x}\,dy\,dx\\
+&\quad =\mu_1\mu_2\int_0^\infty e^{-\mu_1 x}\int_x^\infty (y-x)e^{-\mu_2 y}\,dy\,dx
+=\frac{\mu_1}{\mu_2(\mu_1+\mu_2)}.
+\end{aligned}$$
 $$E[T]=\frac{2}{\mu_1}+\frac{1}{\mu_2}+\frac{\mu_1}{\mu_2(\mu_1+\mu_2)}.$$
 
 \begin{verbatim}

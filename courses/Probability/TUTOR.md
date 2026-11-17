@@ -13,7 +13,9 @@ hw05, Chapters 5 and 8 sheet, sheet order: 5.1, 5.2, 5.4, 5.6, 5.15, 5.21, 8.3, 
 
 THE SHEET IS DONE, all eight written up, nothing outstanding, nothing owed. No direction given on what comes next; wait for the owner.
 
-8.13: their setup is theirs — idle-server state, cyclic balance (π₂+π₃)μ₁=π₁(μ₂+μ₃), normalization, A (4x3, first three rows rank 2), b=(0,0,0,1). At their request I solved it: π_i = μ_i/(μ₁+μ₂+μ₃). At their later request (card 0038) the Mathematica code now solves the FULL 4x3 Ax=b with LinearSolve, no row dropped, and shows both outputs: the π vector and the residual {0,0,0,0}. Full system is consistent, so least squares is exact; verified on several exact-fraction triples. Region prose and code updated; hw05.pdf rebuilds clean at 5 pages. Page filed as handwritten/hw05-8.13.png.
+Card 0040 put the literal answer into 5.4(b): the region had only the triple count, and now ends on a boxed $\Pr=\tfrac{1}{27}$ after their sentence. Card 0039 fixed two overflowing displays the owner spotted: 5.4(c)'s chained equality was clipped off the paper, 5.21's integral chain reached both margins. Both now break into aligned lines inside the text block; mathematics untouched. hw05.pdf rebuilds clean at 5 pages. The set lists 5.4 first in the tex, though 5.1 is first on the sheet.
+
+8.13: their setup is theirs -- idle-server state, cyclic balance (pi2+pi3)mu1=pi1(mu2+mu3), normalization, A (4x3, first three rows rank 2), b=(0,0,0,1). At their request I solved it: pi_i = mu_i/(mu1+mu2+mu3). At their later request (card 0038) the Mathematica code solves the FULL 4x3 Ax=b with LinearSolve, no row dropped, and shows both outputs: the pi vector and the residual {0,0,0,0}. Full system is consistent, so least squares is exact; verified on several exact-fraction triples. Region prose and code updated; hw05.pdf rebuilds clean at 5 pages. Page filed as handwritten/hw05-8.13.png.
 
 ## Open decisions
 
