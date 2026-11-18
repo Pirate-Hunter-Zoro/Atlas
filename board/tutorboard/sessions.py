@@ -252,13 +252,33 @@ def _settle(base, subject, sid):
         library._settle(repo, doc)
 
 
+def _remember_push(where, ok, workspace, said):
+    """Write `<session>/push.json`, the record the board's banner paints, even
+    when End committed nothing: a stale success must never outlive a failure."""
+    record = {
+        "ok": bool(ok),
+        "at": time.time(),
+        "iso": time.strftime(WHEN),
+        "workspace": workspace,
+        "detail": str(said or "")[-1200:],
+    }
+    try:
+        with open(os.path.join(where, "push.json"), "w", encoding="utf-8") as fh:
+            json.dump(record, fh, indent=2)
+    except OSError:
+        pass
+    return record
+
+
 def end(sid, base=None, now=None):
     """End session `sid`: set `ended`, then commit the bound subject's
     TUTOR.md and every artifact listing the session (`_kept`), its feedback
     settled on disk first (`_settle`), and push (`gitops.push(board=True)`: main
-    only, and not past a commit of the owner's). `(record, ok,
+    only, and not past a commit of the owner's), recording the outcome in the
+    session's `push.json` for the board's banner. `(record, ok,
     said)`: `ok` is the commit's; a push that failed is in `said`. Ending
-    again keeps the time and retries the commit and the push."""
+    again keeps the time and retries the commit and the push. Every path writes
+    `push.json`, so a failed End never leaves the last success to paint."""
     base = base or subjects.root()
     where = _need(sid, base)
     rec = get(sid, base)
@@ -268,7 +288,10 @@ def end(sid, base=None, now=None):
         _save(where, rec)
     found = subjects.find(rec.get("subject"), base) if rec.get("subject") else None
     if not found:
-        return rec, True, "ended; the session is bound to no subject, so nothing was committed"
+        said = ("ended; the session is bound to no subject, so nothing was "
+                "committed")
+        _remember_push(where, True, rec.get("subject"), said)
+        return rec, True, said
     subject = found["id"]
     rec = _filed(rec["id"], base, rec)
     keep = []
@@ -277,16 +300,21 @@ def end(sid, base=None, now=None):
     _settle(base, subject, rec["id"])
     keep += _kept(base, subject, rec["id"])
     if not keep:
-        return rec, True, "ended; nothing of %s to commit" % subject
+        said = "ended; nothing of %s to commit" % subject
+        _remember_push(where, True, subject, said)
+        return rec, True, said
     ok, said = gitops.commit(base, keep, "%s: session %s ended" % (subject, rec["id"]))
     if not ok:
+        _remember_push(where, False, subject, said)
         return rec, ok, said
     # Pushed at once, so a laptop's `board code --end` meanwhile never leaves
     # main diverged here; a failed push leaves the commit, and the sync
     # thread merges and pushes once origin moves. A board push: main only,
     # and never a commit of the owner's not pushed yet.
     _pushed, pushed = gitops.push(base, board=True)
-    return rec, ok, "%s\n%s" % (said, pushed)
+    said = "%s\n%s" % (said, pushed)
+    _remember_push(where, bool(ok and _pushed), subject, said)
+    return rec, ok, said
 
 
 def reopen(sid, base=None):

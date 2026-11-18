@@ -398,7 +398,7 @@ try:
     check("bin/board commits through lesson_git.save, as the save button "
           "does, and runs no script of its own",
           "lesson_git.save(top, live.root, specs, message)" in push_body
-          and "save(top, repo.root, specs, message)" in button
+          and "save(top, repo.root, specs, message, commit_memo=commit_memo)" in button
           and "gitops.save(" not in push_body
           and "save-and-push.sh" not in push_body)
 

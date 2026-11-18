@@ -125,9 +125,11 @@ You never run a board command. The tool is `board/` at the root of Atlas, on the
 ## Git
 
 This course is a directory in [Pirate-Hunter-Zoro/Atlas](https://github.com/Pirate-Hunter-Zoro/Atlas),
-tracked by `main`, and it is not its own clone. Nothing here is committed or pushed
-automatically. The board's **⤓ save**, the offer `board finish` raises, and `board push` from a
-terminal all run `board/scripts/save-and-push.sh` from the root of Atlas, so the commit
+tracked by `main`, and it is not its own clone. The board's **⤓ save** and the offer
+`board finish` raises commit this course and push it to GitHub from the board itself. End
+commits and pushes too, and records the outcome in the session's `push.json` for its banner.
+A save or End commits `TUTOR.md` when it is the only change; `board push` from a terminal
+commits and pushes but leaves a `TUTOR.md`-only change for the next one. Either way the commit
 is of the whole repository.
 
 **That repository is PUBLIC.** Garling's text and the excerpts cut from it are somebody else's

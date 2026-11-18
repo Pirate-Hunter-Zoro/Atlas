@@ -87,7 +87,8 @@ def recorder(name, answer):
     def run(*args, **kw):
         CALLS.append({"fn": name, "args": [getattr(a, "live", a) for a in args
                                            if isinstance(a, str) or hasattr(a, "live")],
-                      "root": [getattr(a, "root", None) for a in args]})
+                      "root": [getattr(a, "root", None) for a in args],
+                      "kw": dict(kw)})
         return dict(answer)
     return run
 
@@ -317,7 +318,8 @@ DRIVE = {
     # writing
     ("GET", "/slate/state", "writing"): ("session", [("/slate/state", None, OK)]),
     # saving
-    ("POST", "/push", "saving"): ("session", [("/push", {"message": "{mark}"}, OK)]),
+    ("POST", "/push", "saving"): ("session", [
+        ("/push", {"message": "{mark}", "include_memo": True}, OK)]),
     ("POST", "/hw/build", "saving"): ("session", [("/hw/build", {}, OK)]),
     ("POST", "/export/shot", "saving"): ("session", [("/export/shot", {"pages": ["AA=="]}, OK)]),
     # library
@@ -600,6 +602,9 @@ for who in ("A", "B"):
             and (DIR[who] in c["args"] or os.path.join(atlas, SUBJECT[who]) in c["args"])]
     check("a push, a build and an export in %s each ran on %s's session or subject"
           % (who, who), sorted(set(c["fn"] for c in done)) == ["hw", "push", "shot"])
+    pushes = [c for c in done if c["fn"] == "push"]
+    check("POST /push in %s asks run_push to commit TUTOR.md" % who,
+          bool(pushes) and all(c["kw"].get("commit_memo") is True for c in pushes))
 
 # A second session on Alpha sees Alpha's document ink, and none of its cards'.
 rec = sessions.new("second on Alpha", base=atlas, now=1.7e9 + 5)

@@ -47,6 +47,7 @@ from ... import sense
 from ...course import config
 from ...lesson import cards
 from ...lesson import inbox
+from ...lesson import state
 from ...lesson import turns
 from ...runner import service as runner
 
@@ -590,6 +591,7 @@ def _end(h, repo):
     h.note("session %s ended (%s)" % (sid, said))
     h.hub.worker.dirty.set()
     out = {"ok": True, "session": rec, "committed": bool(committed),
-           "detail": said, "wrapup": queued}
+           "detail": said, "wrapup": queued,
+           "push": state.load_push(repo)}
     out.update(sent)
     return h.send_json(out)

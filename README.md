@@ -51,7 +51,7 @@ Inside a subject:
 | `tutorboard.json` | `name`, `check`, `speech` | yes |
 | `Brewfile`, `mise.toml`, `mise.lock`, `tools/<name>.sh` | the machine tools and toolchains it needs; a tap must be in the root `Brewfile.taps` | yes |
 | `RULES.md` | the owner's standing rules; a tutor turn may not commit it | yes |
-| `TUTOR.md` | the tutor's memory, written only with `board memo`; committed with End or real work, never alone | yes |
+| `TUTOR.md` | the tutor's memory, written only with `board memo`; End, real work and the board's save commit it, a terminal `board push` leaves a memo-only change alone, and a turn alone never commits it | yes |
 | `README.md` | the owner's own notes; never fed to a turn | yes |
 | `docs/<slug>/` | an artifact: `doc.json` plus its source | yes |
 | `**/feedback/<stem>-<date>-v<n>*` | a document's feedback rounds, read from disk by `ledger.py` | no |

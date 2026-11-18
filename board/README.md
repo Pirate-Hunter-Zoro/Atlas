@@ -123,7 +123,8 @@ Beside it: `cards/`, `slate/`, `answers/`,
   do mode. A change is a non-waking line, so the next turn reads it.
 - **Persist.** A session stays open until the owner taps End, twice when it is bound. End sets
   `ended`, commits the subject's `TUTOR.md` and the session's artifacts and pushes (main only,
-  and never past an unpushed commit of the owner's), then queues
+  and never past an unpushed commit of the owner's), recording the result in the session's
+  `push.json` for the board's banner, then queues
   a wrap-up turn that brings `TUTOR.md` up to date with `board memo`. A second End retries the
   commit and the push.
 - **The tutor's chip** in the header says whether DeepSeek is listening, working or gone. It
@@ -160,9 +161,10 @@ no marker file.
   edit, and the pre-commit hook refuses it in a turn. `TUTOR.md` is the tutor's: sections
   "Where things are", "Now", "Open decisions", "Done recently", at most 800 words, written
   only by `board memo <section>`. The cap refuses rather than trims, because the brief carries
-  the whole file. `TUTOR.md` is quiet: `board memo` never commits, and a save or `board push`
-  whose only change is `TUTOR.md` commits nothing, so it rides with End or the next save of
-  real work. A save with no message says `save: <changed files>`; `gitops.is_save` reads
+  the whole file. `TUTOR.md` commits on the owner's explicit push: `board memo` never commits,
+  and a terminal `board push` whose only change is `TUTOR.md` commits nothing, while the board's
+  save button and End commit it. A save with no message says `save: <changed files>`;
+  `gitops.is_save` reads
   a save back only bare or under the subject's own prefix, so `board: ...` is work.
 - **Delete** from the iPad needs the name typed. It is refused while an open session is bound
   to it or a coding session holds it.
