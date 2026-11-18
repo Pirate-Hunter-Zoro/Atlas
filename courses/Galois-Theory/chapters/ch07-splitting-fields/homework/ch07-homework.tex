@@ -852,6 +852,17 @@ That product is the minimal polynomial of $\alpha$: $\alpha$ has minimal polynom
 Write $K=F(\nu_1,\dots,\nu_n)$, with $n$ finite because $K/F$ is finite. For each $i$, $m_{\nu_i}=\prod_{\beta\in G\nu_i}(x-\beta)$, and each root $\beta=\sigma(\nu_i)$ lies in $K$. So every $m_{\nu_i}$ splits in $K[x]$.
 
 Let $f(x)=\prod_{i\in N_n}m_{\nu_i}(x)$. Each factor has coefficients in $F$, so $f\in F[x]$, and all its roots lie in $K$. Hence $K$ is a splitting field of $f$ over $F$: by definition of the $\nu_i$, $K$ is the smallest such field containing all the roots of $f$. $\square$
+
+\emph{Part (d).} Let $F\subseteq L\subseteq K$ with $K/F$ Galois. Since $K$ is the splitting field over $F$ of some $f\in F[x]$, and $F\subseteq L$, we have $K=L(\text{roots of }f)$; so $K$ is the splitting field of $f$ over $L$. Hence $K/L$ is normal by 9.1 and separable in characteristic $0$, so $K/L$ is Galois.
+
+Put $H=\operatorname{Gal}(K/L)\le\operatorname{Gal}(K/F)=G$. Part (b) gives $[K:K^H]=|H|$; this holds for any subgroup $H\le G$.
+
+Since $K/L$ is Galois, Problem 20(d) with base field $L$ gives
+\[
+[K:L]=|\operatorname{Gal}(K/L)|=|H| .
+\]
+
+Hence $[K:K^H]=[K:L]$. Every element of $L$ is fixed by every automorphism fixing $L$, so $L\subseteq K^H\subseteq K$, and the tower law gives $[K^H:L]=1$. So $K^H=L$.
 % ===== END SOLUTION 22 =====
 
 \end{document}
