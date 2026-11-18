@@ -48,7 +48,8 @@ Rules that hold throughout:
 
 - **Atlas stays public.**
 - **Git and sync.**
-  - TUTOR.md stays tracked, but commits only with End or with real work.
+  - TUTOR.md stays tracked; it commits with End, with real work, or on the
+    board's own save, never by a tutor turn alone.
   - End's commit and the sync pass push to GitHub automatically.
 - **Owner files are pre-approved:** the owner's RULES.md files, the subject READMEs and the
   ai-config `update-tools` fix.

@@ -23,7 +23,9 @@ def post(h, repo, path):
             payload = json.loads(h.read_body().decode("utf-8") or "{}")
         except Exception:
             payload = {}
-        record = git.run_push(repo, (payload.get("message") or "").strip() or None)
+        record = git.run_push(
+            repo, (payload.get("message") or "").strip() or None,
+            commit_memo=payload.get("include_memo") is True)
         git.invalidate_dirty()          # ask again now, not in eight seconds
         # Clear the end-of-session offer either way; a failure shows as a
         # banner with the reason rather than as a standing prompt.

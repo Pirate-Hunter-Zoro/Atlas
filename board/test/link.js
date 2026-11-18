@@ -2343,7 +2343,10 @@ async function headerFlow() {
       if (body.subject === 'projects/Cohort-Study') {
         return reply({ ok: false, error: 'this session cannot go there' }, 400);
       }
-      const ended = { ok: true, session: { ended: '2026-10-09 22:00' } };
+      const ended = { ok: true, session: { ended: '2026-10-09 22:00' },
+        push: { ok: true, at: 4102444800, iso: '2026-10-09 22:00',
+                workspace: 'courses/Linear-Algebra',
+                detail: 'committed: fixture\npushed main to origin' } };
       if (body.subject) {
         Object.assign(ended, { sent: { id: body.subject, name: names[body.subject] || body.subject,
                                        kind: '' }, filed: [], refused: [] });
@@ -2530,6 +2533,11 @@ async function headerFlow() {
   await sleep(20);
   posts('/end').length === 1
     ? ok('the second tap posts /end') : fail('End posted ' + posts('/end').length + ' times');
+  const pushBar = doc.getElementById('pushed');
+  const pushText = doc.getElementById('pushed-text').textContent;
+  !pushBar.hidden && /pushed main to origin/.test(pushText)
+    ? ok('the End reply\'s push is shown, with what it pushed')
+    : fail('the End push banner: hidden=' + pushBar.hidden + ' text=' + pushText);
   const endedbar = doc.getElementById('endedbar');
   !endedbar.hidden && doc.body.dataset.ended === '1' && end.disabled && chip.disabled
     && toggle.disabled

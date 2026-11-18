@@ -29,8 +29,8 @@ def invalidate_dirty():
 def repo_dirty(repo):
     """How many files are uncommitted in this workspace, or None if unknown:
     the board's unsaved-work badge. Scoped by `save_pathspec`, the scope
-    `run_push` commits, and filtered by `memo_only`: a TUTOR.md-only change
-    saves nothing, so it must not paint a count either.
+    `run_push` commits, so it counts exactly what an explicit save would
+    commit, TUTOR.md alone included.
     """
     now = time.time()
     key = os.path.realpath(repo.root)
@@ -49,14 +49,7 @@ def repo_dirty(repo):
             if p.returncode == 0:
                 lines = [l for l in p.stdout.decode("utf-8", "replace").splitlines()
                          if l.strip()]
-                names = []
-                for line in lines:
-                    # `XY <path>`, and a rename is `XY <old> -> <new>`.
-                    rel = line[3:].strip().strip('"')
-                    if " -> " in rel:
-                        rel = rel.split(" -> ", 1)[1]
-                    names.append(rel)
-                value = 0 if memo_only(names) else len(lines)
+                value = len(lines)
         except (OSError, subprocess.TimeoutExpired):
             value = None
     _DIRTY[key] = (now, value)
@@ -201,17 +194,20 @@ QUIET = ("only TUTOR.md changed, so nothing was committed: it goes in with the "
          "next End or the next save of real work")
 
 
-def save(top, root, specs, message=None):
+def save(top, root, specs, message=None, commit_memo=False):
     """The one save behind the save button and `board push`: commit `specs`
     in `top` and push (`gitops.save`). `(ok, said)`.
 
-    TUTOR.md is quiet: a save whose only change is TUTOR.md commits nothing
-    and rides with the next End or real-work commit. With no `message`, the
-    message is `gitops.save_message` of the changed files, relative to the
-    workspace at `root`; either way the workspace's prefix leads it.
+    TUTOR.md is quiet only for a terminal board push (`commit_memo` false): a
+    save whose only change is TUTOR.md commits nothing and rides with the next
+    End or real-work commit. `commit_memo` is the board's save button and End:
+    the owner's explicit push, so a TUTOR.md-only change is committed. With no
+    `message`, the message is `gitops.save_message` of the changed files,
+    relative to the workspace at `root`; either way the workspace's prefix
+    leads it.
     """
     found = changed(top, specs)
-    if found is not None and memo_only(found):
+    if not commit_memo and found is not None and memo_only(found):
         ok, pushed = gitops.push(top)
         # Never pair the TUTOR.md message with "already up to date": nothing
         # was committed, and the change is still sitting there by design.
@@ -229,12 +225,13 @@ def save(top, root, specs, message=None):
     return gitops.save(top, specs, message)
 
 
-def run_push(repo, message=None):
+def run_push(repo, message=None, commit_memo=False):
     """Commit and push this workspace (`save_pathspec`), and record it.
 
     No co-author trailer: the work is the owner's. Never commits into an
     outstanding rebase or merge, read from the repository's git directory;
-    the board says what is in the way.
+    the board says what is in the way. `commit_memo` is the board's save
+    button: an explicit push commits a TUTOR.md-only change.
     """
     busy = worktree.busy_reason(repo.root)
     if busy:
@@ -274,7 +271,7 @@ def run_push(repo, message=None):
     where = subjects.identify(repo.root)
     top = repo_top(repo.root)
     specs, _ = save_pathspec(repo.root, top)
-    ok, out = save(top, repo.root, specs, message)
+    ok, out = save(top, repo.root, specs, message, commit_memo=commit_memo)
     code = 0 if ok else 1
 
     record = {

@@ -3129,10 +3129,12 @@ function doPush() {
   els.pushed.className = "pushed";
   els.pushedIcon.textContent = "…";
   els.pushedText.textContent = "saving and pushing…";
+  /* Every browser save is the owner's explicit push, so it commits TUTOR.md
+     too; only a terminal `board push` leaves a memo-only change alone. */
   return api("/push", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({})
+    body: JSON.stringify({ include_memo: true })
   }).then(function (r) { return r.json(); })
     .then(function (rec) { paintBanner(rec, null, null); })
     .catch(function () {
@@ -4894,6 +4896,7 @@ function postEnd(body) {
       var rec = got.session || {};
       if (got.sent) boundTo = { id: got.sent.id, name: got.sent.name, at: Date.now() };
       paintHeader(Object.assign({}, headerState, { ended: rec.ended || "now" }));
+      if (got.push) paintBanner(got.push, null, null);
     } else {
       undo((got && got.error) || "no answer");
     }
