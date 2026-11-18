@@ -9,11 +9,11 @@
 
 ## Now
 
-Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20, 21 and 22(a),(b) are typed into label 22. Problem 22 is pinned; it is the seven-step proof of the fundamental theorem.
+Session 20261103-163801 works Part I of the uploaded sheet `GaloisTheoryAtWork.pdf`: Problems 20, 21, 22. The write-up is `chapters/ch07-splitting-fields/homework/ch07-homework.tex`, bound to ch07; 20, 21 and 22(a), (b), (c) are typed into label 22. Problem 22 is pinned; it is the seven-step proof of the fundamental theorem.
 
-22(c) is at its last step. They got $K^G=F$ by the tower law, the orbit product fixed by $G$ hence in $F$, and the orbit product equal to $m_\alpha$ because each factor divides the irreducible $m_\alpha$. On t0019-r12 they wrote $K=F(\gamma_1,\dots,\gamma_n)$, $m_{\gamma_i}=\prod_{\beta\in G\gamma_i}(x-\beta)$, roots $\beta=\sigma(\gamma_i)\in K$, then $\prod_i(x-\gamma_i)$. Card 0070 said that product's coefficients lie in $K$, not $F$; named $M=\prod_i m_{\gamma_i}\in F[x]$; and asked them to show $M$'s splitting field is exactly $K$ (roots all in $K$; $F$ with those roots gives $F(\gamma_1,\dots,\gamma_n)=K$).
+22(c) closed on t0019-r13: roots of $M=\prod_i m_{\nu_i}$ all lie in $K$, and $K=F(\nu_1,\dots,\nu_n)$ is the smallest field holding $F$ and them, so $K$ is the splitting field. Written up under label 22; page filed `handwritten/ch07-22.png`. Card 0071 posed 22(d).
 
-Open rung: those two inclusions. When agreed, add label 22 carrying (a) and (b) forward: each later `add 22` replaces the whole solution region.
+Open rung: $f$ has coefficients in $F$, so in $L$; show $K$ is the splitting field of $f$ over $L$ (roots in $K$; roots plus $L$ generate $K$). The route after that: $K/L$ Galois gives $|\operatorname{Gal}(K/L)|=[K:L]$ by 20(e), and (c) with base $L$ gives $K^{\operatorname{Gal}(K/L)}=L$.
 
 ## Open decisions
 
@@ -21,6 +21,7 @@ The board's own fallback still makes `docs/<session>/writeup.tex` for an unbound
 
 ## Done recently
 
+- 22(c) closed on t0019-r13 and written up under label 22: $K^G=F$ by the tower law, the orbit product in $F[x]$ from the $\sigma G=G$ reordering, that product the minimal polynomial $m_\alpha$, then $f=\prod_i m_{\nu_i}\in F[x]$ with all roots in $K$, and $K=F(\nu_1,\dots,\nu_n)$ the smallest field holding them, so $f$'s splitting field is $K$. Card 0071 posed 22(d).
 - 21(c) closed on t0010-r29 and written up under label 21 at the owner's direction (card 0057): the correspondence $T\mapsto(T(e_1),\dots,T(e_d))$, additivity and F-scaling, the K-vector-space identification $F^{d^2}\cong K^d\cong\operatorname{Hom}_F(K,K)$ as their diagram states it, restriction to $K^\times$, Dedekind (b), and $|\operatorname{Gal}(K/F)|\le d$. The K-linearity check for $c\in K$ was not written; the owner called it trivial and moved on. Problem 22 posed and pinned.
 - 21(b) Dedekind's lemma closed on t0010-r24 and written up under label 21: the owner chose $g$ with $\chi_1(g)\neq\chi_n(g)$, evaluated at $gx$, subtracted $\chi_1(g)$ times the relation at $x$, and boxed $c_n(\chi_n(g)-\chi_1(g))\neq0$; the survivor is a nontrivial relation among $\chi_2,\dots,\chi_n$ with fewer terms than the minimal one, a contradiction. Page filed `handwritten/ch07-21.png`. Card 0050 posed 21(c).
 - 21(a) closed on t0010 and written up under label 21: the minimal-support argument from t0010-r20 (subtracting the multiple of $x$ strictly shrinks the support) and the rank-nullity existence clause.
