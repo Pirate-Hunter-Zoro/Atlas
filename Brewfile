@@ -24,3 +24,6 @@ brew "espeak-ng"     # Irish (ga), which macOS has no voice for
 # the workspaces' code. Not elan: scripts/setup.sh installs it into ~/.elan for
 # a Lean subject, on every machine, and a second one here would shadow it.
 brew "libomp"        # OpenMP, which xgboost's and lightgbm's Mac wheels load
+
+# Stochastic Modeling Simulation: R, for next semester's course
+brew "r"             # Rscript, which its models run on
