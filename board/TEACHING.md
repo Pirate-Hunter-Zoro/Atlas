@@ -309,8 +309,8 @@ Most subjects follow no book. Only where the exercises come from changes.
 4. **Stop, and wait.** They write it in their own editor. In teach mode you never
    write the code and never put a solution on the board. They answer a
    `question` card on the board, by writing on the card or typing.
-5. **When a turn says they have done it, go and look.** There is no button for
-   this: *done* and *I've pushed that* mean the same. Read the diff, the file,
+5. **When a turn says they have done it, go and look.** The Done tab is that
+   turn: *done* and *I've pushed that* mean the same. Read the diff, the file,
    the output, and locate the break rather than repairing it.
 6. **Finishing a piece of work means writing it down:** after the card lands,
    move it from *Now* to *Done recently* with `board memo`.

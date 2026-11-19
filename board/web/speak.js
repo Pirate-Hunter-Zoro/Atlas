@@ -1,7 +1,7 @@
 /* ==========================================================================
    speak.js -- the board speaks and listens.
 
-   THE THIRD ANSWER TAB. `#tab-speak` opens `#speakbox` in the answer panel:
+   THE SPOKEN ANSWER TAB. `#tab-speak` opens `#speakbox` in the answer panel:
    record and stop, a level meter while recording, and the last heard block
    ("heard: ..."). A take is posted as multipart to `/s/<id>/speech/say`
    (`routes/speaking.py`), which answers with the heard record; the tutor is

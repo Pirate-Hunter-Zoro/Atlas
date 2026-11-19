@@ -232,6 +232,7 @@ var els = {
   tabWrite: document.getElementById("tab-write"),
   tabType: document.getElementById("tab-type"),
   tabSpeak: document.getElementById("tab-speak"),
+  tabDone: document.getElementById("tab-done"),
   file: document.getElementById("file"),
   drop: document.getElementById("drop")
 };
@@ -7392,17 +7393,24 @@ if (els.sayGrow) {
   };
 }
 
-function say(signal) {
-  var text = els.saybox.value.trim();
+/* `opts` exists for the one signal that is a button of its own (`done`): its
+   payload is fixed, so it must not pick up an unsent draft, and it must not
+   empty the box the draft was in. Everything else takes the box. */
+function say(signal, opts) {
+  opts = opts || {};
+  var text = opts.text !== undefined ? String(opts.text)
+                                     : els.saybox.value.trim();
   if (!text && !signal) return;
   /* THE HALF AN ANSWER WAS SENT ON IS THE HALF THE NEXT QUESTION OPENS ON.
      A signal is a tap on a button rather than an answer given on a surface, so
      it says nothing about which half to offer next. */
   if (!signal) setAnswerKind("type");
   saySending();
-  els.saybox.value = "";
-  if (answering.question) { textDrafts[answering.question] = ""; }
-  autosize();
+  if (!opts.keepBox) {
+    els.saybox.value = "";
+    if (answering.question) { textDrafts[answering.question] = ""; }
+    autosize();
+  }
   /* THE WORDS STAY WHERE THEY WERE TYPED, ON THIS FRAME. Not when the payload
      comes back with the turn on it -- that is a round trip, and what the box
      does in the meantime is the whole of the report. A signal is a tap on a
@@ -7430,14 +7438,37 @@ function say(signal) {
        NEXT thing typed into it would be sent as a revision of what was just
        sent, which is the defect wearing a different coat. */
     correctingTurn = null;
-    els.sendType.classList.add("sent");
-    setTimeout(function () { els.sendType.classList.remove("sent"); }, 900);
+    /* The tap that sent it says so for a moment: the receipt strip is under the
+       panel and a thumb is on the button. */
+    var flash = opts.flash !== undefined ? opts.flash : els.sendType;
+    if (flash) {
+      flash.classList.add("sent");
+      setTimeout(function () { flash.classList.remove("sent"); }, 900);
+    }
   });
 }
 
 els.tabWrite.onclick = function () { pickKind("write"); };
 els.tabType.onclick = function () { pickKind("type"); };
 if (els.tabSpeak) els.tabSpeak.onclick = function () { pickKind("speak"); };
+
+/* DONE IS AN ACTION, NOT A SURFACE. One tap answers the open question with the
+   fixed completion signal the reader and the tutor already share. It never
+   picks up what is in the box -- an unsent answer to something else must not be
+   sent as "done" -- and it leaves the box and its draft alone. */
+if (els.tabDone) {
+  els.tabDone.onclick = function () {
+    /* The panel is hidden whenever no question is owed, so a tap can only mean
+       the question on screen. Refuse anyway: a signal is a turn. */
+    if (els.writer.hidden || !answering.question || els.tabDone.disabled) return;
+    els.tabDone.disabled = true;
+    say("done", { text: "", keepBox: true, flash: els.tabDone }).then(function () {
+      els.tabDone.disabled = false;
+    }, function () {
+      els.tabDone.disabled = false;
+    });
+  };
+}
 
 function sendTyped() {
   if (!els.saybox.value.trim()) return;
@@ -7464,10 +7495,10 @@ els.saybox.addEventListener("keydown", function (e) {
 
 /* There were three signal buttons here -- ready to check, I need help, I'm
    confused -- shown only in a `code` course, docked over the lesson, one tap
-   each. They are gone with the mode that produced them. Anything they said is
-   said better in a written or typed turn, which every course has and which
-   arrives with the sentence that makes it useful; a tap that means "look at what
-   I changed" is a tap that leaves the tutor to guess at what and why. */
+   each. They are gone with the mode that produced them. "Done" survives as the
+   tab above, because it answers the question the tutor asked and its meaning is
+   fixed; the other two were replaced by saying what the trouble is, which every
+   course can do. */
 
 /* UPLOADS (D21): every file lands in this session's uploads/, with a line
    that wakes no turn. One XHR per batch, because fetch says nothing about

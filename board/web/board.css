@@ -1183,6 +1183,10 @@ body.tools-out { padding-bottom: 5.5rem; }
 }
 #writer-head .tab:hover { color: #e9e7e2; }
 #writer-head .tab.on { background: #2c2f37; color: #e9e7e2; border-color: #3a3e47; }
+/* A done tap sends at once and is not a surface, so it never takes `.on`. It
+   flashes where the thumb is instead, and greys while the send is out. */
+#writer-head .tab.sent { background: #7fc79a; border-color: #7fc79a; color: #16171a; }
+#writer-head .tab:disabled { opacity: .5; cursor: default; }
 
 /* The typed half. Same dark paper as the writer it sits in, so it reads as one
    block whether the page is light or dark.

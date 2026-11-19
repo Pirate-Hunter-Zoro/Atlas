@@ -123,7 +123,42 @@ try:
     status, body = post("/say", {"signal": "commence"})
     check("an unknown signal is refused", status == 400 and body.get("ok") is False)
 
-    # And the old ones still work, unchanged.
+    # A typed answer is unchanged by the Done tab: free text, no signal.
+    status, body = post("/say", {"text": "the append test passes",
+                                 "answers": "0003"})
+    check("a typed answer is still accepted", status == 200 and body.get("ok") is True)
+    typed = [t for t in turns.load_turns(repo) if t.get("id") == body.get("turn")]
+    check("as a text turn carrying no signal",
+          typed and typed[0].get("kind") == "text"
+          and typed[0].get("signal") is None
+          and typed[0].get("text") == "the append test passes")
+
+    # The board's Done tab sends exactly this: no text, the signal, and the
+    # question it answers. One tap is a whole turn.
+    status, body = post("/say", {"text": "", "signal": "done",
+                                 "answers": "0001", "turn": None})
+    check("the Done tab's payload is accepted",
+          status == 200 and body.get("ok") is True)
+    check("and the route answers with the turn it made",
+          bool(body.get("turn")) and isinstance(body.get("rev"), int))
+    done_turn = [t for t in turns.load_turns(repo)
+                 if t.get("id") == body.get("turn")]
+    check("it lands in the transcript as a text turn",
+          done_turn and done_turn[0].get("kind") == "text")
+    check("carrying the done signal and no free text",
+          done_turn and done_turn[0].get("signal") == "done"
+          and done_turn[0].get("text") == "")
+    check("and records which question it answers",
+          done_turn and done_turn[0].get("answers") == "0001")
+    with open(repo.messages_path, "r", encoding="utf-8") as fh:
+        lines = [json.loads(l) for l in fh if l.strip()]
+    done_line = lines[-1].get("text", "") if lines else ""
+    check("it reaches the inbox unread, which is what wakes the turn",
+          lines and lines[-1].get("read") is False)
+    check("and the line says what the tap means, because a tap has no sentence",
+          done_line.startswith("[done]") and "ready for you to check" in done_line)
+
+    # And the old bare form still works, for a cached app shell that offers it.
     status, _ = post("/say", {"signal": "done"})
     check("'done' still works", status == 200)
     with open(repo.messages_path, "r", encoding="utf-8") as fh:

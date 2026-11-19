@@ -473,12 +473,17 @@
 <section id="writer" hidden>
   <div id="writer-head">
     <span id="writer-label">Your answer</span>
-    <!-- One answer panel, two surfaces. The student flips between writing and
-         typing, and whichever they used last is the one that opens next time. -->
+    <!-- One answer panel, three surfaces. The student flips between writing,
+         typing and speaking, and whichever they used last is the one that opens
+         next time. -->
     <span class="tabs">
       <button id="tab-write" type="button" class="tab on">✎ write</button>
       <button id="tab-type" type="button" class="tab">⌨ type</button>
       <button id="tab-speak" type="button" class="tab">● speak</button>
+      <!-- Not a surface: one tap says the step the tutor set is done, which is
+           what a course whose work is code mostly needs to say. It sends the
+           fixed signal and never whatever is sitting in the typed box. -->
+      <button id="tab-done" type="button" class="tab" title="I did the step the tutor asked for">✓ done</button>
     </span>
     <span id="writer-hint"></span>
     <!-- A follow-up question is a new board, and a new board is a blank sheet.
@@ -546,11 +551,10 @@
   </div>
 </section>
 
-<!-- Three signal buttons stood here -- Ready to check, I need help, I'm
-     confused -- and only in a `code` course. There is no mode now and there are
-     no signals: the answer panel above is how every course answers, by writing
-     or by typing, and a sentence saying what was implemented is worth more than
-     a tap that means somebody should go and look for it. -->
+<!-- Ready to check, I need help and I'm confused used to stand here, only in a
+     `code` course, and they are gone with the mode that made them. What is left
+     is the one tap that has no sentence in it: `done` in the answer panel above,
+     for work whose result is in an editor rather than on the board. -->
 
 <input id="file" type="file" multiple hidden>
 <input id="file-pdf" type="file" accept="application/pdf,.pdf" hidden>
