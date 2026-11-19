@@ -382,11 +382,20 @@ def post(h, repo, path):
         if not text and not signal:
             return h.send_json({"ok": False, "error": "empty"}, status=400)
 
+        # An answer id, never a path: matched against the same strict pattern
+        # the typed drafts use, so '../../x' is refused rather than joined on.
+        given = payload.get("answers")
+        if given not in (None, ""):
+            if not re.match(r"^\d{1,4}$", str(given)):
+                return h.send_json({"ok": False, "error": "bad answers"}, status=400)
+        else:
+            given = None
+
         tid = payload.get("turn") or turns.next_turn_id(repo)
         rev = turns.turn_revision(repo, tid)
         record = {
             "id": tid, "rev": rev, "kind": "text",
-            "answers": payload.get("answers") or turns.newest_question(repo),
+            "answers": given or turns.newest_question(repo),
             "t": time.time(),
             "iso": time.strftime("%Y-%m-%d %H:%M:%S"),
             "from": payload.get("from") or "student",
@@ -395,9 +404,11 @@ def post(h, repo, path):
             "read": False,
         }
         turns.write_turn(repo, record)
-        # The draft became the answer; it must not return to the next prompt.
+        # A typed draft became the answer, so it must not return to the next
+        # prompt. A signal is a tap, not an answer: Done leaves the saved draft
+        # where it was.
         a = record.get("answers")
-        if a:
+        if a and not signal:
             try:
                 os.remove(os.path.join(repo.text, str(a) + ".txt"))
             except OSError:

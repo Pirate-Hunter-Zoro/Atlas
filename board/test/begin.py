@@ -28,6 +28,7 @@ sys.path.insert(0, ROOT)
 
 from tutorboard import machine
 from tutorboard.course import repo as course_repo
+from tutorboard.lesson import notes
 from tutorboard.lesson import state
 from tutorboard.lesson import turns
 from tutorboard.server import handler
@@ -157,6 +158,34 @@ try:
           lines and lines[-1].get("read") is False)
     check("and the line says what the tap means, because a tap has no sentence",
           done_line.startswith("[done]") and "ready for you to check" in done_line)
+
+    # A Done tap is not an answer given, so it must not consume a draft that was
+    # typed and saved for that question: only a typed send clears its own draft.
+    status, _ = post("/text/save", {"question": "0002",
+                                    "text": "nearly the whole argument"})
+    check("a typed draft saves for the open question", status == 200)
+    draft = os.path.join(repo.text, "0002.txt")
+    check("and its file is there", os.path.exists(draft))
+    status, _ = post("/say", {"text": "", "signal": "done", "answers": "0002"})
+    check("a Done tap on that question is accepted", status == 200)
+    check("and the saved draft survives the tap", os.path.exists(draft))
+    with open(draft, "r", encoding="utf-8") as fh:
+        check("with its words intact", fh.read() == "nearly the whole argument")
+    check("and still appears in the drafts the board lists",
+          notes.load_text_drafts(repo).get("0002") == "nearly the whole argument")
+
+    # `answers` names a card, never a path. A value that is not an id is
+    # refused before it can be joined onto the session's text directory.
+    outside = os.path.abspath(os.path.join(repo.text, "../../x.txt"))
+    with open(outside, "w", encoding="utf-8") as fh:
+        fh.write("keep me")
+    before = turns.load_turns(repo)
+    status, body = post("/say", {"text": "", "signal": "done",
+                                 "answers": "../../x"})
+    check("a path-like answers value is refused",
+          status == 400 and body.get("ok") is False)
+    check("and no turn lands for it", len(turns.load_turns(repo)) == len(before))
+    check("and the file it pointed at is untouched", os.path.exists(outside))
 
     # And the old bare form still works, for a cached app shell that offers it.
     status, _ = post("/say", {"signal": "done"})
