@@ -89,9 +89,7 @@ topic that needs it:
    input lands in `testdata/fuzz/` and stays tracked as a regression.
 6. **Golden files.** Cases worth reading by eye, such as graphs, strings, and DP tables, live in
    `testdata/` as text.
-7. **Doubling experiments.** Benchmarks use `testing.B` with `b.Loop` at n, 2n, 4n, and so on.
-   The ratio of successive times estimates the exponent, and the owner predicts it first.
-   A prediction that misses is a lesson, not a failure to hide.
+7. **Doubling experiments.** Benchmarks use `testing.B` with `b.Loop` at n, 2n, 4n, and so on. Walk the owner through coding up experiments and seeing the results.
 
 Algorithms that compute the same answer check each other: Dijkstra against Bellman-Ford and
 Floyd-Warshall on small random graphs, quickselect against sorting, a Fenwick tree against a
