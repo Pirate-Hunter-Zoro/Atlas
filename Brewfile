@@ -4,7 +4,9 @@
 # joined with every subject's own Brewfile (~/.local/state/atlas-setup/Brewfile.all),
 # and upkeep installs the same union through upkeep.d/hook. A line's comment
 # says what it is for, where the name does not. A tool only one subject uses
-# goes in that subject's Brewfile.
+# goes in that subject's Brewfile. A tool the owner asks to keep on the device
+# itself stays here even when a course is the reason and no subject directory
+# exists yet.
 
 # the board and the paper builders
 brew "texlive"       # latex, pdflatex, xelatex, latexmk
@@ -25,5 +27,6 @@ brew "espeak-ng"     # Irish (ga), which macOS has no voice for
 # a Lean subject, on every machine, and a second one here would shadow it.
 brew "libomp"        # OpenMP, which xgboost's and lightgbm's Mac wheels load
 
-# Stochastic Modeling Simulation: R, for next semester's course
+# Stochastic Modeling Simulation (next semester's course): R kept on this
+# device for it
 brew "r"             # Rscript, which its models run on
